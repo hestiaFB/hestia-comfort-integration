@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 
 from .bench.history import attribute, contacts, numbers
-from .physics.airfit import KINDS, MOVES, _run, score as air_score, values, vector
+from .physics.airfit import MOVES, TWINS, _run, score as air_score, values, vector
 from .physics.fit import Sample, _nelder_mead, fit, gestures, score
 from .physics.sunlight import sun_position, through_windows
 from .physics.thermal import STEP, Inputs, Params
@@ -42,6 +42,7 @@ class RoomSpec:
     cover: str | None = None            # a connected shutter: `current_position`
     co2: str | None = None
     particles: str | None = None
+    voc: str | None = None              # a VOC index (Sensirion), 1 to 500
     declared: frozenset = frozenset({"heat"})            # parameters declared, held by the search (fit.HELD)
 
 
@@ -84,15 +85,20 @@ def _merge(kept, found, start, end, now):
     return sorted((g for g in out if g[0] >= limit), key=lambda g: g[0])
 
 
-def _air_rows(kind, history, spec, data, outdoor, outdoor_humidity):
-    if kind == "water":
+# What each twin of the air reads: its sensor, the values that are faults, the outside air's own value.
+SENSORS = {"air": ("co2", lambda v: v >= CO2_FLOOR, 420.0), "particles": ("particles", lambda v: v <= PM25_CEILING, 0.0),
+           "voc": ("voc", lambda v: 0 < v <= 500, 100.0)}
+
+
+def _air_rows(key, history, spec, data, outdoor, outdoor_humidity):
+    if key == "water":
         rh, te, he = numbers(history, spec.humidity), numbers(history, outdoor), numbers(history, outdoor_humidity)
         return [(s, None if rh.at(s.when) is None or s.measured is None else absolute(s.measured, rh.at(s.when)),
                  None if te.at(s.when) is None or he.at(s.when) is None else absolute(te.at(s.when), he.at(s.when)))
                 for s in data]
-    series = numbers(history, spec.co2 if kind == "air" else spec.particles)
-    ok = (lambda v: v >= CO2_FLOOR) if kind == "air" else (lambda v: v <= PM25_CEILING)
-    return [(s, v if (v := series.at(s.when)) is not None and ok(v) else None, 420.0 if kind == "air" else 0.0) for s in data]
+    sensor, ok, outside = SENSORS[key]
+    series = numbers(history, getattr(spec, sensor))
+    return [(s, v if (v := series.at(s.when)) is not None and ok(v) else None, outside) for s in data]
 
 
 def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor: str, outdoor_humidity: str,
@@ -124,12 +130,12 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
     seen = [[g["when"].isoformat(), g["forecast"], g["measured"]] for g in gestures(heat, data) if g["kind"] == "window"]
     entry["gestures"]["heat"] = _merge(entry["gestures"].get("heat"), seen, start, now, now)
 
-    for kind, subject in KINDS.items():
-        if kind not in entry or not (spec.humidity if kind == "water" else spec.co2 if kind == "air" else spec.particles):
+    for key, kind, subject in TWINS:
+        if key not in entry or not getattr(spec, "humidity" if key == "water" else SENSORS[key][0]):
             continue
-        rows = _air_rows(kind, history, spec, data, outdoor, outdoor_humidity)
-        volume = entry[kind]["volume"]
-        x = vector(kind, entry[kind], entry[f"{kind}_flow"])
+        rows = _air_rows(key, history, spec, data, outdoor, outdoor_humidity)
+        volume = entry[key]["volume"]
+        x = vector(kind, entry[key], entry[f"{key}_flow"])
         if days >= MIN_DAYS:
             before = air_score(kind, x, volume, rows, split, now)
             found = _nelder_mead(lambda y: air_score(kind, y, volume, rows, start, split), x,
@@ -139,7 +145,7 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
             report[subject] = {"avant": round(before, 3), "apres": round(after, 3), "garde": kept}
             if kept:
                 x = found
-                entry[kind], entry[f"{kind}_flow"] = values(kind, x, volume)
+                entry[key], entry[f"{key}_flow"] = values(kind, x, volume)
         seen = [[when.isoformat(), forecast, measured]
                 for measured, forecast, when in _run(kind, x, volume, rows, start, now)["gestures"]]
         entry["gestures"][subject] = _merge(entry["gestures"].get(subject), seen, start, now, now)

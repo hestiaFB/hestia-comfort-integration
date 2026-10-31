@@ -94,6 +94,10 @@ def _run(kind, x, volume, rows, since, until):
 
 
 KINDS = {"water": "humidity", "air": "co2", "particles": "particles"}
+# Each twin of the air as kept (jumeaux.json): (its key, the law it follows, its subject). The VOC index follows the
+# particles' law.
+TWINS = (("water", "water", "humidity"), ("air", "air", "co2"), ("particles", "particles", "particles"),
+         ("voc", "particles", "voc"))
 
 
 def first(kind: str) -> list[float]:
