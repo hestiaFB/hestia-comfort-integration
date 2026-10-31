@@ -71,6 +71,12 @@ class Inputs:
     # W of sun through the room's windows, by their orientation (advisor/physics/sunlight.py), when it is declared:
     # an optional plus (CAHIER-MOTEUR.md § 6.7); without it, the horizontal sun times the learned `sun`.
     facade: float | None = None
+    # The same with every window shut, and with every window open: an open sash lets in more sun than its glass, and the
+    # advisor's scenarios shut or open them all (advisor/decide.py). None: `facade` holds whatever the windows do.
+    # The learned `glass` weighs both: counting an open sash's sun in full, without it, made Chambre AL's forecasts worse
+    # with its window open (bench of 31 October, 0.29 → 0.37 °C at one hour) and helped no other room.
+    facade_shut: float | None = None
+    facade_all: float | None = None
 
 
 def ordinary(room: Room) -> Params:

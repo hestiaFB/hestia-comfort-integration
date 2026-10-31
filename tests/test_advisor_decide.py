@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components" / "hestia_comfort"))
-from advisor.decide import GAIN, Gesture, Now, Thermostat, Twins, decide
+from advisor.decide import GAIN, Comfort, Gesture, Now, Thermostat, Twins, decide, significant, simulate
 from advisor.house import Opening, Room
 from advisor.physics.air import AirParams, BREATH
 from advisor.physics.thermal import Inputs, ordinary
@@ -100,3 +100,33 @@ class Gestures(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SunAndHeating(unittest.TestCase):
+    def test_an_open_sash_lets_in_more_sun_than_its_glass(self):
+        # 31 October, Chambre P at 15:40: the sun came straight in through the open window.
+        now = Now(air=20.0, walls=20.0, opened=())
+        glass = [(replace(u, facade=300.0, facade_shut=300.0), w) for u, w in day(outdoor=18.0)]
+        sash = [(replace(u, facade_all=500.0), w) for u, w in glass]
+        opened, through_glass = (simulate(TWINS, now, coming, Gesture("open")).air[-1] for coming in (sash, glass))
+        self.assertGreater(opened, through_glass)
+        shut = simulate(TWINS, now, sash, Gesture("nothing")).air[-1]
+        self.assertEqual(shut, simulate(TWINS, now, glass, Gesture("nothing")).air[-1])
+
+    def test_heat_let_out_of_a_room_the_heating_would_not_warm_is_no_saving(self):
+        # The test Home Assistant said « Refermez » for heat a window let out of a warm bedroom whose thermostat was idle.
+        heated = replace(TWINS, thermostat=Thermostat(target=17.0))
+        now = Now(air=22.5, walls=22.5, opened=(FRENCH.size, WEST.size))
+        coming = day(outdoor=16.0)
+        idle, shut = (simulate(heated, now, coming, Gesture(g)) for g in ("nothing", "close"))
+        self.assertGreater(idle.lost - shut.lost, 0.5)
+        self.assertNotIn("energy", significant(idle, shut, Comfort(minimum=17.0)))
+
+    def test_the_trend_the_twin_missed_carries_into_every_scenario_and_fades(self):
+        # The bedroom gained a degree the twin did not see: every scenario starts from it, and it fades within hours.
+        now = Now(air=20.0, walls=20.0, opened=(WEST.size,))
+        coming = day(outdoor=18.0)
+        for g in (Gesture("nothing"), Gesture("close")):
+            plain, warmer = (simulate(TWINS, replace(now, missed=m), coming, g) for m in (None, 1.0))
+            self.assertAlmostEqual(warmer.air[0] - plain.air[0], 1.0, places=6)
+            self.assertLess(warmer.air[-1] - plain.air[-1], 0.5)

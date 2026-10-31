@@ -9,6 +9,7 @@ cost, instead of one per threshold (CAHIER-MOTEUR.md § 10, § 11). Safety rules
 from dataclasses import dataclass, field, replace
 
 from .physics.air import AirParams, ParticleParams, air_step, particles_step
+from .physics.fit import DEFAULT_RECENT, correction
 from .physics.thermal import STEP, Inputs, Params, step
 from .physics.vents import conductance, leak_flow, window_flow
 from .physics.water import WaterParams, absolute, relative, water_step
@@ -89,6 +90,11 @@ class Now:
     co2: float | None = None                    # ppm
     particles: float | None = None              # µg/m³
     night: bool = False
+    # What the twin missed over the last hour (°C, measured minus forecast with what really came): the room's trend
+    # the twin did not see, carried into every scenario and fading over two hours (advisor/physics/fit.py). Bench of
+    # 31 October, 10 days, windows left as they were: it brings the one-hour error down by a fifth to two fifths —
+    # Chambre AL open 0.38 → 0.29 °C, salon open 0.23 → 0.13 °C; carried as a slope instead, it does no better.
+    missed: float | None = None
 
 
 @dataclass
@@ -100,6 +106,13 @@ class Path:
     particles: list[float] = field(default_factory=list)
     lost: float = 0.0           # kWh of heat let out through open windows
     heating: float = 0.0        # kWh the simulated thermostat spends
+    heated: bool = False        # a thermostat was simulated: `heating` is what the gesture really costs
+
+    @property
+    def spent(self) -> float:
+        """kWh the scenario costs: what the thermostat spends when it is simulated — heat let out of a room the heating
+        would not have warmed anyway costs nothing —, otherwise the heat the windows let out."""
+        return self.heating if self.heated else self.lost
 
 
 # Later moments compared with « now »: a gesture an hour or two away is advised as « vers 16 h ».
@@ -129,7 +142,7 @@ def _flow(learned, volume, windows, air, outdoor, wind):
 
 def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], gesture: Gesture) -> Path:
     """The room under `gesture`, over the coming steps: (inputs, outdoor water g/m³ or None)."""
-    path = Path()
+    path = Path(heated=twins.thermostat is not None)
     air, walls = now.air, now.walls
     water = reserve = None
     if twins.water and now.humidity is not None:
@@ -138,20 +151,24 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
     co2, particles = now.co2, now.particles
     for k, (u, outdoor_water) in enumerate(coming):
         windows = _open(gesture, now, twins, k)
-        u = replace(u, windows=windows)
+        # The sun of the scenario's windows: through the glass when shut, more of it through an open sash.
+        facade = u.facade_shut if not windows else u.facade_all if windows == twins.windows else None
+        u = replace(u, windows=windows, facade=u.facade if facade is None else facade)
         if twins.thermostat:
-            u = replace(u, heating=twins.thermostat.power(air, u.outdoor, windows))
+            # The thermostat reads the room as it is, the twin's trend included.
+            felt = path.air[-1] if path.air else now.air
+            u = replace(u, heating=twins.thermostat.power(felt, u.outdoor, windows))
             path.heating += twins.heat.heat * u.heating * HOURS / 1000
         before = air
         air, walls = step(twins.heat, air, walls, u)
-        path.air.append(air)
+        path.air.append(air + correction(DEFAULT_RECENT, now.missed, k))
         if windows:
             out = sum(window_flow(a, h, before, u.outdoor, u.wind) for a, h in windows) * twins.heat.window
             path.lost += max(0.0, conductance(out) * (before - u.outdoor)) * HOURS / 1000
         if water is not None and outdoor_water is not None:
             flow = _flow(twins.water_flow, twins.water.volume, windows, before, u.outdoor, u.wind)
             water, reserve = water_step(twins.water, water, reserve, outdoor_water, flow, u.hour)
-            path.humidity.append(relative(air, water))
+            path.humidity.append(relative(path.air[-1], water))
         if twins.air and co2 is not None:
             co2 = air_step(twins.air, co2, _flow(twins.air_flow, twins.air.volume, windows, before, u.outdoor, u.wind), u.hour)
             path.co2.append(co2)
@@ -192,7 +209,7 @@ def significant(idle: Path, chosen: Path, comfort: Comfort, night: bool = False)
             gap = before[-1] - after[-1]
             if gap >= SIGNIFICANT[subject] * scale or (kept >= KEPT_STEPS and gap >= KEPT_SHARE * SIGNIFICANT[subject] * scale):
                 found.append(subject)
-    if idle.lost - chosen.lost >= SIGNIFICANT["energy"] * scale:
+    if idle.spent - chosen.spent >= SIGNIFICANT["energy"] * scale:
         found.append("energy")
     return found
 
@@ -204,8 +221,7 @@ def cost(path: Path, comfort: Comfort, weights: Weights, gesture: Gesture, night
         "humidity": weights.humidity * sum(max(0.0, h - comfort.humidity) for h in path.humidity) * HOURS,
         "co2": weights.co2 * sum(max(0.0, c - comfort.co2) for c in path.co2) * HOURS,
         "particles": weights.particles * sum(max(0.0, p - comfort.particles) for p in path.particles) * HOURS,
-        # With a thermostat simulated, what the heating really spends; without, the heat the windows let out.
-        "energy": weights.energy * (path.heating if path.heating else path.lost),
+        "energy": weights.energy * path.spent,
         "bother": 0.0 if gesture.kind == "nothing" else weights.bother * (weights.night if night else 1.0),
     }
     terms["total"] = sum(terms.values())

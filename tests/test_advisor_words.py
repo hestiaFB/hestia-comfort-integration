@@ -36,6 +36,14 @@ class WordsTest(unittest.TestCase):
         unsure = decide(TWINS, Now(air=20.6, walls=20.6, opened=(FRENCH.size,), humidity=66.0, night=True), night())
         self.assertTrue(phrase(unsure, end_hour=7, sure=False)["line"].endswith(", sans doute"))
 
+    def test_nothing_to_do_never_says_in_your_range_when_the_room_is_not(self):
+        # 31 October, Chambre P at 18.3 °C, its window open on a mild afternoon: « restera dans votre plage » was false.
+        decision = decide(TWINS, Now(air=18.3, walls=18.3, opened=(FRENCH.size,), humidity=50.0), day(outdoor=18.3))
+        words = phrase(decision, end_hour=17)
+        self.assertEqual(words["title"], "Rien à faire")
+        self.assertRegex(words["line"], r"^Ouverte ou fermée : \d+,\d °C à 17 h$")
+        self.assertNotIn("plage", words["line"])
+
     def test_every_language_has_every_phrase(self):
         self.assertEqual(set(TEXTS["en"]), set(TEXTS["fr"]))
         self.assertEqual(set(TEXTS["de"]), set(TEXTS["fr"]))
