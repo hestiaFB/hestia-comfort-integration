@@ -14,7 +14,8 @@ import sys
 from scipy.optimize import minimize
 
 from ..physics.air import AirParams, BREATH, ParticleParams, air_step, particles_step
-from ..physics.vents import leak_flow, window_flow
+from ..physics.airfit import BOUND, MOVES, START, _e, _flow, _run  # noqa: F401 - the bench's own names
+from ..physics.vents import leak_flow
 from ..physics.water import WaterParams, absolute, water_step
 from . import twin_check as T
 from .history import load, numbers
@@ -27,86 +28,9 @@ CO2_FLOOR = 300.0
 POINTS = 100 / absolute(20.0, 100.0)
 
 
-# Logarithms are kept within this, the search's first moves are these: a search started with the default tiny moves on a
-# value at zero never leaves it (first run of 31 October, every room stuck at ×1.00).
-BOUND = 4.0
-MOVES = {"water": [0.7, 0.7, 0.7, 0.7, 20.0, 15.0, 15.0], "air": [0.7, 0.7, 0.02, 0.015, 0.015],
-         "particles": [0.7, 0.7, 0.7, 5.0, 50.0, 40.0, 40.0]}
-START = {"particles": [0.0, 0.0, math.log(0.5), 10.0, 50.0, 0.0, 0.0]}
 PM25 = {"Salon": "sensor.ikea_sensor_pm25"}
 # The IKEA sensor reports 999 µg/m³ when it fails: above this, never a measure.
 PM25_CEILING = 500.0
-
-
-def _e(v):
-    return math.exp(min(BOUND, max(-BOUND, v)))
-
-
-def _flow(x, volume, sample):
-    """Outdoor air coming in, m³/h: the leaks and the open windows, each scaled by what was learned."""
-    u = sample.inputs
-    leaks = _e(x[0]) * leak_flow(volume)
-    windows = _e(x[1]) * sum(window_flow(a, h, sample.measured, u.outdoor, u.wind) for a, h in u.windows)
-    return leaks + windows
-
-
-def _run(kind, x, volume, rows, since, until):
-    """Forecasts of one and three hours from every half hour in [since, until), with the last hour's error added (as the
-    heat's twin does); and each window opening. rows: (sample, measured value, outdoor value) every five minutes."""
-    out = {"hour": [], "three": [], "still_hour": [], "still_three": [], "gestures": []}
-
-    def model(value, hidden, i):
-        s, _, outdoor = rows[i]
-        flow = _flow(x, volume, s)
-        if kind == "water":
-            p = WaterParams(volume, _e(x[2]), _e(x[3]), x[4], x[5], x[6])
-            return water_step(p, value, hidden, outdoor, flow, s.inputs.hour)
-        if kind == "particles":
-            p = ParticleParams(volume, _e(x[2]), x[3], x[4], x[5], x[6])
-            return particles_step(p, value, flow, s.inputs.hour), hidden
-        p = AirParams(volume, x[2], x[3], x[4])
-        return air_step(p, value, flow, s.inputs.hour), hidden
-
-    def ok(i):
-        return 0 <= i < len(rows) and rows[i][0].inputs is not None and rows[i][0].measured is not None \
-            and rows[i][1] is not None and rows[i][2] is not None
-
-    hidden, track = None, {}
-    for i, (s, value, outdoor) in enumerate(rows):
-        if not ok(i):
-            hidden = None
-            continue
-        hidden = value if hidden is None else hidden
-        track[i] = hidden
-        inside = since <= s.when < until
-        if inside and s.when.minute % 30 == 0 and ok(i + THREE):
-            missed = 0.0
-            if i - HOUR in track and all(ok(j) for j in range(i - HOUR, i)):
-                v, h = rows[i - HOUR][1], track[i - HOUR]
-                for j in range(i - HOUR, i):
-                    v, h = model(v, h, j)
-                missed = value - v
-            v, h, at_hour, good = value, hidden, None, True
-            for k in range(THREE):
-                if not ok(i + k):
-                    good = False
-                    break
-                v, h = model(v, h, i + k)
-                if k == HOUR - 1:
-                    at_hour = v + missed * math.exp(-k / 24)
-            if good:
-                out["hour"].append(at_hour - rows[i + HOUR][1])
-                out["still_hour"].append(value - rows[i + HOUR][1])
-                out["three"].append(v + missed * math.exp(-(THREE - 1) / 24) - rows[i + THREE][1])
-                out["still_three"].append(value - rows[i + THREE][1])
-        before = rows[i - 1][0].inputs if i else None
-        if inside and before is not None and s.inputs.windows and not before.windows and all(ok(i + k) for k in range(HOUR + 1)):
-            v, h = value, hidden
-            for k in range(HOUR):
-                v, h = model(v, h, i + k)
-            out["gestures"].append((rows[i + HOUR][1] - value, v - value))
-        _, hidden = model(value, hidden, i)
-    return out
 
 
 def _mean(values):
@@ -152,10 +76,10 @@ def check(history_path, sun_path, *extra):
                              options={"maxfev": 800, "xatol": 1e-3, "fatol": 1e-4, "initial_simplex": simplex})
             e = _run(kind, found.x, known.air, rows, split, end)
             if kind == "water":
-                e = {k: ([v * POINTS for v in vals] if k != "gestures" else [(a * POINTS, b * POINTS) for a, b in vals])
+                e = {k: ([v * POINTS for v in vals] if k != "gestures" else [(a * POINTS, b * POINTS) for a, b, *_ in vals])
                      for k, vals in e.items()}
             g = e["gestures"]
-            gesture = (f"{len(g)} aérations : mesuré {sum(a for a, _ in g) / len(g):+.1f}, prévu {sum(b for _, b in g) / len(g):+.1f} {unit} en 1 h"
+            gesture = (f"{len(g)} aérations : mesuré {sum(a for a, *_ in g) / len(g):+.1f}, prévu {sum(b for _, b, *_ in g) / len(g):+.1f} {unit} en 1 h"
                        if g else "aucune aération dans les jours de test")
             print(f"{name:11} {label:9} 1 h {_mean(e['hour']):5.1f} ({_mean(e['still_hour']):5.1f}) · 3 h {_mean(e['three']):5.1f}"
                   f" ({_mean(e['still_three']):5.1f}) {unit} · {gesture}", flush=True)
@@ -199,7 +123,7 @@ def shared(history_path, sun_path, co2_path, room="Salon"):
         e = _run(kind, x, known.air, rows, split, end)
         g = e["gestures"]
         print(f"  {label:34} 1 h {_mean(e['hour']) * factor:5.1f} · 3 h {_mean(e['three']) * factor:5.1f} {unit} ·"
-              f" aérations : mesuré {sum(a for a, _ in g) / len(g) * factor:+.1f}, prévu {sum(b for _, b in g) / len(g) * factor:+.1f}"
+              f" aérations : mesuré {sum(a for a, *_ in g) / len(g) * factor:+.1f}, prévu {sum(b for _, b, *_ in g) / len(g) * factor:+.1f}"
               f" · fenêtres ×{_e(x[1]):.2f}", flush=True)
     air_x = fitted("air", air_rows)
     water_own = fitted("water", water_rows)

@@ -1,0 +1,134 @@
+"""How the twins of the water, the CO₂ and the particles learn their room: forecasts of one and three hours from every
+half hour, scored against what was then measured, and what each window opening did against what was forecast.
+
+Shared by the bench (advisor/bench/air_check.py, with SciPy's search) and the nightly learning (advisor/nightly.py, with
+the twin's own search, advisor/physics/fit.py): Home Assistant has no SciPy. A twin is a vector `x`: the logarithms of
+its learned leaks and window multipliers, then its own values (`vector`, `values`).
+"""
+import math
+
+from .air import AirParams, ParticleParams, air_step, particles_step
+from .vents import leak_flow, window_flow
+from .water import WaterParams, water_step
+
+HOUR, THREE = 12, 36
+
+
+# Logarithms are kept within this, the search's first moves are these: a search started with the default tiny moves on a
+# value at zero never leaves it (first run of 31 October, every room stuck at ×1.00).
+BOUND = 4.0
+MOVES = {"water": [0.7, 0.7, 0.7, 0.7, 20.0, 15.0, 15.0], "air": [0.7, 0.7, 0.02, 0.015, 0.015],
+         "particles": [0.7, 0.7, 0.7, 5.0, 50.0, 40.0, 40.0]}
+START = {"particles": [0.0, 0.0, math.log(0.5), 10.0, 50.0, 0.0, 0.0]}
+
+
+def _e(v):
+    return math.exp(min(BOUND, max(-BOUND, v)))
+
+
+def _flow(x, volume, sample):
+    """Outdoor air coming in, m³/h: the leaks and the open windows, each scaled by what was learned."""
+    u = sample.inputs
+    leaks = _e(x[0]) * leak_flow(volume)
+    windows = _e(x[1]) * sum(window_flow(a, h, sample.measured, u.outdoor, u.wind) for a, h in u.windows)
+    return leaks + windows
+
+
+def _run(kind, x, volume, rows, since, until):
+    """Forecasts of one and three hours from every half hour in [since, until), with the last hour's error added (as the
+    heat's twin does); and each window opening. rows: (sample, measured value, outdoor value) every five minutes."""
+    out = {"hour": [], "three": [], "still_hour": [], "still_three": [], "gestures": []}
+
+    def model(value, hidden, i):
+        s, _, outdoor = rows[i]
+        flow = _flow(x, volume, s)
+        if kind == "water":
+            p = WaterParams(volume, _e(x[2]), _e(x[3]), x[4], x[5], x[6])
+            return water_step(p, value, hidden, outdoor, flow, s.inputs.hour)
+        if kind == "particles":
+            p = ParticleParams(volume, _e(x[2]), x[3], x[4], x[5], x[6])
+            return particles_step(p, value, flow, s.inputs.hour), hidden
+        p = AirParams(volume, x[2], x[3], x[4])
+        return air_step(p, value, flow, s.inputs.hour), hidden
+
+    def ok(i):
+        return 0 <= i < len(rows) and rows[i][0].inputs is not None and rows[i][0].measured is not None \
+            and rows[i][1] is not None and rows[i][2] is not None
+
+    hidden, track = None, {}
+    for i, (s, value, outdoor) in enumerate(rows):
+        if not ok(i):
+            hidden = None
+            continue
+        hidden = value if hidden is None else hidden
+        track[i] = hidden
+        inside = since <= s.when < until
+        if inside and s.when.minute % 30 == 0 and ok(i + THREE):
+            missed = 0.0
+            if i - HOUR in track and all(ok(j) for j in range(i - HOUR, i)):
+                v, h = rows[i - HOUR][1], track[i - HOUR]
+                for j in range(i - HOUR, i):
+                    v, h = model(v, h, j)
+                missed = value - v
+            v, h, at_hour, good = value, hidden, None, True
+            for k in range(THREE):
+                if not ok(i + k):
+                    good = False
+                    break
+                v, h = model(v, h, i + k)
+                if k == HOUR - 1:
+                    at_hour = v + missed * math.exp(-k / 24)
+            if good:
+                out["hour"].append(at_hour - rows[i + HOUR][1])
+                out["still_hour"].append(value - rows[i + HOUR][1])
+                out["three"].append(v + missed * math.exp(-(THREE - 1) / 24) - rows[i + THREE][1])
+                out["still_three"].append(value - rows[i + THREE][1])
+        before = rows[i - 1][0].inputs if i else None
+        if inside and before is not None and s.inputs.windows and not before.windows and all(ok(i + k) for k in range(HOUR + 1)):
+            v, h = value, hidden
+            for k in range(HOUR):
+                v, h = model(v, h, i + k)
+            out["gestures"].append((rows[i + HOUR][1] - value, v - value, s.when))
+        _, hidden = model(value, hidden, i)
+    return out
+
+
+KINDS = {"water": "humidity", "air": "co2", "particles": "particles"}
+
+
+def first(kind: str) -> list[float]:
+    """Where a twin's search starts before anything is learned."""
+    if kind in START:
+        return list(START[kind])
+    return [0.0, 0.0, math.log(0.5), math.log(5.0), 30.0, 0.0, 0.0] if kind == "water" else [0.0, 0.0, 0.036, 0.0, 0.0]
+
+
+def vector(kind: str, values: dict, flow) -> list[float]:
+    """A learned twin back as the search's vector: `values`, its parameters as kept; `flow`, its leaks and windows."""
+    x = [math.log(flow[0]), math.log(flow[1])]
+    if kind == "water":
+        return x + [math.log(values["exchange"]), math.log(values["reserve"]), values["sources"], values["rhythm_cos"],
+                    values["rhythm_sin"]]
+    if kind == "air":
+        return x + [values["sources"], values["rhythm_cos"], values["rhythm_sin"]]
+    return x + [math.log(values["settling"]), values["outdoor"], values["sources"], values["rhythm_cos"], values["rhythm_sin"]]
+
+
+def values(kind: str, x, volume: float) -> tuple[dict, list[float]]:
+    """The search's vector as a twin's parameters to keep, and its leaks and windows multipliers."""
+    flow = [_e(x[0]), _e(x[1])]
+    if kind == "water":
+        return {"volume": volume, "exchange": _e(x[2]), "reserve": _e(x[3]), "sources": x[4], "rhythm_cos": x[5],
+                "rhythm_sin": x[6]}, flow
+    if kind == "air":
+        return {"volume": volume, "sources": x[2], "rhythm_cos": x[3], "rhythm_sin": x[4]}, flow
+    return {"volume": volume, "settling": _e(x[2]), "outdoor": x[3], "sources": x[4], "rhythm_cos": x[5],
+            "rhythm_sin": x[6]}, flow
+
+
+def score(kind, x, volume, rows, since, until) -> float:
+    """Mean error at one hour plus at three hours: what the search lowers. Infinite without a forecast."""
+    e = _run(kind, x, volume, rows, since, until)
+    if not e["three"]:
+        return float("inf")
+    return sum(abs(v) for v in e["hour"]) / len(e["hour"]) + sum(abs(v) for v in e["three"]) / len(e["three"])
