@@ -5,6 +5,7 @@ The same formulas as Hestia Comfort 2.1 (engine/twin.py `sun_position`, engine/a
 is taken as it is (CAHIER-MOTEUR.md § 21). At home the position comes from Home Assistant's `sun.sun`; for the coming
 hours and on the bench it is computed here.
 """
+from datetime import timedelta
 import math
 
 EXPOSURES = {"N": 0, "NE": 45, "E": 90, "SE": 135, "S": 180, "SO": 225, "O": 270, "NO": 315}
@@ -58,3 +59,37 @@ def through_windows(solar: float, elevation: float, azimuth: float, windows, ope
             watts /= SHELTER_ATTENUATION
         total += area * watts * (1.0 if i in opened else GLASS)
     return total
+
+
+# The sun is on a facade when it faces it within this angle and stands this high: lower or more sideways, it grazes the
+# wall and hardly enters (Adaptive Cover Pro, on Chambre P's window: 60 to 86° each side, 8° high).
+FACING, LOW_SUN = 75.0, 5.0
+BEARINGS = ((0, "north"), (45, "north_east"), (90, "east"), (135, "south_east"), (180, "south"), (225, "south_west"),
+            (270, "west"), (315, "north_west"))
+
+
+def facing(bearing: float | None, elevation: float, azimuth: float) -> bool:
+    """Whether the sun shines on a facade of this bearing."""
+    if bearing is None or elevation < LOW_SUN:
+        return False
+    return abs(((azimuth - bearing + 540) % 360) - 180) <= FACING
+
+
+def sun_hours(day, latitude: float, longitude: float, bearing: float | None, step_minutes: int = 5):
+    """When the sun is on a facade on `day` (an aware datetime at local midnight): (start, end) of each stretch."""
+    stretches, start, when = [], None, day
+    end = day + timedelta(days=1)
+    while when <= end:
+        on = when < end and facing(bearing, *sun_position(when, latitude, longitude))
+        if on and start is None:
+            start = when
+        elif not on and start is not None:
+            stretches.append((start, when))
+            start = None
+        when += timedelta(minutes=step_minutes)
+    return stretches
+
+
+def bearing_name(bearing: float) -> str:
+    """The nearest of the eight directions, as a key of the words (« west », « south_east »…)."""
+    return min(BEARINGS, key=lambda b: abs(((bearing - b[0] + 540) % 360) - 180))[1]

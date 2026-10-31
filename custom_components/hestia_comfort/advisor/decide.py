@@ -13,6 +13,7 @@ from .physics.fit import DEFAULT_RECENT, correction
 from .physics.thermal import STEP, Inputs, Params, step
 from .physics.vents import conductance, leak_flow, window_flow
 from .physics.water import WaterParams, absolute, relative, water_step
+from .proof import PROVEN, REINFORCED, SUPPOSED
 
 HOURS = STEP / 3600
 # A gesture is advised only when it saves at least this much (in the cost's unit, about one degree out of the range for
@@ -193,9 +194,14 @@ def _outside(values, low, high):
     return sum(1 for v in values if v < low or v > high)
 
 
-def significant(idle: Path, chosen: Path, comfort: Comfort, night: bool = False) -> list[str]:
-    """The subjects on which `chosen` makes a difference worth a gesture, against doing nothing."""
-    scale = NIGHT_STRICTER if night else 1.0
+# An effect only reinforced must be this much clearer (CAHIER-MOTEUR.md § 4.1); it does not add up with the night's.
+REINFORCED_STRICTER = 2.0
+
+
+def significant(idle: Path, chosen: Path, comfort: Comfort, night: bool = False, stricter: float = 1.0) -> list[str]:
+    """The subjects on which `chosen` makes a difference worth a gesture, against doing nothing; `stricter` multiplies the
+    gaps, unless the night already does more."""
+    scale = max(NIGHT_STRICTER if night else 1.0, stricter)
     found = []
     if idle.air and chosen.air:
         kept = _outside(idle.air, comfort.minimum, comfort.maximum) - _outside(chosen.air, comfort.minimum, comfort.maximum)
@@ -209,7 +215,9 @@ def significant(idle: Path, chosen: Path, comfort: Comfort, night: bool = False)
             gap = before[-1] - after[-1]
             if gap >= SIGNIFICANT[subject] * scale or (kept >= KEPT_STEPS and gap >= KEPT_SHARE * SIGNIFICANT[subject] * scale):
                 found.append(subject)
-    if idle.spent - chosen.spent >= SIGNIFICANT["energy"] * scale:
+    # Energy is a subject only where the heating is simulated: without, the heat a window lets out shows as the room's
+    # own cooling, already counted on the heat.
+    if idle.heated and idle.spent - chosen.spent >= SIGNIFICANT["energy"] * scale:
         found.append("energy")
     return found
 
@@ -228,18 +236,34 @@ def cost(path: Path, comfort: Comfort, weights: Weights, gesture: Gesture, night
     return terms
 
 
+SUBJECTS = ("heat", "humidity", "co2", "particles", "energy")
+
+
+def main_subject(scenarios: dict, gesture: Gesture) -> str | None:
+    """What a gesture mostly does: the cost term it lowers the most against « do nothing »."""
+    nothing, chosen = scenarios.get(Gesture("nothing")), scenarios.get(gesture)
+    if gesture.kind == "nothing" or nothing is None or chosen is None:
+        return None
+    return max(SUBJECTS, key=lambda s: nothing[s] - chosen[s])
+
+
 @dataclass(frozen=True)
 class Decision:
     gesture: Gesture
     gain: float                             # what it saves against « do nothing », in the cost's unit
-    rule: str                               # best | nothing | kept | safety
+    rule: str                               # best | nothing | insignificant | kept | safety | unproven
     scenarios: dict                         # gesture → its cost terms, for « Pourquoi ? » and the trace
     paths: dict = field(default_factory=dict, repr=False)
+    level: str = PROVEN                     # how sure the effect it rests on is (advisor/proof.py)
+    # The gesture the twin found worth it, held back because its effect is not proven enough: a passive advice, to try.
+    passive: Gesture | None = None
 
 
 def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
-           previous: Gesture | None = None, forbidden: frozenset[str] = frozenset()) -> Decision:
-    """The gesture to advise. `forbidden`: kinds a safety rule takes away (« open » under the rain, in gusts…)."""
+           previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
+           proof: dict[str, str] | None = None) -> Decision:
+    """The gesture to advise. `forbidden`: kinds a safety rule takes away (« open » under the rain, in gusts…).
+    `proof`: the level of the windows' effect on each subject (advisor/proof.py); None, all taken as proven."""
     if "open" in forbidden and now.opened:
         # The rain or the gusts: what is open is shut, whatever it costs.
         return Decision(Gesture("close"), 0.0, "safety", {})
@@ -258,4 +282,14 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         best, rule = Gesture("nothing"), "insignificant"
     else:
         rule = "best"
-    return Decision(best, nothing - costs[best]["total"], rule, costs, paths)
+    gain = nothing - costs[best]["total"]
+    if best.kind == "nothing" or proof is None:
+        return Decision(best, gain, rule, costs, paths)
+    # Only a proven effect sends a gesture to the banner as soon as it is significant; a reinforced one must be clear-cut;
+    # a supposed one stays a passive advice (CAHIER-MOTEUR.md § 4.1). The energy a window saves rests on its heat.
+    subject = main_subject(costs, best)
+    found = proof.get("heat" if subject == "energy" else subject, SUPPOSED)
+    if found == PROVEN or (found == REINFORCED and significant(paths[Gesture("nothing")], paths[best], comfort, now.night,
+                                                                stricter=REINFORCED_STRICTER)):
+        return Decision(best, gain, rule, costs, paths, level=found)
+    return Decision(Gesture("nothing"), gain, "unproven", costs, paths, level=found, passive=best)
