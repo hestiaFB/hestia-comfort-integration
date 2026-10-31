@@ -49,9 +49,9 @@ STEP_MINUTES = 5
 
 def subject_of(decision: Decision) -> str | None:
     """What the advised gesture mostly does: the cost term it lowers the most against « do nothing »."""
-    if decision.gesture.kind == "nothing" or not decision.scenarios:
+    nothing, best = decision.scenarios.get(Gesture("nothing")), decision.scenarios.get(decision.gesture)
+    if decision.gesture.kind == "nothing" or nothing is None or best is None:
         return None
-    nothing, best = decision.scenarios[Gesture("nothing")], decision.scenarios[decision.gesture]
     return max(SUBJECTS, key=lambda s: nothing[s] - best[s])
 
 
