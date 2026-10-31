@@ -10,6 +10,7 @@ from dataclasses import dataclass, field, replace
 
 from .physics.air import AirParams, ParticleParams, air_step, particles_step
 from .physics.fit import DEFAULT_RECENT, correction
+from .physics.surface import mould_risk
 from .physics.thermal import STEP, Inputs, Params, step
 from .physics.vents import conductance, leak_flow, window_flow
 from .physics.water import WaterParams, absolute, relative, water_step
@@ -61,6 +62,7 @@ class Weights:
     co2: float = 0.002          # per ppm·h above the mark
     particles: float = 0.02     # per µg/m³·h above the mark
     voc: float = 0.008          # per index point·h above the mark: 50 points for an hour weigh as 200 ppm of CO₂
+    mould: float = 1.0          # per hour the coldest wall corner stays at 80 % or more (advisor/physics/surface.py)
     energy: float = 0.5         # per kWh of heat let out
     bother: float = 0.1         # per gesture
     night: float = 3.0          # a gesture at night bothers this much more
@@ -134,6 +136,7 @@ class Path:
     co2: list[float] = field(default_factory=list)
     particles: list[float] = field(default_factory=list)
     voc: list[float] = field(default_factory=list)
+    mould: float = 0.0          # hours the coldest wall corner stays at the mould's humidity
     lost: float = 0.0           # kWh of heat let out through open windows
     heating: float = 0.0        # kWh the simulated thermostat spends
     heated: bool = False        # a thermostat was simulated: `heating` is what the gesture really costs
@@ -221,6 +224,8 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
             flow = _flow(twins.water_flow, twins.water.volume, windows, before, u.outdoor, u.wind) + boost
             water, reserve = water_step(twins.water, water, reserve, outdoor_water, flow, u.hour)
             path.humidity.append(relative(path.air[-1], water))
+            if mould_risk(path.air[-1], path.humidity[-1], u.outdoor):
+                path.mould += HOURS
         if twins.air and co2 is not None:
             co2 = air_step(twins.air, co2, _flow(twins.air_flow, twins.air.volume, windows, before, u.outdoor, u.wind) + boost,
                            u.hour)
@@ -245,6 +250,7 @@ NIGHT_STRICTER = 2.0
 # a bedroom kept 2.5 °C warmer all night though under its range both ways, a kitchen's VOC kept under its mark for an
 # hour after cooking. « Refermez, vous gardez 0,5 °C » for a room just under its range (1.5 °C·h) is still not one.
 AVOIDED_HOURS = 2.0
+MOULD_HOURS = 1.0
 
 
 def _beyond_mark(values, low, high) -> float:
@@ -275,6 +281,9 @@ def significant(idle: Path, chosen: Path, comfort: Comfort, night: bool = False,
             spared = _beyond_mark(before, float("-inf"), mark) - _beyond_mark(after, float("-inf"), mark)
             if gap >= SIGNIFICANT[subject] * scale or spared >= AVOIDED_HOURS * SIGNIFICANT[subject] * scale:
                 found.append(subject)
+    # The mould counts from an hour spared, night or day: the dwelling does not sleep.
+    if idle.mould - chosen.mould >= MOULD_HOURS:
+        found.append("mould")
     # Energy is a subject only where the heating is simulated: without, the heat a window lets out shows as the room's
     # own cooling, already counted on the heat.
     if idle.heated and idle.spent - chosen.spent >= SIGNIFICANT["energy"] * scale:
@@ -290,6 +299,7 @@ def cost(path: Path, comfort: Comfort, weights: Weights, gesture: Gesture, night
         "co2": weights.co2 * sum(max(0.0, c - comfort.co2) for c in path.co2) * HOURS,
         "particles": weights.particles * sum(max(0.0, p - comfort.particles) for p in path.particles) * HOURS,
         "voc": weights.voc * sum(max(0.0, v - comfort.voc) for v in path.voc) * HOURS,
+        "mould": weights.mould * path.mould,
         "energy": weights.energy * path.spent,
         "bother": 0.0 if gesture.kind == "nothing" else weights.bother * (weights.night if night else 1.0),
     }
@@ -297,13 +307,14 @@ def cost(path: Path, comfort: Comfort, weights: Weights, gesture: Gesture, night
     return terms
 
 
-SUBJECTS = ("heat", "humidity", "co2", "particles", "voc", "energy")
+SUBJECTS = ("heat", "humidity", "co2", "particles", "voc", "mould", "energy")
 
 
 def effect(gesture: Gesture, subject: str) -> str:
     """The effect a gesture rests on, as the proof names it (advisor/proof.py): the windows' on a subject (« heat »), a
     device's (« boost:humidity », « purify:particles »). The energy a gesture saves rests on its heat."""
-    subject = "heat" if subject == "energy" else subject
+    # The energy a gesture saves rests on its heat, the mould it spares on its humidity.
+    subject = {"energy": "heat", "mould": "humidity"}.get(subject, subject)
     device = gesture.kind.removesuffix("_off")
     return f"{device}:{subject}" if device in DEVICES else subject
 
@@ -330,13 +341,17 @@ class Decision:
 
 def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
            previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
-           proof: dict[str, str] | None = None) -> Decision:
+           proof: dict[str, str] | None = None, holidays: bool = False) -> Decision:
     """The gesture to advise. `forbidden`: kinds a safety rule takes away (« open » under the rain, in gusts…).
     `proof`: the level of the windows' effect on each subject (advisor/proof.py); None, all taken as proven."""
     if "open" in forbidden and now.opened:
         # The rain or the gusts: what is open is shut, whatever it costs.
         return Decision(Gesture("close"), 0.0, "safety", {})
-    gestures = [g for g in candidates(now, twins) if g.kind not in forbidden]
+    if holidays:
+        # Away for days (CAHIER-MOTEUR.md § 11, point 8): only the dwelling counts — frost, humidity, mould.
+        comfort = replace(comfort, minimum=FROST_GUARD, maximum=HOLIDAY_MAXIMUM)
+    gestures = [g for g in candidates(now, twins) if g.kind not in forbidden
+                and not (g.kind == "open" and g.minutes is None and "open_long" in forbidden)]
     paths = {g: simulate(twins, now, coming, g) for g in gestures}
     costs = {g: cost(paths[g], comfort, weights, g, now.night) for g in gestures}
     nothing = costs[Gesture("nothing")]["total"]
@@ -372,23 +387,30 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     return Decision(Gesture("nothing"), gain, "unproven", costs, paths, level=found, passive=best)
 
 
+# Away for days, the range becomes the frost guard's: the house kept above 7 °C, never overheated.
+FROST_GUARD, HOLIDAY_MAXIMUM = 7.0, 30.0
+
+
 # « Cette nuit, pensez à… » (CAHIER-MOTEUR.md § 4, § 13): said in the evening, about the windows at bedtime.
 BEDTIME = 22
 
 
 def _from(path: Path, k: int) -> Path:
     """The scenario from its `k`-th step on."""
-    return Path(path.air[k:], path.humidity[k:], path.co2[k:], path.particles[k:], path.voc[k:], path.lost, path.heating,
-                path.heated)
+    return Path(path.air[k:], path.humidity[k:], path.co2[k:], path.particles[k:], path.voc[k:], path.mould, path.lost,
+                path.heating, path.heated)
 
 
 def tonight(twins: Twins, now: Now, coming, bedtime_minutes: int, comfort: Comfort = Comfort(),
-            weights: Weights = Weights(), proof: dict[str, str] | None = None) -> Decision | None:
+            weights: Weights = Weights(), proof: dict[str, str] | None = None,
+            forbidden: frozenset[str] = frozenset()) -> Decision | None:
     """What to do with the windows at bedtime, judged over the whole night: `coming` runs from now until waking up,
     `bedtime_minutes` from now. Only the gesture at bedtime is compared with leaving the windows as they are; None when
     there is nothing worth saying. The night's stricter gaps apply (`significant`)."""
     at_night = replace(now, night=True)
     later = Gesture("close", after=bedtime_minutes) if now.opened else Gesture("open", after=bedtime_minutes)
+    if later.kind == "open" and forbidden & {"open", "open_long"}:
+        return None
     gestures = [Gesture("nothing"), later]
     paths = {g: simulate(twins, at_night, coming, g) for g in gestures}
     costs = {g: cost(paths[g], comfort, weights, g, night=True) for g in gestures}

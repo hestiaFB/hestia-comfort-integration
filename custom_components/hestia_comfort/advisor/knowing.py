@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from .physics.sunlight import bearing_name, sun_hours
+from .physics.surface import misted
 from .proof import LIVE_MINUTES, LIVE_SHARE, PROVEN, REINFORCED, SUPPOSED
 
 # Strong sun: this much horizontal sun forecast on average over the hours the sun is on the window (W/m²); a clear
@@ -19,7 +20,7 @@ HEAT_GAP = 1.5
 
 @dataclass(frozen=True)
 class Tip:
-    kind: str                   # sun · open_warms · open_cools
+    kind: str                   # sun · open_warms · open_cools · mist
     values: dict
     subject: str                # heat · light…
     importance: int             # higher first
@@ -48,6 +49,8 @@ class RoomView:
     # The windows opened since then, when the room's air was this: the gesture under way.
     opened_at: datetime | None = None
     air_at_opening: float | None = None
+    humidity: float | None = None                       # %
+    coldest_tonight: float | None = None                # °C, the lowest outside forecast before waking up
 
 
 def sun_on_windows(view: RoomView) -> list[Tip]:
@@ -93,7 +96,20 @@ def gesture_seen(view: RoomView) -> list[Tip]:
     return [Tip(kind, {"change": abs(change), "since": view.opened_at}, "heat", 3, None, PROVEN)]
 
 
-PROVIDERS = [gesture_seen, sun_on_windows]
+# Misted panes are said from this hour, for the coming night.
+EVENING = 17
+
+
+def mist_tonight(view: RoomView) -> list[Tip]:
+    """Misted panes tonight: the room's air left as it is, the panes cooled by the coldest hour of the night."""
+    if view.now.hour < EVENING or None in (view.air, view.humidity, view.coldest_tonight):
+        return []
+    if not misted(view.air, view.humidity, view.coldest_tonight):
+        return []
+    return [Tip("mist", {"outdoor": view.coldest_tonight}, "humidity", 2, None, REINFORCED)]
+
+
+PROVIDERS = [gesture_seen, mist_tonight, sun_on_windows]
 
 
 def tips(view: RoomView, providers=None) -> list[Tip]:

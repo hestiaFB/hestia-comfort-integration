@@ -19,6 +19,7 @@ TEXTS = {
         "heat": "vous gardez {value} °C d'ici {hour} h", "heat_open": "{value} °C de mieux d'ici {hour} h",
         "humidity": "{value} points d'humidité en moins", "co2": "l'air redevient sain en {minutes} min",
         "particles": "les particules retombent en {minutes} min", "voc": "le COV retombe en {minutes} min", "energy": "{value} kWh de chauffage économisés",
+        "mould": "{value} h de risque de moisissure en moins",
         "sure": "{line}", "unsure": "{line}, sans doute",
         "why": "{gesture} : {air} °C à {hour} h", "why_humidity": ", humidité {humidity} %",
         "shut": "Fermée", "open_now": "Ouverte", "aired": "Aérée {minutes} min", "later": "Dans {minutes} min",
@@ -28,10 +29,11 @@ TEXTS = {
         "keep_shut": "Gardez fermé : {why}",
         "tonight_close": "Cette nuit, pensez à refermer : {line}", "tonight_open": "Cette nuit, pensez à ouvrir : {line}",
         "safety_rain": "il pleut", "safety_rain_soon": "la pluie arrive", "safety_gusts": "rafales de vent",
-        "safety_vigilance": "vigilance météo", "safety_away": "la maison est en mode absence",
+        "safety_vigilance": "vigilance météo", "safety_away": "la maison est en mode absence", "safety_frost": "le gel est annoncé",
         "sun": "Soleil sur {window} de {start} à {end}", "sun_strong": "Grand soleil prévu sur {window} de {start} à {end}",
         "sun_now": "Soleil sur {window} jusqu'à {end}", "sun_now_strong": "Grand soleil sur {window} jusqu'à {end}",
         "window": "la fenêtre {direction}", "windows": "les fenêtres {direction}", "window_plain": "les fenêtres",
+        "mist": "Buée probable sur les vitres cette nuit ({outdoor} °C dehors)",
         "open_warms": "Laissez ouvert : la pièce a gagné {change} °C depuis {since}",
         "open_cools": "Laissez ouvert : la pièce a perdu {change} °C depuis {since}",
         "time": "{h} h {m:02d}", "time_hour": "{h} h",
@@ -50,6 +52,7 @@ TEXTS = {
         "heat": "you keep {value} °C until {hour}:00", "heat_open": "{value} °C better by {hour}:00",
         "humidity": "{value} humidity points less", "co2": "the air is fresh again in {minutes} min",
         "particles": "the particles settle in {minutes} min", "voc": "the VOC falls back in {minutes} min", "energy": "{value} kWh of heating saved",
+        "mould": "{value} h less risk of mould",
         "sure": "{line}", "unsure": "{line}, most likely",
         "why": "{gesture}: {air} °C at {hour}:00", "why_humidity": ", humidity {humidity} %",
         "shut": "Shut", "open_now": "Open", "aired": "Aired {minutes} min", "later": "In {minutes} min",
@@ -59,10 +62,11 @@ TEXTS = {
         "keep_shut": "Keep it shut: {why}",
         "tonight_close": "Tonight, remember to close: {line}", "tonight_open": "Tonight, remember to open: {line}",
         "safety_rain": "it is raining", "safety_rain_soon": "rain is coming", "safety_gusts": "gusts of wind",
-        "safety_vigilance": "weather warning", "safety_away": "the home is set to away",
+        "safety_vigilance": "weather warning", "safety_away": "the home is set to away", "safety_frost": "frost is forecast",
         "sun": "Sun on {window} from {start} to {end}", "sun_strong": "Bright sun expected on {window} from {start} to {end}",
         "sun_now": "Sun on {window} until {end}", "sun_now_strong": "Bright sun on {window} until {end}",
         "window": "the {direction} window", "windows": "the {direction} windows", "window_plain": "the windows",
+        "mist": "Misted panes likely tonight ({outdoor} °C outside)",
         "open_warms": "Leave it open: the room gained {change} °C since {since}",
         "open_cools": "Leave it open: the room lost {change} °C since {since}",
         "time": "{h}:{m:02d}", "time_hour": "{h}:00",
@@ -81,6 +85,7 @@ TEXTS = {
         "heat": "Sie behalten {value} °C bis {hour} Uhr", "heat_open": "{value} °C besser bis {hour} Uhr",
         "humidity": "{value} Punkte weniger Feuchte", "co2": "die Luft ist in {minutes} Min. wieder frisch",
         "particles": "die Partikel setzen sich in {minutes} Min.", "voc": "die VOC sinken in {minutes} Min.", "energy": "{value} kWh Heizenergie gespart",
+        "mould": "{value} Std. weniger Schimmelgefahr",
         "sure": "{line}", "unsure": "{line}, voraussichtlich",
         "why": "{gesture}: {air} °C um {hour} Uhr", "why_humidity": ", Feuchte {humidity} %",
         "shut": "Geschlossen", "open_now": "Offen", "aired": "{minutes} Min. gelüftet", "later": "In {minutes} Min.",
@@ -90,10 +95,11 @@ TEXTS = {
         "keep_shut": "Geschlossen lassen: {why}",
         "tonight_close": "Heute Nacht schließen: {line}", "tonight_open": "Heute Nacht öffnen: {line}",
         "safety_rain": "es regnet", "safety_rain_soon": "Regen kommt", "safety_gusts": "Windböen",
-        "safety_vigilance": "Unwetterwarnung", "safety_away": "das Haus ist auf Abwesenheit gestellt",
+        "safety_vigilance": "Unwetterwarnung", "safety_away": "das Haus ist auf Abwesenheit gestellt", "safety_frost": "Frost ist angesagt",
         "sun": "Sonne auf {window} von {start} bis {end}", "sun_strong": "Viel Sonne erwartet auf {window} von {start} bis {end}",
         "sun_now": "Sonne auf {window} bis {end}", "sun_now_strong": "Viel Sonne auf {window} bis {end}",
         "window": "dem Fenster nach {direction}", "windows": "den Fenstern nach {direction}", "window_plain": "den Fenstern",
+        "mist": "Heute Nacht wahrscheinlich beschlagene Scheiben ({outdoor} °C draußen)",
         "open_warms": "Offen lassen: der Raum hat seit {since} {change} °C gewonnen",
         "open_cools": "Offen lassen: der Raum hat seit {since} {change} °C verloren",
         "time": "{h}:{m:02d} Uhr", "time_hour": "{h} Uhr",
@@ -186,6 +192,8 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             minutes = _back_under(series, marks[subject]) if series else None
             if minutes:
                 line = words[subject].format(minutes=minutes)
+        elif subject == "mould":
+            line = words["mould"].format(value=_number(idle.mould - chosen.mould, language))
         elif subject == "energy":
             line = words["energy"].format(value=_number(idle.spent - chosen.spent, language))
     if decision.rule == "safety" and reason and f"safety_{reason}" in words:
@@ -247,6 +255,8 @@ def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
         going = now is not None and v["start"] <= now
         key = ("sun_now" if going else "sun") + ("_strong" if tip.level == REINFORCED else "")
         return words[key].format(window=window, start=_time(v["start"], words), end=_time(v["end"], words))
+    if tip.kind == "mist":
+        return words["mist"].format(outdoor=_number(v["outdoor"], language))
     if tip.kind in ("open_warms", "open_cools"):
         return words[tip.kind].format(change=_number(v["change"], language), since=_time(v["since"], words))
     return ""

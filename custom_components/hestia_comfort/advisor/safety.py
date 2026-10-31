@@ -1,7 +1,8 @@
 """Layer 6's fixed rules: what safety takes away from the gestures (CAHIER-MOTEUR.md § 9.3).
 
 The only rules of the engine. They never choose a gesture by themselves: they take « open » away, and the decision then
-shuts what is open (advisor/decide.py). Reasons in order: rain now, rain soon, gusts, a red vigilance, nobody home.
+shuts what is open (advisor/decide.py). Reasons in order: rain now, rain soon, gusts, a red vigilance, nobody home; then
+frost, which only takes the long openings away (« open_long »): a short airing still clears a shower's steam.
 """
 RAIN = 0.2              # mm/h: it rains
 RAIN_SOON = 20          # minutes: the rain is due before an airing would end
@@ -10,6 +11,7 @@ GUSTS = 45.0            # km/h
 RED = 3
 COLOURS = {"vert": 0, "green": 0, "jaune": 1, "yellow": 1, "orange": 2, "rouge": 3, "red": 3}
 AWAY = ("armed_away", "armed_vacation")
+FROST = 1.0             # °C forecast outside: no long opening (Confort 2.1's `frost`)
 
 
 def _level(vigilance) -> int | None:
@@ -22,8 +24,9 @@ def _level(vigilance) -> int | None:
 
 
 def forbidden(rain_rate: float | None = None, gust: float | None = None, rain_in: float | None = None,
-              vigilance=None, alarm: str | None = None) -> tuple[frozenset[str], str | None]:
-    """What safety takes away now, and why (the reason the card says). A value not known forbids nothing."""
+              vigilance=None, alarm: str | None = None, coldest: float | None = None) -> tuple[frozenset[str], str | None]:
+    """What safety takes away now, and why (the reason the card says). A value not known forbids nothing. `coldest`: the
+    lowest outside temperature forecast over the coming hours."""
     if rain_rate is not None and rain_rate > RAIN:
         return frozenset({"open"}), "rain"
     if rain_in is not None and 0 <= rain_in <= RAIN_SOON:
@@ -35,6 +38,8 @@ def forbidden(rain_rate: float | None = None, gust: float | None = None, rain_in
         return frozenset({"open"}), "vigilance"
     if alarm in AWAY:
         return frozenset({"open"}), "away"
+    if coldest is not None and coldest <= FROST:
+        return frozenset({"open_long"}), "frost"
     return frozenset(), None
 
 
