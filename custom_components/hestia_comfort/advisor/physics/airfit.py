@@ -31,13 +31,13 @@ def _flow(x, volume, sample):
     u = sample.inputs
     leaks = _e(x[0]) * leak_flow(volume)
     windows = _e(x[1]) * sum(window_flow(a, h, sample.measured, u.outdoor, u.wind) for a, h in u.windows)
-    return leaks + windows
+    return leaks + windows + u.vent
 
 
 def _run(kind, x, volume, rows, since, until):
     """Forecasts of one and three hours from every half hour in [since, until), with the last hour's error added (as the
     heat's twin does); and each window opening. rows: (sample, measured value, outdoor value) every five minutes."""
-    out = {"hour": [], "three": [], "still_hour": [], "still_three": [], "gestures": []}
+    out = {"hour": [], "three": [], "still_hour": [], "still_three": [], "gestures": [], "devices": []}
 
     def model(value, hidden, i):
         s, _, outdoor = rows[i]
@@ -47,7 +47,7 @@ def _run(kind, x, volume, rows, since, until):
             return water_step(p, value, hidden, outdoor, flow, s.inputs.hour)
         if kind == "particles":
             p = ParticleParams(volume, _e(x[2]), x[3], x[4], x[5], x[6])
-            return particles_step(p, value, flow, s.inputs.hour), hidden
+            return particles_step(p, value, flow, s.inputs.hour, purifier=s.inputs.purifier), hidden
         p = AirParams(volume, x[2], x[3], x[4])
         return air_step(p, value, flow, s.inputs.hour), hidden
 
@@ -89,6 +89,14 @@ def _run(kind, x, volume, rows, since, until):
             for k in range(HOUR):
                 v, h = model(v, h, i + k)
             out["gestures"].append((rows[i + HOUR][1] - value, v - value, s.when))
+        # A device started: the VMC's fast speed, the purifier (what it did, against what the twin forecast).
+        started = before is not None and ("boost" if s.inputs.vent > before.vent else
+                                          "purify" if s.inputs.purifier > before.purifier else None)
+        if inside and started and all(ok(i + k) for k in range(HOUR + 1)):
+            v, h = value, hidden
+            for k in range(HOUR):
+                v, h = model(v, h, i + k)
+            out["devices"].append((rows[i + HOUR][1] - value, v - value, s.when, started))
         _, hidden = model(value, hidden, i)
     return out
 

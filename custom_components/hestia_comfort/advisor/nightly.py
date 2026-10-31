@@ -43,6 +43,8 @@ class RoomSpec:
     co2: str | None = None
     particles: str | None = None
     voc: str | None = None              # a VOC index (Sensirion), 1 to 500
+    boost: tuple | None = None          # (the VMC's fast speed: a fan or switch, m³/h it adds)
+    purifier: tuple | None = None       # (the purifier: a fan, m³/h of clean air it gives)
     declared: frozenset = frozenset({"heat"})            # parameters declared, held by the search (fit.HELD)
 
 
@@ -53,6 +55,7 @@ def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zo
     power = attribute(history, spec.thermostat, "power_percent", 0.01) if spec.thermostat else None
     position = attribute(history, spec.cover, "current_position", 0.01) if spec.cover in history else None
     house = [(attribute(history, e, "power_percent", 0.01), w) for e, w in (house_heaters or {}).items()]
+    devices = {name: (contacts(history, d[0]), d[1]) for name, d in (("vent", spec.boost), ("purifier", spec.purifier)) if d}
     windows = [(e, (w * h, h), contacts(history, e)) for e, (w, h) in spec.windows.items()]
     glazing = [(w * h, *spec.orientations[e]) for e, (w, h) in spec.windows.items() if e in spec.orientations]
     oriented = [i for i, (e, _, _) in enumerate(windows) if e in spec.orientations]
@@ -71,7 +74,8 @@ def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zo
                             hour=local.hour + local.minute / 60,
                             house_heat=sum((s.at(when) or 0.0) * w for s, w in house),
                             shade=1.0 if position is None or position.at(when) is None else max(0.05, position.at(when)),
-                            facade=facade)
+                            facade=facade,
+                            **{name: flow if series.at(when) is True else 0.0 for name, (series, flow) in devices.items()})
         rows.append(Sample(when, indoor.at(when), inputs))
         when += DT
     return rows
@@ -146,9 +150,15 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
             if kept:
                 x = found
                 entry[key], entry[f"{key}_flow"] = values(kind, x, volume)
-        seen = [[when.isoformat(), forecast, measured]
-                for measured, forecast, when in _run(kind, x, volume, rows, start, now)["gestures"]]
+        run = _run(kind, x, volume, rows, start, now)
+        seen = [[when.isoformat(), forecast, measured] for measured, forecast, when in run["gestures"]]
         entry["gestures"][subject] = _merge(entry["gestures"].get(subject), seen, start, now, now)
+        # Each device started: its effect on this subject (« boost:humidity », « purify:particles »).
+        for device in ("boost", "purify"):
+            found = [[when.isoformat(), forecast, measured] for measured, forecast, when, d in run["devices"] if d == device]
+            if found or f"{device}:{subject}" in entry["gestures"]:
+                entry["gestures"][f"{device}:{subject}"] = _merge(entry["gestures"].get(f"{device}:{subject}"), found,
+                                                                   start, now, now)
 
     report["gestes"] = {s: len(g) for s, g in entry["gestures"].items()}
     report["preuves"] = {s: level([(f, m) for _, f, m in g]) for s, g in entry["gestures"].items()}

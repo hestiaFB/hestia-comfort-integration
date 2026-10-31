@@ -63,6 +63,8 @@ class Inputs:
     windows: tuple[tuple[float, float], ...] = ()   # (area, height) of each open window
     wind: float | None = None                       # m/s
     extra: float = 0.0                              # W: people, cooking…
+    vent: float = 0.0                               # m³/h of outdoor air a running ventilation adds (a VMC's fast speed)
+    purifier: float = 0.0                           # m³/h of clean air a running purifier gives (the particles' twin)
     hour: float | None = None                       # local time of day, for the household's rhythm
     house_heat: float = 0.0                         # W given off by the house heaters, wherever they stand
     # The share of the sun a connected shutter lets through, read on its position (0 shut, 1 open); 1 when the room has
@@ -99,7 +101,7 @@ def rhythm(p: Params, hour: float | None) -> float:
 
 def flow(p: Params, ta: float, u: Inputs) -> float:
     """Outdoor air coming in (m³/h)."""
-    return p.leaks + p.window * sum(window_flow(a, h, ta, u.outdoor, u.wind) for a, h in u.windows)
+    return p.leaks + u.vent + p.window * sum(window_flow(a, h, ta, u.outdoor, u.wind) for a, h in u.windows)
 
 
 def step(p: Params, ta: float, tm: float, u: Inputs, dt: float = STEP) -> tuple[float, float]:

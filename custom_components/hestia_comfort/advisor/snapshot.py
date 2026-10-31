@@ -52,6 +52,7 @@ def restore(snap: dict) -> dict:
                   particles=ParticleParams(**t["particles"]) if t.get("particles") else None,
                   particles_flow=tuple(t["particles_flow"]),
                   voc=ParticleParams(**t["voc"]) if t.get("voc") else None, voc_flow=tuple(t.get("voc_flow", (1, 1))),
+                  boost=t.get("boost", 0.0), purifier=t.get("purifier", 0.0),
                   thermostat=Thermostat(**t["thermostat"]) if t.get("thermostat") else None)
     now = Now(**{**snap["now"], "opened": _pairs(snap["now"]["opened"])})
     coming = [(Inputs(**{**u, "windows": _pairs(u["windows"])}), water) for u, water in snap["coming"]]
@@ -106,8 +107,8 @@ def trace(snap: dict, decision: Decision, words: dict) -> dict:
     """The decision layer by layer (CAHIER-MOTEUR.md § 16 bis.1): in which layer an error lies."""
     args = restore(snap)
     first = args["coming"][0][0] if args["coming"] else None
-    allowed = [g for g in candidates(args["now"]) if g.kind not in args["forbidden"]]
-    taken = [g for g in candidates(args["now"]) if g.kind in args["forbidden"]]
+    allowed = [g for g in candidates(args["now"], args["twins"]) if g.kind not in args["forbidden"]]
+    taken = [g for g in candidates(args["now"], args["twins"]) if g.kind in args["forbidden"]]
     idle = decision.paths.get(Gesture("nothing"))
     scenarios = []
     for g, terms in decision.scenarios.items():

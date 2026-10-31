@@ -107,3 +107,38 @@ class Voc(unittest.TestCase):
         self.assertEqual(decision.gesture.kind, "open")
         self.assertEqual(phrase(decision, 22)["subject"], "voc")
         self.assertRegex(phrase(decision, 22)["line"], r"^le COV retombe en \d+ min$")
+
+
+class Devices(unittest.TestCase):
+    """The VMC's fast speed and the purifier, as gestures (CAHIER-MOTEUR.md § 9.1)."""
+
+    def setUp(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+    def test_a_humid_bedroom_under_the_rain_runs_its_vmc_fast(self):
+        from dataclasses import replace
+        from advisor.decide import Gesture, Now, decide, effect
+        from advisor.proof import PROVEN
+        from advisor.words import phrase
+        from test_advisor_decide import TWINS, day
+        twins = replace(TWINS, boost=60.0)
+        # 85 % after a shower, the rain forbids opening: the VMC is the remedy.
+        decision = decide(twins, Now(air=21.5, walls=21.5, opened=(), humidity=85.0), day(outdoor=12.0),
+                          forbidden=frozenset({"open"}), proof={"boost:humidity": PROVEN})
+        self.assertEqual(decision.gesture.kind, "boost")
+        self.assertEqual(effect(decision.gesture, "humidity"), "boost:humidity")
+        self.assertRegex(phrase(decision, 17)["title"], r"^Lancez la VMC rapide \d+ min$")
+
+    def test_the_purifier_takes_the_particles_not_the_voc(self):
+        from dataclasses import replace
+        from advisor.decide import Gesture, Now, decide, simulate
+        from test_advisor_decide import TWINS, day
+        twins = replace(TWINS, particles=ParticleParams(110.0, 0.2, 5.0, 50.0), purifier=150.0,
+                        voc=ParticleParams(110.0, 0.018, 63.7, 3218.0), voc_flow=(5.55, 54.6))
+        now = Now(air=21.0, walls=21.0, opened=(), particles=60.0, voc=300.0)
+        idle, clean = (simulate(twins, now, day(), g) for g in (Gesture("nothing"), Gesture("purify", 60)))
+        self.assertLess(clean.particles[11], idle.particles[11] - 10)
+        self.assertEqual(clean.voc, idle.voc)
+        # Under the rain, the purifier is the remedy (opening would clear the particles too).
+        decision = decide(twins, now, day(), forbidden=frozenset({"open"}))
+        self.assertEqual(decision.gesture.kind, "purify")

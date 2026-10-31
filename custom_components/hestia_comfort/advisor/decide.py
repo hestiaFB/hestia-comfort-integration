@@ -98,6 +98,10 @@ class Twins:
     # against 89 for « nothing changes »; 33 airings, −81 measured for −154 forecast in an hour.
     voc: ParticleParams | None = None
     voc_flow: tuple[float, float] = (1.0, 1.0)
+    # The room's devices (CAHIER-MOTEUR.md § 9.1): m³/h of outdoor air the VMC's fast speed adds, m³/h of clean air the
+    # purifier gives (its filter takes the particles, not the VOC). 0: the room has none.
+    boost: float = 0.0
+    purifier: float = 0.0
     # With a thermostat, its heating is simulated in every scenario; without, the heating stays as the inputs say.
     thermostat: Thermostat | None = None
 
@@ -112,6 +116,8 @@ class Now:
     co2: float | None = None                    # ppm
     particles: float | None = None              # µg/m³
     voc: float | None = None                    # VOC index
+    boosting: bool = False                      # the VMC runs at its fast speed
+    purifying: bool = False                     # the purifier runs
     night: bool = False
     # What the twin missed over the last hour (°C, measured minus forecast with what really came): the room's trend
     # the twin did not see, carried into every scenario and fading over two hours (advisor/physics/fit.py). Bench of
@@ -143,15 +149,35 @@ class Path:
 LATER = (60, 120)
 
 
-def candidates(now: Now) -> list[Gesture]:
-    """What the room allows: shut what is open, or open what is shut, for a few minutes or for good; now or later."""
+# A device is started for this long (minutes).
+DEVICE_MINUTES = (30, 60)
+DEVICES = ("boost", "purify")
+
+
+def candidates(now: Now, twins: Twins | None = None) -> list[Gesture]:
+    """What the room allows: shut what is open, or open what is shut, for a few minutes or for good; now or later; and
+    start or stop its devices."""
     if now.opened:
-        return [Gesture("nothing"), Gesture("close")] + [Gesture("close", after=a) for a in LATER]
-    return ([Gesture("nothing"), Gesture("open", 10), Gesture("open", 20), Gesture("open")]
-            + [Gesture("open", 10, after=a) for a in LATER])
+        out = [Gesture("nothing"), Gesture("close")] + [Gesture("close", after=a) for a in LATER]
+    else:
+        out = ([Gesture("nothing"), Gesture("open", 10), Gesture("open", 20), Gesture("open")]
+               + [Gesture("open", 10, after=a) for a in LATER])
+    for device, running, has in (("boost", now.boosting, twins and twins.boost), ("purify", now.purifying, twins and twins.purifier)):
+        if has:
+            out += [Gesture(f"{device}_off")] if running else [Gesture(device, m) for m in DEVICE_MINUTES]
+    return out
+
+
+def _running(gesture: Gesture, device: str, now_on: bool, k: int) -> bool:
+    """Whether a device runs at step `k` of the scenario."""
+    if gesture.kind == device:
+        return k * STEP / 60 < gesture.minutes
+    return False if gesture.kind == f"{device}_off" else now_on
 
 
 def _open(gesture: Gesture, now: Now, twins: Twins, k: int):
+    if gesture.kind not in ("open", "close", "nothing"):
+        return now.opened
     waited = k * STEP / 60 - (gesture.after or 0)
     if gesture.kind == "nothing" or waited < 0:
         return now.opened if gesture.kind != "open" else ()
@@ -175,9 +201,11 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
     co2, particles, voc = now.co2, now.particles, now.voc
     for k, (u, outdoor_water) in enumerate(coming):
         windows = _open(gesture, now, twins, k)
+        boost = twins.boost if _running(gesture, "boost", now.boosting, k) else 0.0
+        purify = twins.purifier if _running(gesture, "purify", now.purifying, k) else 0.0
         # The sun of the scenario's windows: through the glass when shut, more of it through an open sash.
         facade = u.facade_shut if not windows else u.facade_all if windows == twins.windows else None
-        u = replace(u, windows=windows, facade=u.facade if facade is None else facade)
+        u = replace(u, windows=windows, facade=u.facade if facade is None else facade, vent=boost)
         if twins.thermostat:
             # The thermostat reads the room as it is, the twin's trend included.
             felt = path.air[-1] if path.air else now.air
@@ -186,29 +214,30 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
         before = air
         air, walls = step(twins.heat, air, walls, u)
         path.air.append(air + correction(DEFAULT_RECENT, now.missed, k))
-        if windows:
-            out = sum(window_flow(a, h, before, u.outdoor, u.wind) for a, h in windows) * twins.heat.window
+        if windows or boost:
+            out = sum(window_flow(a, h, before, u.outdoor, u.wind) for a, h in windows) * twins.heat.window + boost
             path.lost += max(0.0, conductance(out) * (before - u.outdoor)) * HOURS / 1000
         if water is not None and outdoor_water is not None:
-            flow = _flow(twins.water_flow, twins.water.volume, windows, before, u.outdoor, u.wind)
+            flow = _flow(twins.water_flow, twins.water.volume, windows, before, u.outdoor, u.wind) + boost
             water, reserve = water_step(twins.water, water, reserve, outdoor_water, flow, u.hour)
             path.humidity.append(relative(path.air[-1], water))
         if twins.air and co2 is not None:
-            co2 = air_step(twins.air, co2, _flow(twins.air_flow, twins.air.volume, windows, before, u.outdoor, u.wind), u.hour)
+            co2 = air_step(twins.air, co2, _flow(twins.air_flow, twins.air.volume, windows, before, u.outdoor, u.wind) + boost,
+                           u.hour)
             path.co2.append(co2)
         if twins.particles and particles is not None:
-            flow = _flow(twins.particles_flow, twins.particles.volume, windows, before, u.outdoor, u.wind)
-            particles = particles_step(twins.particles, particles, flow, u.hour)
+            flow = _flow(twins.particles_flow, twins.particles.volume, windows, before, u.outdoor, u.wind) + boost
+            particles = particles_step(twins.particles, particles, flow, u.hour, purifier=purify)
             path.particles.append(particles)
         if twins.voc and voc is not None:
-            flow = _flow(twins.voc_flow, twins.voc.volume, windows, before, u.outdoor, u.wind)
+            flow = _flow(twins.voc_flow, twins.voc.volume, windows, before, u.outdoor, u.wind) + boost
             voc = particles_step(twins.voc, voc, flow, u.hour)
             path.voc.append(voc)
     return path
 
 
-# A gesture must be significant (CAHIER-MOTEUR.md § 10.2 bis): a gap one feels at the end of the horizon, or a mark it
-# keeps the room on the right side of for half an hour at least. At night the gaps double.
+# A gesture must be significant (CAHIER-MOTEUR.md § 10.2 bis): a gap one feels at the end of the horizon, or that gap
+# spared for two hours (AVOIDED_HOURS). At night the gaps double.
 SIGNIFICANT = {"heat": 1.5, "humidity": 5.0, "co2": 200.0, "particles": 5.0, "voc": 50.0, "energy": 0.5}
 MARKS = {"humidity": (60.0, 70.0), "co2": (1000.0, 1500.0), "particles": (15.0, 25.0), "voc": (150.0, 250.0)}
 NIGHT_STRICTER = 2.0
@@ -271,6 +300,14 @@ def cost(path: Path, comfort: Comfort, weights: Weights, gesture: Gesture, night
 SUBJECTS = ("heat", "humidity", "co2", "particles", "voc", "energy")
 
 
+def effect(gesture: Gesture, subject: str) -> str:
+    """The effect a gesture rests on, as the proof names it (advisor/proof.py): the windows' on a subject (« heat »), a
+    device's (« boost:humidity », « purify:particles »). The energy a gesture saves rests on its heat."""
+    subject = "heat" if subject == "energy" else subject
+    device = gesture.kind.removesuffix("_off")
+    return f"{device}:{subject}" if device in DEVICES else subject
+
+
 def main_subject(scenarios: dict, gesture: Gesture) -> str | None:
     """What a gesture mostly does: the cost term it lowers the most against « do nothing »."""
     nothing, chosen = scenarios.get(Gesture("nothing")), scenarios.get(gesture)
@@ -299,7 +336,7 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     if "open" in forbidden and now.opened:
         # The rain or the gusts: what is open is shut, whatever it costs.
         return Decision(Gesture("close"), 0.0, "safety", {})
-    gestures = [g for g in candidates(now) if g.kind not in forbidden]
+    gestures = [g for g in candidates(now, twins) if g.kind not in forbidden]
     paths = {g: simulate(twins, now, coming, g) for g in gestures}
     costs = {g: cost(paths[g], comfort, weights, g, now.night) for g in gestures}
     nothing = costs[Gesture("nothing")]["total"]
@@ -328,7 +365,7 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # Only a proven effect sends a gesture to the banner as soon as it is significant; a reinforced one must be clear-cut;
     # a supposed one stays a passive advice (CAHIER-MOTEUR.md § 4.1). The energy a window saves rests on its heat.
     subject = main_subject(costs, best)
-    found = proof.get("heat" if subject == "energy" else subject, SUPPOSED)
+    found = proof.get(effect(best, subject), SUPPOSED)
     if found == PROVEN or (found == REINFORCED and significant(paths[Gesture("nothing")], paths[best], comfort, now.night,
                                                                 stricter=REINFORCED_STRICTER)):
         return Decision(best, gain, rule, costs, paths, level=found)

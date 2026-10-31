@@ -76,3 +76,27 @@ class Nightly(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Devices(unittest.TestCase):
+    def test_each_purifier_start_is_counted_with_what_it_did(self):
+        # Particles made all day, the purifier run an hour every afternoon: each start is a gesture, forecast right by
+        # the true twin.
+        from advisor.physics.air import ParticleParams, particles_step
+        from advisor.physics.airfit import _run, vector
+        from advisor.physics.fit import Sample
+        truth = ParticleParams(30.0, 0.2, 5.0, 40.0)
+        start, rows, level = datetime(2026, 10, 1, tzinfo=timezone.utc), [], 20.0
+        for k in range(int(2 * 86400 / STEP)):
+            when = start + timedelta(seconds=k * STEP)
+            on = 15 <= when.hour < 16
+            u = Inputs(15.0, hour=when.hour + when.minute / 60, purifier=150.0 if on else 0.0)
+            rows.append((Sample(when, 20.0, u), level, 0.0))
+            level = particles_step(truth, level, 0.3 * 30.0 * 0 + 9.0, u.hour, purifier=u.purifier)
+        x = vector("particles", {"settling": 0.2, "outdoor": 5.0, "sources": 40.0, "rhythm_cos": 0.0, "rhythm_sin": 0.0},
+                   (9.0 / 9.0, 1.0))
+        found = _run("particles", x, 30.0, rows, start, start + timedelta(days=2))["devices"]
+        self.assertEqual([d for *_, d in found], ["purify", "purify"])
+        for measured, forecast, when, _ in found:
+            self.assertLess(measured, -5)
+            self.assertAlmostEqual(forecast, measured, delta=0.5)

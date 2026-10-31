@@ -11,6 +11,9 @@ from .proof import PROVEN, REINFORCED
 
 TEXTS = {
     "fr": {
+        "boost": "Lancez la VMC rapide {minutes} min", "boost_off": "Remettez la VMC en vitesse normale",
+        "purify": "Lancez le purificateur {minutes} min", "purify_off": "Arrêtez le purificateur",
+        "boosted": "VMC rapide {minutes} min", "purified": "Purificateur {minutes} min", "device_off": "Appareil arrêté",
         "nothing": "Rien à faire", "close": "Refermez", "open": "Aérez {minutes} min", "open_long": "Ouvrez",
         "close_later": "Refermez vers {at} h", "open_later": "Aérez vers {at} h",
         "heat": "vous gardez {value} °C d'ici {hour} h", "heat_open": "{value} °C de mieux d'ici {hour} h",
@@ -39,6 +42,9 @@ TEXTS = {
         "nothing_out": "Ouverte ou fermée : {air} °C à {hour} h", "nothing_out_shut": "Aucun geste ne ferait vraiment mieux : {air} °C à {hour} h",
     },
     "en": {
+        "boost": "Run the ventilation fast for {minutes} min", "boost_off": "Set the ventilation back to normal",
+        "purify": "Run the purifier for {minutes} min", "purify_off": "Stop the purifier",
+        "boosted": "Fast ventilation {minutes} min", "purified": "Purifier {minutes} min", "device_off": "Device stopped",
         "nothing": "Nothing to do", "close": "Close", "open": "Air for {minutes} min", "open_long": "Open",
         "close_later": "Close around {at}:00", "open_later": "Air around {at}:00",
         "heat": "you keep {value} °C until {hour}:00", "heat_open": "{value} °C better by {hour}:00",
@@ -67,6 +73,9 @@ TEXTS = {
         "nothing_out": "Open or shut: {air} °C at {hour}:00", "nothing_out_shut": "No gesture would really do better: {air} °C at {hour}:00",
     },
     "de": {
+        "boost": "Lüftung {minutes} Min. auf hohe Stufe", "boost_off": "Lüftung zurück auf normale Stufe",
+        "purify": "Luftreiniger {minutes} Min. einschalten", "purify_off": "Luftreiniger ausschalten",
+        "boosted": "Lüftung hoch {minutes} Min.", "purified": "Luftreiniger {minutes} Min.", "device_off": "Gerät aus",
         "nothing": "Nichts zu tun", "close": "Schließen", "open": "{minutes} Min. lüften", "open_long": "Öffnen",
         "close_later": "Gegen {at} Uhr schließen", "open_later": "Gegen {at} Uhr lüften",
         "heat": "Sie behalten {value} °C bis {hour} Uhr", "heat_open": "{value} °C besser bis {hour} Uhr",
@@ -121,6 +130,10 @@ def _name(gesture: Gesture, path, words, opened: bool) -> str:
     """How « Pourquoi ? » names a scenario: by the state of the windows it leaves."""
     if gesture.after:
         return words["later"].format(minutes=gesture.after)
+    if gesture.kind in ("boost", "purify"):
+        return words["boosted" if gesture.kind == "boost" else "purified"].format(minutes=gesture.minutes)
+    if gesture.kind.endswith("_off"):
+        return words["device_off"]
     if gesture.kind == "open":
         return words["aired"].format(minutes=gesture.minutes) if gesture.minutes else words["open_now"]
     if gesture.kind == "nothing" and opened:
@@ -145,7 +158,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     elif gesture.kind == "open":
         title = words["open"].format(minutes=gesture.minutes) if gesture.minutes else words["open_long"]
     else:
-        title = words[gesture.kind]
+        title = words[gesture.kind].format(minutes=gesture.minutes)
     paths = decision.paths
     line = ""
     if gesture.kind == "nothing":
