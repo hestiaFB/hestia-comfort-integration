@@ -167,7 +167,9 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
 SIGNIFICANT = {"heat": 1.5, "humidity": 5.0, "co2": 200.0, "particles": 5.0, "energy": 0.5}
 MARKS = {"humidity": (60.0, 70.0), "co2": (1000.0, 1500.0), "particles": (15.0, 25.0)}
 NIGHT_STRICTER = 2.0
-HALF_HOUR = 6
+# Keeping the room on the right side of a mark counts for an hour at least, and with half the felt gap at least: in the
+# test Home Assistant, half an hour let « Refermez, vous gardez 0,5 °C » through for a room just under its range.
+KEPT_STEPS, KEPT_SHARE = 12, 0.5
 
 
 def _outside(values, low, high):
@@ -180,13 +182,15 @@ def significant(idle: Path, chosen: Path, comfort: Comfort, night: bool = False)
     found = []
     if idle.air and chosen.air:
         kept = _outside(idle.air, comfort.minimum, comfort.maximum) - _outside(chosen.air, comfort.minimum, comfort.maximum)
-        if abs(chosen.air[-1] - idle.air[-1]) >= SIGNIFICANT["heat"] * scale or kept >= HALF_HOUR:
+        gap = abs(chosen.air[-1] - idle.air[-1])
+        if gap >= SIGNIFICANT["heat"] * scale or (kept >= KEPT_STEPS and gap >= KEPT_SHARE * SIGNIFICANT["heat"] * scale):
             found.append("heat")
     for subject in ("humidity", "co2", "particles"):
         before, after = getattr(idle, subject), getattr(chosen, subject)
         if before and after:
             kept = max(sum(1 for v in before if v > m) - sum(1 for v in after if v > m) for m in MARKS[subject])
-            if before[-1] - after[-1] >= SIGNIFICANT[subject] * scale or kept >= HALF_HOUR:
+            gap = before[-1] - after[-1]
+            if gap >= SIGNIFICANT[subject] * scale or (kept >= KEPT_STEPS and gap >= KEPT_SHARE * SIGNIFICANT[subject] * scale):
                 found.append(subject)
     if idle.lost - chosen.lost >= SIGNIFICANT["energy"] * scale:
         found.append("energy")
