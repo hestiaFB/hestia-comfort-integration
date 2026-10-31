@@ -121,7 +121,7 @@ class Mist(unittest.TestCase):
     def test_misted_panes_tonight(self):
         from advisor.knowing import mist_tonight
         evening = datetime(2026, 11, 20, 19, 0, tzinfo=PARIS)
-        view = RoomView(evening, *HOME, air=19.0, humidity=70.0, coldest_tonight=1.0)
+        view = RoomView(evening, *HOME, air=19.0, humidity=70.0, coldest_tonight=1.0, bedtime=evening.replace(hour=22))
         [tip] = mist_tonight(view)
         self.assertEqual(tip_text(tip), "Buée probable sur les vitres cette nuit (1,0 °C dehors)")
         self.assertEqual(mist_tonight(replace(view, humidity=45.0)), [])

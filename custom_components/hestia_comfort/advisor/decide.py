@@ -395,10 +395,8 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
 FROST_GUARD, HOLIDAY_MAXIMUM = 7.0, 30.0
 
 
-# « Cette nuit, pensez à… » (CAHIER-MOTEUR.md § 4, § 13): said in the evening, about the windows at bedtime.
-BEDTIME = 22
-
-
+# « Cette nuit, pensez à… » (CAHIER-MOTEUR.md § 4, § 13): said in the evening, about the windows at bedtime — the
+# room's own, a setting (advisor/household.py).
 def _from(path: Path, k: int) -> Path:
     """The scenario from its `k`-th step on."""
     return Path(path.air[k:], path.humidity[k:], path.co2[k:], path.particles[k:], path.voc[k:], path.mould, path.lost,

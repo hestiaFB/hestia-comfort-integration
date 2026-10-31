@@ -5,7 +5,7 @@ Adding one changes nothing elsewhere: it joins PROVIDERS. A tip holds what it sa
 (advisor/words.py) turn it into a sentence, in each language.
 """
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .physics.sunlight import bearing_name, sun_hours
 from .physics.surface import misted
@@ -51,6 +51,8 @@ class RoomView:
     air_at_opening: float | None = None
     humidity: float | None = None                       # %
     coldest_tonight: float | None = None                # °C, the lowest outside forecast before waking up
+    bedtime: datetime | None = None                     # the room's next going to bed (advisor/household.py)
+    asleep: bool = False
 
 
 def sun_on_windows(view: RoomView) -> list[Tip]:
@@ -96,13 +98,14 @@ def gesture_seen(view: RoomView) -> list[Tip]:
     return [Tip(kind, {"change": abs(change), "since": view.opened_at}, "heat", 3, None, PROVEN)]
 
 
-# Misted panes are said from this hour, for the coming night.
-EVENING = 17
+# Misted panes are said this long before going to bed, and during the night.
+BEFORE_BED = timedelta(hours=5)
 
 
 def mist_tonight(view: RoomView) -> list[Tip]:
     """Misted panes tonight: the room's air left as it is, the panes cooled by the coldest hour of the night."""
-    if view.now.hour < EVENING or None in (view.air, view.humidity, view.coldest_tonight):
+    evening = view.asleep or (view.bedtime is not None and view.now >= view.bedtime - BEFORE_BED)
+    if not evening or None in (view.air, view.humidity, view.coldest_tonight):
         return []
     if not misted(view.air, view.humidity, view.coldest_tonight):
         return []
