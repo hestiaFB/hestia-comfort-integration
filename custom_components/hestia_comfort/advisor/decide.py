@@ -48,6 +48,22 @@ class Weights:
 
 
 @dataclass(frozen=True)
+class Thermostat:
+    """The room's Versatile Thermostat, as its attributes describe it (CAHIER-MOTEUR.md § 6.8): it heats in proportion to
+    the gap to its target and to the outside (its TPI regulation), and stops while a window it follows is open."""
+    target: float                   # °C, `current_state.target_temperature`
+    inside: float = 0.6             # `tpi_coef_int`
+    outside: float = 0.01           # `tpi_coef_ext`
+    window_off: bool = True         # `window_manager.window_action` is « window_turn_off »
+
+    def power(self, air: float, outdoor: float, windows) -> float:
+        """Share of the full power over the next cycle, 0 to 1."""
+        if windows and self.window_off:
+            return 0.0
+        return min(1.0, max(0.0, self.inside * (self.target - air) + self.outside * (self.target - outdoor)))
+
+
+@dataclass(frozen=True)
 class Twins:
     """The room's twins, each with the window effect its own sensor learned (CONCEPTION-MOTEUR.md § 1 bis)."""
     heat: Params
@@ -58,6 +74,8 @@ class Twins:
     air_flow: tuple[float, float] = (1.0, 1.0)
     particles: ParticleParams | None = None
     particles_flow: tuple[float, float] = (1.0, 1.0)
+    # With a thermostat, its heating is simulated in every scenario; without, the heating stays as the inputs say.
+    thermostat: Thermostat | None = None
 
 
 @dataclass(frozen=True)
@@ -80,6 +98,7 @@ class Path:
     co2: list[float] = field(default_factory=list)
     particles: list[float] = field(default_factory=list)
     lost: float = 0.0           # kWh of heat let out through open windows
+    heating: float = 0.0        # kWh the simulated thermostat spends
 
 
 def candidates(now: Now) -> list[Gesture]:
@@ -113,6 +132,9 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
     for k, (u, outdoor_water) in enumerate(coming):
         windows = _open(gesture, now, twins, k)
         u = replace(u, windows=windows)
+        if twins.thermostat:
+            u = replace(u, heating=twins.thermostat.power(air, u.outdoor, windows))
+            path.heating += twins.heat.heat * u.heating * HOURS / 1000
         before = air
         air, walls = step(twins.heat, air, walls, u)
         path.air.append(air)
@@ -140,7 +162,8 @@ def cost(path: Path, comfort: Comfort, weights: Weights, gesture: Gesture, night
         "humidity": weights.humidity * sum(max(0.0, h - comfort.humidity) for h in path.humidity) * HOURS,
         "co2": weights.co2 * sum(max(0.0, c - comfort.co2) for c in path.co2) * HOURS,
         "particles": weights.particles * sum(max(0.0, p - comfort.particles) for p in path.particles) * HOURS,
-        "energy": weights.energy * path.lost,
+        # With a thermostat simulated, what the heating really spends; without, the heat the windows let out.
+        "energy": weights.energy * (path.heating if path.heating else path.lost),
         "bother": 0.0 if gesture.kind == "nothing" else weights.bother * (weights.night if night else 1.0),
     }
     terms["total"] = sum(terms.values())
