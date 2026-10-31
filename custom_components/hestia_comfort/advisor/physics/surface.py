@@ -31,6 +31,12 @@ def mould_risk(air: float, humidity: float, outdoor: float) -> bool:
     return surface_humidity(air, humidity, outdoor) >= MOULD
 
 
+def mould_excess(air: float, humidity: float, outdoor: float) -> float:
+    """Points of humidity above the mould's 80 % at the coldest corner: a measure without a cliff — a corner at 80.5 %
+    and one at 79.5 % differ by one point, not by « risk » and « no risk »."""
+    return max(0.0, surface_humidity(air, humidity, outdoor) - MOULD)
+
+
 def dew_point(air: float, humidity: float) -> float:
     """°C under which the room's air leaves water on a surface (Magnus)."""
     a, b = 17.62, 243.12

@@ -10,7 +10,7 @@ from dataclasses import dataclass, field, replace
 
 from .physics.air import AirParams, ParticleParams, air_step, particles_step
 from .physics.fit import DEFAULT_RECENT, correction
-from .physics.surface import mould_risk
+from .physics.surface import mould_excess
 from .physics.thermal import STEP, Inputs, Params, step
 from .physics.vents import conductance, leak_flow, window_flow
 from .physics.water import WaterParams, absolute, relative, water_step
@@ -62,7 +62,7 @@ class Weights:
     co2: float = 0.002          # per ppm·h above the mark
     particles: float = 0.02     # per µg/m³·h above the mark
     voc: float = 0.008          # per index point·h above the mark: 50 points for an hour weigh as 200 ppm of CO₂
-    mould: float = 1.0          # per hour the coldest wall corner stays at 80 % or more (advisor/physics/surface.py)
+    mould: float = 0.1          # per point·h above 80 % at the coldest wall corner (advisor/physics/surface.py)
     energy: float = 0.5         # per kWh of heat let out
     bother: float = 0.1         # per gesture
     night: float = 3.0          # a gesture at night bothers this much more
@@ -136,7 +136,7 @@ class Path:
     co2: list[float] = field(default_factory=list)
     particles: list[float] = field(default_factory=list)
     voc: list[float] = field(default_factory=list)
-    mould: float = 0.0          # hours the coldest wall corner stays at the mould's humidity
+    mould: float = 0.0          # points·h above the mould's 80 % at the coldest wall corner
     lost: float = 0.0           # kWh of heat let out through open windows
     heating: float = 0.0        # kWh the simulated thermostat spends
     heated: bool = False        # a thermostat was simulated: `heating` is what the gesture really costs
@@ -224,8 +224,7 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
             flow = _flow(twins.water_flow, twins.water.volume, windows, before, u.outdoor, u.wind) + boost
             water, reserve = water_step(twins.water, water, reserve, outdoor_water, flow, u.hour)
             path.humidity.append(relative(path.air[-1], water))
-            if mould_risk(path.air[-1], path.humidity[-1], u.outdoor):
-                path.mould += HOURS
+            path.mould += mould_excess(path.air[-1], path.humidity[-1], u.outdoor) * HOURS
         if twins.air and co2 is not None:
             co2 = air_step(twins.air, co2, _flow(twins.air_flow, twins.air.volume, windows, before, u.outdoor, u.wind) + boost,
                            u.hour)
@@ -243,14 +242,13 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
 
 # A gesture must be significant (CAHIER-MOTEUR.md § 10.2 bis): a gap one feels at the end of the horizon, or that gap
 # spared for two hours (AVOIDED_HOURS). At night the gaps double.
-SIGNIFICANT = {"heat": 1.5, "humidity": 5.0, "co2": 200.0, "particles": 5.0, "voc": 50.0, "energy": 0.5}
+SIGNIFICANT = {"heat": 1.5, "humidity": 5.0, "co2": 200.0, "particles": 5.0, "voc": 50.0, "mould": 5.0, "energy": 0.5}
 MARKS = {"humidity": (60.0, 70.0), "co2": (1000.0, 1500.0), "particles": (15.0, 25.0), "voc": (150.0, 250.0)}
 NIGHT_STRICTER = 2.0
 # A gesture also counts when it spares the room this felt gap for two hours, all along the horizon (°C·h, points·h…):
 # a bedroom kept 2.5 °C warmer all night though under its range both ways, a kitchen's VOC kept under its mark for an
 # hour after cooking. « Refermez, vous gardez 0,5 °C » for a room just under its range (1.5 °C·h) is still not one.
 AVOIDED_HOURS = 2.0
-MOULD_HOURS = 1.0
 
 
 def _beyond_mark(values, low, high) -> float:
@@ -281,8 +279,10 @@ def significant(idle: Path, chosen: Path, comfort: Comfort, night: bool = False,
             spared = _beyond_mark(before, float("-inf"), mark) - _beyond_mark(after, float("-inf"), mark)
             if gap >= SIGNIFICANT[subject] * scale or spared >= AVOIDED_HOURS * SIGNIFICANT[subject] * scale:
                 found.append(subject)
-    # The mould counts from an hour spared, night or day: the dwelling does not sleep.
-    if idle.mould - chosen.mould >= MOULD_HOURS:
+    # The mould: 5 points of humidity spared at the coldest corner for two hours, night or day (the dwelling does not
+    # sleep). Counted in hours of risk, a corner hovering at 80 % made one point of humidity look like hours spared:
+    # « Aérez 20 min » at night in the bedrooms, rejeu of 10 days.
+    if idle.mould - chosen.mould >= AVOIDED_HOURS * SIGNIFICANT["mould"]:
         found.append("mould")
     # Energy is a subject only where the heating is simulated: without, the heat a window lets out shows as the room's
     # own cooling, already counted on the heat.

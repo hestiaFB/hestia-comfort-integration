@@ -19,7 +19,7 @@ TEXTS = {
         "heat": "vous gardez {value} °C d'ici {hour} h", "heat_open": "{value} °C de mieux d'ici {hour} h",
         "humidity": "{value} points d'humidité en moins", "co2": "l'air redevient sain en {minutes} min",
         "particles": "les particules retombent en {minutes} min", "voc": "le COV retombe en {minutes} min", "energy": "{value} kWh de chauffage économisés",
-        "mould": "{value} h de risque de moisissure en moins",
+        "mould": "moins de risque de moisissure sur les murs froids",
         "sure": "{line}", "unsure": "{line}, sans doute",
         "why": "{gesture} : {air} °C à {hour} h", "why_humidity": ", humidité {humidity} %",
         "shut": "Fermée", "open_now": "Ouverte", "aired": "Aérée {minutes} min", "later": "Dans {minutes} min",
@@ -52,7 +52,7 @@ TEXTS = {
         "heat": "you keep {value} °C until {hour}:00", "heat_open": "{value} °C better by {hour}:00",
         "humidity": "{value} humidity points less", "co2": "the air is fresh again in {minutes} min",
         "particles": "the particles settle in {minutes} min", "voc": "the VOC falls back in {minutes} min", "energy": "{value} kWh of heating saved",
-        "mould": "{value} h less risk of mould",
+        "mould": "less risk of mould on the cold walls",
         "sure": "{line}", "unsure": "{line}, most likely",
         "why": "{gesture}: {air} °C at {hour}:00", "why_humidity": ", humidity {humidity} %",
         "shut": "Shut", "open_now": "Open", "aired": "Aired {minutes} min", "later": "In {minutes} min",
@@ -85,7 +85,7 @@ TEXTS = {
         "heat": "Sie behalten {value} °C bis {hour} Uhr", "heat_open": "{value} °C besser bis {hour} Uhr",
         "humidity": "{value} Punkte weniger Feuchte", "co2": "die Luft ist in {minutes} Min. wieder frisch",
         "particles": "die Partikel setzen sich in {minutes} Min.", "voc": "die VOC sinken in {minutes} Min.", "energy": "{value} kWh Heizenergie gespart",
-        "mould": "{value} Std. weniger Schimmelgefahr",
+        "mould": "weniger Schimmelgefahr an kalten Wänden",
         "sure": "{line}", "unsure": "{line}, voraussichtlich",
         "why": "{gesture}: {air} °C um {hour} Uhr", "why_humidity": ", Feuchte {humidity} %",
         "shut": "Geschlossen", "open_now": "Offen", "aired": "{minutes} Min. gelüftet", "later": "In {minutes} Min.",
@@ -193,7 +193,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             if minutes:
                 line = words[subject].format(minutes=minutes)
         elif subject == "mould":
-            line = words["mould"].format(value=_number(idle.mould - chosen.mould, language))
+            line = words["mould"]
         elif subject == "energy":
             line = words["energy"].format(value=_number(idle.spent - chosen.spent, language))
     if decision.rule == "safety" and reason and f"safety_{reason}" in words:
