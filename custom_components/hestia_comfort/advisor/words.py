@@ -7,7 +7,7 @@ from dataclasses import replace
 
 from .decide import SUBJECTS, Decision, Gesture, main_subject
 from .knowing import Tip
-from .proof import REINFORCED
+from .proof import PROVEN, REINFORCED
 
 TEXTS = {
     "fr": {
@@ -23,6 +23,7 @@ TEXTS = {
         "nothing_shut": "La pièce restera dans votre plage",
         "try": "À essayer — {title} : {line}",
         "keep_shut": "Gardez fermé : {why}",
+        "tonight_close": "Cette nuit, pensez à refermer : {line}", "tonight_open": "Cette nuit, pensez à ouvrir : {line}",
         "safety_rain": "il pleut", "safety_rain_soon": "la pluie arrive", "safety_gusts": "rafales de vent",
         "safety_vigilance": "vigilance météo", "safety_away": "la maison est en mode absence",
         "sun": "Soleil sur {window} de {start} à {end}", "sun_strong": "Grand soleil prévu sur {window} de {start} à {end}",
@@ -50,6 +51,7 @@ TEXTS = {
         "nothing_shut": "The room stays in your range",
         "try": "Worth a try — {title}: {line}",
         "keep_shut": "Keep it shut: {why}",
+        "tonight_close": "Tonight, remember to close: {line}", "tonight_open": "Tonight, remember to open: {line}",
         "safety_rain": "it is raining", "safety_rain_soon": "rain is coming", "safety_gusts": "gusts of wind",
         "safety_vigilance": "weather warning", "safety_away": "the home is set to away",
         "sun": "Sun on {window} from {start} to {end}", "sun_strong": "Bright sun expected on {window} from {start} to {end}",
@@ -77,6 +79,7 @@ TEXTS = {
         "nothing_shut": "Der Raum bleibt in Ihrem Bereich",
         "try": "Einen Versuch wert — {title}: {line}",
         "keep_shut": "Geschlossen lassen: {why}",
+        "tonight_close": "Heute Nacht schließen: {line}", "tonight_open": "Heute Nacht öffnen: {line}",
         "safety_rain": "es regnet", "safety_rain_soon": "Regen kommt", "safety_gusts": "Windböen",
         "safety_vigilance": "Unwetterwarnung", "safety_away": "das Haus ist auf Abwesenheit gestellt",
         "sun": "Sonne auf {window} von {start} bis {end}", "sun_strong": "Viel Sonne erwartet auf {window} von {start} bis {end}",
@@ -206,6 +209,13 @@ def _beyond(path, marks) -> tuple[str, float] | None:
         if values and values[-1] > marks[subject]:
             return subject, values[-1]
     return None
+
+
+def tonight_text(decision: Decision, wake_hour: int, language: str = "fr", marks: dict | None = None) -> str:
+    """« Cette nuit, pensez à… » in words (advisor/decide.py `tonight`): the conditional unless the effect is proven."""
+    words = TEXTS[language]
+    line = phrase(decision, wake_hour, language, sure=decision.level == PROVEN, marks=marks)["line"]
+    return words[f"tonight_{decision.gesture.kind}"].format(line=line)
 
 
 def _time(when, words) -> str:

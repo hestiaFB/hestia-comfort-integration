@@ -307,3 +307,25 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
                                                                 stricter=REINFORCED_STRICTER)):
         return Decision(best, gain, rule, costs, paths, level=found)
     return Decision(Gesture("nothing"), gain, "unproven", costs, paths, level=found, passive=best)
+
+
+# « Cette nuit, pensez à… » (CAHIER-MOTEUR.md § 4, § 13): said in the evening, about the windows at bedtime.
+BEDTIME = 22
+
+
+def tonight(twins: Twins, now: Now, coming, bedtime_minutes: int, comfort: Comfort = Comfort(),
+            weights: Weights = Weights(), proof: dict[str, str] | None = None) -> Decision | None:
+    """What to do with the windows at bedtime, judged over the whole night: `coming` runs from now until waking up,
+    `bedtime_minutes` from now. Only the gesture at bedtime is compared with leaving the windows as they are; None when
+    there is nothing worth saying. The night's stricter gaps apply (`significant`)."""
+    at_night = replace(now, night=True)
+    later = Gesture("close", after=bedtime_minutes) if now.opened else Gesture("open", after=bedtime_minutes)
+    gestures = [Gesture("nothing"), later]
+    paths = {g: simulate(twins, at_night, coming, g) for g in gestures}
+    costs = {g: cost(paths[g], comfort, weights, g, night=True) for g in gestures}
+    gain = costs[Gesture("nothing")]["total"] - costs[later]["total"]
+    if gain < GAIN or not significant(paths[Gesture("nothing")], paths[later], comfort, night=True):
+        return None
+    subject = main_subject(costs, later)
+    found = PROVEN if proof is None else proof.get("heat" if subject == "energy" else subject, SUPPOSED)
+    return Decision(later, gain, "tonight", costs, paths, level=found)

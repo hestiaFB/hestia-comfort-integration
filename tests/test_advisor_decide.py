@@ -145,3 +145,20 @@ class Ranges(unittest.TestCase):
         from advisor.words import phrase
         decision = decide(TWINS, Now(air=19.3, walls=19.3, opened=(), humidity=50.0), day(outdoor=18.0), comfort=Comfort(18, 24))
         self.assertEqual(phrase(decision, 17, marks={"minimum": 18, "maximum": 24})["line"], "La pièce restera dans votre plage")
+
+
+class Tonight(unittest.TestCase):
+    def test_in_the_evening_remember_to_close_before_sleeping(self):
+        from advisor.decide import tonight
+        from advisor.proof import PROVEN
+        from advisor.words import tonight_text
+        # 20:00, the French window open, 12.8 °C outside all night: bedtime in two hours, waking at 7.
+        now = Now(air=20.6, walls=20.6, opened=(FRENCH.size,), humidity=60.0)
+        found = tonight(TWINS, now, night(start=20.0, hours=11), 120, proof={"heat": PROVEN, "humidity": PROVEN})
+        self.assertEqual(found.gesture, Gesture("close", after=120))
+        self.assertRegex(tonight_text(found, 7), r"^Cette nuit, pensez à refermer : vous gardez \d+,\d °C d'ici 7 h$")
+
+    def test_nothing_to_say_on_a_mild_night(self):
+        from advisor.decide import tonight
+        now = Now(air=21.0, walls=21.0, opened=(), humidity=50.0)
+        self.assertIsNone(tonight(TWINS, now, night(outdoor=19.0, start=20.0, hours=11), 120))
