@@ -51,6 +51,7 @@ def restore(snap: dict) -> dict:
                   air=AirParams(**t["air"]) if t.get("air") else None, air_flow=tuple(t["air_flow"]),
                   particles=ParticleParams(**t["particles"]) if t.get("particles") else None,
                   particles_flow=tuple(t["particles_flow"]),
+                  voc=ParticleParams(**t["voc"]) if t.get("voc") else None, voc_flow=tuple(t.get("voc_flow", (1, 1))),
                   thermostat=Thermostat(**t["thermostat"]) if t.get("thermostat") else None)
     now = Now(**{**snap["now"], "opened": _pairs(snap["now"]["opened"])})
     coming = [(Inputs(**{**u, "windows": _pairs(u["windows"])}), water) for u, water in snap["coming"]]
@@ -64,7 +65,8 @@ def replay(snap: dict, **changes) -> tuple[Decision, dict]:
     args = {**restore(snap), **changes}
     decision = decide(**args)
     c = args["comfort"]
-    marks = {"minimum": c.minimum, "maximum": c.maximum, "humidity": c.humidity, "co2": c.co2, "particles": c.particles}
+    marks = {"minimum": c.minimum, "maximum": c.maximum, "humidity": c.humidity, "co2": c.co2, "particles": c.particles,
+             "voc": c.voc}
     return decision, phrase(decision, snap["end_hour"], snap.get("language", "fr"), hour=snap.get("hour"),
                             reason=snap.get("reason"), marks=marks)
 
@@ -115,6 +117,7 @@ def trace(snap: dict, decision: Decision, words: dict) -> dict:
                                          "humidite": path.humidity[-1] if path and path.humidity else None,
                                          "co2": path.co2[-1] if path and path.co2 else None,
                                          "particules": path.particles[-1] if path and path.particles else None,
+                                         "cov": path.voc[-1] if path and path.voc else None,
                                          "kwh": path.spent if path else None}),
                           "significatif": (significant(idle, path, args["comfort"], args["now"].night)
                                            if idle and path and g.kind != "nothing" else [])})

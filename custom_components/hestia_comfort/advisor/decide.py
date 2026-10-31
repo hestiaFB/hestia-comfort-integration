@@ -36,6 +36,7 @@ class Comfort:
     humidity: float = 60.0      # %
     co2: float = 1000.0         # ppm
     particles: float = 15.0     # µg/m³
+    voc: float = 150.0          # Sensirion VOC index: 100 is the room's usual air, 150 a worse one, 250 a bad one
 
 
 # The upper limit moves from winter's to summer's with the home's season, when it is known (the same rule as Confort 2.1,
@@ -59,6 +60,7 @@ class Weights:
     humidity: float = 0.05      # per point·h above the mark
     co2: float = 0.002          # per ppm·h above the mark
     particles: float = 0.02     # per µg/m³·h above the mark
+    voc: float = 0.008          # per index point·h above the mark: 50 points for an hour weigh as 200 ppm of CO₂
     energy: float = 0.5         # per kWh of heat let out
     bother: float = 0.1         # per gesture
     night: float = 3.0          # a gesture at night bothers this much more
@@ -91,6 +93,11 @@ class Twins:
     air_flow: tuple[float, float] = (1.0, 1.0)
     particles: ParticleParams | None = None
     particles_flow: tuple[float, float] = (1.0, 1.0)
+    # The VOC index follows the particles' law: made indoors, let out by the windows, and back toward the room's usual
+    # air by itself (the sensor's own 24-hour baseline). Bench of 31 October, kitchen, 10 days: 3-hour error 54 points
+    # against 89 for « nothing changes »; 33 airings, −81 measured for −154 forecast in an hour.
+    voc: ParticleParams | None = None
+    voc_flow: tuple[float, float] = (1.0, 1.0)
     # With a thermostat, its heating is simulated in every scenario; without, the heating stays as the inputs say.
     thermostat: Thermostat | None = None
 
@@ -104,6 +111,7 @@ class Now:
     reserve: float | None = None                # g/m³, the walls' water
     co2: float | None = None                    # ppm
     particles: float | None = None              # µg/m³
+    voc: float | None = None                    # VOC index
     night: bool = False
     # What the twin missed over the last hour (°C, measured minus forecast with what really came): the room's trend
     # the twin did not see, carried into every scenario and fading over two hours (advisor/physics/fit.py). Bench of
@@ -119,6 +127,7 @@ class Path:
     humidity: list[float] = field(default_factory=list)
     co2: list[float] = field(default_factory=list)
     particles: list[float] = field(default_factory=list)
+    voc: list[float] = field(default_factory=list)
     lost: float = 0.0           # kWh of heat let out through open windows
     heating: float = 0.0        # kWh the simulated thermostat spends
     heated: bool = False        # a thermostat was simulated: `heating` is what the gesture really costs
@@ -163,7 +172,7 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
     if twins.water and now.humidity is not None:
         water = absolute(now.air, now.humidity)
         reserve = now.reserve if now.reserve is not None else water
-    co2, particles = now.co2, now.particles
+    co2, particles, voc = now.co2, now.particles, now.voc
     for k, (u, outdoor_water) in enumerate(coming):
         windows = _open(gesture, now, twins, k)
         # The sun of the scenario's windows: through the glass when shut, more of it through an open sash.
@@ -191,21 +200,27 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
             flow = _flow(twins.particles_flow, twins.particles.volume, windows, before, u.outdoor, u.wind)
             particles = particles_step(twins.particles, particles, flow, u.hour)
             path.particles.append(particles)
+        if twins.voc and voc is not None:
+            flow = _flow(twins.voc_flow, twins.voc.volume, windows, before, u.outdoor, u.wind)
+            voc = particles_step(twins.voc, voc, flow, u.hour)
+            path.voc.append(voc)
     return path
 
 
 # A gesture must be significant (CAHIER-MOTEUR.md § 10.2 bis): a gap one feels at the end of the horizon, or a mark it
 # keeps the room on the right side of for half an hour at least. At night the gaps double.
-SIGNIFICANT = {"heat": 1.5, "humidity": 5.0, "co2": 200.0, "particles": 5.0, "energy": 0.5}
-MARKS = {"humidity": (60.0, 70.0), "co2": (1000.0, 1500.0), "particles": (15.0, 25.0)}
+SIGNIFICANT = {"heat": 1.5, "humidity": 5.0, "co2": 200.0, "particles": 5.0, "voc": 50.0, "energy": 0.5}
+MARKS = {"humidity": (60.0, 70.0), "co2": (1000.0, 1500.0), "particles": (15.0, 25.0), "voc": (150.0, 250.0)}
 NIGHT_STRICTER = 2.0
-# Keeping the room on the right side of a mark counts for an hour at least, and with half the felt gap at least: in the
-# test Home Assistant, half an hour let « Refermez, vous gardez 0,5 °C » through for a room just under its range.
-KEPT_STEPS, KEPT_SHARE = 12, 0.5
+# A gesture also counts when it spares the room this felt gap for two hours, all along the horizon (°C·h, points·h…):
+# a bedroom kept 2.5 °C warmer all night though under its range both ways, a kitchen's VOC kept under its mark for an
+# hour after cooking. « Refermez, vous gardez 0,5 °C » for a room just under its range (1.5 °C·h) is still not one.
+AVOIDED_HOURS = 2.0
 
 
-def _outside(values, low, high):
-    return sum(1 for v in values if v < low or v > high)
+def _beyond_mark(values, low, high) -> float:
+    """How far a scenario stays out of [low, high], summed over its steps (°C·h, points·h…)."""
+    return sum(max(low - v, 0.0, v - high) for v in values) * HOURS
 
 
 # An effect only reinforced must be this much clearer (CAHIER-MOTEUR.md § 4.1); it does not add up with the night's.
@@ -218,16 +233,18 @@ def significant(idle: Path, chosen: Path, comfort: Comfort, night: bool = False,
     scale = max(NIGHT_STRICTER if night else 1.0, stricter)
     found = []
     if idle.air and chosen.air:
-        kept = _outside(idle.air, comfort.minimum, comfort.maximum) - _outside(chosen.air, comfort.minimum, comfort.maximum)
         gap = abs(chosen.air[-1] - idle.air[-1])
-        if gap >= SIGNIFICANT["heat"] * scale or (kept >= KEPT_STEPS and gap >= KEPT_SHARE * SIGNIFICANT["heat"] * scale):
+        spared = (_beyond_mark(idle.air, comfort.minimum, comfort.maximum)
+                  - _beyond_mark(chosen.air, comfort.minimum, comfort.maximum))
+        if gap >= SIGNIFICANT["heat"] * scale or spared >= AVOIDED_HOURS * SIGNIFICANT["heat"] * scale:
             found.append("heat")
-    for subject in ("humidity", "co2", "particles"):
+    for subject in ("humidity", "co2", "particles", "voc"):
         before, after = getattr(idle, subject), getattr(chosen, subject)
         if before and after:
-            kept = max(sum(1 for v in before if v > m) - sum(1 for v in after if v > m) for m in MARKS[subject])
+            mark = MARKS[subject][0]
             gap = before[-1] - after[-1]
-            if gap >= SIGNIFICANT[subject] * scale or (kept >= KEPT_STEPS and gap >= KEPT_SHARE * SIGNIFICANT[subject] * scale):
+            spared = _beyond_mark(before, float("-inf"), mark) - _beyond_mark(after, float("-inf"), mark)
+            if gap >= SIGNIFICANT[subject] * scale or spared >= AVOIDED_HOURS * SIGNIFICANT[subject] * scale:
                 found.append(subject)
     # Energy is a subject only where the heating is simulated: without, the heat a window lets out shows as the room's
     # own cooling, already counted on the heat.
@@ -243,6 +260,7 @@ def cost(path: Path, comfort: Comfort, weights: Weights, gesture: Gesture, night
         "humidity": weights.humidity * sum(max(0.0, h - comfort.humidity) for h in path.humidity) * HOURS,
         "co2": weights.co2 * sum(max(0.0, c - comfort.co2) for c in path.co2) * HOURS,
         "particles": weights.particles * sum(max(0.0, p - comfort.particles) for p in path.particles) * HOURS,
+        "voc": weights.voc * sum(max(0.0, v - comfort.voc) for v in path.voc) * HOURS,
         "energy": weights.energy * path.spent,
         "bother": 0.0 if gesture.kind == "nothing" else weights.bother * (weights.night if night else 1.0),
     }
@@ -250,7 +268,7 @@ def cost(path: Path, comfort: Comfort, weights: Weights, gesture: Gesture, night
     return terms
 
 
-SUBJECTS = ("heat", "humidity", "co2", "particles", "energy")
+SUBJECTS = ("heat", "humidity", "co2", "particles", "voc", "energy")
 
 
 def main_subject(scenarios: dict, gesture: Gesture) -> str | None:
@@ -285,17 +303,25 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     paths = {g: simulate(twins, now, coming, g) for g in gestures}
     costs = {g: cost(paths[g], comfort, weights, g, now.night) for g in gestures}
     nothing = costs[Gesture("nothing")]["total"]
-    # Between two gestures that cost the same, doing nothing first, then the sooner.
-    best = min(gestures, key=lambda g: (round(costs[g]["total"], 3), g.kind != "nothing", g.after or 0))
-    if (previous in costs and previous != best
+    idle = paths[Gesture("nothing")]
+
+    def order(g):
+        # Between two gestures that cost the same, doing nothing first, then the sooner.
+        return round(costs[g]["total"], 3), g.kind != "nothing", g.after or 0
+    # A gesture is worth it when it beats doing nothing by a clear gain and makes a difference one feels (§ 10.2 bis); the
+    # cheapest of those is advised, not the cheapest of all, which may change nothing one feels (a kitchen's VOC fed by a
+    # long cooking: a 10-minute airing hardly shows, opening does).
+    worth = [g for g in gestures if g.kind != "nothing" and nothing - costs[g]["total"] >= GAIN
+             and significant(idle, paths[g], comfort, now.night)]
+    best = min(worth, key=order) if worth else Gesture("nothing")
+    if ((previous in worth or previous == Gesture("nothing")) and previous != best
             and costs[previous]["total"] - costs[best]["total"] < MARGIN * max(costs[previous]["total"], GAIN)):
         best, rule = previous, "kept"
-    elif best.kind == "nothing" or nothing - costs[best]["total"] < GAIN:
-        best, rule = Gesture("nothing"), "nothing"
-    elif not significant(paths[Gesture("nothing")], paths[best], comfort, now.night):
-        best, rule = Gesture("nothing"), "insignificant"
-    else:
+    elif best.kind != "nothing":
         rule = "best"
+    else:
+        cheapest = min(gestures, key=order)
+        rule = "nothing" if cheapest.kind == "nothing" or nothing - costs[cheapest]["total"] < GAIN else "insignificant"
     gain = nothing - costs[best]["total"]
     if best.kind == "nothing" or proof is None:
         return Decision(best, gain, rule, costs, paths)
@@ -313,6 +339,12 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
 BEDTIME = 22
 
 
+def _from(path: Path, k: int) -> Path:
+    """The scenario from its `k`-th step on."""
+    return Path(path.air[k:], path.humidity[k:], path.co2[k:], path.particles[k:], path.voc[k:], path.lost, path.heating,
+                path.heated)
+
+
 def tonight(twins: Twins, now: Now, coming, bedtime_minutes: int, comfort: Comfort = Comfort(),
             weights: Weights = Weights(), proof: dict[str, str] | None = None) -> Decision | None:
     """What to do with the windows at bedtime, judged over the whole night: `coming` runs from now until waking up,
@@ -324,7 +356,9 @@ def tonight(twins: Twins, now: Now, coming, bedtime_minutes: int, comfort: Comfo
     paths = {g: simulate(twins, at_night, coming, g) for g in gestures}
     costs = {g: cost(paths[g], comfort, weights, g, night=True) for g in gestures}
     gain = costs[Gesture("nothing")]["total"] - costs[later]["total"]
-    if gain < GAIN or not significant(paths[Gesture("nothing")], paths[later], comfort, night=True):
+    # Both scenarios are the same until bedtime: what matters is judged from there.
+    start = bedtime_minutes * 60 // int(STEP)
+    if gain < GAIN or not significant(_from(paths[Gesture("nothing")], start), _from(paths[later], start), comfort, night=True):
         return None
     subject = main_subject(costs, later)
     found = PROVEN if proof is None else proof.get("heat" if subject == "energy" else subject, SUPPOSED)

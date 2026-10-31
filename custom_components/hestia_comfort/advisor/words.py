@@ -15,7 +15,7 @@ TEXTS = {
         "close_later": "Refermez vers {at} h", "open_later": "Aérez vers {at} h",
         "heat": "vous gardez {value} °C d'ici {hour} h", "heat_open": "{value} °C de mieux d'ici {hour} h",
         "humidity": "{value} points d'humidité en moins", "co2": "l'air redevient sain en {minutes} min",
-        "particles": "les particules retombent en {minutes} min", "energy": "{value} kWh de chauffage économisés",
+        "particles": "les particules retombent en {minutes} min", "voc": "le COV retombe en {minutes} min", "energy": "{value} kWh de chauffage économisés",
         "sure": "{line}", "unsure": "{line}, sans doute",
         "why": "{gesture} : {air} °C à {hour} h", "why_humidity": ", humidité {humidity} %",
         "shut": "Fermée", "open_now": "Ouverte", "aired": "Aérée {minutes} min", "later": "Dans {minutes} min",
@@ -35,7 +35,7 @@ TEXTS = {
         "north": "nord", "north_east": "nord-est", "east": "est", "south_east": "sud-est", "south": "sud",
         "south_west": "sud-ouest", "west": "ouest", "north_west": "nord-ouest",
         "out_humidity": "Humidité {value} % à {hour} h", "out_co2": "CO₂ {value} ppm à {hour} h",
-        "out_particles": "Particules {value} µg/m³ à {hour} h", "out_nothing": "{what} : aucun geste ne ferait vraiment mieux",
+        "out_particles": "Particules {value} µg/m³ à {hour} h", "out_voc": "COV {value} à {hour} h", "out_nothing": "{what} : aucun geste ne ferait vraiment mieux",
         "nothing_out": "Ouverte ou fermée : {air} °C à {hour} h", "nothing_out_shut": "Aucun geste ne ferait vraiment mieux : {air} °C à {hour} h",
     },
     "en": {
@@ -43,7 +43,7 @@ TEXTS = {
         "close_later": "Close around {at}:00", "open_later": "Air around {at}:00",
         "heat": "you keep {value} °C until {hour}:00", "heat_open": "{value} °C better by {hour}:00",
         "humidity": "{value} humidity points less", "co2": "the air is fresh again in {minutes} min",
-        "particles": "the particles settle in {minutes} min", "energy": "{value} kWh of heating saved",
+        "particles": "the particles settle in {minutes} min", "voc": "the VOC falls back in {minutes} min", "energy": "{value} kWh of heating saved",
         "sure": "{line}", "unsure": "{line}, most likely",
         "why": "{gesture}: {air} °C at {hour}:00", "why_humidity": ", humidity {humidity} %",
         "shut": "Shut", "open_now": "Open", "aired": "Aired {minutes} min", "later": "In {minutes} min",
@@ -63,7 +63,7 @@ TEXTS = {
         "north": "north", "north_east": "north-east", "east": "east", "south_east": "south-east", "south": "south",
         "south_west": "south-west", "west": "west", "north_west": "north-west",
         "out_humidity": "Humidity {value} % at {hour}:00", "out_co2": "CO₂ {value} ppm at {hour}:00",
-        "out_particles": "Particles {value} µg/m³ at {hour}:00", "out_nothing": "{what}: no gesture would really do better",
+        "out_particles": "Particles {value} µg/m³ at {hour}:00", "out_voc": "VOC {value} at {hour}:00", "out_nothing": "{what}: no gesture would really do better",
         "nothing_out": "Open or shut: {air} °C at {hour}:00", "nothing_out_shut": "No gesture would really do better: {air} °C at {hour}:00",
     },
     "de": {
@@ -71,7 +71,7 @@ TEXTS = {
         "close_later": "Gegen {at} Uhr schließen", "open_later": "Gegen {at} Uhr lüften",
         "heat": "Sie behalten {value} °C bis {hour} Uhr", "heat_open": "{value} °C besser bis {hour} Uhr",
         "humidity": "{value} Punkte weniger Feuchte", "co2": "die Luft ist in {minutes} Min. wieder frisch",
-        "particles": "die Partikel setzen sich in {minutes} Min.", "energy": "{value} kWh Heizenergie gespart",
+        "particles": "die Partikel setzen sich in {minutes} Min.", "voc": "die VOC sinken in {minutes} Min.", "energy": "{value} kWh Heizenergie gespart",
         "sure": "{line}", "unsure": "{line}, voraussichtlich",
         "why": "{gesture}: {air} °C um {hour} Uhr", "why_humidity": ", Feuchte {humidity} %",
         "shut": "Geschlossen", "open_now": "Offen", "aired": "{minutes} Min. gelüftet", "later": "In {minutes} Min.",
@@ -91,7 +91,7 @@ TEXTS = {
         "north": "Norden", "north_east": "Nordosten", "east": "Osten", "south_east": "Südosten", "south": "Süden",
         "south_west": "Südwesten", "west": "Westen", "north_west": "Nordwesten",
         "out_humidity": "Feuchte {value} % um {hour} Uhr", "out_co2": "CO₂ {value} ppm um {hour} Uhr",
-        "out_particles": "Partikel {value} µg/m³ um {hour} Uhr", "out_nothing": "{what}: keine Geste wäre wirklich besser",
+        "out_particles": "Partikel {value} µg/m³ um {hour} Uhr", "out_voc": "VOC {value} um {hour} Uhr", "out_nothing": "{what}: keine Geste wäre wirklich besser",
         "nothing_out": "Offen oder geschlossen: {air} °C um {hour} Uhr", "nothing_out_shut": "Keine Geste wäre wirklich besser: {air} °C um {hour} Uhr",
     },
 }
@@ -136,7 +136,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     words = TEXTS[language]
     # A reinforced effect is said in the conditional (CAHIER-MOTEUR.md § 4.1).
     sure = sure and decision.level != REINFORCED
-    marks = {"minimum": 20.0, "maximum": 24.0, "humidity": 60.0, "co2": 1000.0, "particles": 15.0, **(marks or {})}
+    marks = {"minimum": 20.0, "maximum": 24.0, "humidity": 60.0, "co2": 1000.0, "particles": 15.0, "voc": 150.0, **(marks or {})}
     # Something is open when closing is one of the scenarios.
     opened = any(g.kind == "close" for g in decision.scenarios)
     gesture, subject = decision.gesture, subject_of(decision)
@@ -168,8 +168,8 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             line = words["heat" if gesture.kind == "close" else "heat_open"].format(value=_number(abs(gain), language), hour=end_hour)
         elif subject == "humidity" and chosen.humidity and idle.humidity:
             line = words["humidity"].format(value=_number(max(i - c for i, c in zip(idle.humidity, chosen.humidity)), language))
-        elif subject in ("co2", "particles"):
-            series = chosen.co2 if subject == "co2" else chosen.particles
+        elif subject in ("co2", "particles", "voc"):
+            series = getattr(chosen, subject)
             minutes = _back_under(series, marks[subject]) if series else None
             if minutes:
                 line = words[subject].format(minutes=minutes)
@@ -205,7 +205,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
 
 def _beyond(path, marks) -> tuple[str, float] | None:
     """The first subject the room ends above its mark: humidity, CO₂, particles."""
-    for subject, values in (("humidity", path.humidity), ("co2", path.co2), ("particles", path.particles)):
+    for subject, values in (("humidity", path.humidity), ("co2", path.co2), ("particles", path.particles), ("voc", path.voc)):
         if values and values[-1] > marks[subject]:
             return subject, values[-1]
     return None

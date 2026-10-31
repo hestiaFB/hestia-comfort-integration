@@ -47,7 +47,7 @@ def window_reinforced(subject: str, air: float, outdoor: float, water: float | N
         return abs(air - outdoor) >= HEAT_GAP
     if subject == "humidity":
         return water is not None and outdoor_water is not None and water - outdoor_water >= WATER_GAP
-    if subject in ("co2", "particles"):
+    if subject in ("co2", "particles", "voc"):
         return measured
     return False
 

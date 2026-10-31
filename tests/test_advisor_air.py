@@ -79,3 +79,31 @@ class ParticlesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Voc(unittest.TestCase):
+    """The kitchen's VOC index, with the twin learned on 10 days (bench of 31 October)."""
+    KITCHEN = ParticleParams(110.0, 0.018, 63.7, 3218.0, -997.0, -3003.0)
+
+    def decide(self, sources, voc=450.0):
+        from dataclasses import replace
+        from advisor.decide import Now, decide
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from test_advisor_decide import TWINS, day
+        twins = replace(TWINS, voc=replace(self.KITCHEN, sources=self.KITCHEN.sources * sources), voc_flow=(5.55, 54.6))
+        return decide(twins, Now(air=21.5, walls=21.5, opened=(), voc=voc), day(outdoor=17.0, start=19.0))
+
+    def test_a_moderate_voc_falls_back_by_itself(self):
+        # At 300, under 150 within the half-hour without anything done: no gesture (Confort 2.1 had learned it).
+        self.assertEqual(self.decide(1, voc=300.0).gesture.kind, "nothing")
+
+    def test_after_cooking_a_short_airing(self):
+        # At 450, an hour above 150 if nothing is done: ten minutes of airing on a mild evening.
+        self.assertEqual(self.decide(1).gesture, __import__("advisor.decide", fromlist=["Gesture"]).Gesture("open", 10))
+
+    def test_a_lasting_source_asks_to_open(self):
+        from advisor.words import phrase
+        decision = self.decide(5)
+        self.assertEqual(decision.gesture.kind, "open")
+        self.assertEqual(phrase(decision, 22)["subject"], "voc")
+        self.assertRegex(phrase(decision, 22)["line"], r"^le COV retombe en \d+ min$")
