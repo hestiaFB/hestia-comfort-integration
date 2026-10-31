@@ -162,6 +162,37 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
     return path
 
 
+# A gesture must be significant (CAHIER-MOTEUR.md § 10.2 bis): a gap one feels at the end of the horizon, or a mark it
+# keeps the room on the right side of for half an hour at least. At night the gaps double.
+SIGNIFICANT = {"heat": 1.5, "humidity": 5.0, "co2": 200.0, "particles": 5.0, "energy": 0.5}
+MARKS = {"humidity": (60.0, 70.0), "co2": (1000.0, 1500.0), "particles": (15.0, 25.0)}
+NIGHT_STRICTER = 2.0
+HALF_HOUR = 6
+
+
+def _outside(values, low, high):
+    return sum(1 for v in values if v < low or v > high)
+
+
+def significant(idle: Path, chosen: Path, comfort: Comfort, night: bool = False) -> list[str]:
+    """The subjects on which `chosen` makes a difference worth a gesture, against doing nothing."""
+    scale = NIGHT_STRICTER if night else 1.0
+    found = []
+    if idle.air and chosen.air:
+        kept = _outside(idle.air, comfort.minimum, comfort.maximum) - _outside(chosen.air, comfort.minimum, comfort.maximum)
+        if abs(chosen.air[-1] - idle.air[-1]) >= SIGNIFICANT["heat"] * scale or kept >= HALF_HOUR:
+            found.append("heat")
+    for subject in ("humidity", "co2", "particles"):
+        before, after = getattr(idle, subject), getattr(chosen, subject)
+        if before and after:
+            kept = max(sum(1 for v in before if v > m) - sum(1 for v in after if v > m) for m in MARKS[subject])
+            if before[-1] - after[-1] >= SIGNIFICANT[subject] * scale or kept >= HALF_HOUR:
+                found.append(subject)
+    if idle.lost - chosen.lost >= SIGNIFICANT["energy"] * scale:
+        found.append("energy")
+    return found
+
+
 def cost(path: Path, comfort: Comfort, weights: Weights, gesture: Gesture, night: bool) -> dict[str, float]:
     """Each term of a scenario's cost, and their total."""
     terms = {
@@ -203,6 +234,8 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         best, rule = previous, "kept"
     elif best.kind == "nothing" or nothing - costs[best]["total"] < GAIN:
         best, rule = Gesture("nothing"), "nothing"
+    elif not significant(paths[Gesture("nothing")], paths[best], comfort, now.night):
+        best, rule = Gesture("nothing"), "insignificant"
     else:
         rule = "best"
     return Decision(best, nothing - costs[best]["total"], rule, costs, paths)

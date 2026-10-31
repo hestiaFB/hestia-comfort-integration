@@ -78,6 +78,12 @@ class Gestures(unittest.TestCase):
             gains.append(costs[Gesture("nothing")]["total"] - costs[Gesture("open")]["total"])
         self.assertEqual(gains, sorted(gains, reverse=True))
 
+    def test_a_gesture_that_changes_almost_nothing_is_not_advised(self):
+        # The 2.1 engine said « Aérez » to warm a room at 18.2 °C with 20 °C outside: a few tenths of a degree.
+        now = Now(air=18.2, walls=18.2, opened=(), humidity=65.0)
+        decision = decide(TWINS, now, day(outdoor=20.1))
+        self.assertEqual(decision.gesture, Gesture("nothing"))
+
     def test_a_later_gesture_is_said_with_its_hour(self):
         from advisor.words import phrase
         decision = decide(TWINS, Now(air=21.5, walls=21.5, opened=(), humidity=55.0, co2=1600.0), day(outdoor=17.0))
