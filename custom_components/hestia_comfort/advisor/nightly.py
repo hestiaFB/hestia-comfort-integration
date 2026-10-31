@@ -11,7 +11,7 @@ from .bench.history import attribute, contacts, numbers
 from .physics.airfit import MOVES, TWINS, _run, score as air_score, values, vector
 from .physics.fit import Sample, _nelder_mead, fit, gestures, score
 from .physics.sunlight import sun_position, through_windows
-from .physics.thermal import STEP, Inputs, Params
+from .physics.thermal import STEP, Inputs, Params, shutter_insulation
 from .physics.water import absolute
 from .proof import level
 
@@ -59,6 +59,8 @@ def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zo
     windows = [(e, (w * h, h), contacts(history, e)) for e, (w, h) in spec.windows.items()]
     glazing = [(w * h, *spec.orientations[e]) for e, (w, h) in spec.windows.items() if e in spec.orientations]
     oriented = [i for i, (e, _, _) in enumerate(windows) if e in spec.orientations]
+    # The connected shutter covers the room's windows: shut, it keeps their heat in (advisor/physics/thermal.py).
+    glass = sum(size[0] for _, size, _ in windows)
     rows, when = [], start
     while when <= end:
         te, local = out.at(when), when.astimezone(zone)
@@ -74,6 +76,8 @@ def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zo
                             hour=local.hour + local.minute / 60,
                             house_heat=sum((s.at(when) or 0.0) * w for s, w in house),
                             shade=1.0 if position is None or position.at(when) is None else max(0.05, position.at(when)),
+                            shutter=0.0 if position is None or position.at(when) is None
+                            else shutter_insulation(glass, 1 - position.at(when)),
                             facade=facade,
                             **{name: flow if series.at(when) is True else 0.0 for name, (series, flow) in devices.items()})
         rows.append(Sample(when, indoor.at(when), inputs))

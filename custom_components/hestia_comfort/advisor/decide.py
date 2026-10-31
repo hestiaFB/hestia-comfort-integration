@@ -12,7 +12,7 @@ from .household import Habits
 from .physics.air import AirParams, ParticleParams, air_step, particles_step
 from .physics.fit import DEFAULT_RECENT, correction
 from .physics.surface import mould_excess
-from .physics.thermal import STEP, Inputs, Params, step
+from .physics.thermal import STEP, Inputs, Params, shutter_insulation, step
 from .physics.vents import conductance, leak_flow, window_flow
 from .physics.water import WaterParams, absolute, relative, water_step
 from .proof import PROVEN, REINFORCED, SUPPOSED
@@ -107,6 +107,8 @@ class Twins:
     purifier: float = 0.0
     # With a thermostat, its heating is simulated in every scenario; without, the heating stays as the inputs say.
     thermostat: Thermostat | None = None
+    # m² of glass behind the room's connected shutter (CAHIER-MOTEUR.md § 6.7 ter); 0: none.
+    shutter_area: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -127,6 +129,9 @@ class Now:
     # 31 October, 10 days, windows left as they were: it brings the one-hour error down by a fifth to two fifths —
     # Chambre AL open 0.38 → 0.29 °C, salon open 0.23 → 0.13 °C; carried as a slope instead, it does no better.
     missed: float | None = None
+    # The connected shutter's position, 0 shut to 1 open, when the household moves it; None: no shutter, or one an
+    # automation drives (Adaptive Cover Pro's automatic control): the advisor then proposes nothing on it.
+    cover: float | None = None
 
 
 @dataclass
@@ -166,7 +171,22 @@ def candidates(now: Now, twins: Twins | None = None, habits: Habits = Habits()) 
     for device, running, has in (("boost", now.boosting, twins and twins.boost), ("purify", now.purifying, twins and twins.purifier)):
         if has:
             out += [Gesture(f"{device}_off")] if running else [Gesture(device, m) for m in habits.devices]
+    if twins and twins.shutter_area and now.cover is not None:
+        out += [Gesture("shutter_close")] if now.cover > SHUTTER_SHUT else []
+        out += [Gesture("shutter_open")] if now.cover < SHUTTER_OPEN else []
     return out
+
+
+# A shutter under this position is shut, above that one open (0 to 1); shut, it still lets a little light through.
+SHUTTER_SHUT, SHUTTER_OPEN, SHUT_SHADE = 0.05, 0.95, 0.05
+
+
+def _shutter(gesture: Gesture, twins: Twins, u: Inputs, k: int) -> Inputs:
+    """The inputs of step `k` under a shutter gesture: its sun and its insulation, from the gesture's moment on."""
+    if not gesture.kind.startswith("shutter_") or k * STEP / 60 < (gesture.after or 0):
+        return u
+    closed = gesture.kind == "shutter_close"
+    return replace(u, shade=SHUT_SHADE if closed else 1.0, shutter=shutter_insulation(twins.shutter_area, 1.0 if closed else 0.0))
 
 
 def _running(gesture: Gesture, device: str, now_on: bool, k: int) -> bool:
@@ -206,7 +226,7 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
         purify = twins.purifier if _running(gesture, "purify", now.purifying, k) else 0.0
         # The sun of the scenario's windows: through the glass when shut, more of it through an open sash.
         facade = u.facade_shut if not windows else u.facade_all if windows == twins.windows else None
-        u = replace(u, windows=windows, facade=u.facade if facade is None else facade, vent=boost)
+        u = _shutter(gesture, twins, replace(u, windows=windows, facade=u.facade if facade is None else facade, vent=boost), k)
         if twins.thermostat:
             # The thermostat reads the room as it is, the twin's trend included.
             felt = path.air[-1] if path.air else now.air
@@ -314,6 +334,8 @@ def effect(gesture: Gesture, subject: str) -> str:
     device's (« boost:humidity », « purify:particles »). The energy a gesture saves rests on its heat."""
     # The energy a gesture saves rests on its heat, the mould it spares on its humidity.
     subject = {"energy": "heat", "mould": "humidity"}.get(subject, subject)
+    if gesture.kind.startswith("shutter_"):
+        return f"shutter:{subject}"
     device = gesture.kind.removesuffix("_off")
     return f"{device}:{subject}" if device in DEVICES else subject
 
@@ -388,6 +410,20 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
                                                                 stricter=REINFORCED_STRICTER, tolerance=habits.tolerance)):
         return Decision(best, gain, rule, costs, paths, level=found)
     return Decision(Gesture("nothing"), gain, "unproven", costs, paths, level=found, passive=best)
+
+
+def shutter_tonight(twins: Twins, now: Now, coming, bedtime_minutes: int) -> dict | None:
+    """What the shutter closed at bedtime keeps by waking up, against leaving it open (`coming` runs until then): °C of
+    the room, kWh of its simulated heating, and the room's air at waking up left as it is. Too small for a gesture at
+    night (0.2 to 0.3 °C), it is a passive advice (advisor/knowing.py). None without a shutter the household moves, or
+    one already shut."""
+    if not twins.shutter_area or now.cover is None or now.cover <= SHUTTER_SHUT or not coming:
+        return None
+    at_night = replace(now, night=True)
+    idle = simulate(twins, at_night, coming, Gesture("nothing"))
+    shut = simulate(twins, at_night, coming, Gesture("shutter_close", after=bedtime_minutes))
+    return {"heat": shut.air[-1] - idle.air[-1], "energy": idle.spent - shut.spent if idle.heated else 0.0,
+            "wake": idle.air[-1]}
 
 
 # Away for days, the range becomes the frost guard's (`Habits.frost_guard`, 7 °C by default), never overheated.

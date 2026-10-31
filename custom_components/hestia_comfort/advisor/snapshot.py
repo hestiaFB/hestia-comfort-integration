@@ -57,7 +57,8 @@ def restore(snap: dict) -> dict:
                   particles_flow=tuple(t["particles_flow"]),
                   voc=ParticleParams(**t["voc"]) if t.get("voc") else None, voc_flow=tuple(t.get("voc_flow", (1, 1))),
                   boost=t.get("boost", 0.0), purifier=t.get("purifier", 0.0),
-                  thermostat=Thermostat(**t["thermostat"]) if t.get("thermostat") else None)
+                  thermostat=Thermostat(**t["thermostat"]) if t.get("thermostat") else None,
+                  shutter_area=t.get("shutter_area", 0.0))
     now = Now(**{**snap["now"], "opened": _pairs(snap["now"]["opened"])})
     coming = [(Inputs(**{**u, "windows": _pairs(u["windows"])}), water) for u, water in snap["coming"]]
     return {"twins": twins, "now": now, "coming": coming, "comfort": Comfort(**snap["comfort"]),

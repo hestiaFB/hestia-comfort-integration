@@ -53,10 +53,11 @@ class Habits:
     mist_before: float = 5.0                # hours before bedtime misted panes are said
     frost_guard: float = 7.0                # °C the house is kept above while away for days
     tolerance: float = 1.0                  # « tolérance aux gestes »: more than 1, fewer gestures; less, more
+    not_now: int = 60                       # minutes a gesture answered « Pas maintenant » is put aside
 
     KEYS = {"ouvrir_la_nuit": "open_at_night", "aerations_min": "airings", "plus_tard_min": "later",
             "appareils_min": "devices", "cette_nuit_avant_h": "tonight_before", "buee_avant_h": "mist_before",
-            "hors_gel": "frost_guard", "tolerance": "tolerance"}
+            "hors_gel": "frost_guard", "tolerance": "tolerance", "pas_maintenant_min": "not_now"}
 
     @classmethod
     def of(cls, *settings: dict | None) -> "Habits":

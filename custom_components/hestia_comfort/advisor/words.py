@@ -33,6 +33,13 @@ TEXTS = {
         "sun": "Soleil sur {window} de {start} à {end}", "sun_strong": "Grand soleil prévu sur {window} de {start} à {end}",
         "sun_now": "Soleil sur {window} jusqu'à {end}", "sun_now_strong": "Grand soleil sur {window} jusqu'à {end}",
         "window": "la fenêtre {direction}", "windows": "les fenêtres {direction}", "window_plain": "les fenêtres",
+        "shutter_close": "Baissez le volet", "shutter_open": "Ouvrez le volet", "shuttered": "Volet baissé", "unshuttered": "Volet ouvert",
+        "shutter_night": "Baissez le volet ce soir : environ {change} °C de plus au réveil",
+        "shutter_night_energy": "Baissez le volet ce soir : environ {energy} kWh de chauffage en moins",
+        "doubtful": "Mesure douteuse", "doubtful_air": "La température semble fausse ({why}) : pas de conseil tant qu'elle l'est",
+        "doubtful_aside": "Mesure douteuse, laissée de côté : {what}", "doubt": "{measure} ({why})",
+        "doubt_range": "{value} : valeur impossible", "doubt_jump": "saut soudain à {value}", "doubt_frozen": "figée depuis {since}",
+        "m_temperature": "température", "m_humidity": "humidité", "m_co2": "CO₂", "m_particles": "particules", "m_voc": "COV",
         "mist": "Buée probable sur les vitres cette nuit ({outdoor} °C dehors)",
         "open_warms": "Laissez ouvert : la pièce a gagné {change} °C depuis {since}",
         "open_cools": "Laissez ouvert : la pièce a perdu {change} °C depuis {since}",
@@ -67,6 +74,13 @@ TEXTS = {
         "sun": "Sun on {window} from {start} to {end}", "sun_strong": "Bright sun expected on {window} from {start} to {end}",
         "sun_now": "Sun on {window} until {end}", "sun_now_strong": "Bright sun on {window} until {end}",
         "window": "the {direction} window", "windows": "the {direction} windows", "window_plain": "the windows",
+        "shutter_close": "Lower the shutter", "shutter_open": "Open the shutter", "shuttered": "Shutter down", "unshuttered": "Shutter open",
+        "shutter_night": "Lower the shutter tonight: about {change} °C more at waking up",
+        "shutter_night_energy": "Lower the shutter tonight: about {energy} kWh of heating saved",
+        "doubtful": "Doubtful measure", "doubtful_air": "The temperature looks wrong ({why}): no advice while it does",
+        "doubtful_aside": "Doubtful measure, left aside: {what}", "doubt": "{measure} ({why})",
+        "doubt_range": "{value}: impossible value", "doubt_jump": "sudden jump to {value}", "doubt_frozen": "frozen since {since}",
+        "m_temperature": "temperature", "m_humidity": "humidity", "m_co2": "CO₂", "m_particles": "particles", "m_voc": "VOC",
         "mist": "Misted panes likely tonight ({outdoor} °C outside)",
         "open_warms": "Leave it open: the room gained {change} °C since {since}",
         "open_cools": "Leave it open: the room lost {change} °C since {since}",
@@ -101,6 +115,13 @@ TEXTS = {
         "sun": "Sonne auf {window} von {start} bis {end}", "sun_strong": "Viel Sonne erwartet auf {window} von {start} bis {end}",
         "sun_now": "Sonne auf {window} bis {end}", "sun_now_strong": "Viel Sonne auf {window} bis {end}",
         "window": "dem Fenster nach {direction}", "windows": "den Fenstern nach {direction}", "window_plain": "den Fenstern",
+        "shutter_close": "Rollladen herunterlassen", "shutter_open": "Rollladen öffnen", "shuttered": "Rollladen unten", "unshuttered": "Rollladen offen",
+        "shutter_night": "Heute Abend Rollladen herunterlassen: etwa {change} °C mehr beim Aufstehen",
+        "shutter_night_energy": "Heute Abend Rollladen herunterlassen: etwa {energy} kWh Heizenergie gespart",
+        "doubtful": "Zweifelhafter Messwert", "doubtful_air": "Die Temperatur scheint falsch ({why}): kein Rat, solange sie es ist",
+        "doubtful_aside": "Zweifelhafter Messwert, beiseitegelassen: {what}", "doubt": "{measure} ({why})",
+        "doubt_range": "{value}: unmöglicher Wert", "doubt_jump": "plötzlicher Sprung auf {value}", "doubt_frozen": "unverändert seit {since}",
+        "m_temperature": "Temperatur", "m_humidity": "Feuchte", "m_co2": "CO₂", "m_particles": "Partikel", "m_voc": "VOC",
         "mist": "Heute Nacht wahrscheinlich beschlagene Scheiben ({outdoor} °C draußen)",
         "open_warms": "Offen lassen: der Raum hat seit {since} {change} °C gewonnen",
         "open_cools": "Offen lassen: der Raum hat seit {since} {change} °C verloren",
@@ -143,6 +164,8 @@ def _name(gesture: Gesture, path, words, opened: bool) -> str:
         return words["boosted" if gesture.kind == "boost" else "purified"].format(minutes=gesture.minutes)
     if gesture.kind.endswith("_off"):
         return words["device_off"]
+    if gesture.kind.startswith("shutter_"):
+        return words["shuttered" if gesture.kind == "shutter_close" else "unshuttered"]
     if gesture.kind == "open":
         return words["aired"].format(minutes=gesture.minutes) if gesture.minutes else words["open_now"]
     if gesture.kind == "nothing" and opened:
@@ -190,7 +213,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         chosen, idle = paths[gesture], paths[Gesture("nothing")]
         if subject == "heat":
             gain = chosen.air[-1] - idle.air[-1]
-            line = words["heat" if gesture.kind == "close" else "heat_open"].format(value=_number(abs(gain), language), hour=end_hour)
+            line = words["heat" if gesture.kind in ("close", "shutter_close") else "heat_open"].format(value=_number(abs(gain), language), hour=end_hour)
         elif subject == "humidity" and chosen.humidity and idle.humidity:
             line = words["humidity"].format(value=_number(max(i - c for i, c in zip(idle.humidity, chosen.humidity)), language))
         elif subject in ("co2", "particles", "voc"):
@@ -265,6 +288,39 @@ def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
         return words[key].format(window=window, start=_time(v["start"], words), end=_time(v["end"], words))
     if tip.kind == "mist":
         return words["mist"].format(outdoor=_number(v["outdoor"], language))
+    if tip.kind == "shutter_night":
+        return words["shutter_night"].format(change=_number(v["change"], language))
+    if tip.kind == "shutter_night_energy":
+        return words["shutter_night_energy"].format(energy=_number(v["energy"], language))
     if tip.kind in ("open_warms", "open_cools"):
         return words[tip.kind].format(change=_number(v["change"], language), since=_time(v["since"], words))
     return ""
+
+
+# The units a doubtful value is said in (advisor/checks.py).
+UNITS = {"temperature": "°C", "humidity": "%", "co2": "ppm", "particles": "µg/m³", "voc": ""}
+
+
+def doubt_text(doubts: list[dict], language: str = "fr") -> str | None:
+    """The measures left aside, in words: « Mesure douteuse, laissée de côté : CO₂ (0 ppm : valeur impossible) »;
+    `doubts`: {"mesure", "raison", "valeur", "depuis"} as the engine keeps them. The temperature's is the banner's."""
+    words = TEXTS[language]
+    parts = [_doubt(d, words, language) for d in doubts if d["mesure"] != "temperature"]
+    return words["doubtful_aside"].format(what=", ".join(parts)) if parts else None
+
+
+def doubtful_air(doubt: dict, language: str = "fr") -> dict:
+    """The banner when the room's temperature itself is doubtful: no advice."""
+    words = TEXTS[language]
+    return {"title": words["doubtful"], "line": words["doubtful_air"].format(why=_why(doubt, words, language))}
+
+
+def _why(d: dict, words: dict, language: str) -> str:
+    if d["raison"] == "frozen":
+        return words["doubt_frozen"].format(since=_time(d["depuis"], words))
+    value = f"{_number(d['valeur'], language) if d['mesure'] == 'temperature' else round(d['valeur'])} {UNITS[d['mesure']]}".strip()
+    return words[f"doubt_{d['raison']}"].format(value=value)
+
+
+def _doubt(d: dict, words: dict, language: str) -> str:
+    return words["doubt"].format(measure=words[f"m_{d['mesure']}"], why=_why(d, words, language))

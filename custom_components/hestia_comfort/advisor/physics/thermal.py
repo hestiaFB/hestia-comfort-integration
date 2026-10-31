@@ -31,6 +31,16 @@ SUN_TO_AIR = 0.3
 ORDINARY_GAINS = 50.0
 # Ordinary heater sizing, W per m² of floor.
 HEATER = 100.0
+# What a closed roller shutter adds to its window's thermal resistance (m²K/W), EN ISO 10077-1 annex G, a shutter of
+# average air tightness. On Chambre P's window (1.3 m²), a night at 5 °C outside: about 0.2 to 0.3 °C kept at waking up
+# (1 November) — a supposed effect until nights shut and open are compared (CAHIER-MOTEUR.md § 4.1, § 6.7 ter).
+SHUTTER_R = 0.15
+
+
+def shutter_insulation(area: float, closed: float) -> float:
+    """W/K a connected shutter takes off its windows' losses: `area` of glass behind it (m²), `closed` 0 to 1."""
+    gained = GLAZING_U - 1 / (1 / GLAZING_U + SHUTTER_R)
+    return gained * area * min(1.0, max(0.0, closed))
 
 
 @dataclass(frozen=True)
@@ -70,6 +80,8 @@ class Inputs:
     # The share of the sun a connected shutter lets through, read on its position (0 shut, 1 open); 1 when the room has
     # none or its shutters are manual (their habit is then in the learned `sun`).
     shade: float = 1.0
+    # W/K the connected shutters, closed, take off the glazing's losses (`shutter_insulation`); 0 when open or none.
+    shutter: float = 0.0
     # W of sun through the room's windows, by their orientation (advisor/physics/sunlight.py), when it is declared:
     # an optional plus (CAHIER-MOTEUR.md § 6.7); without it, the horizontal sun times the learned `sun`.
     facade: float | None = None
@@ -107,7 +119,7 @@ def flow(p: Params, ta: float, u: Inputs) -> float:
 def step(p: Params, ta: float, tm: float, u: Inputs, dt: float = STEP) -> tuple[float, float]:
     """The air and the walls `dt` seconds later."""
     hv = conductance(flow(p, ta, u))
-    h_em, h_ea = OPAQUE * p.h_env, (1 - OPAQUE) * p.h_env
+    h_em, h_ea = OPAQUE * p.h_env, max(0.0, (1 - OPAQUE) * p.h_env - u.shutter)
     entering = p.glass * u.facade if u.facade is not None else p.sun * max(0.0, u.sun)
     solar = max(0.0, entering) * min(1.0, max(0.0, u.shade))
     q_air = (p.heat * min(1.0, max(0.0, u.heating)) + min(1.0, max(0.0, p.share)) * u.house_heat

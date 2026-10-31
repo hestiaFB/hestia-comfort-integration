@@ -19,7 +19,7 @@ from ..house import Opening, Room
 from ..observe import Series
 from ..physics.fit import Sample, fit, score
 from ..physics.sunlight import sun_position, through_windows
-from ..physics.thermal import STEP, Inputs, ordinary, time_constant
+from ..physics.thermal import STEP, Inputs, ordinary, shutter_insulation, time_constant
 from .history import attribute, contacts, load, numbers
 
 try:
@@ -131,6 +131,8 @@ def samples(history, room, sun, start, end, openings, shared=True, cover=None) -
             windows=tuple(o.size for o, s in windows if s.at(when) is True), hour=local.hour + local.minute / 60,
             house_heat=sum((series.at(when) or 0.0) * watts for series, watts in house),
             shade=1.0 if position is None or position.at(when) is None else max(SHUT, position.at(when)),
+            shutter=0.0 if position is None or position.at(when) is None
+            else shutter_insulation(sum(o.size[0] for o in openings), 1 - position.at(when)),
             facade=_facade(sun.at(when) or 0.0, when, windows) if oriented else None)
         out.append(Sample(when, indoor.at(when), inputs))
         when += DT

@@ -53,6 +53,9 @@ class RoomView:
     coldest_tonight: float | None = None                # °C, the lowest outside forecast before waking up
     bedtime: datetime | None = None                     # the room's next going to bed (advisor/household.py)
     asleep: bool = False
+    # What the shutter closed at bedtime keeps by waking up (advisor/decide.py `shutter_tonight`), and the waking hour.
+    shutter_night: dict | None = None
+    wake: datetime | None = None
 
 
 def sun_on_windows(view: RoomView) -> list[Tip]:
@@ -112,7 +115,27 @@ def mist_tonight(view: RoomView) -> list[Tip]:
     return [Tip("mist", {"outdoor": view.coldest_tonight}, "humidity", 2, None, REINFORCED)]
 
 
-PROVIDERS = [gesture_seen, mist_tonight, sun_on_windows]
+# The shutter closed for the night is worth saying from this much kept at waking up, when the room would wake up under
+# its range, or from this much heating saved (kWh).
+SHUTTER_HEAT, SHUTTER_ENERGY = 0.1, 0.05
+
+
+def shutter_at_night(view: RoomView) -> list[Tip]:
+    """« Baissez le volet cette nuit » in the evening, while it is open: the twin's gain, supposed until nights shut and
+    open are compared (CAHIER-MOTEUR.md § 6.7 ter)."""
+    found = view.shutter_night
+    # Said in the evening only: nobody gets up at night for it.
+    evening = not view.asleep and view.bedtime is not None and view.now >= view.bedtime - BEFORE_BED
+    if not evening or not found:
+        return []
+    if found["energy"] >= SHUTTER_ENERGY:
+        return [Tip("shutter_night_energy", {"energy": found["energy"]}, "heat", 2, None, SUPPOSED)]
+    if found["heat"] >= SHUTTER_HEAT and found["wake"] < view.minimum:
+        return [Tip("shutter_night", {"change": found["heat"], "wake": view.wake}, "heat", 2, None, SUPPOSED)]
+    return []
+
+
+PROVIDERS = [gesture_seen, mist_tonight, shutter_at_night, sun_on_windows]
 
 
 def tips(view: RoomView, providers=None) -> list[Tip]:
