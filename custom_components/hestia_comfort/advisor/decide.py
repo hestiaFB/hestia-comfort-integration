@@ -8,6 +8,7 @@ cost, instead of one per threshold (CAHIER-MOTEUR.md § 10, § 11). Safety rules
 """
 from dataclasses import dataclass, field, replace
 
+from .household import Habits
 from .physics.air import AirParams, ParticleParams, air_step, particles_step
 from .physics.fit import DEFAULT_RECENT, correction
 from .physics.surface import mould_excess
@@ -148,26 +149,23 @@ class Path:
         return self.heating if self.heated else self.lost
 
 
-# Later moments compared with « now »: a gesture an hour or two away is advised as « vers 16 h ».
-LATER = (60, 120)
+# The airings, later moments and devices' durations proposed are the household's (advisor/household.py `Habits`).
 
 
-# A device is started for this long (minutes).
-DEVICE_MINUTES = (30, 60)
 DEVICES = ("boost", "purify")
 
 
-def candidates(now: Now, twins: Twins | None = None) -> list[Gesture]:
+def candidates(now: Now, twins: Twins | None = None, habits: Habits = Habits()) -> list[Gesture]:
     """What the room allows: shut what is open, or open what is shut, for a few minutes or for good; now or later; and
     start or stop its devices."""
     if now.opened:
-        out = [Gesture("nothing"), Gesture("close")] + [Gesture("close", after=a) for a in LATER]
+        out = [Gesture("nothing"), Gesture("close")] + [Gesture("close", after=a) for a in habits.later]
     else:
-        out = ([Gesture("nothing"), Gesture("open", 10), Gesture("open", 20), Gesture("open")]
-               + [Gesture("open", 10, after=a) for a in LATER])
+        out = ([Gesture("nothing")] + [Gesture("open", m) for m in habits.airings] + [Gesture("open")]
+               + [Gesture("open", min(habits.airings), after=a) for a in habits.later])
     for device, running, has in (("boost", now.boosting, twins and twins.boost), ("purify", now.purifying, twins and twins.purifier)):
         if has:
-            out += [Gesture(f"{device}_off")] if running else [Gesture(device, m) for m in DEVICE_MINUTES]
+            out += [Gesture(f"{device}_off")] if running else [Gesture(device, m) for m in habits.devices]
     return out
 
 
@@ -260,10 +258,11 @@ def _beyond_mark(values, low, high) -> float:
 REINFORCED_STRICTER = 2.0
 
 
-def significant(idle: Path, chosen: Path, comfort: Comfort, night: bool = False, stricter: float = 1.0) -> list[str]:
+def significant(idle: Path, chosen: Path, comfort: Comfort, night: bool = False, stricter: float = 1.0,
+                tolerance: float = 1.0) -> list[str]:
     """The subjects on which `chosen` makes a difference worth a gesture, against doing nothing; `stricter` multiplies the
-    gaps, unless the night already does more."""
-    scale = max(NIGHT_STRICTER if night else 1.0, stricter)
+    gaps, unless the night already does more; `tolerance`, the household's (`Habits`), multiplies them all."""
+    scale = max(NIGHT_STRICTER if night else 1.0, stricter) * tolerance
     found = []
     if idle.air and chosen.air:
         gap = abs(chosen.air[-1] - idle.air[-1])
@@ -341,7 +340,7 @@ class Decision:
 
 def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
            previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
-           proof: dict[str, str] | None = None, holidays: bool = False) -> Decision:
+           proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits()) -> Decision:
     """The gesture to advise. `forbidden`: kinds a safety rule takes away (« open » under the rain, in gusts…).
     `proof`: the level of the windows' effect on each subject (advisor/proof.py); None, all taken as proven."""
     if "open" in forbidden and now.opened:
@@ -349,13 +348,13 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         return Decision(Gesture("close"), 0.0, "safety", {})
     if holidays:
         # Away for days (CAHIER-MOTEUR.md § 11, point 8): only the dwelling counts — frost, humidity, mould.
-        comfort = replace(comfort, minimum=FROST_GUARD, maximum=HOLIDAY_MAXIMUM)
-    # While the household sleeps, nobody gets up to open a window (Frank, 31 October: « en plein hiver, il y a très peu
-    # de chance que je laisse ouvert, même 20 min pour aérer en pleine nuit »; Confort 2.1 had learned it too): the night
-    # keeps closing what was left open and the devices; a window for the night is said in the evening (`tonight`).
-    gestures = [g for g in candidates(now, twins) if g.kind not in forbidden
+        comfort = replace(comfort, minimum=habits.frost_guard, maximum=HOLIDAY_MAXIMUM)
+    # While the household sleeps, nobody gets up to open a window, unless it says it would (Frank, 31 October: « en plein
+    # hiver, il y a très peu de chance que je laisse ouvert, même 20 min pour aérer en pleine nuit »): the night keeps
+    # closing what was left open and the devices; a window for the night is said in the evening (`tonight`).
+    gestures = [g for g in candidates(now, twins, habits) if g.kind not in forbidden
                 and not (g.kind == "open" and g.minutes is None and "open_long" in forbidden)
-                and not (g.kind == "open" and now.night)]
+                and not (g.kind == "open" and now.night and not habits.open_at_night)]
     paths = {g: simulate(twins, now, coming, g) for g in gestures}
     costs = {g: cost(paths[g], comfort, weights, g, now.night) for g in gestures}
     nothing = costs[Gesture("nothing")]["total"]
@@ -368,7 +367,7 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # cheapest of those is advised, not the cheapest of all, which may change nothing one feels (a kitchen's VOC fed by a
     # long cooking: a 10-minute airing hardly shows, opening does).
     worth = [g for g in gestures if g.kind != "nothing" and nothing - costs[g]["total"] >= GAIN
-             and significant(idle, paths[g], comfort, now.night)]
+             and significant(idle, paths[g], comfort, now.night, tolerance=habits.tolerance)]
     best = min(worth, key=order) if worth else Gesture("nothing")
     if ((previous in worth or previous == Gesture("nothing")) and previous != best
             and costs[previous]["total"] - costs[best]["total"] < MARGIN * max(costs[previous]["total"], GAIN)):
@@ -386,13 +385,13 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     subject = main_subject(costs, best)
     found = proof.get(effect(best, subject), SUPPOSED)
     if found == PROVEN or (found == REINFORCED and significant(paths[Gesture("nothing")], paths[best], comfort, now.night,
-                                                                stricter=REINFORCED_STRICTER)):
+                                                                stricter=REINFORCED_STRICTER, tolerance=habits.tolerance)):
         return Decision(best, gain, rule, costs, paths, level=found)
     return Decision(Gesture("nothing"), gain, "unproven", costs, paths, level=found, passive=best)
 
 
-# Away for days, the range becomes the frost guard's: the house kept above 7 °C, never overheated.
-FROST_GUARD, HOLIDAY_MAXIMUM = 7.0, 30.0
+# Away for days, the range becomes the frost guard's (`Habits.frost_guard`, 7 °C by default), never overheated.
+HOLIDAY_MAXIMUM = 30.0
 
 
 # « Cette nuit, pensez à… » (CAHIER-MOTEUR.md § 4, § 13): said in the evening, about the windows at bedtime — the
@@ -405,7 +404,7 @@ def _from(path: Path, k: int) -> Path:
 
 def tonight(twins: Twins, now: Now, coming, bedtime_minutes: int, comfort: Comfort = Comfort(),
             weights: Weights = Weights(), proof: dict[str, str] | None = None,
-            forbidden: frozenset[str] = frozenset()) -> Decision | None:
+            forbidden: frozenset[str] = frozenset(), habits: Habits = Habits()) -> Decision | None:
     """What to do with the windows at bedtime, judged over the whole night: `coming` runs from now until waking up,
     `bedtime_minutes` from now. Only the gesture at bedtime is compared with leaving the windows as they are; None when
     there is nothing worth saying. The night's stricter gaps apply (`significant`)."""
@@ -419,7 +418,8 @@ def tonight(twins: Twins, now: Now, coming, bedtime_minutes: int, comfort: Comfo
     gain = costs[Gesture("nothing")]["total"] - costs[later]["total"]
     # Both scenarios are the same until bedtime: what matters is judged from there.
     start = bedtime_minutes * 60 // int(STEP)
-    if gain < GAIN or not significant(_from(paths[Gesture("nothing")], start), _from(paths[later], start), comfort, night=True):
+    if gain < GAIN or not significant(_from(paths[Gesture("nothing")], start), _from(paths[later], start), comfort, night=True,
+                                      tolerance=habits.tolerance):
         return None
     subject = main_subject(costs, later)
     found = PROVEN if proof is None else proof.get("heat" if subject == "energy" else subject, SUPPOSED)

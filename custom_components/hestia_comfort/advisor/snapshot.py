@@ -7,6 +7,7 @@ same decision. Change one input or one weight in the file, replay it, and see wh
 from dataclasses import fields, is_dataclass, replace
 import json
 
+from .household import Habits
 from .decide import (SIGNIFICANT, Comfort, Decision, Gesture, Now, Thermostat, Twins, Weights, candidates, decide,
                      main_subject, significant)
 from .physics.air import AirParams, ParticleParams
@@ -33,7 +34,8 @@ def _pairs(value):
 
 
 def capture(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
-            previous: Gesture | None = None, forbidden=frozenset(), proof: dict | None = None, holidays: bool = False, *,
+            previous: Gesture | None = None, forbidden=frozenset(), proof: dict | None = None, holidays: bool = False,
+            habits: Habits = Habits(), *,
             reason: str | None = None,
             end_hour: int, hour: float | None = None, language: str = "fr", room: str = "", when: str = "",
             version: str = "") -> dict:
@@ -41,6 +43,7 @@ def capture(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weight
     return {"format": FORMAT, "version": version, "room": room, "when": when, "twins": _plain(twins), "now": _plain(now),
             "coming": [[_plain(u), water] for u, water in coming], "comfort": _plain(comfort), "weights": _plain(weights),
             "previous": _plain(previous), "forbidden": sorted(forbidden), "reason": reason, "proof": proof, "holidays": holidays,
+            "habits": habits.setting(),
             "end_hour": end_hour, "hour": hour, "language": language}
 
 
@@ -59,7 +62,8 @@ def restore(snap: dict) -> dict:
     coming = [(Inputs(**{**u, "windows": _pairs(u["windows"])}), water) for u, water in snap["coming"]]
     return {"twins": twins, "now": now, "coming": coming, "comfort": Comfort(**snap["comfort"]),
             "weights": Weights(**snap["weights"]), "previous": Gesture(**snap["previous"]) if snap.get("previous") else None,
-            "forbidden": frozenset(snap["forbidden"]), "proof": snap.get("proof"), "holidays": snap.get("holidays", False)}
+            "forbidden": frozenset(snap["forbidden"]), "proof": snap.get("proof"), "holidays": snap.get("holidays", False),
+            "habits": Habits.of(snap.get("habits"))}
 
 
 def replay(snap: dict, **changes) -> tuple[Decision, dict]:
@@ -108,8 +112,8 @@ def trace(snap: dict, decision: Decision, words: dict) -> dict:
     """The decision layer by layer (CAHIER-MOTEUR.md § 16 bis.1): in which layer an error lies."""
     args = restore(snap)
     first = args["coming"][0][0] if args["coming"] else None
-    allowed = [g for g in candidates(args["now"], args["twins"]) if g.kind not in args["forbidden"]]
-    taken = [g for g in candidates(args["now"], args["twins"]) if g.kind in args["forbidden"]]
+    allowed = [g for g in candidates(args["now"], args["twins"], args["habits"]) if g.kind not in args["forbidden"]]
+    taken = [g for g in candidates(args["now"], args["twins"], args["habits"]) if g.kind in args["forbidden"]]
     idle = decision.paths.get(Gesture("nothing"))
     scenarios = []
     for g, terms in decision.scenarios.items():

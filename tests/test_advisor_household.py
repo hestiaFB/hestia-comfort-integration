@@ -37,3 +37,24 @@ class Sleeping(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HouseholdHabits(unittest.TestCase):
+    """The household's way of life is a setting (CAHIER-MOTEUR.md § 10.3): the house's, then the room's."""
+
+    def test_the_room_overrides_the_house_and_a_snapshot_keeps_it(self):
+        from advisor.household import Habits
+        habits = Habits.of({"aerations_min": [5, 15], "sommeil": {"debut": "23:00"}}, {"ouvrir_la_nuit": True})
+        self.assertEqual((habits.airings, habits.open_at_night, habits.sleep.start), ((5, 15), True, time(23)))
+        self.assertEqual(Habits.of(habits.setting()), habits)
+
+    def test_the_engine_follows_them(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from advisor.decide import Gesture, Now, decide
+        from advisor.household import Habits
+        from test_advisor_decide import TWINS, night
+        stale = Now(air=21.0, walls=21.0, opened=(), co2=1800.0, night=True)
+        self.assertFalse(any(g.kind == "open" for g in decide(TWINS, stale, night()).scenarios))
+        allowed = decide(TWINS, stale, night(), habits=Habits(open_at_night=True, airings=(5,)))
+        self.assertIn(Gesture("open", 5), allowed.scenarios)
+        self.assertNotIn(Gesture("open", 10), allowed.scenarios)
