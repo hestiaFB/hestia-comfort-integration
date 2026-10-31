@@ -69,3 +69,17 @@ class Dwelling(unittest.TestCase):
         decision = decide(TWINS, Now(air=16.0, walls=16.0, opened=(), humidity=55.0), night(outdoor=8.0), holidays=True)
         self.assertEqual(decision.gesture.kind, "nothing")
         self.assertEqual(decision.scenarios[decision.gesture]["heat"], 0.0)
+
+
+class Units(unittest.TestCase):
+    def test_rain_due_tomorrow_is_not_rain_soon(self):
+        # 31 October, 19:37: Hestia Weather's « Pluie dans » at 18.4 h (1 103 minutes), read as 18.4 minutes until then.
+        from advisor.safety import minutes
+        self.assertAlmostEqual(minutes(18.4, "h"), 1104.0)
+        self.assertEqual(forbidden(rain_in=minutes(18.4, "h")), (frozenset(), None))
+        self.assertEqual(forbidden(rain_in=minutes(15, "min"))[1], "rain_soon")
+        self.assertIsNone(minutes(18.4, "furlongs"))
+
+    def test_a_green_vigilance_in_french(self):
+        self.assertEqual(forbidden(vigilance="verte"), (frozenset(), None))
+        self.assertEqual(forbidden(vigilance="rouge")[1], "vigilance")
