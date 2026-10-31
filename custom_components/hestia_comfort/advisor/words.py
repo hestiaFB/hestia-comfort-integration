@@ -33,6 +33,8 @@ TEXTS = {
         "time": "{h} h {m:02d}", "time_hour": "{h} h",
         "north": "nord", "north_east": "nord-est", "east": "est", "south_east": "sud-est", "south": "sud",
         "south_west": "sud-ouest", "west": "ouest", "north_west": "nord-ouest",
+        "out_humidity": "Humidité {value} % à {hour} h", "out_co2": "CO₂ {value} ppm à {hour} h",
+        "out_particles": "Particules {value} µg/m³ à {hour} h", "out_nothing": "{what} : aucun geste ne ferait vraiment mieux",
         "nothing_out": "Ouverte ou fermée : {air} °C à {hour} h", "nothing_out_shut": "Aucun geste ne ferait vraiment mieux : {air} °C à {hour} h",
     },
     "en": {
@@ -58,6 +60,8 @@ TEXTS = {
         "time": "{h}:{m:02d}", "time_hour": "{h}:00",
         "north": "north", "north_east": "north-east", "east": "east", "south_east": "south-east", "south": "south",
         "south_west": "south-west", "west": "west", "north_west": "north-west",
+        "out_humidity": "Humidity {value} % at {hour}:00", "out_co2": "CO₂ {value} ppm at {hour}:00",
+        "out_particles": "Particles {value} µg/m³ at {hour}:00", "out_nothing": "{what}: no gesture would really do better",
         "nothing_out": "Open or shut: {air} °C at {hour}:00", "nothing_out_shut": "No gesture would really do better: {air} °C at {hour}:00",
     },
     "de": {
@@ -83,6 +87,8 @@ TEXTS = {
         "time": "{h}:{m:02d} Uhr", "time_hour": "{h} Uhr",
         "north": "Norden", "north_east": "Nordosten", "east": "Osten", "south_east": "Südosten", "south": "Süden",
         "south_west": "Südwesten", "west": "Westen", "north_west": "Nordwesten",
+        "out_humidity": "Feuchte {value} % um {hour} Uhr", "out_co2": "CO₂ {value} ppm um {hour} Uhr",
+        "out_particles": "Partikel {value} µg/m³ um {hour} Uhr", "out_nothing": "{what}: keine Geste wäre wirklich besser",
         "nothing_out": "Offen oder geschlossen: {air} °C um {hour} Uhr", "nothing_out_shut": "Keine Geste wäre wirklich besser: {air} °C um {hour} Uhr",
     },
 }
@@ -127,7 +133,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     words = TEXTS[language]
     # A reinforced effect is said in the conditional (CAHIER-MOTEUR.md § 4.1).
     sure = sure and decision.level != REINFORCED
-    marks = {"minimum": 20.0, "maximum": 24.0, "co2": 1000.0, "particles": 15.0, **(marks or {})}
+    marks = {"minimum": 20.0, "maximum": 24.0, "humidity": 60.0, "co2": 1000.0, "particles": 15.0, **(marks or {})}
     # Something is open when closing is one of the scenarios.
     opened = any(g.kind == "close" for g in decision.scenarios)
     gesture, subject = decision.gesture, subject_of(decision)
@@ -145,6 +151,11 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         idle = paths.get(Gesture("nothing"))
         if idle is not None and idle.air and not marks["minimum"] <= idle.air[-1] <= marks["maximum"]:
             line = words["nothing_out" if opened else "nothing_out_shut"].format(air=_number(idle.air[-1], language), hour=end_hour)
+        elif idle is not None and (beyond := _beyond(idle, marks)):
+            # The heat in its range, not the rest (rejeu of 10 days: « dans votre plage » at 77 % of humidity).
+            measure, value = beyond
+            what = words[f"out_{measure}"].format(value=round(value), hour=end_hour)
+            line = words["out_nothing"].format(what=what)
         else:
             line = words["nothing_line" if opened else "nothing_shut"]
     if subject and paths:
@@ -187,6 +198,14 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
                        sure=False, marks=marks, hour=hour)
         out["try"] = words["try"].format(title=tried["title"], line=tried["line"]) if tried["line"] else tried["title"]
     return out
+
+
+def _beyond(path, marks) -> tuple[str, float] | None:
+    """The first subject the room ends above its mark: humidity, CO₂, particles."""
+    for subject, values in (("humidity", path.humidity), ("co2", path.co2), ("particles", path.particles)):
+        if values and values[-1] > marks[subject]:
+            return subject, values[-1]
+    return None
 
 
 def _time(when, words) -> str:

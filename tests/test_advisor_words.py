@@ -29,7 +29,8 @@ class WordsTest(unittest.TestCase):
         self.assertEqual(words["subject"], "co2")
 
     def test_nothing_to_do_says_so_and_the_conditional_when_unsure(self):
-        decision = decide(TWINS, Now(air=21.5, walls=21.5, opened=(), humidity=50.0, co2=600.0), day(outdoor=21.0))
+        # No CO₂ sensor: with one at 600 ppm, the twin sees it reach 1 200 ppm by 17 h, and says so.
+        decision = decide(TWINS, Now(air=21.5, walls=21.5, opened=(), humidity=50.0), day(outdoor=21.0))
         self.assertEqual(phrase(decision, end_hour=17)["title"], "Rien à faire")
         # A shut room is not told « open or shut » (first advice in the test Home Assistant, 31 October).
         self.assertEqual(phrase(decision, end_hour=17)["line"], "La pièce restera dans votre plage")
@@ -54,6 +55,14 @@ class WordsTest(unittest.TestCase):
         shut = decide(TWINS, Now(air=19.8, walls=19.8, opened=(), humidity=59.0, co2=613.0), day(outdoor=13.0),
                       forbidden=frozenset({"open"}))
         self.assertEqual(phrase(shut, end_hour=21, reason="rain_soon")["line"], "Gardez fermé : la pluie arrive")
+
+    def test_in_your_range_only_when_humidity_and_air_are_too(self):
+        # Rejeu of 10 days, Chambre P on 23 October: 77 % of humidity, a humid outside, « la pièce restera dans votre plage ».
+        decision = decide(TWINS, Now(air=19.5, walls=19.5, opened=(), humidity=77.0), day(outdoor=17.6, hours=3)[:1] * 36)
+        words = phrase(decision, end_hour=17, marks={"minimum": 18.0, "maximum": 24.0})
+        if decision.gesture.kind == "nothing":
+            self.assertNotIn("plage", words["line"])
+            self.assertRegex(words["line"], r"^Humidité \d+ % à 17 h : aucun geste ne ferait vraiment mieux$")
 
     def test_every_language_has_every_phrase(self):
         self.assertEqual(set(TEXTS["en"]), set(TEXTS["fr"]))

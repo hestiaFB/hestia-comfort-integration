@@ -64,7 +64,7 @@ def replay(snap: dict, **changes) -> tuple[Decision, dict]:
     args = {**restore(snap), **changes}
     decision = decide(**args)
     c = args["comfort"]
-    marks = {"minimum": c.minimum, "maximum": c.maximum, "co2": c.co2, "particles": c.particles}
+    marks = {"minimum": c.minimum, "maximum": c.maximum, "humidity": c.humidity, "co2": c.co2, "particles": c.particles}
     return decision, phrase(decision, snap["end_hour"], snap.get("language", "fr"), hour=snap.get("hour"),
                             reason=snap.get("reason"), marks=marks)
 
