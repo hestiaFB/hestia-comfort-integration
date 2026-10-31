@@ -38,6 +38,20 @@ class Comfort:
     particles: float = 15.0     # µg/m³
 
 
+# The upper limit moves from winter's to summer's with the home's season, when it is known (the same rule as Confort 2.1,
+# engine/assessment.py `seasonal`): half-way in spring and autumn. Without a season, the range is kept as set.
+SEASON_WEIGHTS = {"winter": 0.0, "spring": 0.5, "autumn": 0.5, "summer": 1.0}
+
+
+def for_season(minimum: float, maximum: float, summer_maximum: float | None = None, season: str | None = None,
+               **marks) -> Comfort:
+    """The room's range as set in Confort, its upper limit for the season; `marks`: humidity, co2, particles."""
+    weight = SEASON_WEIGHTS.get(season or "")
+    if weight is not None and summer_maximum is not None:
+        maximum = round(maximum + weight * (max(summer_maximum, maximum) - maximum), 1)
+    return Comfort(minimum=minimum, maximum=maximum, **marks)
+
+
 @dataclass(frozen=True)
 class Weights:
     """What one unit of each discomfort costs, in degrees·hours: the three sliders of § 10.3 move them, within bounds."""

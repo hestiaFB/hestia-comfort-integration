@@ -130,3 +130,18 @@ class SunAndHeating(unittest.TestCase):
             plain, warmer = (simulate(TWINS, replace(now, missed=m), coming, g) for m in (None, 1.0))
             self.assertAlmostEqual(warmer.air[0] - plain.air[0], 1.0, places=6)
             self.assertLess(warmer.air[-1] - plain.air[-1], 0.5)
+
+
+class Ranges(unittest.TestCase):
+    def test_the_range_set_in_confort_and_its_season(self):
+        from advisor.decide import Comfort, for_season
+        # Chambre P: 18 to 24 °C in Confort, 26 °C in summer.
+        self.assertEqual(for_season(18, 24, 26), Comfort(18, 24))
+        self.assertEqual(for_season(18, 24, 26, "autumn"), Comfort(18, 25))
+        self.assertEqual(for_season(18, 24, 26, "summer", humidity=65.0), Comfort(18, 26, humidity=65.0))
+
+    def test_a_bedroom_at_19_is_in_its_range_from_18(self):
+        from advisor.decide import Comfort
+        from advisor.words import phrase
+        decision = decide(TWINS, Now(air=19.3, walls=19.3, opened=(), humidity=50.0), day(outdoor=18.0), comfort=Comfort(18, 24))
+        self.assertEqual(phrase(decision, 17, marks={"minimum": 18, "maximum": 24})["line"], "La pièce restera dans votre plage")

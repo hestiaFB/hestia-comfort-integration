@@ -63,8 +63,10 @@ def replay(snap: dict, **changes) -> tuple[Decision, dict]:
     """The decision and its words, from a snapshot; `changes` replace arguments of `decide` (« Et si… ? »)."""
     args = {**restore(snap), **changes}
     decision = decide(**args)
+    c = args["comfort"]
+    marks = {"minimum": c.minimum, "maximum": c.maximum, "co2": c.co2, "particles": c.particles}
     return decision, phrase(decision, snap["end_hour"], snap.get("language", "fr"), hour=snap.get("hour"),
-                            reason=snap.get("reason"))
+                            reason=snap.get("reason"), marks=marks)
 
 
 def warmer(coming, degrees: float):
