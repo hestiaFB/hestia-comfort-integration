@@ -55,6 +55,8 @@ class DecisionByProof(unittest.TestCase):
         self.assertEqual(words["title"], "Rien à faire")
         self.assertTrue(words["try"].startswith("À essayer — Refermez : vous gardez"))
         self.assertTrue(words["try"].endswith(", sans doute"))
+        # The banner does not say « open or shut » when closing would do something, nor « sans doute » about nothing.
+        self.assertRegex(words["line"], r"^Ouverte : \d+,\d °C à 7 h$")
 
     def test_a_reinforced_effect_needs_a_clear_cut_gain_and_is_said_in_the_conditional(self):
         # 12.8 °C outside against 20.6 inside: the moment backs the window's effect on the heat, and closing keeps

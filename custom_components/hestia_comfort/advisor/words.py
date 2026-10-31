@@ -41,6 +41,7 @@ TEXTS = {
         "south_west": "sud-ouest", "west": "ouest", "north_west": "nord-ouest",
         "out_humidity": "Humidité {value} % à {hour} h", "out_co2": "CO₂ {value} ppm à {hour} h",
         "out_particles": "Particules {value} µg/m³ à {hour} h", "out_voc": "COV {value} à {hour} h", "out_nothing": "{what} : aucun geste ne ferait vraiment mieux",
+        "held_open": "Ouverte : {air} °C à {hour} h", "held_shut": "Fermée : {air} °C à {hour} h",
         "nothing_out": "Ouverte ou fermée : {air} °C à {hour} h", "nothing_out_shut": "Aucun geste ne ferait vraiment mieux : {air} °C à {hour} h",
     },
     "en": {
@@ -74,6 +75,7 @@ TEXTS = {
         "south_west": "south-west", "west": "west", "north_west": "north-west",
         "out_humidity": "Humidity {value} % at {hour}:00", "out_co2": "CO₂ {value} ppm at {hour}:00",
         "out_particles": "Particles {value} µg/m³ at {hour}:00", "out_voc": "VOC {value} at {hour}:00", "out_nothing": "{what}: no gesture would really do better",
+        "held_open": "Open: {air} °C at {hour}:00", "held_shut": "Shut: {air} °C at {hour}:00",
         "nothing_out": "Open or shut: {air} °C at {hour}:00", "nothing_out_shut": "No gesture would really do better: {air} °C at {hour}:00",
     },
     "de": {
@@ -107,6 +109,7 @@ TEXTS = {
         "south_west": "Südwesten", "west": "Westen", "north_west": "Nordwesten",
         "out_humidity": "Feuchte {value} % um {hour} Uhr", "out_co2": "CO₂ {value} ppm um {hour} Uhr",
         "out_particles": "Partikel {value} µg/m³ um {hour} Uhr", "out_voc": "VOC {value} um {hour} Uhr", "out_nothing": "{what}: keine Geste wäre wirklich besser",
+        "held_open": "Offen: {air} °C um {hour} Uhr", "held_shut": "Geschlossen: {air} °C um {hour} Uhr",
         "nothing_out": "Offen oder geschlossen: {air} °C um {hour} Uhr", "nothing_out_shut": "Keine Geste wäre wirklich besser: {air} °C um {hour} Uhr",
     },
 }
@@ -171,7 +174,10 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         # « Open or shut » only when something is open; « in your range » only when it is true (31 October, Chambre P at
         # 18 °C, its window open: « la pièce restera dans votre plage » was not).
         idle = paths.get(Gesture("nothing"))
-        if idle is not None and idle.air and not marks["minimum"] <= idle.air[-1] <= marks["maximum"]:
+        if decision.passive is not None and idle is not None and idle.air:
+            # A gesture held back for want of proof: « open or shut » would say it changes nothing, which is untrue.
+            line = words["held_open" if opened else "held_shut"].format(air=_number(idle.air[-1], language), hour=end_hour)
+        elif idle is not None and idle.air and not marks["minimum"] <= idle.air[-1] <= marks["maximum"]:
             line = words["nothing_out" if opened else "nothing_out_shut"].format(air=_number(idle.air[-1], language), hour=end_hour)
         elif idle is not None and (beyond := _beyond(idle, marks)):
             # The heat in its range, not the rest (rejeu of 10 days: « dans votre plage » at 77 % of humidity).
@@ -201,7 +207,9 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     elif gesture.kind == "nothing" and not opened and reason and f"safety_{reason}" in words:
         # A shut room whose openings a safety rule took away: that is why nothing is to do.
         line = words["keep_shut"].format(why=words[f"safety_{reason}"])
-    line = words["sure" if sure else "unsure"].format(line=line) if line else line
+    # The conditional is for a gesture's gain, never for « Rien à faire ».
+    if line and gesture.kind != "nothing":
+        line = words["sure" if sure else "unsure"].format(line=line)
     # « Pourquoi ? » compares two or three scenarios (CAHIER-MOTEUR.md § 14): doing nothing, the advice, and the best
     # other one when it differs.
     shown = [Gesture("nothing"), gesture]
