@@ -22,6 +22,8 @@ TEXTS = {
         "nothing_line": "Ouverte ou fermée, la pièce restera dans votre plage",
         "nothing_shut": "La pièce restera dans votre plage",
         "try": "À essayer — {title} : {line}",
+        "safety_rain": "il pleut", "safety_rain_soon": "la pluie arrive", "safety_gusts": "rafales de vent",
+        "safety_vigilance": "vigilance météo", "safety_away": "la maison est en mode absence",
         "sun": "Soleil sur {window} de {start} à {end}", "sun_strong": "Grand soleil prévu sur {window} de {start} à {end}",
         "sun_now": "Soleil sur {window} jusqu'à {end}", "sun_now_strong": "Grand soleil sur {window} jusqu'à {end}",
         "window": "la fenêtre {direction}", "windows": "les fenêtres {direction}", "window_plain": "les fenêtres",
@@ -44,6 +46,8 @@ TEXTS = {
         "nothing_line": "Open or shut, the room stays in your range",
         "nothing_shut": "The room stays in your range",
         "try": "Worth a try — {title}: {line}",
+        "safety_rain": "it is raining", "safety_rain_soon": "rain is coming", "safety_gusts": "gusts of wind",
+        "safety_vigilance": "weather warning", "safety_away": "the home is set to away",
         "sun": "Sun on {window} from {start} to {end}", "sun_strong": "Bright sun expected on {window} from {start} to {end}",
         "sun_now": "Sun on {window} until {end}", "sun_now_strong": "Bright sun on {window} until {end}",
         "window": "the {direction} window", "windows": "the {direction} windows", "window_plain": "the windows",
@@ -66,6 +70,8 @@ TEXTS = {
         "nothing_line": "Offen oder geschlossen, der Raum bleibt in Ihrem Bereich",
         "nothing_shut": "Der Raum bleibt in Ihrem Bereich",
         "try": "Einen Versuch wert — {title}: {line}",
+        "safety_rain": "es regnet", "safety_rain_soon": "Regen kommt", "safety_gusts": "Windböen",
+        "safety_vigilance": "Unwetterwarnung", "safety_away": "das Haus ist auf Abwesenheit gestellt",
         "sun": "Sonne auf {window} von {start} bis {end}", "sun_strong": "Viel Sonne erwartet auf {window} von {start} bis {end}",
         "sun_now": "Sonne auf {window} bis {end}", "sun_now_strong": "Viel Sonne auf {window} bis {end}",
         "window": "dem Fenster nach {direction}", "windows": "den Fenstern nach {direction}", "window_plain": "den Fenstern",
@@ -111,9 +117,10 @@ def _name(gesture: Gesture, path, words, opened: bool) -> str:
 
 
 def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool = True,
-           marks: dict | None = None, hour: float | None = None) -> dict:
+           marks: dict | None = None, hour: float | None = None, reason: str | None = None) -> dict:
     """The banner's title and line, and the lines of « Pourquoi ? »; `hour`: the local time now, for a later gesture;
-    `marks`: the room's range and marks, as `Comfort` holds them."""
+    `marks`: the room's range and marks, as `Comfort` holds them; `reason`: the safety rule that shuts, if one does
+    (advisor/safety.py)."""
     words = TEXTS[language]
     # A reinforced effect is said in the conditional (CAHIER-MOTEUR.md § 4.1).
     sure = sure and decision.level != REINFORCED
@@ -151,6 +158,8 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
                 line = words[subject].format(minutes=minutes)
         elif subject == "energy":
             line = words["energy"].format(value=_number(idle.spent - chosen.spent, language))
+    if decision.rule == "safety" and reason and f"safety_{reason}" in words:
+        line = words[f"safety_{reason}"]
     line = words["sure" if sure else "unsure"].format(line=line) if line else line
     # « Pourquoi ? » compares two or three scenarios (CAHIER-MOTEUR.md § 14): doing nothing, the advice, and the best
     # other one when it differs.

@@ -44,6 +44,13 @@ class WordsTest(unittest.TestCase):
         self.assertRegex(words["line"], r"^Ouverte ou fermée : \d+,\d °C à 17 h$")
         self.assertNotIn("plage", words["line"])
 
+    def test_a_safety_close_says_why(self):
+        # Test Home Assistant, 31 October: « Refermez » with no line while rain was coming.
+        from advisor.decide import Gesture
+        decision = decide(TWINS, Now(air=20.6, walls=20.6, opened=(FRENCH.size,)), day(), forbidden=frozenset({"open"}))
+        self.assertEqual(decision.gesture, Gesture("close"))
+        self.assertEqual(phrase(decision, end_hour=17, reason="rain_soon")["line"], "la pluie arrive")
+
     def test_every_language_has_every_phrase(self):
         self.assertEqual(set(TEXTS["en"]), set(TEXTS["fr"]))
         self.assertEqual(set(TEXTS["de"]), set(TEXTS["fr"]))
