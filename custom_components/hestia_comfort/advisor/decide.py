@@ -350,8 +350,12 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     if holidays:
         # Away for days (CAHIER-MOTEUR.md § 11, point 8): only the dwelling counts — frost, humidity, mould.
         comfort = replace(comfort, minimum=FROST_GUARD, maximum=HOLIDAY_MAXIMUM)
+    # While the household sleeps, nobody gets up to open a window (Frank, 31 October: « en plein hiver, il y a très peu
+    # de chance que je laisse ouvert, même 20 min pour aérer en pleine nuit »; Confort 2.1 had learned it too): the night
+    # keeps closing what was left open and the devices; a window for the night is said in the evening (`tonight`).
     gestures = [g for g in candidates(now, twins) if g.kind not in forbidden
-                and not (g.kind == "open" and g.minutes is None and "open_long" in forbidden)]
+                and not (g.kind == "open" and g.minutes is None and "open_long" in forbidden)
+                and not (g.kind == "open" and now.night)]
     paths = {g: simulate(twins, now, coming, g) for g in gestures}
     costs = {g: cost(paths[g], comfort, weights, g, now.night) for g in gestures}
     nothing = costs[Gesture("nothing")]["total"]

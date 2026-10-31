@@ -162,3 +162,15 @@ class Tonight(unittest.TestCase):
         from advisor.decide import tonight
         now = Now(air=21.0, walls=21.0, opened=(), humidity=50.0)
         self.assertIsNone(tonight(TWINS, now, night(outdoor=19.0, start=20.0, hours=11), 120))
+
+
+class Sleeping(unittest.TestCase):
+    def test_no_window_is_opened_at_night_whatever_the_air(self):
+        # 3 a.m., stale and damp air: nobody gets up to air in the middle of the night; the VMC can still run.
+        now = Now(air=20.0, walls=20.0, opened=(), humidity=75.0, co2=1800.0, night=True)
+        decision = decide(replace(TWINS, boost=60.0), now, night(start=3.0, hours=4))
+        self.assertFalse(any(g.kind == "open" for g in decision.scenarios))
+        self.assertTrue(any(g.kind == "boost" for g in decision.scenarios))
+        # A window left open is still to be closed.
+        left = decide(TWINS, replace(now, opened=(FRENCH.size,)), night(start=3.0, hours=4))
+        self.assertEqual(left.gesture, Gesture("close"))
