@@ -31,6 +31,8 @@ class WordsTest(unittest.TestCase):
     def test_nothing_to_do_says_so_and_the_conditional_when_unsure(self):
         decision = decide(TWINS, Now(air=21.5, walls=21.5, opened=(), humidity=50.0, co2=600.0), day(outdoor=21.0))
         self.assertEqual(phrase(decision, end_hour=17)["title"], "Rien à faire")
+        # A shut room is not told « open or shut » (first advice in the test Home Assistant, 31 October).
+        self.assertEqual(phrase(decision, end_hour=17)["line"], "La pièce restera dans votre plage")
         unsure = decide(TWINS, Now(air=20.6, walls=20.6, opened=(FRENCH.size,), humidity=66.0, night=True), night())
         self.assertTrue(phrase(unsure, end_hour=7, sure=False)["line"].endswith(", sans doute"))
 

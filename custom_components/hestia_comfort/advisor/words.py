@@ -15,6 +15,7 @@ TEXTS = {
         "why": "{gesture} : {air} °C à {hour} h", "why_humidity": ", humidité {humidity} %",
         "shut": "Fermée", "open_now": "Ouverte", "aired": "Aérée {minutes} min",
         "nothing_line": "Ouverte ou fermée, la pièce restera dans votre plage",
+        "nothing_shut": "La pièce restera dans votre plage",
     },
     "en": {
         "nothing": "Nothing to do", "close": "Close", "open": "Air for {minutes} min", "open_long": "Open",
@@ -25,6 +26,7 @@ TEXTS = {
         "why": "{gesture}: {air} °C at {hour}:00", "why_humidity": ", humidity {humidity} %",
         "shut": "Shut", "open_now": "Open", "aired": "Aired {minutes} min",
         "nothing_line": "Open or shut, the room stays in your range",
+        "nothing_shut": "The room stays in your range",
     },
     "de": {
         "nothing": "Nichts zu tun", "close": "Schließen", "open": "{minutes} Min. lüften", "open_long": "Öffnen",
@@ -35,6 +37,7 @@ TEXTS = {
         "why": "{gesture}: {air} °C um {hour} Uhr", "why_humidity": ", Feuchte {humidity} %",
         "shut": "Geschlossen", "open_now": "Offen", "aired": "{minutes} Min. gelüftet",
         "nothing_line": "Offen oder geschlossen, der Raum bleibt in Ihrem Bereich",
+        "nothing_shut": "Der Raum bleibt in Ihrem Bereich",
     },
 }
 SUBJECTS = ("heat", "humidity", "co2", "particles")
@@ -82,8 +85,12 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         title = words["open"].format(minutes=gesture.minutes) if gesture.minutes else words["open_long"]
     else:
         title = words[gesture.kind]
-    line = words["nothing_line"] if gesture.kind == "nothing" else ""
     paths = decision.paths
+    line = ""
+    if gesture.kind == "nothing":
+        # « Open or shut » only when something is open: a shut room is simply in its range.
+        idle = paths.get(Gesture("nothing"))
+        line = words["nothing_line"] if idle is not None and idle.lost > 0 else words["nothing_shut"]
     if subject and paths:
         chosen, idle = paths[gesture], paths[Gesture("nothing")]
         if subject == "heat":
