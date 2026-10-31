@@ -23,6 +23,7 @@ GAIN, MARGIN = 0.5, 0.2
 class Gesture:
     kind: str                   # nothing | close | open
     minutes: int | None = None  # how long an opening lasts; None: until the end of the horizon
+    after: int | None = None    # minutes before the gesture: « Refermez vers 16 h », « Aérez vers 14 h »
 
 
 @dataclass(frozen=True)
@@ -101,19 +102,25 @@ class Path:
     heating: float = 0.0        # kWh the simulated thermostat spends
 
 
+# Later moments compared with « now »: a gesture an hour or two away is advised as « vers 16 h ».
+LATER = (60, 120)
+
+
 def candidates(now: Now) -> list[Gesture]:
-    """What the room allows: shut what is open, or open what is shut, for a few minutes or for good."""
+    """What the room allows: shut what is open, or open what is shut, for a few minutes or for good; now or later."""
     if now.opened:
-        return [Gesture("nothing"), Gesture("close")]
-    return [Gesture("nothing"), Gesture("open", 10), Gesture("open", 20), Gesture("open")]
+        return [Gesture("nothing"), Gesture("close")] + [Gesture("close", after=a) for a in LATER]
+    return ([Gesture("nothing"), Gesture("open", 10), Gesture("open", 20), Gesture("open")]
+            + [Gesture("open", 10, after=a) for a in LATER])
 
 
 def _open(gesture: Gesture, now: Now, twins: Twins, k: int):
-    if gesture.kind == "nothing":
-        return now.opened
+    waited = k * STEP / 60 - (gesture.after or 0)
+    if gesture.kind == "nothing" or waited < 0:
+        return now.opened if gesture.kind != "open" else ()
     if gesture.kind == "close":
         return ()
-    return twins.windows if gesture.minutes is None or k * STEP < gesture.minutes * 60 else ()
+    return twins.windows if gesture.minutes is None or waited < gesture.minutes else ()
 
 
 def _flow(learned, volume, windows, air, outdoor, wind):
@@ -189,7 +196,8 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     paths = {g: simulate(twins, now, coming, g) for g in gestures}
     costs = {g: cost(paths[g], comfort, weights, g, now.night) for g in gestures}
     nothing = costs[Gesture("nothing")]["total"]
-    best = min(gestures, key=lambda g: (costs[g]["total"], g.kind != "nothing"))
+    # Between two gestures that cost the same, doing nothing first, then the sooner.
+    best = min(gestures, key=lambda g: (round(costs[g]["total"], 3), g.kind != "nothing", g.after or 0))
     if (previous in costs and previous != best
             and costs[previous]["total"] - costs[best]["total"] < MARGIN * max(costs[previous]["total"], GAIN)):
         best, rule = previous, "kept"

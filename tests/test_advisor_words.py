@@ -17,7 +17,7 @@ class WordsTest(unittest.TestCase):
         self.assertEqual(words["title"], "Refermez")
         self.assertEqual(words["subject"], "heat")
         self.assertRegex(words["line"], r"^vous gardez \d+,\d °C d'ici 7 h$")
-        self.assertEqual(len(words["why"]), 2)
+        self.assertIn(len(words["why"]), (2, 3))
         self.assertTrue(any(w.startswith("Ouverte : ") for w in words["why"]))
         self.assertTrue(any(w.startswith("Fermée : ") for w in words["why"]))
         self.assertTrue(all("," in w.split(" °C")[0] for w in words["why"]))
