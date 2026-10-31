@@ -22,6 +22,7 @@ TEXTS = {
         "nothing_line": "Ouverte ou fermée, la pièce restera dans votre plage",
         "nothing_shut": "La pièce restera dans votre plage",
         "try": "À essayer — {title} : {line}",
+        "keep_shut": "Gardez fermé : {why}",
         "safety_rain": "il pleut", "safety_rain_soon": "la pluie arrive", "safety_gusts": "rafales de vent",
         "safety_vigilance": "vigilance météo", "safety_away": "la maison est en mode absence",
         "sun": "Soleil sur {window} de {start} à {end}", "sun_strong": "Grand soleil prévu sur {window} de {start} à {end}",
@@ -46,6 +47,7 @@ TEXTS = {
         "nothing_line": "Open or shut, the room stays in your range",
         "nothing_shut": "The room stays in your range",
         "try": "Worth a try — {title}: {line}",
+        "keep_shut": "Keep it shut: {why}",
         "safety_rain": "it is raining", "safety_rain_soon": "rain is coming", "safety_gusts": "gusts of wind",
         "safety_vigilance": "weather warning", "safety_away": "the home is set to away",
         "sun": "Sun on {window} from {start} to {end}", "sun_strong": "Bright sun expected on {window} from {start} to {end}",
@@ -70,6 +72,7 @@ TEXTS = {
         "nothing_line": "Offen oder geschlossen, der Raum bleibt in Ihrem Bereich",
         "nothing_shut": "Der Raum bleibt in Ihrem Bereich",
         "try": "Einen Versuch wert — {title}: {line}",
+        "keep_shut": "Geschlossen lassen: {why}",
         "safety_rain": "es regnet", "safety_rain_soon": "Regen kommt", "safety_gusts": "Windböen",
         "safety_vigilance": "Unwetterwarnung", "safety_away": "das Haus ist auf Abwesenheit gestellt",
         "sun": "Sonne auf {window} von {start} bis {end}", "sun_strong": "Viel Sonne erwartet auf {window} von {start} bis {end}",
@@ -160,6 +163,9 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             line = words["energy"].format(value=_number(idle.spent - chosen.spent, language))
     if decision.rule == "safety" and reason and f"safety_{reason}" in words:
         line = words[f"safety_{reason}"]
+    elif gesture.kind == "nothing" and not opened and reason and f"safety_{reason}" in words:
+        # A shut room whose openings a safety rule took away: that is why nothing is to do.
+        line = words["keep_shut"].format(why=words[f"safety_{reason}"])
     line = words["sure" if sure else "unsure"].format(line=line) if line else line
     # « Pourquoi ? » compares two or three scenarios (CAHIER-MOTEUR.md § 14): doing nothing, the advice, and the best
     # other one when it differs.
