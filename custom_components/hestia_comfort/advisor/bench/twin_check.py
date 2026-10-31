@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 from ..house import Opening, Room
 from ..observe import Series
 from ..physics.fit import Sample, fit, score
+from ..physics.sunlight import sun_position, through_windows
 from ..physics.thermal import STEP, Inputs, ordinary, time_constant
 from .history import attribute, contacts, load, numbers
 
@@ -63,13 +64,21 @@ DECLARED = {
 }
 
 
+# The orientations Frank declared in Hestia Comfort (its diagnostics, `room.config.openings`): bearing, sheltered.
+ORIENTED = {"fenetre_ouest": (270, False), "porte_fenetre_sd": (180, True), "porte_fenetre_sg": (180, True),
+            "fenetre_c": (90, False), "fenetre_p": (270, False), "fenetre_a": (180, False), "fenetre_m": (180, False),
+            "fenetre_al": (90, False)}
+LOCATION = (43.45, 5.47)
+
+
 def _openings(names, sizes=None):
     out = []
     for name in names:
         entity, _, kind = name.partition(":")
         width, height = (sizes or {}).get(entity, (None, None))
+        bearing, sheltered = ORIENTED.get(entity, (None, False))
         out.append(Opening(f"binary_sensor.{entity}_contact", kind or "window",
-                           area=width * height if width else None, height=height))
+                           area=width * height if width else None, height=height, exposure=bearing, sheltered=sheltered))
     return tuple(out)
 
 
@@ -80,6 +89,14 @@ def room_of(name, declared=True) -> Room:
         return Room(name, name, openings=_openings(names))
     surface, power, sizes = DECLARED[name]
     return Room(name, name, volume=surface * 2.5, heating_power=power, openings=_openings(names, sizes))
+
+
+def _facade(solar, when, windows):
+    """W of sun through the room's windows at `when`, each by its orientation, open or shut."""
+    elevation, azimuth = sun_position(when, *LOCATION)
+    glazing = [(o.glazing, o.exposure, o.sheltered) for o, _ in windows]
+    opened = {i for i, (_, s) in enumerate(windows) if s.at(when) is True}
+    return through_windows(solar, elevation, azimuth, glazing, opened)
 
 
 def _points(series):
@@ -105,6 +122,7 @@ def samples(history, room, sun, start, end, openings, shared=True, cover=None) -
     position = attribute(history, cover, "current_position", 0.01) if cover and cover in history else None
     house = [(attribute(history, entity, "power_percent", 0.01), watts) for entity, watts, _ in HOUSE_HEATERS] if shared else []
     windows = [(o, contacts(history, o.entity_id)) for o in openings]
+    oriented = any(o.exposure is not None for o in openings)
     out, when = [], start
     while when <= end:
         te, local = outdoor.at(when), when.astimezone(ZONE)
@@ -112,7 +130,8 @@ def samples(history, room, sun, start, end, openings, shared=True, cover=None) -
             outdoor=te, sun=sun.at(when) or 0.0, heating=power.at(when) or 0.0,
             windows=tuple(o.size for o, s in windows if s.at(when) is True), hour=local.hour + local.minute / 60,
             house_heat=sum((series.at(when) or 0.0) * watts for series, watts in house),
-            shade=1.0 if position is None or position.at(when) is None else max(SHUT, position.at(when)))
+            shade=1.0 if position is None or position.at(when) is None else max(SHUT, position.at(when)),
+            facade=_facade(sun.at(when) or 0.0, when, windows) if oriented else None)
         out.append(Sample(when, indoor.at(when), inputs))
         when += DT
     return out

@@ -51,6 +51,8 @@ class Params:
     # The share of the house's own heaters (a stove, a fireplace) that reaches this room: most of it where it stands,
     # some upstairs through the hall and the staircase. A room heater only heats its room; a house heater, all of them.
     share: float = 0.0
+    # What the room keeps of the sun computed through its windows (curtains, a tree, the sensor's place): learned.
+    glass: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -66,6 +68,9 @@ class Inputs:
     # The share of the sun a connected shutter lets through, read on its position (0 shut, 1 open); 1 when the room has
     # none or its shutters are manual (their habit is then in the learned `sun`).
     shade: float = 1.0
+    # W of sun through the room's windows, by their orientation (advisor/physics/sunlight.py), when it is declared:
+    # an optional plus (CAHIER-MOTEUR.md § 6.7); without it, the horizontal sun times the learned `sun`.
+    facade: float | None = None
 
 
 def ordinary(room: Room) -> Params:
@@ -95,7 +100,8 @@ def step(p: Params, ta: float, tm: float, u: Inputs, dt: float = STEP) -> tuple[
     """The air and the walls `dt` seconds later."""
     hv = conductance(flow(p, ta, u))
     h_em, h_ea = OPAQUE * p.h_env, (1 - OPAQUE) * p.h_env
-    solar = p.sun * max(0.0, u.sun) * min(1.0, max(0.0, u.shade))
+    entering = p.glass * u.facade if u.facade is not None else p.sun * max(0.0, u.sun)
+    solar = max(0.0, entering) * min(1.0, max(0.0, u.shade))
     q_air = (p.heat * min(1.0, max(0.0, u.heating)) + min(1.0, max(0.0, p.share)) * u.house_heat
              + p.gains + u.extra + SUN_TO_AIR * solar + rhythm(p, u.hour))
     q_mass = (1 - SUN_TO_AIR) * solar

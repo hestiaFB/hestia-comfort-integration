@@ -18,7 +18,7 @@ from .thermal import Inputs, Params, step
 # What is fitted: (name, as a logarithm of its ordinary value, first move of the search).
 FREE = (("h_env", True, 0.5), ("heat", True, 0.5), ("sun", True, 0.5), ("window", True, 0.5), ("cm", True, 0.5),
         ("h_am", True, 0.5), ("gains", False, 80.0), ("rhythm_cos", False, 60.0), ("rhythm_sin", False, 60.0),
-        ("share", False, 0.1))
+        ("share", False, 0.1), ("glass", True, 0.5))
 # Steps of the two horizons (five minutes each): one hour, three hours.
 HOUR, THREE = 12, 36
 # How strongly a logarithm is pulled back toward the ordinary value; far more strongly when the value was declared (a
