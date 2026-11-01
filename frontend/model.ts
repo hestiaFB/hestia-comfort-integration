@@ -15,12 +15,15 @@ export interface Candidate {
  thermostat?:{name:string;mode:string|null;preset:string|null;target:number|null;comfort:number|null;eco:number|null;frost:number|null;off_reason:string|null;window:boolean|null;occupied:boolean|null}|null;
 }
 export interface Spec {entity_id:string;adapter:string;block_from?:number}
-export interface OpeningMeta {exposure:string|null;azimuth?:number|null;kind:string;sheltered:boolean;shutter?:'none'|'manual'|'connected';cover_entity?:string;auto_entity?:string;override_entity?:string;width?:number;height?:number;overhang_depth?:number;overhang_gap?:number}
+export interface OpeningMeta {exposure:string|null;azimuth?:number|null;kind:string;sheltered:boolean;shutter?:'none'|'manual'|'connected';cover_entity?:string;auto_entity?:string;override_entity?:string;width?:number;height?:number;overhang_depth?:number;overhang_gap?:number;glazing?:'simple'|'double'|'triple';shutter_habit?:'open'|'closed'|'varies'}
 export interface EvolutionConfig {voc_threshold?:{value:number;unit:string};glazing_factor?:number;presence_delay_minutes?:number;voc_delay_minutes?:number;voc_pause_minutes?:number}
-export interface RoomConfig {presence?:string[];equipment?:string[];evolution?:EvolutionConfig;floor_id?:string|null;area_id:string|null;name:string;sources:Record<string,string>;windows:string[];openings:Record<string,OpeningMeta>;settings:Record<string,number>;acknowledged?:string[];use_home?:boolean;rain_exposed?:boolean;heated?:boolean;thermostat_reference?:boolean;windows_unmeasured?:boolean;persons?:string[];open_to?:string[]}
+export interface Heater {entity_id:string;scope:'room'|'house';kind?:string;power?:number}
+export interface CustomEquipment {name:string;effects:string[];entity_id:string|null}
+export interface RoomBuilt {uses?:string;surface?:number;height?:number;outside?:string[];wall_material?:string;insulation?:string;partitions?:string}
+export interface RoomConfig {heaters?:Heater[];thermostat_plage?:string|null;flows?:Partial<Record<'purifier'|'ventilation_boost',number>>;room?:RoomBuilt;foyer?:import('./foyer').Foyer;equipment_links?:Record<string,string>;custom_equipment?:CustomEquipment[];presence?:string[];equipment?:string[];evolution?:EvolutionConfig;floor_id?:string|null;area_id:string|null;name:string;sources:Record<string,string>;windows:string[];openings:Record<string,OpeningMeta>;settings:Record<string,number>;acknowledged?:string[];use_home?:boolean;rain_exposed?:boolean;heated?:boolean;thermostat_reference?:boolean;windows_unmeasured?:boolean;persons?:string[];open_to?:string[]}
 export interface Room {entry_id:string;title:string;loaded:boolean;config:RoomConfig}
 export interface Area {floor_id?:string|null;area_id:string;name:string;outdoor:boolean}
-export interface Snapshot {version:1;revision:string;floors?:{floor_id:string;name:string;level:number|null}[];areas:Area[];rooms:Room[];home:{configured:boolean;sources:Record<string,Spec>;acknowledged?:string[];weather?:string|null;alarm?:string|null;pollen_allergy?:boolean;disabled?:string[];lights?:import('./lights').Lights};hestia_weather?:{installed:boolean;places:{entry_id:string;title:string}[]};integrations?:{atmofrance?:boolean}}
+export interface Snapshot {version:1;revision:string;floors?:{floor_id:string;name:string;level:number|null}[];areas:Area[];rooms:Room[];home:{configured:boolean;sources:Record<string,Spec>;acknowledged?:string[];weather?:string|null;alarm?:string|null;pollen_allergy?:boolean;disabled?:string[];lights?:import('./lights').Lights;foyer?:import('./foyer').Foyer};hestia_weather?:{installed:boolean;places:{entry_id:string;title:string}[]};integrations?:{atmofrance?:boolean}}
 export interface Discovery {version:1;revision:string;candidates:Record<string,Candidate[]>;suggestions:Record<string,string|string[]>;drivers?:Record<string,Driver>}
 export interface DriverSignal {entity_id:string;name:string;on:boolean}
 export interface Driver {name:string;driver?:string;auto:string|null;override:string|null;signals?:Partial<Record<'enabled'|'auto'|'tracking'|'detection'|'override'|'sun'|'climate',DriverSignal|null>>;azimuth?:number|null;exposure?:string|null;width?:number|null;height?:number|null}
@@ -65,6 +68,8 @@ export function measurement(c:Candidate):string {
  return (c.value!==''&&Number.isFinite(n)?new Intl.NumberFormat(currentLocale(),{maximumFractionDigits:1}).format(n):c.value)+(c.unit?' '+c.unit:'');
 }
 export function defaultOpening():OpeningMeta {return {exposure:null,kind:'window',sheltered:false};}
+/** An ordinary opening of each kind, width × height in metres, when its size is not set: the advisor's (advisor/house.py KINDS, area ÷ height). */
+export function ordinarySize(kind:string):[number,number]{return ({french:[0.9,2.1],skylight:[0.8,0.5],door:[0.9,2]} as Record<string,[number,number]>)[kind]??[1,1.2];}
 export function newRoom(area:{area_id:string;name:string}|null,name:string,d:Discovery):RoomConfig {
  const sources:Record<string,string>={};for(const key of [...indoor,'illuminance','co2','pm25','voc','purifier','ventilation','ventilation_boost','heating']){const value=d.suggestions[key];if(typeof value==='string')sources[key]=value;}
  const windows=Array.isArray(d.suggestions.windows)?[...d.suggestions.windows]:[];

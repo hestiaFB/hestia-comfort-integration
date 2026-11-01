@@ -142,3 +142,28 @@ main.wide{max-width:1280px}
 .li-led{width:14px;height:14px;border-radius:50%}.li-led.free{border:1px dashed var(--nc-muted)}
 @container (max-width:560px){.li-cols{display:none}.li-row,.li-table.wled .li-row{grid-template-columns:minmax(0,1fr) auto 36px 32px;grid-template-areas:'pill pv sw try' 'fx fx fx fx' 'sp sp br br';row-gap:6px}.li-row .li-pill{grid-area:pill}.li-row .li-swatch{grid-area:sw}.li-row select{grid-area:fx}.li-row .li-bright{grid-area:br;justify-self:end}.li-row .li-try{grid-area:try}.li-row .li-pv{grid-area:pv}.li-row .li-speed{grid-area:sp}.li-row .li-bright input{width:72px}.li-table:not(.wled) .li-row{grid-template-areas:'pill pv sw try' 'fx fx br br'}}
 .li-row label,.li-row select,.li-row button{margin:0}.li-row select{min-height:36px;height:36px}.li-row .li-try,.li-row .li-swatch{min-height:32px;height:32px}.li-bright{min-height:0;height:auto}.li-head .nk-edit{margin:0}
+/* Réglages 3.0 (niak-comfort/docs/REGLAGES-3.md): « Ce que ça change », choices in pills, heatings, the overhang's sketch. */
+.why{font-size:13px;color:var(--nk-muted,var(--nc-muted));border-left:2px solid var(--nk-border,var(--nc-border));padding-left:12px;margin:6px 0 4px}
+.sensor-settings>.why{grid-column:1/-1}
+p.label{margin:12px 0 2px;font-weight:500}
+.nk-seg{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;border:1px solid var(--nk-border,var(--nc-border));border-radius:999px;background:var(--nk-raised,var(--nc-surface));margin:6px 0 2px}
+.nk-seg button{border:0;min-height:36px;padding:6px 16px;border-radius:999px;background:transparent;color:var(--nk-muted,var(--nc-muted));font-size:14px}
+.nk-seg button[aria-pressed="true"]{background:var(--nk-selected,var(--nc-surface));color:var(--primary-text-color);font-weight:600}
+.nk-chips{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px}
+.nk-chip{min-height:36px;padding:6px 14px;border-radius:999px;font-size:14px}
+.nk-chip[aria-pressed="true"]{background:var(--nk-selected,var(--nc-surface));border-color:var(--nk-accent,var(--nc-accent));font-weight:600}
+.heater{border:1px solid var(--nk-border,var(--nc-border));border-radius:18px;padding:14px 16px;margin:12px 0}
+.eq-link{margin:-4px 0 8px 31px}
+.fy-ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--nk-muted,var(--nc-muted));margin-top:-6px}
+.fy-slider input{accent-color:var(--nk-accent,var(--nc-accent));padding:0;min-height:32px;border:0;background:transparent}
+.fy-same{margin:-8px 0 10px 31px}.fy-open{margin:-4px 0 10px 31px}
+details.howto{padding-left:0;margin:6px 0}details.howto summary{cursor:pointer;color:var(--nk-accent,var(--nc-accent));font-size:14px}details.howto ul{padding-left:20px;font-size:14px}
+.kbd{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--nk-accent,var(--nc-accent));color:var(--primary-background-color);font-size:12px;font-weight:700;margin-right:6px}
+.sketch{margin:10px 0 4px;padding:12px;border:1px solid var(--nk-border,var(--nc-border));border-radius:18px}
+.sketch svg{display:block;width:100%;max-width:420px;height:auto;margin:0 auto}.sketch figcaption{text-align:center;margin-top:4px}
+.sk-wall{fill:color-mix(in srgb,var(--nk-muted,#b2aea7) 30%,transparent);stroke:var(--nk-muted,#b2aea7)}
+.sk-roof{fill:color-mix(in srgb,var(--nk-muted,#b2aea7) 55%,transparent);stroke:var(--nk-muted,#b2aea7)}
+.sk-glass{fill:color-mix(in srgb,var(--nk-accent,#a6c8d7) 22%,transparent);stroke:var(--nk-accent,#a6c8d7)}
+.sk-thin{stroke:var(--nk-muted,#b2aea7);stroke-dasharray:3 3}.sk-acc{stroke:var(--nk-accent,#a6c8d7);stroke-width:2}.sk-acc-fill,.sk-badge{fill:var(--nk-accent,#a6c8d7)}
+.sk-sun circle{fill:none;stroke:var(--nk-todo,#e2b777);stroke-width:2}.sk-sun path{fill:none;stroke:var(--nk-todo,#e2b777);stroke-width:1.5}
+.sk-txt{fill:var(--nk-muted,#b2aea7);font-size:12px}.sk-badge-t{fill:var(--primary-background-color,#1b1c1e);font-size:12px;font-weight:700;text-anchor:middle}

@@ -62,6 +62,7 @@ async def async_setup_panel(hass):
         websocket_api.async_register_command(hass, ws_answer)
         websocket_api.async_register_command(hass, ws_alarm)
         websocket_api.async_register_command(hass, ws_pollen_allergy)
+        websocket_api.async_register_command(hass, ws_foyer)
         websocket_api.async_register_command(hass, ws_extension)
         websocket_api.async_register_command(hass, ws_lights)
         websocket_api.async_register_command(hass, ws_light_info)
@@ -196,6 +197,20 @@ async def ws_pollen_allergy(hass, connection, msg):
     try:
         with speaking(msg.get("language")):
             snapshot = await (await get_configuration(hass)).set_pollen_allergy(msg["allergy"])
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid", str(err))
+        return
+    connection.send_result(msg["id"], snapshot)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/set_foyer", LANGUAGE: str, vol.Required("foyer"): dict})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_foyer(hass, connection, msg):
+    """The household's settings (« Réglages du foyer »), saved at once."""
+    try:
+        with speaking(msg.get("language")):
+            snapshot = await (await get_configuration(hass)).set_foyer(msg["foyer"])
     except ValueError as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return

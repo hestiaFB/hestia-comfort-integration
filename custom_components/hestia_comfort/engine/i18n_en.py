@@ -154,4 +154,19 @@ EN: dict[str, str] = {
         "A window of the room “{room}” is often open at night {season}. Is it on purpose, for fresh air?",
     "Si oui, elle ne sera plus signalée comme un oubli tant qu’elle rafraîchit la pièce. Si l’air du dehors la réchauffe, la refroidit trop ou l’humidifie, Confort conseillera toujours de fermer. Question reposée à chaque saison.":
         "If so, it will no longer be reported as forgotten while it cools the room. If the outside air warms it, cools it too much or makes it humid, Comfort will still suggest closing. Asked again each season.",
+    # Réglages du foyer and the 3.0 room settings (foyer.py, configuration.py)
+    "Heures de sommeil invalides : coucher et lever en heures et minutes.": "Invalid sleeping hours: bedtime and waking time in hours and minutes.",
+    "La nuit va de 4 à 14 heures : vérifiez le coucher et le lever.": "A night lasts 4 to 14 hours: check bedtime and waking time.",
+    "Réglages du foyer invalides.": "Invalid household settings.",
+    "« Ouvrir une fenêtre la nuit » doit être oui ou non.": "“Open a window at night” must be yes or no.",
+    "« Combien de conseils » invalide.": "Invalid “How much advice”.",
+    "Valeur hors des bornes : {name}": "Value out of range: {name}",
+    "Choisissez l’entité d’un équipement parmi celles de Home Assistant.": "Choose an equipment’s entity among Home Assistant’s.",
+    "Équipements ajoutés invalides.": "Invalid added equipment.",
+    "Description de la pièce invalide.": "Invalid room description.",
+    "Débits invalides.": "Invalid flows.",
+    "Habitude du volet invalide pour {name}": "Invalid shutter habit for {name}",
+    "Vitrage invalide pour {name}": "Invalid glazing for {name}",
+    "Chauffages invalides.": "Invalid heatings.",
+    "La plage suit un chauffage de la pièce, ou aucun.": "The range follows one of the room’s heatings, or none.",
 }

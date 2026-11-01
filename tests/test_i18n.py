@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 from engine import i18n  # noqa: E402
 from engine.i18n_en import EN  # noqa: E402
 
-SOURCES = ("health.py", "panel.py", "configuration.py", "websocket.py", "engine/habits.py")
+SOURCES = ("health.py", "panel.py", "configuration.py", "foyer.py", "websocket.py", "engine/habits.py")
 # Functions whose literal arguments are French texts: t() and N_() take one, _count() a singular and a plural.
 CALLS = {"t": 1, "N_": 1, "_count": 3}
 

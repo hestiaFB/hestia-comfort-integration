@@ -1,4 +1,4 @@
-// Confort's panel in English: every French text given to t() or fr() in panel.ts, model.ts and lights.ts has its English words
+// Confort's panel in English: every French text given to t() or fr() in panel.ts, model.ts, lights.ts, foyer.ts and sketch.ts has its English words
 // (in i18n-en.ts, or in the hub's dictionary), the dictionary keeps no word nothing shows, and a translation keeps the
 // same {names} as its French.
 import {test,after} from 'node:test';
@@ -31,7 +31,7 @@ function frenchTexts(source){
  }
  return found;
 }
-const texts=new Set(['panel.ts','model.ts','lights.ts'].flatMap(f=>frenchTexts(readFileSync(join(root,f),'utf8'))).filter(Boolean));
+const texts=new Set(['panel.ts','model.ts','lights.ts','foyer.ts','sketch.ts'].flatMap(f=>frenchTexts(readFileSync(join(root,f),'utf8'))).filter(Boolean));
 const names=text=>[...text.matchAll(/\{(\w+)\}/g)].map(x=>x[1]).sort().join();
 
 test('the panel has English words for every French text it shows',()=>{

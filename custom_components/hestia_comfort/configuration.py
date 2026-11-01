@@ -16,13 +16,23 @@ from .engine.i18n import t
 from .discovery import OUTDOOR, candidate, catalog, overview, suggestions, voc_device_class
 from .engine.assessment import EXPOSURES, KINDS, Settings
 from .air_references import AIR_DEFAULTS, AIR_REFERENCE_VERSION
+from .foyer import clean_foyer
 
 DATA_CONFIG = DOMAIN + "_configuration"
 
 
 # The third-party integrations a person can turn off in the general settings.
 # The equipment a room may declare (« Équipements »): each one changes how its air is read.
-EQUIPMENT = ("shower",)
+EQUIPMENT = ("shower", "hob", "oven", "hood", "drying", "fan")
+# What an equipment added by hand changes (« Ajouter un autre équipement », REGLAGES-3.md § 4.4).
+EFFECTS = ("heat", "cool", "humid", "dry", "voc", "particles", "purify")
+# How a room is described (« Pour aller plus loin » of « La pièce »): each answer is optional.
+ROOM_CHOICES = {"uses": ("bedroom", "living", "kitchen", "bathroom", "office", "other"), "wall_material": ("heavy", "wood"),
+                "insulation": ("inside", "outside", "none"), "partitions": ("light", "heavy")}
+ROOM_NUMBERS = {"surface": (2, 200), "height": (1.8, 8)}
+SIDES = ("N", "E", "S", "O")
+HEATER_KINDS = ("radiator", "floor", "stove", "ac")
+FLOWS = {"purifier": (20, 1000), "ventilation_boost": (10, 600)}
 SWITCHABLE = ("versatile_thermostat", "adaptive_cover_pro", "cover_automatic", "cover_extender", "wled", "alarmo")
 # A coloured light that shows the advice (« Lumières »): for the whole home or room by room, one look per state of the banner.
 LIGHT_STATES = ("calm", "benefit", "action", "airing", "urgent")
@@ -83,7 +93,7 @@ class Configuration:
     def revision(self):
         values = [(e.entry_id, dict(e.data), dict(e.options)) for e in self.entries()]
         # The answers to the learning questions, the alarm, the pollen allergy and the lights, set on their own, never block a room being edited.
-        home = {k: v for k, v in self.home.items() if k not in ("answers", "alarm", "pollen_allergy", "lights")}
+        home = {k: v for k, v in self.home.items() if k not in ("answers", "alarm", "pollen_allergy", "lights", "foyer")}
         return hashlib.sha256(json.dumps([home, values], sort_keys=True, default=str).encode()).hexdigest()
 
     def home_sources(self):
@@ -108,7 +118,7 @@ class Configuration:
             entries.append({"entry_id": e.entry_id, "title": e.title, "loaded": e.state.value == "loaded", "config": config, "floor": room_floor(self.hass, config)})
         areas = [{"area_id": a.id, "name": a.name, "floor_id": a.floor_id, "outdoor": a.name.strip().casefold() in OUTDOOR_AREAS}
                  for a in ar.async_get(self.hass).areas.values()]
-        return {"version": 1, "revision": self.revision(), "home": {"sources": self.home_sources(), "configured": bool(self.home.get("configured")), "acknowledged": self.home.get("acknowledged", []), "weather": self.home.get("weather"), "alarm": self.home.get("alarm"), "pollen_allergy": bool(self.home.get("pollen_allergy")), "disabled": list(self.home.get("disabled") or []), "lights": self.home.get("lights") or {"mode": "home", "home": None, "rooms": {}}}, "hestia_weather": weather_link.status(self.hass), "integrations": {"atmofrance": bool(self.hass.config_entries.async_entries("atmofrance"))}, "rooms": entries, "floors": floor_catalog(self.hass), "areas": sorted(areas, key=lambda a: (a["name"].casefold() != "salon", a["name"].casefold()))}
+        return {"version": 1, "revision": self.revision(), "home": {"sources": self.home_sources(), "configured": bool(self.home.get("configured")), "acknowledged": self.home.get("acknowledged", []), "weather": self.home.get("weather"), "alarm": self.home.get("alarm"), "pollen_allergy": bool(self.home.get("pollen_allergy")), "disabled": list(self.home.get("disabled") or []), "lights": self.home.get("lights") or {"mode": "home", "home": None, "rooms": {}}, "foyer": self.home.get("foyer") or {}}, "hestia_weather": weather_link.status(self.hass), "integrations": {"atmofrance": bool(self.hass.config_entries.async_entries("atmofrance"))}, "rooms": entries, "floors": floor_catalog(self.hass), "areas": sorted(areas, key=lambda a: (a["name"].casefold() != "salon", a["name"].casefold()))}
 
     def discover(self, area_id=None, entry_id=None):
         if area_id and not ar.async_get(self.hass).async_get_area(area_id):
@@ -251,7 +261,12 @@ class Configuration:
         settings = payload.get("settings", {})
         if not isinstance(settings, dict):
             raise ValueError(t("Préférences de confort invalides."))
-        settings = asdict(Settings(**{**AIR_DEFAULTS, **settings}))
+        settings = {**AIR_DEFAULTS, **settings}
+        action = settings.get("co2_action")
+        if isinstance(action, (int, float)) and not isinstance(action, bool) and math.isfinite(action) and action > 300:
+            settings["co2_potential"] = min(settings.get("co2_potential", 800), action - 200)
+            settings["co2_urgent"] = max(settings.get("co2_urgent", 1500), action + 300)
+        settings = asdict(Settings(**settings))
         heated = payload.get("heated", True)
         if not isinstance(heated, bool):
             raise ValueError(t("« Pièce chauffée » doit être oui ou non."))
@@ -263,6 +278,56 @@ class Configuration:
         equipment = payload.get("equipment", [])
         if not isinstance(equipment, list) or any(e not in EQUIPMENT for e in equipment):
             raise ValueError(t("Choisissez les équipements parmi ceux proposés."))
+        # Each equipment may say when it runs: a switch, a plug or a power sensor (« Pour savoir quand il marche »).
+        links = payload.get("equipment_links", {})
+        if not isinstance(links, dict) or set(links) - set(equipment) or any(
+                not isinstance(v, str) or not self.hass.states.get(v) for v in links.values()):
+            raise ValueError(t("Choisissez l’entité d’un équipement parmi celles de Home Assistant."))
+        custom = payload.get("custom_equipment", [])
+        if not isinstance(custom, list) or len(custom) > 10:
+            raise ValueError(t("Équipements ajoutés invalides."))
+        cleaned_custom = []
+        for item in custom:
+            name_ = item.get("name") if isinstance(item, dict) else None
+            effects = item.get("effects", []) if isinstance(item, dict) else None
+            entity = item.get("entity_id") if isinstance(item, dict) else None
+            if (not isinstance(name_, str) or not name_.strip() or len(name_) > 40 or not isinstance(effects, list)
+                    or any(e not in EFFECTS for e in effects) or (entity is not None and (not isinstance(entity, str) or not self.hass.states.get(entity)))):
+                raise ValueError(t("Équipements ajoutés invalides."))
+            cleaned_custom.append({"name": name_.strip(), "effects": list(dict.fromkeys(effects)), "entity_id": entity})
+        # How the room is built (« Pour aller plus loin »): every answer optional.
+        built = payload.get("room", {})
+        if not isinstance(built, dict) or set(built) - {*ROOM_CHOICES, *ROOM_NUMBERS, "outside"}:
+            raise ValueError(t("Description de la pièce invalide."))
+        cleaned_room = {}
+        for key, choices in ROOM_CHOICES.items():
+            if built.get(key) is not None:
+                if built[key] not in choices:
+                    raise ValueError(t("Description de la pièce invalide."))
+                cleaned_room[key] = built[key]
+        for key, (low, high) in ROOM_NUMBERS.items():
+            if built.get(key) is not None:
+                value = built[key]
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not low <= value <= high:
+                    raise ValueError(t("Valeur hors des bornes : {name}", name=key))
+                cleaned_room[key] = value
+        if built.get("outside") is not None:
+            if not isinstance(built["outside"], list) or any(s not in SIDES for s in built["outside"]):
+                raise ValueError(t("Description de la pièce invalide."))
+            cleaned_room["outside"] = [s for s in SIDES if s in built["outside"]]
+        # The flow of the VMC's fast speed and of the purifier (m³/h), when the person knows it.
+        flows = payload.get("flows", {})
+        if not isinstance(flows, dict) or set(flows) - set(FLOWS):
+            raise ValueError(t("Débits invalides."))
+        cleaned_flows = {}
+        for key, (low, high) in FLOWS.items():
+            if flows.get(key) is not None:
+                value = flows[key]
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not low <= value <= high:
+                    raise ValueError(t("Valeur hors des bornes : {name}", name=key))
+                cleaned_flows[key] = value
+        # What differs from the household's settings in this room only.
+        room_foyer = clean_foyer(payload.get("foyer"), room=True)
         # The people the room is for (`person` entities): a bedroom's one, a living room's several, or none for everyone.
         persons = payload.get("persons", [])
         if not isinstance(persons, list) or any(not isinstance(p, str) or not p.startswith("person.") for p in persons):
@@ -306,6 +371,17 @@ class Configuration:
                 item["azimuth"] = azimuth
             if "shutter" in meta:
                 item["shutter"] = shutter
+            # A manual shutter's habit, and the glazing (« Pour aller plus loin »).
+            habit = meta.get("shutter_habit")
+            if habit is not None:
+                if habit not in ("open", "closed", "varies") or shutter != "manual":
+                    raise ValueError(t("Habitude du volet invalide pour {name}", name=entity_id))
+                item["shutter_habit"] = habit
+            glazing = meta.get("glazing")
+            if glazing is not None:
+                if glazing not in ("simple", "double", "triple"):
+                    raise ValueError(t("Vitrage invalide pour {name}", name=entity_id))
+                item["glazing"] = glazing
             for field, role in (("cover_entity", "covers"), ("auto_entity", "shutter_auto"), ("override_entity", "shutter_override")):
                 value = meta.get(field)
                 if value:
@@ -323,6 +399,34 @@ class Configuration:
                         raise ValueError(t("Dimension invalide : {name}", name=field))
                     item[field] = value
             cleaned_openings[entity_id] = item
+        # The room's heatings (several: the stove and the radiators of a living room), each for this room or the whole
+        # house, and the one its range follows. The 2.1 engine reads one heating: the one the range follows.
+        heaters = payload.get("heaters", [])
+        if not isinstance(heaters, list) or len(heaters) > 6:
+            raise ValueError(t("Chauffages invalides."))
+        cleaned_heaters = []
+        for item in heaters:
+            entity = item.get("entity_id") if isinstance(item, dict) else None
+            scope = item.get("scope", "room") if isinstance(item, dict) else None
+            kind, power = (item.get("kind"), item.get("power")) if isinstance(item, dict) else (None, None)
+            if (not isinstance(entity, str) or scope not in ("room", "house") or (kind is not None and kind not in HEATER_KINDS)
+                    or (power is not None and (isinstance(power, bool) or not isinstance(power, (int, float)) or not 100 <= power <= 20000))):
+                raise ValueError(t("Chauffages invalides."))
+            if not candidate(self.hass, entity, "heating", area_id, include_legacy=True):
+                raise ValueError(t("Capteur incompatible ou retiré : {name}", name=entity))
+            cleaned_heaters.append({"entity_id": entity, "scope": scope, **({"kind": kind} if kind else {}), **({"power": power} if power else {})})
+        ids = [h["entity_id"] for h in cleaned_heaters]
+        if len(set(ids)) != len(ids):
+            raise ValueError(t("Chauffages invalides."))
+        plage = payload.get("thermostat_plage")
+        if plage is not None and plage not in ids:
+            raise ValueError(t("La plage suit un chauffage de la pièce, ou aucun."))
+        if cleaned_heaters:
+            sources = {**sources}
+            main = plage or ids[0]
+            sources["heating"] = main
+            if plage is None and payload.get("thermostat_reference") is not False:
+                plage = main
         # Rooms use the shared exterior. Older rooms keep their own sources only until it is configured.
         legacy = not self.uses_home(payload)
         cleaned_sources = {}
@@ -346,7 +450,9 @@ class Configuration:
                    "presence": list(dict.fromkeys(presence)), "evolution": cleaned_evolution, "use_home": not legacy,
                    "air_reference_version": AIR_REFERENCE_VERSION, "heated": heated, "thermostat_reference": thermostat_reference,
                    "windows_unmeasured": windows_unmeasured and not windows,
-                   "persons": list(dict.fromkeys(persons)), "open_to": list(dict.fromkeys(open_to)), "equipment": list(dict.fromkeys(equipment))}
+                   "persons": list(dict.fromkeys(persons)), "open_to": list(dict.fromkeys(open_to)), "equipment": list(dict.fromkeys(equipment)),
+                   "equipment_links": links, "custom_equipment": cleaned_custom, "room": cleaned_room, "flows": cleaned_flows,
+                   "foyer": room_foyer, "heaters": cleaned_heaters, "thermostat_plage": plage}
         return cleaned, warnings
 
     @staticmethod
@@ -368,7 +474,9 @@ class Configuration:
             if home:
                 updated = {**cleaned, "acknowledged": remembered, "configured": True, "revision": self.home["revision"] + 1,
                            "answers": self.home.get("answers", {}), "alarm": self.home.get("alarm"),
-                           "pollen_allergy": bool(self.home.get("pollen_allergy")), "lights": self.home.get("lights")}
+                           "pollen_allergy": bool(self.home.get("pollen_allergy")), "lights": self.home.get("lights"),
+                           # Set on its own page (set_foyer): saving the exterior never drops it.
+                           "foyer": self.home.get("foyer") or {}}
                 await self.store.async_save(updated)
                 self.home = updated
                 for entry in self.entries():
@@ -430,6 +538,17 @@ class Configuration:
             raise ValueError(t("Réglage d’allergie invalide."))
         async with self.lock:
             self.home = {**self.home, "pollen_allergy": value}
+            await self.store.async_save(self.home)
+            for entry in self.entries():
+                if entry.state.value == "loaded":
+                    await self.hass.config_entries.async_reload(entry.entry_id)
+            return self.snapshot()
+
+    async def set_foyer(self, value):
+        """The household's settings (« Réglages du foyer »), saved at once: only what the person set, the rest keeps its default."""
+        foyer = clean_foyer(value)
+        async with self.lock:
+            self.home = {**self.home, "foyer": foyer}
             await self.store.async_save(self.home)
             for entry in self.entries():
                 if entry.state.value == "loaded":
