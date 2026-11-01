@@ -455,13 +455,16 @@ test('rooms sharing one air show each measure once, under the room that has it',
   cuisine.inherited={co2:'Salon'};
   const st={why:false,tilesOpen:true,detailsOpen:false,uid:'t',toggle(){}};
   const text=plain(roomCard(salon,cleanConfig({type:'custom:hestia-comfort-card',format:'measures',modules:['air','temperature'],scale_marks:[]}),st,'measures',[cuisine]));
-  assert.equal((text.match(/CO₂/g)??[]).length,1);
-  assert.equal((text.match(/COV/g)??[]).length,1);
+  // The air as a list grouped by room (31 October): CO₂ under the living room, VOC and the purifier under the kitchen.
+  const air=modules(salon,cleanConfig({type:'custom:hestia-comfort-card',modules:['air']}),[cuisine]).find(m=>m.key==='air');
+  assert.deepEqual(air.slides.map(x=>[x.label,x.room]),[['CO₂','Salon'],['COV','Cuisine'],['Purificateur','Cuisine']]);
   assert.equal((text.match(/Purificateur/g)??[]).length,1);
   // Both temperatures, each under its room.
   assert.match(text,/20,2/);assert.match(text,/20,1/);
   // A room shown alone says where a borrowed measure comes from.
-  assert.match(plain(roomCard(cuisine,cleanConfig({type:'custom:hestia-comfort-card',format:'measures',modules:['air']}),st,'measures')),/· Salon/);
+  assert.match(plain(roomCard(cuisine,cleanConfig({type:'custom:hestia-comfort-card',format:'measures',modules:['air']}),st,'measures')),/Salon/);
+  const alone=modules(cuisine,cleanConfig({type:'custom:hestia-comfort-card',modules:['air']})).find(m=>m.key==='air');
+  assert.deepEqual(alone.slides.map(x=>[x.label,x.room]),[['CO₂','Salon'],['COV','Cuisine'],['Purificateur','Cuisine']]);
 });
 test('an open window that changes nothing is not told that opening would bring nothing',()=>{
   const v=fresh();v.assessment={...v.assessment,reason:'open_neutral',action:'ok',level:'calm',needs:[]};
@@ -654,7 +657,7 @@ test('the modules: one air shows each room’s humidity, its windows and sun onc
   const list=modules(room('Salon',58),config,[room('Cuisine',66)]);
   const hum=list.find(m=>m.key==='humidity');
   // One air's rooms one after the other (31 October), those out of range first; here neither is: the rooms' order.
-  assert.deepEqual(hum.slides.map(r=>r.room),['Salon','Cuisine']);
+  assert.deepEqual(hum.slides.map(r=>r.label),['Salon','Cuisine']);
   const open=list.find(m=>m.key==='openings');
   assert.equal([open.main,...open.stats].filter(x=>(x.label??'')==='Fenêtres').length,1);
   assert.equal(list[0].key,'temperature');
