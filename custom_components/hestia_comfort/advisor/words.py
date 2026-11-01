@@ -33,9 +33,14 @@ TEXTS = {
         "sun": "Soleil sur {window} de {start} à {end}", "sun_strong": "Grand soleil prévu sur {window} de {start} à {end}",
         "sun_now": "Soleil sur {window} jusqu'à {end}", "sun_now_strong": "Grand soleil sur {window} jusqu'à {end}",
         "window": "la fenêtre {direction}", "windows": "les fenêtres {direction}", "window_plain": "les fenêtres",
+        "heat_on": "Rallumez le chauffage", "heat_to": "Remettez le chauffage à {target} °C",
+        "heated": "Chauffage rallumé", "heated_to": "Chauffage à {target} °C",
         "shutter_close": "Baissez le volet", "shutter_open": "Ouvrez le volet", "shuttered": "Volet baissé", "unshuttered": "Volet ouvert",
         "shutter_night": "Baissez le volet ce soir : environ {change} °C de plus au réveil",
         "shutter_night_energy": "Baissez le volet ce soir : environ {energy} kWh de chauffage en moins",
+        "heating_back": "Le chauffage ramène la pièce à {minimum} °C vers {at}",
+        "heating_off": "Chauffage éteint : le rallumer donnerait {gain} °C de plus d'ici {hour} h",
+        "heating_rising": "Le chauffage réchauffe la pièce : {air} °C prévus à {hour} h ({minimum} °C visés)",
         "doubtful": "Mesure douteuse", "doubtful_air": "La température semble fausse ({why}) : pas de conseil tant qu'elle l'est",
         "doubtful_aside": "Mesure douteuse, laissée de côté : {what}", "doubt": "{measure} ({why})",
         "doubt_range": "{value} : valeur impossible", "doubt_jump": "saut soudain à {value}", "doubt_frozen": "figée depuis {since}",
@@ -74,9 +79,14 @@ TEXTS = {
         "sun": "Sun on {window} from {start} to {end}", "sun_strong": "Bright sun expected on {window} from {start} to {end}",
         "sun_now": "Sun on {window} until {end}", "sun_now_strong": "Bright sun on {window} until {end}",
         "window": "the {direction} window", "windows": "the {direction} windows", "window_plain": "the windows",
+        "heat_on": "Turn the heating back on", "heat_to": "Set the heating back to {target} °C",
+        "heated": "Heating on", "heated_to": "Heating at {target} °C",
         "shutter_close": "Lower the shutter", "shutter_open": "Open the shutter", "shuttered": "Shutter down", "unshuttered": "Shutter open",
         "shutter_night": "Lower the shutter tonight: about {change} °C more at waking up",
         "shutter_night_energy": "Lower the shutter tonight: about {energy} kWh of heating saved",
+        "heating_back": "The heating brings the room back to {minimum} °C around {at}",
+        "heating_off": "Heating off: turning it back on would give {gain} °C more by {hour}:00",
+        "heating_rising": "The heating is warming the room: {air} °C expected at {hour}:00 ({minimum} °C aimed at)",
         "doubtful": "Doubtful measure", "doubtful_air": "The temperature looks wrong ({why}): no advice while it does",
         "doubtful_aside": "Doubtful measure, left aside: {what}", "doubt": "{measure} ({why})",
         "doubt_range": "{value}: impossible value", "doubt_jump": "sudden jump to {value}", "doubt_frozen": "frozen since {since}",
@@ -115,9 +125,14 @@ TEXTS = {
         "sun": "Sonne auf {window} von {start} bis {end}", "sun_strong": "Viel Sonne erwartet auf {window} von {start} bis {end}",
         "sun_now": "Sonne auf {window} bis {end}", "sun_now_strong": "Viel Sonne auf {window} bis {end}",
         "window": "dem Fenster nach {direction}", "windows": "den Fenstern nach {direction}", "window_plain": "den Fenstern",
+        "heat_on": "Heizung wieder einschalten", "heat_to": "Heizung wieder auf {target} °C stellen",
+        "heated": "Heizung an", "heated_to": "Heizung auf {target} °C",
         "shutter_close": "Rollladen herunterlassen", "shutter_open": "Rollladen öffnen", "shuttered": "Rollladen unten", "unshuttered": "Rollladen offen",
         "shutter_night": "Heute Abend Rollladen herunterlassen: etwa {change} °C mehr beim Aufstehen",
         "shutter_night_energy": "Heute Abend Rollladen herunterlassen: etwa {energy} kWh Heizenergie gespart",
+        "heating_back": "Die Heizung bringt den Raum gegen {at} wieder auf {minimum} °C",
+        "heating_off": "Heizung aus: wieder eingeschaltet brächte sie bis {hour} Uhr {gain} °C mehr",
+        "heating_rising": "Die Heizung wärmt den Raum: {air} °C erwartet um {hour} Uhr ({minimum} °C angestrebt)",
         "doubtful": "Zweifelhafter Messwert", "doubtful_air": "Die Temperatur scheint falsch ({why}): kein Rat, solange sie es ist",
         "doubtful_aside": "Zweifelhafter Messwert, beiseitegelassen: {what}", "doubt": "{measure} ({why})",
         "doubt_range": "{value}: unmöglicher Wert", "doubt_jump": "plötzlicher Sprung auf {value}", "doubt_frozen": "unverändert seit {since}",
@@ -140,6 +155,13 @@ STEP_MINUTES = 5
 def subject_of(decision: Decision) -> str | None:
     """What the advised gesture mostly does: the cost term it lowers the most against « do nothing »."""
     return main_subject(decision.scenarios, decision.gesture)
+
+
+def _degrees(value: float | None, language: str) -> str:
+    """A set point as one says it: « 19 », « 19,5 »."""
+    if value is None:
+        return ""
+    return _number(value, language).removesuffix(",0").removesuffix(".0")
 
 
 def _number(value: float, language: str) -> str:
@@ -166,6 +188,8 @@ def _name(gesture: Gesture, path, words, opened: bool) -> str:
         return words["device_off"]
     if gesture.kind.startswith("shutter_"):
         return words["shuttered" if gesture.kind == "shutter_close" else "unshuttered"]
+    if gesture.kind.startswith("heat_"):
+        return words["heated"] if gesture.kind == "heat_on" else words["heated_to"].format(target=_degrees(gesture.target, "fr"))
     if gesture.kind == "open":
         return words["aired"].format(minutes=gesture.minutes) if gesture.minutes else words["open_now"]
     if gesture.kind == "nothing" and opened:
@@ -190,7 +214,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     elif gesture.kind == "open":
         title = words["open"].format(minutes=gesture.minutes) if gesture.minutes else words["open_long"]
     else:
-        title = words[gesture.kind].format(minutes=gesture.minutes)
+        title = words[gesture.kind].format(minutes=gesture.minutes, target=_degrees(gesture.target, language))
     paths = decision.paths
     line = ""
     if gesture.kind == "nothing":
@@ -288,6 +312,12 @@ def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
         return words[key].format(window=window, start=_time(v["start"], words), end=_time(v["end"], words))
     if tip.kind == "mist":
         return words["mist"].format(outdoor=_number(v["outdoor"], language))
+    if tip.kind == "heating_rising":
+        return words["heating_rising"].format(air=_number(v["air"], language), hour=v["hour"], minimum=_degrees(v["minimum"], language))
+    if tip.kind == "heating_off":
+        return words["heating_off"].format(gain=_number(v["gain"], language), hour=v["hour"])
+    if tip.kind == "heating_back":
+        return words["heating_back"].format(minimum=_degrees(v["minimum"], language), at=_time(v["at"], words))
     if tip.kind == "shutter_night":
         return words["shutter_night"].format(change=_number(v["change"], language))
     if tip.kind == "shutter_night_energy":

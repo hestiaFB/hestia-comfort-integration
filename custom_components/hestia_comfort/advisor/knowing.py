@@ -56,6 +56,12 @@ class RoomView:
     # What the shutter closed at bedtime keeps by waking up (advisor/decide.py `shutter_tonight`), and the waking hour.
     shutter_night: dict | None = None
     wake: datetime | None = None
+    # What the heating does for a room under its range: {"minutes"} until back, or {"air"} reached by the horizon's end
+    # (advisor/decide.py `heating_back`).
+    heating_back: dict | None = None
+    # °C the room would gain by the end of the horizon with its thermostat on again, and that hour (`heating_off`).
+    heating_off: float | None = None
+    end_hour: int | None = None
 
 
 def sun_on_windows(view: RoomView) -> list[Tip]:
@@ -135,7 +141,30 @@ def shutter_at_night(view: RoomView) -> list[Tip]:
     return []
 
 
-PROVIDERS = [gesture_seen, mist_tonight, shutter_at_night, sun_on_windows]
+def heating_catches_up(view: RoomView) -> list[Tip]:
+    """« Le chauffage ramène la pièce à 17 °C vers 12 h 30 », or « Le chauffage réchauffe la pièce : 19,7 °C prévus à
+    15 h (21,5 °C visés) »: a room under its range that its heating is bringing back, its own thermostat or the house's
+    stove, as the twin simulates it — nothing to do, and the household knows when (Frank, 1 November)."""
+    found = view.heating_back
+    if found is None:
+        return []
+    if "minutes" in found:
+        at = view.now + timedelta(minutes=found["minutes"])
+        at = at.replace(minute=at.minute - at.minute % 5, second=0, microsecond=0)
+        return [Tip("heating_back", {"minimum": view.minimum, "at": at}, "heat", 2, at, REINFORCED)]
+    return [Tip("heating_rising", {"air": found["air"], "minimum": view.minimum, "hour": view.end_hour}, "heat", 2, None,
+                REINFORCED)]
+
+
+def heating_is_off(view: RoomView) -> list[Tip]:
+    """« Chauffage éteint : le rallumer donnerait 1,5 °C de plus d'ici 15 h »: never a gesture, a passive advice (Frank,
+    1 November) — the household may heat the room otherwise."""
+    if view.heating_off is None or view.asleep:
+        return []
+    return [Tip("heating_off", {"gain": view.heating_off, "hour": view.end_hour}, "heat", 2, None, REINFORCED)]
+
+
+PROVIDERS = [gesture_seen, mist_tonight, heating_catches_up, heating_is_off, shutter_at_night, sun_on_windows]
 
 
 def tips(view: RoomView, providers=None) -> list[Tip]:

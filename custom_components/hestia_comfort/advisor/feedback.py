@@ -24,10 +24,12 @@ class Asked:
     since: datetime
     title: str
     trial: bool = False
+    target: float | None = None     # the set point « Remettez le chauffage à 19 °C » asks for
 
 
-def done(kind: str, now: Now) -> bool:
-    """Whether the room shows the gesture done: a window open, all shut, the device started or stopped."""
+def done(kind: str, now: Now, target: float | None = None) -> bool:
+    """Whether the room shows the gesture done: a window open, all shut, the device started or stopped, the heating on
+    again or set to `target`."""
     if kind == "open":
         return bool(now.opened)
     if kind == "close":
@@ -36,6 +38,10 @@ def done(kind: str, now: Now) -> bool:
         return now.boosting if kind == "boost" else now.purifying
     if kind in ("boost_off", "purify_off"):
         return not (now.boosting if kind == "boost_off" else now.purifying)
+    if kind == "heat_on":
+        return now.heating is True
+    if kind == "heat_to":
+        return now.heating is True and None not in (now.heating_target, target) and now.heating_target >= target - 0.25
     if kind in ("shutter_close", "shutter_open") and now.cover is not None:
         return now.cover <= SHUTTER_SHUT if kind == "shutter_close" else now.cover >= SHUTTER_OPEN
     return False
@@ -47,14 +53,14 @@ def follow(asked: Asked | None, shown: Gesture | None, title: str, trial: bool, 
     while it was asked, or replaced by another before. `shown`: the gesture on the card now, None or « nothing » if none."""
     out = []
     if asked is not None:
-        if done(asked.kind, now):
+        if done(asked.kind, now, asked.target):
             out.append(_record(asked, when, True))
             asked = None
         elif shown is None or shown.kind != asked.kind:
             out.append(_record(asked, when, False))
             asked = None
-    if asked is None and shown is not None and shown.kind != "nothing" and not done(shown.kind, now):
-        asked = Asked(shown.kind, when, title, trial)
+    if asked is None and shown is not None and shown.kind != "nothing" and not done(shown.kind, now, shown.target):
+        asked = Asked(shown.kind, when, title, trial, shown.target)
     return asked, out
 
 

@@ -28,7 +28,9 @@ CO2_FLOOR = 300.0
 POINTS = 100 / absolute(20.0, 100.0)
 
 
-PM25 = {"Salon": "sensor.ikea_sensor_pm25"}
+# The Salon's own sensor, as set in Confort (1 November): the twin learned on the kitchen's IKEA forecasts it as well
+# (3.5 µg/m³ at one hour against 4.7 for « nothing changes », 2.5 against 5.1 at three hours) as one learned on it.
+PM25 = {"Salon": "sensor.alpstuga_air_quality_monitor_pm2_5"}
 # The IKEA sensor reports 999 µg/m³ when it fails: above this, never a measure.
 PM25_CEILING = 500.0
 

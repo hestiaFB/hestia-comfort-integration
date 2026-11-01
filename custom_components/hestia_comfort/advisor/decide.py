@@ -28,6 +28,7 @@ class Gesture:
     kind: str                   # nothing | close | open
     minutes: int | None = None  # how long an opening lasts; None: until the end of the horizon
     after: int | None = None    # minutes before the gesture: « Refermez vers 16 h », « Aérez vers 14 h »
+    target: float | None = None # °C the heating is set back to: « Remettez le chauffage à 19 °C »
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,54 @@ def for_season(minimum: float, maximum: float, summer_maximum: float | None = No
     if weight is not None and summer_maximum is not None:
         maximum = round(maximum + weight * (max(summer_maximum, maximum) - maximum), 1)
     return Comfort(minimum=minimum, maximum=maximum, **marks)
+
+
+def from_thermostat(comfort: Comfort, target: float | None, preset: str | None, comfort_temperature: float | None) -> Comfort:
+    """The room's minimum is its thermostat's set point when it has one (CAHIER-MOTEUR.md § 6.8, Confort 2.1's
+    `thermostat_reference`): eco lowers it on purpose, the room is then expected cooler. Frost protection is a safeguard,
+    not a comfort: the comfort temperature stands instead. Kept only between 5 °C and the range's maximum."""
+    found = comfort_temperature if "frost" in (preset or "") or target is None else target
+    if found is None or not 5 <= found < comfort.maximum:
+        return comfort
+    # A thermostat may report 19.00000000000001.
+    return replace(comfort, minimum=round(found, 1))
+
+
+def heating_off(twins: "Twins", now: "Now", coming, comfort: Comfort, tolerance: float = 1.0) -> float | None:
+    """°C the room would gain by the end of the horizon with its thermostat on again, when that gain is one a gesture
+    would need (`significant`); None otherwise. A passive advice only (CAHIER-MOTEUR.md § 9.1 bis, Frank, 1 November):
+    a room heated by something else is never pushed to turn its own heating on."""
+    if twins.idle_thermostat is None or twins.thermostat is not None or now.night:
+        return None
+    # A house heater warming the room (the Salon's stove): it is heated, its own heating is not missed.
+    if twins.house_thermostat is not None or (coming and coming[0][0].house_heat * twins.heat.share > 0):
+        return None
+    idle = simulate(twins, now, coming, Gesture("nothing"))
+    on = simulate(twins, now, coming, Gesture("heat_on"))
+    if not idle.air or "heat" not in significant(idle, on, comfort, tolerance=tolerance):
+        return None
+    return on.air[-1] - idle.air[-1]
+
+
+# A room the heating warms by this much over the horizon is said to be warming up, even short of its range (°C).
+WARMING = 0.5
+
+
+def heating_back(twins: "Twins", idle: "Path", now: "Now", minimum: float, coming=(),
+                 step_minutes: float = STEP / 60) -> dict | None:
+    """What the heating does for a room under its range, left as it is: {"minutes"} until it is back to its minimum, or,
+    short of it by the end of the horizon, {"air"} it will have reached. The room's own thermostat, or a house heater
+    warming it (the Salon's stove, `coming` holds its heat). None when the room is not under its range, nothing heats
+    it, or it hardly warms."""
+    house = twins.house_thermostat is not None or (bool(coming) and coming[0][0].house_heat * twins.heat.share > 0)
+    if (twins.thermostat is None and not house) or now.air >= minimum or not idle.air:
+        return None
+    for k, air in enumerate(idle.air):
+        if air >= minimum:
+            return {"minutes": (k + 1) * step_minutes}
+    if idle.air[-1] - now.air >= WARMING:
+        return {"air": idle.air[-1]}
+    return None
 
 
 @dataclass(frozen=True)
@@ -109,6 +158,15 @@ class Twins:
     thermostat: Thermostat | None = None
     # m² of glass behind the room's connected shutter (CAHIER-MOTEUR.md § 6.7 ter); 0: none.
     shutter_area: float = 0.0
+    # The room's thermostat as it would run once turned on again, when it is off with no reason of its own
+    # (CAHIER-MOTEUR.md § 9.1 bis): « Rallumez le chauffage ».
+    idle_thermostat: Thermostat | None = None
+    # The room's main heating when it is a house heater (the Salon's stove, CAHIER-MOTEUR.md § 6.8): its thermostat, its
+    # full power (W) and the share of it running now. Simulated as a thermostat in every scenario — it starts again when
+    # the room cools — instead of held at the power it had when the advisor looked.
+    house_thermostat: Thermostat | None = None
+    house_power: float = 0.0
+    house_now: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -132,6 +190,10 @@ class Now:
     # The connected shutter's position, 0 shut to 1 open, when the household moves it; None: no shutter, or one an
     # automation drives (Adaptive Cover Pro's automatic control): the advisor then proposes nothing on it.
     cover: float | None = None
+    # The room's thermostat: heating (on) or not, and the set point it aims at — what « Rallumez » and « Remettez le
+    # chauffage à 19 °C » are followed with (advisor/feedback.py).
+    heating: bool | None = None
+    heating_target: float | None = None
 
 
 @dataclass
@@ -160,9 +222,10 @@ class Path:
 DEVICES = ("boost", "purify")
 
 
-def candidates(now: Now, twins: Twins | None = None, habits: Habits = Habits()) -> list[Gesture]:
-    """What the room allows: shut what is open, or open what is shut, for a few minutes or for good; now or later; and
-    start or stop its devices."""
+def candidates(now: Now, twins: Twins | None = None, habits: Habits = Habits(), comfort: Comfort | None = None) -> list[Gesture]:
+    """What the room allows: shut what is open, or open what is shut, for a few minutes or for good; now or later; start
+    or stop its devices; set its heating back to the room's minimum (`comfort`). Turning it on again is only a passive
+    advice (`heating_off`)."""
     if now.opened:
         out = [Gesture("nothing"), Gesture("close")] + [Gesture("close", after=a) for a in habits.later]
     else:
@@ -174,7 +237,22 @@ def candidates(now: Now, twins: Twins | None = None, habits: Habits = Habits()) 
     if twins and twins.shutter_area and now.cover is not None:
         out += [Gesture("shutter_close")] if now.cover > SHUTTER_SHUT else []
         out += [Gesture("shutter_open")] if now.cover < SHUTTER_OPEN else []
+    if twins and twins.thermostat is not None and comfort is not None and comfort.minimum > twins.thermostat.target + HEAT_STEP:
+        out.append(Gesture("heat_to", target=comfort.minimum))
     return out
+
+
+# A set point this much under the room's minimum is worth setting back (°C): a thermostat's own step is half a degree.
+HEAT_STEP = 0.25
+
+
+def _thermostat(gesture: Gesture, twins: Twins, k: int) -> Thermostat | None:
+    """The thermostat that runs at step `k` of the scenario: turned on again, set back, or as it is."""
+    if gesture.kind == "heat_on" and twins.idle_thermostat is not None and k * STEP / 60 >= (gesture.after or 0):
+        return twins.idle_thermostat
+    if gesture.kind == "heat_to" and twins.thermostat is not None:
+        return replace(twins.thermostat, target=gesture.target)
+    return twins.thermostat
 
 
 # A shutter under this position is shut, above that one open (0 to 1); shut, it still lets a little light through.
@@ -213,7 +291,7 @@ def _flow(learned, volume, windows, air, outdoor, wind):
 
 def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], gesture: Gesture) -> Path:
     """The room under `gesture`, over the coming steps: (inputs, outdoor water g/m³ or None)."""
-    path = Path(heated=twins.thermostat is not None)
+    path = Path(heated=twins.thermostat is not None or (gesture.kind == "heat_on" and twins.idle_thermostat is not None))
     air, walls = now.air, now.walls
     water = reserve = None
     if twins.water and now.humidity is not None:
@@ -227,11 +305,15 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
         # The sun of the scenario's windows: through the glass when shut, more of it through an open sash.
         facade = u.facade_shut if not windows else u.facade_all if windows == twins.windows else None
         u = _shutter(gesture, twins, replace(u, windows=windows, facade=u.facade if facade is None else facade, vent=boost), k)
-        if twins.thermostat:
+        felt = path.air[-1] if path.air else now.air
+        if (thermostat := _thermostat(gesture, twins, k)) is not None:
             # The thermostat reads the room as it is, the twin's trend included.
-            felt = path.air[-1] if path.air else now.air
-            u = replace(u, heating=twins.thermostat.power(felt, u.outdoor, windows))
+            u = replace(u, heating=thermostat.power(felt, u.outdoor, windows))
             path.heating += twins.heat.heat * u.heating * HOURS / 1000
+        if twins.house_thermostat is not None:
+            # The stove follows the room too; the other house heaters stay as they are.
+            running = twins.house_thermostat.power(felt, u.outdoor, windows)
+            u = replace(u, house_heat=max(0.0, u.house_heat + twins.house_power * (running - twins.house_now)))
         before = air
         air, walls = step(twins.heat, air, walls, u)
         path.air.append(air + correction(DEFAULT_RECENT, now.missed, k))
@@ -336,6 +418,8 @@ def effect(gesture: Gesture, subject: str) -> str:
     subject = {"energy": "heat", "mould": "humidity"}.get(subject, subject)
     if gesture.kind.startswith("shutter_"):
         return f"shutter:{subject}"
+    if gesture.kind.startswith("heat_"):
+        return f"heating:{subject}"
     device = gesture.kind.removesuffix("_off")
     return f"{device}:{subject}" if device in DEVICES else subject
 
@@ -374,9 +458,11 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # While the household sleeps, nobody gets up to open a window, unless it says it would (Frank, 31 October: « en plein
     # hiver, il y a très peu de chance que je laisse ouvert, même 20 min pour aérer en pleine nuit »): the night keeps
     # closing what was left open and the devices; a window for the night is said in the evening (`tonight`).
-    gestures = [g for g in candidates(now, twins, habits) if g.kind not in forbidden
+    gestures = [g for g in candidates(now, twins, habits, comfort) if g.kind not in forbidden
                 and not (g.kind == "open" and g.minutes is None and "open_long" in forbidden)
-                and not (g.kind == "open" and now.night and not habits.open_at_night)]
+                and not (g.kind == "open" and now.night and not habits.open_at_night)
+                # Nobody gets up to see to the heating either (CAHIER-MOTEUR.md § 9.1 bis).
+                and not (g.kind.startswith("heat_") and now.night)]
     paths = {g: simulate(twins, now, coming, g) for g in gestures}
     costs = {g: cost(paths[g], comfort, weights, g, now.night) for g in gestures}
     nothing = costs[Gesture("nothing")]["total"]
