@@ -66,6 +66,9 @@ export function frame(title:string,body:unknown,options:{count?:string|number;op
 export const hubStyles=css`
  :host{--nk-help-accent:#a1c9e8;--nk-space-tight:8px;--nk-space-section:24px}
  :host([data-theme=light]){--nk-help-accent:#285f87}
+ /* Purple means "something to read" only, so it keeps these values with the HA appearance too. */
+ :host{--nk-note:#c7a6ef;--nk-note-bg:rgba(199,166,239,.10)}
+ :host([data-theme=light]){--nk-note:#7a4bb5;--nk-note-bg:rgba(122,75,181,.08)}
 
  :host{--nk-accent:var(--primary-color,#a1c9e8);--nk-border:var(--divider-color,#657386);--nk-muted:var(--secondary-text-color,#bdc5d1);--nk-surface:var(--ha-card-background,var(--card-background-color,#222932));--nk-radius:16px;--nk-gap:16px}
  main{max-width:1120px;width:100%;padding:32px 28px 64px}
@@ -251,7 +254,14 @@ export function removeBlock(o:{link:string;title:string;lines:string[];keep:stri
   <div class="actions"><button @click=${o.onCancel}>${o.keep}</button><button class="danger" ?disabled=${o.busy} @click=${o.onConfirm}>${o.confirm}</button></div></section>`
   :html`<div class="nk-remove"><button class="link danger-link" ?disabled=${o.busy} @click=${o.onAsk}>${o.link}</button></div>`;
 }
+// Information to read, with nothing to do and no state to judge (ECOSYSTEME.md § 8): hub only, never on cards,
+// one box per frame and three per page. Actions, states, benefits and warnings keep their own colours.
+export function noteBox(title:string,body:unknown):TemplateResult{return html`<aside class="nk-note"><strong>${title}</strong> ${body}</aside>`;}
+export function noteTag(text:string):TemplateResult{return html`<span class="nk-note-tag">${text}</span>`;}
 export const pageStyles=css`
+ .nk-note{display:block;margin:20px 0 0;padding:14px 18px;border:1px dashed var(--nk-note);border-radius:18px;background:var(--nk-note-bg);font-size:14px}.nk-note:first-child{margin-top:0}
+ .nk-note+*{margin-top:14px}.nk-note>strong{color:var(--nk-note);font-weight:700}.nk-note ul{margin:6px 0 0;padding-left:20px}.nk-note p{margin:6px 0 0}
+ .nk-note-tag{display:inline-block;margin-left:8px;padding:2px 8px;border:1px dashed var(--nk-note);border-radius:6px;background:var(--nk-note-bg);color:var(--nk-note);font-size:11px;font-weight:700;line-height:1.5;letter-spacing:.02em;vertical-align:2px;white-space:normal}
  .ex-sec{font-size:15px;font-weight:600;color:var(--nk-muted);margin:28px 0 6px}.ex-sec+.hint{margin:0 0 8px}
  /* The Extensions page: the third-party integrations under one heading per theme. */
  .ex-theme{font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--nk-muted);margin:26px 0 4px}

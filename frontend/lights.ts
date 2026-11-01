@@ -1,5 +1,5 @@
 import {html,nothing} from 'lit';
-import {frame,t,fr} from './socle/ui';
+import {frame,noteBox,t,fr} from './socle/ui';
 import type {Hass} from './model';
 
 /** One state of the banner and what the light does then; a WLED effect's speed too. */
@@ -119,7 +119,7 @@ export function lightEditor(o:{hass?:Hass;wled:boolean;rule:LightRule|null;taken
   ${rule&&!current?html`<option value=${rule.entity_id} selected>${t('Introuvable · choisissez-en une autre')}</option>`:nothing}</select></label>`;
  if(!lights.length&&!rule)return frame(t('Lumière'),html`<p class="hint">${t('Aucune lumière couleur trouvée dans Home Assistant. Un bandeau WLED ou une ampoule couleur conviennent.')}</p>`,{className:'nk-field-section nk-plain'});
  const menu=menuOf(kind,list,canFlash,rule?lightStates.map(s=>look(rule,s.key).effect):[]);
- return frame(t('Lumière'),html`<div class="li-host"><p class="hint">${t('Hestia ne la commande que dans les conditions choisies ici.')}</p>
+ return frame(t('Lumière'),html`<div class="li-host">${noteBox(t('Bon à savoir'),t('Hestia ne la commande que dans les conditions choisies ici.'))}
   <div class="li-grid">${pick}${rule&&o.follows?.length?html`<label class="zone">${t('Suit le conseil de')}<select ?disabled=${o.busy} @change=${(e:Event)=>set({follow:(e.target as HTMLSelectElement).value})}>
    ${o.follows.map(f=>html`<option value=${f.value} ?selected=${f.value===rule.follow}>${f.label}</option>`)}</select></label>`:nothing}</div>
   ${rule?html`<p class="hint">${wled?html`<em class="ex-badge benefit">WLED</em> `:nothing}${kindHint(kind,leds,canFlash||list.length>0)}</p>`:nothing}
