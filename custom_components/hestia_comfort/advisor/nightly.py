@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 
 from .bench.history import attribute, contacts, numbers
+from .decide import CROSS, sides_apart
 from .physics.airfit import MOVES, TWINS, _run, score as air_score, values, vector
 from .physics.fit import Sample, _nelder_mead, fit, gestures, score
 from .physics.sunlight import sun_position, through_windows
@@ -71,8 +72,11 @@ def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zo
                 light = sun.at(when) or 0.0
                 opened = {k for k, i in enumerate(oriented) if windows[i][2].at(when) is True}
                 facade = through_windows(light, *sun_position(when, *location), glazing, opened)
+            open_now = [(e, size) for e, size, s in windows if s.at(when) is True]
+            # Open on two sides, the air crosses the room: counted here as in the scenarios (advisor/decide.py).
+            apart = len(open_now) > 1 and sides_apart([(spec.orientations.get(e) or (None,))[0] for e, _ in open_now])
             inputs = Inputs(outdoor=te, sun=sun.at(when) or 0.0, heating=(power.at(when) or 0.0) if power else 0.0,
-                            windows=tuple(size for _, size, s in windows if s.at(when) is True),
+                            windows=tuple(size for _, size in open_now), cross=CROSS if apart else 1.0,
                             hour=local.hour + local.minute / 60,
                             house_heat=sum((s.at(when) or 0.0) * w for s, w in house),
                             shade=1.0 if position is None or position.at(when) is None else max(0.05, position.at(when)),

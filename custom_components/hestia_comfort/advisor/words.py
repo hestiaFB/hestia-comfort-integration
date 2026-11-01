@@ -4,6 +4,7 @@ The card composes no advice of its own: it shows these words (CAHIER-MOTEUR.md �
 card; a gain always in plain units (°C, humidity points, minutes); the conditional when the twin is not yet sure.
 """
 from dataclasses import replace
+from datetime import time
 
 from .decide import SUBJECTS, Decision, Gesture, main_subject
 from .knowing import Tip
@@ -15,7 +16,7 @@ TEXTS = {
         "purify": "Lancez le purificateur {minutes} min", "purify_off": "Arrêtez le purificateur",
         "boosted": "VMC rapide {minutes} min", "purified": "Purificateur {minutes} min", "device_off": "Appareil arrêté",
         "nothing": "Rien à faire", "close": "Refermez", "open": "Aérez {minutes} min", "open_long": "Ouvrez",
-        "close_later": "Refermez vers {at} h", "open_later": "Aérez vers {at} h",
+        "close_later": "Refermez vers {at}", "open_later": "Aérez {minutes} min vers {at}", "close_soon": "Laissez ouvert encore {after} min", "open_more": "Ouvrez aussi {which} {minutes} min", "open_more_plain": "les autres fenêtres", "opened_more": "Ouvertes des deux côtés {minutes} min", "instead": "{line} au lieu de {minutes}",
         "heat": "vous gardez {value} °C d'ici {hour} h", "heat_open": "{value} °C de mieux d'ici {hour} h",
         "humidity": "{value} points d'humidité en moins", "co2": "l'air redevient sain en {minutes} min",
         "particles": "les particules retombent en {minutes} min", "voc": "le COV retombe en {minutes} min", "energy": "{value} kWh de chauffage économisés",
@@ -67,7 +68,7 @@ TEXTS = {
         "purify": "Run the purifier for {minutes} min", "purify_off": "Stop the purifier",
         "boosted": "Fast ventilation {minutes} min", "purified": "Purifier {minutes} min", "device_off": "Device stopped",
         "nothing": "Nothing to do", "close": "Close", "open": "Air for {minutes} min", "open_long": "Open",
-        "close_later": "Close around {at}:00", "open_later": "Air around {at}:00",
+        "close_later": "Close around {at}", "open_later": "Air {minutes} min around {at}", "close_soon": "Leave it open {after} more min", "open_more": "Open {which} too for {minutes} min", "open_more_plain": "the other windows", "opened_more": "Open on both sides {minutes} min", "instead": "{line} instead of {minutes}",
         "heat": "you keep {value} °C until {hour}:00", "heat_open": "{value} °C better by {hour}:00",
         "humidity": "{value} humidity points less", "co2": "the air is fresh again in {minutes} min",
         "particles": "the particles settle in {minutes} min", "voc": "the VOC falls back in {minutes} min", "energy": "{value} kWh of heating saved",
@@ -119,7 +120,7 @@ TEXTS = {
         "purify": "Luftreiniger {minutes} Min. einschalten", "purify_off": "Luftreiniger ausschalten",
         "boosted": "Lüftung hoch {minutes} Min.", "purified": "Luftreiniger {minutes} Min.", "device_off": "Gerät aus",
         "nothing": "Nichts zu tun", "close": "Schließen", "open": "{minutes} Min. lüften", "open_long": "Öffnen",
-        "close_later": "Gegen {at} Uhr schließen", "open_later": "Gegen {at} Uhr lüften",
+        "close_later": "Gegen {at} schließen", "open_later": "Gegen {at} {minutes} Min. lüften", "close_soon": "Noch {after} Min. offen lassen", "open_more": "Auch {which} {minutes} Min. öffnen", "open_more_plain": "die anderen Fenster", "opened_more": "Auf beiden Seiten offen {minutes} Min.", "instead": "{line} statt in {minutes}",
         "heat": "Sie behalten {value} °C bis {hour} Uhr", "heat_open": "{value} °C besser bis {hour} Uhr",
         "humidity": "{value} Punkte weniger Feuchte", "co2": "die Luft ist in {minutes} Min. wieder frisch",
         "particles": "die Partikel setzen sich in {minutes} Min.", "voc": "die VOC sinken in {minutes} Min.", "energy": "{value} kWh Heizenergie gespart",
@@ -168,6 +169,8 @@ TEXTS = {
     },
 }
 STEP_MINUTES = 5
+# A window shut within this many minutes is « Laissez ouvert encore 10 min »; later, « Refermez vers 16 h ».
+SOON = 60
 
 
 def subject_of(decision: Decision) -> str | None:
@@ -204,6 +207,8 @@ def _name(gesture: Gesture, path, words, opened: bool) -> str:
         return words["boosted" if gesture.kind == "boost" else "purified"].format(minutes=gesture.minutes)
     if gesture.kind.endswith("_off"):
         return words["device_off"]
+    if gesture.kind == "open_more":
+        return words["opened_more"].format(minutes=gesture.minutes)
     if gesture.kind.startswith("shutter_"):
         return words["shuttered" if gesture.kind == "shutter_close" else "unshuttered"]
     if gesture.kind == "heat_stop":
@@ -229,10 +234,18 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     # Something is open when closing is one of the scenarios.
     opened = any(g.kind == "close" for g in decision.scenarios)
     gesture, subject = decision.gesture, subject_of(decision)
-    if gesture.after and hour is not None:
-        title = words[f"{gesture.kind}_later"].format(at=int(hour + gesture.after / 60 + 0.5) % 24)
+    if gesture.kind == "close" and gesture.after and gesture.after < SOON:
+        # Shut in a few minutes: how long is left, said again at each step until « Refermez » (Frank, 1 November).
+        title = words["close_soon"].format(after=gesture.after)
+    elif gesture.after and hour is not None:
+        # Said to the five minutes: « Aérez 10 min vers 16 h 15 ».
+        at = round((hour * 60 + gesture.after) / 5) * 5 % (24 * 60)
+        title = words[f"{gesture.kind}_later"].format(at=_time(time(at // 60, at % 60), words), minutes=gesture.minutes)
     elif gesture.kind == "open":
         title = words["open"].format(minutes=gesture.minutes) if gesture.minutes else words["open_long"]
+    elif gesture.kind == "open_more":
+        which = words["windows"].format(direction=words[gesture.facing]) if gesture.facing else words["open_more_plain"]
+        title = words["open_more"].format(which=which, minutes=gesture.minutes)
     else:
         title = words[gesture.kind].format(minutes=gesture.minutes, target=_degrees(gesture.target, language))
     paths = decision.paths
@@ -265,6 +278,10 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             minutes = _back_under(series, marks[subject]) if series else None
             if minutes:
                 line = words[subject].format(minutes=minutes)
+                # Opened on both sides: how much sooner than with the windows open now (« en 5 min au lieu de 15 »).
+                without = _back_under(getattr(idle, subject), marks[subject]) if gesture.kind == "open_more" else None
+                if without and without > minutes:
+                    line = words["instead"].format(line=line, minutes=without)
         elif subject == "mould":
             line = words["mould"]
         elif subject == "energy":

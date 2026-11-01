@@ -91,6 +91,9 @@ class Inputs:
     # with its window open (bench of 31 October, 0.29 → 0.37 °C at one hour) and helped no other room.
     facade_shut: float | None = None
     facade_all: float | None = None
+    # Windows open on two sides of the room let the air cross it: their flow is this many times what each lets in on its
+    # own (advisor/decide.py `crossing`). 1: one side only.
+    cross: float = 1.0
 
 
 def ordinary(room: Room) -> Params:
@@ -113,7 +116,7 @@ def rhythm(p: Params, hour: float | None) -> float:
 
 def flow(p: Params, ta: float, u: Inputs) -> float:
     """Outdoor air coming in (m³/h)."""
-    return p.leaks + u.vent + p.window * sum(window_flow(a, h, ta, u.outdoor, u.wind) for a, h in u.windows)
+    return p.leaks + u.vent + p.window * u.cross * sum(window_flow(a, h, ta, u.outdoor, u.wind) for a, h in u.windows)
 
 
 def step(p: Params, ta: float, tm: float, u: Inputs, dt: float = STEP) -> tuple[float, float]:

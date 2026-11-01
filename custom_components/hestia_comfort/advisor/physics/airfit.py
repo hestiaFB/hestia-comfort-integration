@@ -30,7 +30,7 @@ def _flow(x, volume, sample):
     """Outdoor air coming in, m³/h: the leaks and the open windows, each scaled by what was learned."""
     u = sample.inputs
     leaks = _e(x[0]) * leak_flow(volume)
-    windows = _e(x[1]) * sum(window_flow(a, h, sample.measured, u.outdoor, u.wind) for a, h in u.windows)
+    windows = _e(x[1]) * u.cross * sum(window_flow(a, h, sample.measured, u.outdoor, u.wind) for a, h in u.windows)
     return leaks + windows + u.vent
 
 

@@ -88,8 +88,12 @@ class Gestures(unittest.TestCase):
         from advisor.words import phrase
         decision = decide(TWINS, Now(air=21.5, walls=21.5, opened=(), humidity=55.0, co2=1600.0), day(outdoor=17.0))
         later = replace(decision, gesture=Gesture("open", 10, after=60))
-        self.assertEqual(phrase(later, 17, hour=14.0)["title"], "Aérez vers 15 h")
+        self.assertEqual(phrase(later, 17, hour=14.0)["title"], "Aérez 10 min vers 15 h")
         self.assertEqual(phrase(replace(decision, gesture=Gesture("close", after=120)), 17, hour=14.0)["title"], "Refermez vers 16 h")
+        self.assertEqual(phrase(replace(decision, gesture=Gesture("close", after=10)), 17, hour=14.0)["title"],
+                         "Laissez ouvert encore 10 min")
+        self.assertEqual(phrase(replace(decision, gesture=Gesture("open", 5, after=75)), 17, hour=14.0)["title"],
+                         "Aérez 5 min vers 15 h 15")
 
     def test_an_advice_shown_stays_unless_another_clearly_beats_it(self):
         now = Now(air=21.5, walls=21.5, opened=(), humidity=55.0, co2=1600.0)

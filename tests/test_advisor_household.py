@@ -44,8 +44,8 @@ class HouseholdHabits(unittest.TestCase):
 
     def test_the_room_overrides_the_house_and_a_snapshot_keeps_it(self):
         from advisor.household import Habits
-        habits = Habits.of({"aerations_min": [5, 15], "sommeil": {"debut": "23:00"}}, {"ouvrir_la_nuit": True})
-        self.assertEqual((habits.airings, habits.open_at_night, habits.sleep.start), ((5, 15), True, time(23)))
+        habits = Habits.of({"aeration_max_min": 15, "sommeil": {"debut": "23:00"}}, {"ouvrir_la_nuit": True})
+        self.assertEqual((habits.airings, habits.open_at_night, habits.sleep.start), ((5, 10, 15), True, time(23)))
         self.assertEqual(Habits.of(habits.setting()), habits)
 
     def test_the_engine_follows_them(self):
@@ -55,6 +55,16 @@ class HouseholdHabits(unittest.TestCase):
         from test_advisor_decide import TWINS, night
         stale = Now(air=21.0, walls=21.0, opened=(), co2=1800.0, night=True)
         self.assertFalse(any(g.kind == "open" for g in decide(TWINS, stale, night()).scenarios))
-        allowed = decide(TWINS, stale, night(), habits=Habits(open_at_night=True, airings=(5,)))
+        allowed = decide(TWINS, stale, night(), habits=Habits(open_at_night=True, airing_max=5))
         self.assertIn(Gesture("open", 5), allowed.scenarios)
         self.assertNotIn(Gesture("open", 10), allowed.scenarios)
+
+    def test_the_shortest_airing_that_is_enough_counts_down(self):
+        from advisor.decide import Gesture, aged
+        from advisor.household import Habits
+        self.assertEqual(Habits().airings, (5, 10, 15, 20, 25, 30))
+        self.assertEqual(Habits().later[:2], (15, 30))
+        self.assertEqual(Habits().devices[0], 10)
+        # « Laissez ouvert encore 10 min », five minutes on, is « encore 5 min », then « Refermez ».
+        self.assertEqual(aged(Gesture("close", after=10), 5), Gesture("close", after=5))
+        self.assertEqual(aged(Gesture("close", after=5), 6), Gesture("close"))

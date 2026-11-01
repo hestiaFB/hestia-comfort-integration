@@ -11,6 +11,7 @@ from dataclasses import dataclass, field, replace
 from .household import Habits
 from .physics.air import AirParams, ParticleParams, air_step, particles_step
 from .physics.fit import DEFAULT_RECENT, correction
+from .physics.sunlight import bearing_name
 from .physics.surface import mould_excess
 from .physics.thermal import STEP, Inputs, Params, shutter_insulation, step
 from .physics.vents import conductance, leak_flow, window_flow
@@ -29,6 +30,7 @@ class Gesture:
     minutes: int | None = None  # how long an opening lasts; None: until the end of the horizon
     after: int | None = None    # minutes before the gesture: « Refermez vers 16 h », « Aérez vers 14 h »
     target: float | None = None # °C the heating is set back to: « Remettez le chauffage à 19 °C »
+    facing: str | None = None   # « open_more »: the side of the windows opened as well (« south »), None if several
 
 
 @dataclass(frozen=True)
@@ -160,6 +162,19 @@ class Thermostat:
         return min(1.0, max(0.0, self.inside * (self.target - air) + self.outside * (self.target - outdoor)))
 
 
+# How many times more air crosses a room open on two sides than its windows let in each on its own (CIBSE AM10: two to
+# three times in a moderate wind). The learning counts it too, so the windows' learned effect stays a one-side one.
+CROSS = 2.0
+# Windows facing sides this far apart (°) let the air cross the room.
+CROSS_ANGLE = 60.0
+
+
+def sides_apart(bearings) -> bool:
+    """Whether windows facing these sides (°, None unknown) let the air cross the room."""
+    sides = {b for b in bearings if b is not None}
+    return any(abs((a - b + 180) % 360 - 180) >= CROSS_ANGLE for a in sides for b in sides)
+
+
 @dataclass(frozen=True)
 class Twins:
     """The room's twins, each with the window effect its own sensor learned (CONCEPTION-MOTEUR.md § 1 bis)."""
@@ -193,6 +208,11 @@ class Twins:
     house_thermostat: Thermostat | None = None
     house_power: float = 0.0
     house_now: float = 0.0
+    # The side each window faces (°, in the order of `windows`; None when not declared), and how many times more air
+    # crosses the room when windows on two sides are open (CAHIER-MOTEUR.md § 9.1, « ouvrir ici et là »): CIBSE AM10
+    # gives two to three times a single-sided opening in a moderate wind. Supposed until the room shows it.
+    bearings: tuple = ()
+    cross: float = CROSS
 
 
 @dataclass(frozen=True)
@@ -226,6 +246,11 @@ class Now:
     house_running: bool = False
     house_rise: float | None = None
     overheated: float | None = None
+    # A source running now that the twin's usual one does not explain (a cooking, a shower, guests, the stove): for each
+    # subject, what it adds per hour — ppm of CO₂, µg/m³, VOC index points, g/m³ of water — measured over the last half
+    # hour (`recent_sources`), carried into every scenario and fading over SOURCE_HOURS (Frank, 1 November: a cooking
+    # going on, the window open, keeps the VOC level; shut, it would climb — « Refermez » was wrong).
+    sources: dict | None = None
 
 
 @dataclass
@@ -259,10 +284,19 @@ def candidates(now: Now, twins: Twins | None = None, habits: Habits = Habits(), 
     or stop its devices; set its heating back to the room's minimum (`comfort`). Turning it on again is only a passive
     advice (`heating_off`)."""
     if now.opened:
-        out = [Gesture("nothing"), Gesture("close")] + [Gesture("close", after=a) for a in habits.later]
+        # Shut now, in a few minutes (« Laissez ouvert encore 5 min »), or later on.
+        afters = sorted(set(habits.airings) | {a for a in habits.later if a > habits.airing_max})
+        out = [Gesture("nothing"), Gesture("close")] + [Gesture("close", after=a) for a in afters]
+        # The other side opened as well, for the air to cross the room (« Ouvrez aussi la porte-fenêtre »).
+        if twins and crossing(twins, twins.windows) > crossing(twins, now.opened):
+            shut = [twins.bearings[i] for i, w in enumerate(twins.windows)
+                    if w not in now.opened and i < len(twins.bearings) and twins.bearings[i] is not None]
+            names = {bearing_name(b) for b in shut}
+            facing = names.pop() if len(names) == 1 else None
+            out += [Gesture("open_more", m, facing=facing) for m in habits.airings]
     else:
         out = ([Gesture("nothing")] + [Gesture("open", m) for m in habits.airings] + [Gesture("open")]
-               + [Gesture("open", min(habits.airings), after=a) for a in habits.later])
+               + [Gesture("open", m, after=a) for a in habits.later for m in habits.airings])
     for device, running, has in (("boost", now.boosting, twins and twins.boost), ("purify", now.purifying, twins and twins.purifier)):
         if has:
             out += [Gesture(f"{device}_off")] if running else [Gesture(device, m) for m in habits.devices]
@@ -306,7 +340,17 @@ def _running(gesture: Gesture, device: str, now_on: bool, k: int) -> bool:
     return False if gesture.kind == f"{device}_off" else now_on
 
 
+def crossing(twins: Twins, windows) -> float:
+    """How many times more air the open `windows` let in for crossing the room: `twins.cross` when two of them face
+    sides at least CROSS_ANGLE apart, 1 otherwise."""
+    sides = [twins.bearings[i] for i, w in enumerate(twins.windows) if i < len(twins.bearings) and w in windows]
+    return twins.cross if sides_apart(sides) else 1.0
+
+
 def _open(gesture: Gesture, now: Now, twins: Twins, k: int):
+    if gesture.kind == "open_more":
+        # The other windows opened as well for a while, those open now staying open.
+        return twins.windows if k * STEP / 60 < gesture.minutes else now.opened
     if gesture.kind not in ("open", "close", "nothing"):
         return now.opened
     waited = k * STEP / 60 - (gesture.after or 0)
@@ -317,11 +361,26 @@ def _open(gesture: Gesture, now: Now, twins: Twins, k: int):
     return twins.windows if gesture.minutes is None or waited < gesture.minutes else ()
 
 
-def _flow(learned, volume, windows, air, outdoor, wind):
-    return learned[0] * leak_flow(volume) + learned[1] * sum(window_flow(a, h, air, outdoor, wind) for a, h in windows)
+def _flow(learned, volume, windows, air, outdoor, wind, cross=1.0):
+    return learned[0] * leak_flow(volume) + learned[1] * cross * sum(window_flow(a, h, air, outdoor, wind) for a, h in windows)
 
 
-def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], gesture: Gesture) -> Path:
+# How long a source seen now is carried into the scenarios, fading to nothing (h): a cooking, a shower, a visit. To be
+# learned from the sources the room shows (CAHIER-MOTEUR.md § 8).
+SOURCE_HOURS = {"co2": 1.5, "voc": 0.75, "particles": 0.5, "humidity": 0.5}
+
+
+def _extra(now: Now, subject: str, k: int, fade: bool = True) -> float:
+    """What the source seen now adds over step `k`."""
+    rate = (now.sources or {}).get(subject)
+    if not rate:
+        return 0.0
+    left = max(0.0, 1.0 - k * HOURS / SOURCE_HOURS[subject]) if fade else 1.0
+    return rate * HOURS * left
+
+
+def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], gesture: Gesture,
+             fade: bool = True) -> Path:
     """The room under `gesture`, over the coming steps: (inputs, outdoor water g/m³ or None)."""
     path = Path(heated=twins.thermostat is not None or (gesture.kind == "heat_on" and twins.idle_thermostat is not None))
     air, walls = now.air, now.walls
@@ -336,7 +395,9 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
         purify = twins.purifier if _running(gesture, "purify", now.purifying, k) else 0.0
         # The sun of the scenario's windows: through the glass when shut, more of it through an open sash.
         facade = u.facade_shut if not windows else u.facade_all if windows == twins.windows else None
-        u = _shutter(gesture, twins, replace(u, windows=windows, facade=u.facade if facade is None else facade, vent=boost), k)
+        cross = crossing(twins, windows) if len(windows) > 1 else 1.0
+        u = _shutter(gesture, twins, replace(u, windows=windows, facade=u.facade if facade is None else facade, vent=boost,
+                                             cross=cross), k)
         felt = path.air[-1] if path.air else now.air
         if (thermostat := _thermostat(gesture, twins, k)) is not None:
             # The thermostat reads the room as it is, the twin's trend included.
@@ -350,26 +411,61 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
         air, walls = step(twins.heat, air, walls, u)
         path.air.append(air + correction(DEFAULT_RECENT, now.missed, k))
         if windows or boost:
-            out = sum(window_flow(a, h, before, u.outdoor, u.wind) for a, h in windows) * twins.heat.window + boost
+            out = sum(window_flow(a, h, before, u.outdoor, u.wind) for a, h in windows) * twins.heat.window * cross + boost
             path.lost += max(0.0, conductance(out) * (before - u.outdoor)) * HOURS / 1000
         if water is not None and outdoor_water is not None:
-            flow = _flow(twins.water_flow, twins.water.volume, windows, before, u.outdoor, u.wind) + boost
+            flow = _flow(twins.water_flow, twins.water.volume, windows, before, u.outdoor, u.wind, cross) + boost
             water, reserve = water_step(twins.water, water, reserve, outdoor_water, flow, u.hour)
+            water += _extra(now, "humidity", k, fade)
             path.humidity.append(relative(path.air[-1], water))
             path.mould += mould_excess(path.air[-1], path.humidity[-1], u.outdoor) * HOURS
         if twins.air and co2 is not None:
-            co2 = air_step(twins.air, co2, _flow(twins.air_flow, twins.air.volume, windows, before, u.outdoor, u.wind) + boost,
-                           u.hour)
+            co2 = air_step(twins.air, co2, _flow(twins.air_flow, twins.air.volume, windows, before, u.outdoor, u.wind, cross) + boost,
+                           u.hour) + _extra(now, "co2", k, fade)
             path.co2.append(co2)
         if twins.particles and particles is not None:
-            flow = _flow(twins.particles_flow, twins.particles.volume, windows, before, u.outdoor, u.wind) + boost
-            particles = particles_step(twins.particles, particles, flow, u.hour, purifier=purify)
+            flow = _flow(twins.particles_flow, twins.particles.volume, windows, before, u.outdoor, u.wind, cross) + boost
+            particles = particles_step(twins.particles, particles, flow, u.hour, purifier=purify) + _extra(now, "particles", k, fade)
             path.particles.append(particles)
         if twins.voc and voc is not None:
-            flow = _flow(twins.voc_flow, twins.voc.volume, windows, before, u.outdoor, u.wind) + boost
-            voc = particles_step(twins.voc, voc, flow, u.hour)
+            flow = _flow(twins.voc_flow, twins.voc.volume, windows, before, u.outdoor, u.wind, cross) + boost
+            voc = particles_step(twins.voc, voc, flow, u.hour) + _extra(now, "voc", k, fade)
             path.voc.append(voc)
     return path
+
+
+# A source is said to run when the measure stands this far above what the twin foresaw over the last half hour, with
+# what really acted on the room: about twice each sensor's noise (ppm, VOC points, µg/m³, g/m³ of water).
+SOURCE_GAP = {"co2": 60.0, "voc": 20.0, "particles": 4.0, "humidity": 0.4}
+
+
+def recent_sources(twins: Twins, before: Now, acted: list[tuple[Inputs, float | None]], now: Now) -> dict:
+    """The sources running now that the twin's usual ones do not explain: from the room as it was (`before`), the
+    twin replayed with what acted since (`acted`, one entry per step), set against what is measured `now`. Each is the
+    rate that closes the gap, found with the room's own dilution — a window open takes part of a cooking out as it goes.
+    Nothing when the windows or the devices changed meanwhile: the gesture, not a source, would explain the gap."""
+    if not acted or (before.opened, before.boosting, before.purifying) != (now.opened, now.boosting, now.purifying):
+        return {}
+    plain = replace(twins, thermostat=None, house_thermostat=None)
+    start = replace(before, missed=None, sources=None)
+    idle = simulate(plain, start, acted, Gesture("nothing"))
+    unit = simulate(plain, replace(start, sources=dict.fromkeys(SOURCE_GAP, 1.0)), acted, Gesture("nothing"), fade=False)
+    found = {}
+    for subject in ("co2", "voc", "particles"):
+        measured, foreseen, moved = getattr(now, subject), getattr(idle, subject), getattr(unit, subject)
+        if measured is None or not foreseen or not moved:
+            continue
+        gap, per_unit = measured - foreseen[-1], moved[-1] - foreseen[-1]
+        if gap >= SOURCE_GAP[subject] and per_unit > 0:
+            found[subject] = gap / per_unit
+    if now.humidity is not None and idle.humidity and unit.humidity:
+        # In water (g/m³): the twin's back at its own air, the measure at the air measured — a heat error stays out.
+        foreseen = absolute(idle.air[-1], idle.humidity[-1])
+        gap = absolute(now.air, now.humidity) - foreseen
+        per_unit = absolute(unit.air[-1], unit.humidity[-1]) - foreseen
+        if gap >= SOURCE_GAP["humidity"] and per_unit > 0:
+            found["humidity"] = gap / per_unit
+    return found
 
 
 # A gesture must be significant (CAHIER-MOTEUR.md § 10.2 bis): a gap one feels at the end of the horizon, or that gap
@@ -452,6 +548,9 @@ def effect(gesture: Gesture, subject: str) -> str:
         return f"shutter:{subject}"
     if gesture.kind.startswith("heat_"):
         return f"heating:{subject}"
+    if gesture.kind == "open_more":
+        # The crossing air is its own effect: supposed until the room shows it.
+        return f"cross:{subject}"
     device = gesture.kind.removesuffix("_off")
     return f"{device}:{subject}" if device in DEVICES else subject
 
@@ -478,6 +577,31 @@ class Decision:
     measured: dict | None = None
 
 
+def aged(gesture: Gesture | None, minutes: float) -> Gesture | None:
+    """The gesture shown `minutes` ago, as it stands now: « Laissez ouvert encore 10 min » five minutes later is « encore
+    5 min », then « Refermez » — what the hysteresis keeps must count down, not stay at ten."""
+    if gesture is None or not gesture.after:
+        return gesture
+    left = int(round((gesture.after - minutes) / 5) * 5)
+    return replace(gesture, after=left if left > 0 else None)
+
+
+# Among gestures of one kind, one costing this share more than the best (of its cost, or of GAIN) still counts as enough.
+ENOUGH = 0.1
+
+
+def _shortest(best: Gesture, worth: list[Gesture], costs: dict) -> Gesture:
+    """The least of `best`'s kind that is enough: the shortest airing or device run, the soonest shutting or moment —
+    not ten minutes when five do (Frank, 1 November)."""
+    if best.kind == "nothing":
+        return best
+    limit = costs[best]["total"] + ENOUGH * max(costs[best]["total"], GAIN)
+    # Now or later stays as the best said it; only how long changes, and for a window open, how soon it is shut.
+    same = [g for g in worth if g.kind == best.kind and costs[g]["total"] <= limit
+            and (g.kind == "close" or (g.after is None) == (best.after is None))]
+    return min(same, key=lambda g: (g.minutes is None, g.minutes or 0, g.after or 0)) if same else best
+
+
 def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
            previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
            proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits()) -> Decision:
@@ -494,9 +618,10 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # closing what was left open and the devices; a window for the night is said in the evening (`tonight`).
     gestures = [g for g in candidates(now, twins, habits, comfort) if g.kind not in forbidden
                 and not (g.kind == "open" and g.minutes is None and "open_long" in forbidden)
-                and not (g.kind == "open" and now.night and not habits.open_at_night)
-                # Nobody gets up to see to the heating either (CAHIER-MOTEUR.md § 9.1 bis).
-                and not (g.kind.startswith("heat_") and now.night)]
+                and not (g.kind in ("open", "open_more") and now.night and not habits.open_at_night)
+                and not (g.kind == "open_more" and "open" in forbidden)
+                # Nobody gets up to see to the heating either (CAHIER-MOTEUR.md § 9.1 bis), nor comes back in ten minutes.
+                and not (g.kind.startswith("heat_") and now.night) and not (g.after and now.night)]
     paths = {g: simulate(twins, now, coming, g) for g in gestures}
     costs = {g: cost(paths[g], comfort, weights, g, now.night) for g in gestures}
     nothing = costs[Gesture("nothing")]["total"]
@@ -511,6 +636,7 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     worth = [g for g in gestures if g.kind != "nothing" and nothing - costs[g]["total"] >= GAIN
              and significant(idle, paths[g], comfort, now.night, tolerance=habits.tolerance)]
     best = min(worth, key=order) if worth else Gesture("nothing")
+    best = _shortest(best, worth, costs)
     if ((previous in worth or previous == Gesture("nothing")) and previous != best
             and costs[previous]["total"] - costs[best]["total"] < MARGIN * max(costs[previous]["total"], GAIN)):
         best, rule = previous, "kept"
@@ -522,7 +648,8 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     gain = nothing - costs[best]["total"]
     stove = twins.house_thermostat
     if (stove is not None and now.house_running and not now.night and "heat_stop" not in forbidden
-            and now.overheated is not None and now.overheated >= habits.overheat_minutes):
+            # Half a step of slack: the steps are not exactly five minutes apart (1 November, 29 min 44 s at 21 h 13).
+            and now.overheated is not None and now.overheated >= habits.overheat_minutes - STEP / 120):
         # The stove does not stop by itself (Frank, 1 November): the room measured above its set point by the household's
         # margin for long enough asks to stop it, before any gesture of the twin. A fact measured, not a forecast.
         stop = Gesture("heat_stop")

@@ -93,13 +93,61 @@ class Voc(unittest.TestCase):
         twins = replace(TWINS, voc=replace(self.KITCHEN, sources=self.KITCHEN.sources * sources), voc_flow=(5.55, 54.6))
         return decide(twins, Now(air=21.5, walls=21.5, opened=(), voc=voc), day(outdoor=17.0, start=19.0))
 
+    def test_a_cooking_going_on_is_a_source_and_shutting_would_let_it_climb(self):
+        # Frank, 1 November: the window open while cooking, the VOC holds; the twin, seeing it should fall, said
+        # « Refermez ». The source running now is measured and carried: shut, the VOC would climb.
+        from dataclasses import replace
+        from advisor.decide import Gesture, Now, recent_sources, simulate
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from test_advisor_decide import TWINS, day
+        twins = replace(TWINS, voc=self.KITCHEN, voc_flow=(5.55, 54.6))
+        opened = TWINS.windows
+        coming = day(outdoor=12.0, start=19.0)
+        before, now = (Now(air=21.0, walls=21.0, opened=opened, voc=300.0) for _ in range(2))
+        found = recent_sources(twins, before, coming[:6], now)
+        self.assertGreater(found.get("voc", 0.0), 0.0)
+        cooking = replace(now, sources=found)
+        shut = simulate(twins, cooking, coming, Gesture("close"))
+        left = simulate(twins, cooking, coming, Gesture("nothing"))
+        self.assertGreater(shut.voc[5], left.voc[5])
+        self.assertGreater(shut.voc[5], 300.0)
+        # The windows changed meanwhile: the gesture explains the gap, not a source.
+        self.assertEqual(recent_sources(twins, replace(before, opened=()), coming[:6], now), {})
+
+    def test_open_on_both_sides_the_air_crosses_the_room(self):
+        # « Ouvrez aussi la porte-fenêtre : 5 min au lieu de 15 » (CAHIER-MOTEUR.md § 9.1): supposed, said to try.
+        from dataclasses import replace
+        from advisor.decide import Gesture, Now, candidates, crossing, decide, simulate
+        from advisor.words import phrase
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from test_advisor_decide import TWINS, day
+        west, south = (1.18, 1.21), (1.18, 2.1)
+        twins = replace(TWINS, windows=(west, south), bearings=(270.0, 180.0), voc=self.KITCHEN, voc_flow=(5.55, 54.6))
+        self.assertEqual(crossing(twins, (west, south)), 2.0)
+        self.assertEqual(crossing(twins, (west,)), 1.0)
+        now = Now(air=21.0, walls=21.0, opened=(west,), voc=400.0)
+        more = [g for g in candidates(now, twins) if g.kind == "open_more"]
+        self.assertEqual((more[0].facing, more[0].minutes), ("south", 5))
+        coming = day(outdoor=12.0, start=19.0)
+        both = simulate(twins, now, coming, Gesture("open_more", 10, facing="south"))
+        one = simulate(twins, now, coming, Gesture("nothing"))
+        self.assertLess(both.voc[1], one.voc[1])
+        decision = decide(twins, now, coming, proof={"voc": "proven"})
+        shown = replace(decision, gesture=Gesture("open_more", 5, facing="south"), rule="best")
+        self.assertEqual(phrase(shown, 21)["title"], "Ouvrez aussi les fenêtres sud 5 min")
+        self.assertEqual(phrase(replace(shown, gesture=Gesture("open_more", 10)), 21)["title"],
+                         "Ouvrez aussi les autres fenêtres 10 min")
+        # A room with windows on one side only has nothing to cross.
+        self.assertFalse(any(g.kind == "open_more" for g in candidates(now, replace(twins, bearings=(270.0, 270.0)))))
+
     def test_a_moderate_voc_falls_back_by_itself(self):
         # At 300, under 150 within the half-hour without anything done: no gesture (Confort 2.1 had learned it).
         self.assertEqual(self.decide(1, voc=300.0).gesture.kind, "nothing")
 
     def test_after_cooking_a_short_airing(self):
         # At 450, an hour above 150 if nothing is done: ten minutes of airing on a mild evening.
-        self.assertEqual(self.decide(1).gesture, __import__("advisor.decide", fromlist=["Gesture"]).Gesture("open", 10))
+        # The shortest airing that is enough, five minutes at a time (Frank, 1 November).
+        self.assertEqual(self.decide(1).gesture, __import__("advisor.decide", fromlist=["Gesture"]).Gesture("open", 5))
 
     def test_a_lasting_source_asks_to_open(self):
         from advisor.words import phrase

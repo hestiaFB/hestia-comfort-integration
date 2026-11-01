@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 
 NIGHT_ALARM = "armed_night"
+# Durations are found five minutes at a time, the twin's own step; later moments a quarter of an hour at a time.
+STEP_MINUTES, LATER_STEP = 5, 15
 
 
 @dataclass(frozen=True)
@@ -46,9 +48,12 @@ class Habits:
     room where it differs. Each has a default; the physics and the rules of proof are not settings."""
     sleep: Sleep = Sleep()
     open_at_night: bool = False             # whether anyone would get up to open a window at night
-    airings: tuple[int, ...] = (10, 20)     # minutes of the airings proposed
-    later: tuple[int, ...] = (60, 120)      # minutes ahead of a gesture said « vers 16 h »
-    devices: tuple[int, ...] = (30, 60)     # minutes a VMC's fast speed or a purifier is proposed for
+    # The longest airing, the furthest « vers 16 h », the longest run of the VMC's fast speed or the purifier (minutes):
+    # within them the advisor finds the shortest that is enough, five minutes at a time (Frank, 1 November: « il faut 6
+    # min, il dit Aérez 10 min »).
+    airing_max: int = 30
+    later_max: int = 120
+    devices_max: int = 60
     tonight_before: float = 4.0             # hours before bedtime « Cette nuit, pensez à… » is said
     mist_before: float = 5.0                # hours before bedtime misted panes are said
     frost_guard: float = 7.0                # °C the house is kept above while away for days
@@ -61,10 +66,25 @@ class Habits:
     overheat: float = 1.0                   # °C
     overheat_minutes: int = 30              # minutes
 
-    KEYS = {"ouvrir_la_nuit": "open_at_night", "aerations_min": "airings", "plus_tard_min": "later",
-            "appareils_min": "devices", "cette_nuit_avant_h": "tonight_before", "buee_avant_h": "mist_before",
+    KEYS = {"ouvrir_la_nuit": "open_at_night", "aeration_max_min": "airing_max", "plus_tard_max_min": "later_max",
+            "appareils_max_min": "devices_max", "cette_nuit_avant_h": "tonight_before", "buee_avant_h": "mist_before",
             "hors_gel": "frost_guard", "tolerance": "tolerance", "pas_maintenant_min": "not_now",
             "poele_tient_h": "stove_hold", "depassement": "overheat", "depassement_min": "overheat_minutes"}
+
+    @property
+    def airings(self) -> tuple[int, ...]:
+        """The airings compared: 5, 10… up to the longest."""
+        return tuple(range(STEP_MINUTES, max(self.airing_max, STEP_MINUTES) + 1, STEP_MINUTES))
+
+    @property
+    def later(self) -> tuple[int, ...]:
+        """The later moments compared: every quarter of an hour up to the furthest (« vers 16 h 15 »)."""
+        return tuple(range(LATER_STEP, max(self.later_max, LATER_STEP) + 1, LATER_STEP))
+
+    @property
+    def devices(self) -> tuple[int, ...]:
+        """The runs of a device compared: 10, 15… up to the longest."""
+        return tuple(range(2 * STEP_MINUTES, max(self.devices_max, 2 * STEP_MINUTES) + 1, STEP_MINUTES))
 
     @classmethod
     def of(cls, *settings: dict | None) -> "Habits":
