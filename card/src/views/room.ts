@@ -1,6 +1,6 @@
 import {html,svg,nothing,LitElement,type TemplateResult} from 'lit';
 import {property,state} from 'lit/decorators.js';
-import {SCALE_MARKS,CHIPS,TILE_BLOCKS,DETAIL_ROWS,INSIGHT_TOPICS,PIECES,type Piece,type Config,type View,type Level,type Format,type BannerBlock,type Chip,type HorizonSubject} from '../types';
+import {SCALE_MARKS,CHIPS,TILE_BLOCKS,DETAIL_ROWS,INSIGHT_TOPICS,PIECES,type Piece,type Config,type View,type Level,type Format,type BannerBlock,type Chip,type HorizonSubject,type Horizon} from '../types';
 import {numeric,number,heatingLabels,coverageText,windFrom,sourceLabel,needs as needLabels,constraintLabels,shortWhy} from '../view';
 import {icon} from '../ui/icons';
 import {horizonBox,horizonChart,horizonHead,horizonResult,horizonLegend,horizonShown} from './horizon';
@@ -691,7 +691,7 @@ export function tiles(v:View,config:Config):Tile[] {
     const raw=o.heating_mode?.quality==='valid'&&typeof o.heating_mode.value==='string'?o.heating_mode.value:null,mode=raw?modeLabels[raw]??raw:null;
     const power=o.heating_power?.quality==='valid'&&typeof o.heating_power.value==='number'?o.heating_power.value:null,percent=power!==null&&power>0&&power<100;
     list.push({ic:'heat',label:'Chauffage',value:running?'Chauffe':label,unit:running&&percent?`${number(Math.round(power!))} %`:undefined,note:raw==='heat'?'':mode?`mode ${mode}`:running?'chauffe la pièce':'observé, jamais commandé',level:'neutral',out:false,
-      curve:power===null?undefined:trendOf(v,'heating',null),flame:raw==='heat'});}
+      curve:power===null||!(a.features?.trends?.curves?.heating?.points??[]).some(p=>p[1]>0)?undefined:trendOf(v,'heating',null),flame:raw==='heat'});}
   for(const t of list)t.entity??=tileEntity(v,t.label);
   // A measure read from the room sharing this air says where it is measured.
   for(const t of list){const from=v.inherited?.[tileKeys[t.label]??''];if(from)t.note=`${t.note} · ${from}`;}
@@ -860,20 +860,23 @@ export function modules(v:View,config:Config,partners:View[]=[],o:{scale?:Templa
     // One air's rooms one after the other, the most humid first, each drawn the same way as the air's measures.
     const order=[...hum.filter(x=>x.tile.out),...hum.filter(x=>!x.tile.out)];
     out.push({key:'humidity',ic:'drop',title:PIECE_LOOK.humidity[1],src:hum.length===1&&many?hum[0].room:undefined,main:lead.tile,
-      slides:hum.length>1?order.map(x=>({label:t('Humidité'),room:x.room,tile:x.tile})):undefined,
-      sub:tx(lead.tile.note),
+      slides:hum.length>1?order.map(x=>({label:x.room,tile:x.tile})):undefined,
+      sub:hum.length>1?hum.filter(x=>x.tile.out).map(x=>`${x.room} : ${tx(x.tile.note)}`).join(' · '):tx(lead.tile.note),
       stats:[...(h?.minimum!=null&&h?.maximum!=null?[{label:t('Plage'),value:`${number(h.minimum)}–${number(h.maximum)} %`}]:[]),
         ...(ho!==null?[{label:t('Dehors'),value:number(ho)+' %',entity:v.observations.outdoor_humidity?.source??undefined}]:[]),
         ...(h?.dew_point!=null?[{label:t('Rosée'),value:number(h.dew_point)+' °C',note:'Point de rosée'}]:[])],level:level(lead.tile)});}
   const air=find(['CO₂','COV','Particules','Purificateur','Ventilation']);
   if(air.length){const measures=air.filter(x=>['CO₂','COV','Particules'].includes(x.tile.label)),lead=measures.find(x=>x.tile.out)??measures[0]??air[0];
     const name=(x:typeof lead)=>many&&x.room!==lead.room?`${tx(x.tile.label)} · ${x.room}`:tx(x.tile.label);
-    // Each measure of the air drawn the same way, one after the other (30 October, evening): those out of range first.
-    const order=[...measures.filter(x=>x.tile.out),...measures.filter(x=>!x.tile.out)];
-    out.push({key:'air',ic:'air',title:PIECE_LOOK.air[1],src:many&&order.length<2?lead.room:undefined,main:lead.tile,
-      slides:order.length>1?order.map(x=>({label:tx(x.tile.label),room:many?x.room:undefined,tile:x.tile})):undefined,
-      sub:`${tx(lead.tile.label)} · ${tx(lead.tile.note)}`,
-      stats:air.filter(x=>order.length>1?!measures.includes(x):x!==lead).map(x=>stat(x.tile,name(x))),level:level(lead.tile)});}
+    // A list (31 October): every measure and device a line, grouped by room when the air has two; those out first.
+    // A room shown alone puts a measure borrowed from the next room under that room's name.
+    const at=(x:typeof lead)=>many?x.room:v.inherited?.[tileKeys[x.tile.label]??'']??x.room;
+    const rooms=[...new Set(air.map(at))],byRoom=rooms.flatMap(r=>{const of=air.filter(x=>at(x)===r);return [...of.filter(x=>x.tile.out&&!x.tile.remedy),...of.filter(x=>!(x.tile.out&&!x.tile.remedy))];});
+    const outs=measures.filter(x=>x.tile.out&&!x.tile.remedy);
+    out.push({key:'air',ic:'air',title:PIECE_LOOK.air[1],src:many&&rooms.length<2?lead.room:undefined,main:lead.tile,
+      slides:air.length>1?byRoom.map(x=>({label:tx(x.tile.label),room:rooms.length>1?at(x):undefined,tile:x.tile})):undefined,
+      sub:air.length>1?outs.map(x=>`${tx(x.tile.label)} ${tx(x.tile.note)}`).join(' · '):`${tx(lead.tile.label)} · ${tx(lead.tile.note)}`,
+      stats:air.length>1?[]:air.filter(x=>x!==lead).map(x=>stat(x.tile,name(x))),level:level(lead.tile)});}
   // The windows and the sun are the shared air's: said once, by the first room (as the tiles did).
   const open=find(['Fenêtres','Soleil','Volet']).filter((x,i,all)=>x.tile.label==='Volet'||all.findIndex(y=>y.tile.label===x.tile.label)===i);
   if(open.length){const lead=open.find(x=>x.tile.label==='Fenêtres')??open[0];
@@ -904,14 +907,21 @@ export function moduleCard(m:Module,soft=true):TemplateResult {
   const turning=m.slides&&m.slides.length>1?modSlides(m.slides,value,hit):null;
   return html`<div class=${'nc-mod'+(m.level!=='calm'?' out'+(soft?' soft':''):'')} data-piece=${m.key} data-level=${m.level}>
     <div class="nc-mod-h"><span class="nc-ic">${icon(m.ic)}</span><b>${tx(m.title)}</b>${m.main?.flame?html`<span class="nc-flame" title=${t('mode chauffage')}>${icon('flame')}</span>`:nothing}${m.src?html`<span class="nw-chip nc-src">${m.src}</span>`:nothing}</div>
-    ${turning??html`<div class="nc-mod-line">${main}${m.sub?html`<p class="nc-mod-sub">${m.sub}</p>`:nothing}</div>${m.extra??nothing}${curve?sparkline(curve):nothing}`}
+    ${turning?html`${turning}${m.sub?html`<p class="nc-mod-sub nc-mrows-sub">${m.sub}</p>`:nothing}`:html`<div class="nc-mod-line">${main}${m.sub?html`<p class="nc-mod-sub">${m.sub}</p>`:nothing}</div>${m.extra??nothing}${curve?sparkline(curve):nothing}`}
     ${m.stats.length?html`<div class="nc-mod-stats" style=${`--n:${Math.min(m.stats.length,4)}`}>${m.stats.map(x=>x.entity?html`<button type="button" class="nc-hit" title=${x.note?tx(x.note):tr('Détails : {label}',{label:x.label})} @click=${(e:Event)=>moreInfo(e,x.entity!)}>${statBody(x)}</button>`:html`<div title=${x.note?tx(x.note):nothing}>${statBody(x)}</div>`)}</div>`:nothing}
   </div>`;
 }
 /** The air's measures one after the other: each its name, its value and way, its note, its half hour. */
-function modSlides(list:{label:string;room?:string;tile:Tile}[],value:(t:Tile)=>TemplateResult,hit:(t:Tile,body:TemplateResult,cls:string)=>TemplateResult):TemplateResult {
-  return html`<hestia-mod-slides .items=${list.map(x=>html`<div class="nc-mod-taglne"><span class=${'nc-mod-tag'+(x.tile.out?' out':'')}>${x.label}</span>${x.room?html`<span class="nw-chip nc-src">${x.room}</span>`:nothing}</div>
-    <div class="nc-mod-line">${hit(x.tile,html`<b>${value(x.tile)}</b>`,'nc-mod-v')}<p class="nc-mod-sub">${tx(x.tile.note)}</p></div>${x.tile.trend?sparkline(x.tile.trend):html`<div class="nc-spark"></div>`}`)}></hestia-mod-slides>`;
+function modSlides(list:{label:string;room?:string;tile:Tile}[],_value:(t:Tile)=>TemplateResult,hit:(t:Tile,body:TemplateResult,cls:string)=>TemplateResult):TemplateResult {
+  // A2 (31 October): a small heading per room when there are two, then a line per measure: its state's dot, its name,
+  // its value, its way and its half hour with the dot at its end. A measure treated (filtered) is fine.
+  let room:string|undefined;
+  const rows=list.map(x=>{const head=x.room&&x.room!==room?html`<div class="nc-mrow-room">${x.room}</div>`:nothing;room=x.room;
+    const bad=!!x.tile.out&&!x.tile.remedy,num=x.tile.value!=='—'&&/^[\d\s,.−-]+$/.test(tx(x.tile.value));
+    return html`${head}${hit(x.tile,html`<i class="nc-mrow-dot" aria-hidden="true"></i><span class="nc-mrow-n">${x.label}</span>
+      <b class="nc-mrow-v">${tx(x.tile.value)}${num&&x.tile.unit?html`<small>${x.tile.unit}</small>`:nothing}</b>
+      <span class="nc-mrow-w">${x.tile.trend?trendArrow(x.tile.trend):nothing}</span><span class="nc-mrow-c">${x.tile.trend?sparkline(x.tile.trend):nothing}</span>`,'nc-mrow'+(bad?' bad':''))}`;});
+  return html`<div class="nc-mrows">${rows}</div>`;
 }
 /** « À la carte », compact: the measure, its way and its half hour, nothing else. */
 export function moduleCompact(m:Module):TemplateResult {
@@ -1135,28 +1145,21 @@ export function needs(v:View,includeSlight=true):string[] {
 /** A module's measures one at a time, every 5 s, all in the same place (the module keeps the tallest's height); a dot
  * per measure chooses one, a tap shows the next, hovering holds it; still when motion is reduced. */
 export class HestiaModSlides extends LitElement {
+  @property({attribute:false}) tabs:{label:string;value:string;bad:boolean}[]=[];
   @property({attribute:false}) items:TemplateResult[]=[];
   @state() private index=0;
-  @state() private paused=false;
-  private timer?:ReturnType<typeof setInterval>;
   private startX:number|null=null;
-  private dragged=false;
   createRenderRoot(){return this;}
-  connectedCallback(){super.connectedCallback();this.timer=setInterval(()=>{
-    if(this.items.length>1&&!this.paused&&!matchMedia('(prefers-reduced-motion: reduce)').matches)this.index=(this.index+1)%this.items.length;},5000);}
-  disconnectedCallback(){super.disconnectedCallback();clearInterval(this.timer);this.timer=undefined;}
   protected render(){
     const n=this.items.length,i=this.index%Math.max(1,n);
-    // Swiped with a finger or dragged with the mouse: left for the next one, right for the one before; a tap shows the next.
-    const down=(e:PointerEvent)=>{this.startX=e.clientX;this.dragged=false;};
-    const up=(e:PointerEvent)=>{if(this.startX===null)return;const dx=e.clientX-this.startX;this.startX=null;
-      if(Math.abs(dx)>30){this.dragged=true;this.index=(i+(dx<0?1:n-1))%n;}};
-    return html`<div class="nc-mslides" @mouseenter=${()=>{this.paused=true;}} @mouseleave=${()=>{this.paused=false;this.startX=null;}}
-        @pointerdown=${down} @pointerup=${up} @pointercancel=${()=>{this.startX=null;}}
-        @click=${(e:Event)=>{if(this.dragged){this.dragged=false;e.stopPropagation();return;}if(!(e.target as HTMLElement).closest('.nc-mdots,.nc-hit'))this.index=(i+1)%n;}}>
-      <div class="nc-mslides-stack">${this.items.map((x,k)=>html`<div class=${'nc-mslide'+(k===i?' on':'')} aria-hidden=${k===i?'false':'true'}>${x}</div>`)}</div>
-      <div class="nc-mdots" role="tablist">${this.items.map((_,k)=>html`<button type="button" role="tab" aria-selected=${k===i} aria-label=${t('Mesure {n}',{n:k+1})} class=${k===i?'on':''} @click=${()=>{this.index=k;}}></button>`)}</div>
-    </div>`;
+    // A swipe (finger or mouse) goes to the next or the previous tab; nothing turns by itself.
+    const down=(e:PointerEvent)=>{this.startX=e.clientX;};
+    const up=(e:PointerEvent)=>{if(this.startX===null)return;const dx=e.clientX-this.startX;this.startX=null;if(Math.abs(dx)>30)this.index=(i+(dx<0?1:n-1))%n;};
+    return html`<div class="nc-mtabs" role="tablist">${this.tabs.map((x,k)=>html`<button type="button" role="tab" aria-selected=${k===i} class=${'nc-mtab'+(k===i?' on':'')+(x.bad?' bad':'')} @click=${()=>{this.index=k;}}>
+        <i aria-hidden="true"></i><span>${x.label}</span><b>${x.value}</b></button>`)}</div>
+      <div class="nc-mslides" @pointerdown=${down} @pointerup=${up} @pointercancel=${()=>{this.startX=null;}}>
+        <div class="nc-mslides-stack">${this.items.map((x,k)=>html`<div class=${'nc-mslide'+(k===i?' on':'')} role="tabpanel" aria-hidden=${k===i?'false':'true'}>${x}</div>`)}</div>
+      </div>`;
   }
 }
 if(!customElements.get('hestia-mod-slides'))customElements.define('hestia-mod-slides',HestiaModSlides);
