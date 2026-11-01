@@ -1,3 +1,17 @@
+## 2.1.0b8 — Bêta : l'air en liste et l'encart d'information
+
+### Avant de mettre à jour
+
+- Gardez Hestia Weather 3.1.0b2.
+
+### Améliorations
+
+- L'air de la pièce s'affiche en liste : une ligne par mesure et par appareil, rangées par pièce quand deux pièces partagent le même air, celles hors plage d'abord.
+- L'humidité d'un air partagé porte le nom de chaque pièce ; le texte ne cite que celles hors plage.
+- Glisser du doigt ou de la souris passe à l'onglet suivant ou précédent ; plus rien ne défile tout seul.
+- La courbe du chauffage n'apparaît que s'il a chauffé.
+- Dans le panneau Hestia, les explications sont rangées dans un encart d'information violet.
+
 ## 2.1.0b7 — Bêta : les retours du premier essai
 
 ### Avant de mettre à jour
