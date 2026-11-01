@@ -62,6 +62,8 @@ class RoomView:
     # °C the room would gain by the end of the horizon with its thermostat on again, and that hour (`heating_off`).
     heating_off: float | None = None
     end_hour: int | None = None
+    # The stove at its lowest in a room already warm enough (advisor/decide.py `stove_idle`).
+    stove_idle: dict | None = None
 
 
 def sun_on_windows(view: RoomView) -> list[Tip]:
@@ -164,7 +166,24 @@ def heating_is_off(view: RoomView) -> list[Tip]:
     return [Tip("heating_off", {"gain": view.heating_off, "hour": view.end_hour}, "heat", 2, None, REINFORCED)]
 
 
-PROVIDERS = [gesture_seen, mist_tonight, heating_catches_up, heating_is_off, shutter_at_night, sun_on_windows]
+def stove_at_its_lowest(view: RoomView) -> list[Tip]:
+    """« Le poêle tourne au minimum : sans lui, la pièce reste au-dessus de 20 °C jusqu'à 18 h », or « … et la pièce
+    monte encore » (Frank, 1 November): the stove does not stop by itself. Passive until its share is proven; past the
+    household's margin for long enough, « Coupez le poêle » is a gesture (advisor/decide.py)."""
+    found = view.stove_idle
+    if found is None or view.asleep:
+        return []
+    if "rise" in found:
+        return [Tip("stove_rising", {"change": found["rise"]}, "heat", 2, None, PROVEN)]
+    if found["minutes"] is None:
+        return [Tip("stove_hold_long", {"minimum": view.minimum, "hour": view.end_hour}, "heat", 2, None, SUPPOSED)]
+    at = view.now + timedelta(minutes=found["minutes"])
+    at = at.replace(minute=at.minute - at.minute % 5, second=0, microsecond=0)
+    return [Tip("stove_hold", {"minimum": view.minimum, "at": at}, "heat", 2, at, SUPPOSED)]
+
+
+PROVIDERS = [gesture_seen, mist_tonight, heating_catches_up, heating_is_off, stove_at_its_lowest, shutter_at_night,
+             sun_on_windows]
 
 
 def tips(view: RoomView, providers=None) -> list[Tip]:

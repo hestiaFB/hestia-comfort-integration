@@ -54,10 +54,17 @@ class Habits:
     frost_guard: float = 7.0                # °C the house is kept above while away for days
     tolerance: float = 1.0                  # « tolérance aux gestes »: more than 1, fewer gestures; less, more
     not_now: int = 60                       # minutes a gesture answered « Pas maintenant » is put aside
+    # The stove that does not stop by itself (Frank, 1 November): said worth stopping when the room would stay in its
+    # range this many hours without it — lighting it again costs pellets and wear —, and « Coupez le poêle » once the
+    # room has stayed this much above its set point for this long.
+    stove_hold: float = 3.0                 # hours
+    overheat: float = 1.0                   # °C
+    overheat_minutes: int = 30              # minutes
 
     KEYS = {"ouvrir_la_nuit": "open_at_night", "aerations_min": "airings", "plus_tard_min": "later",
             "appareils_min": "devices", "cette_nuit_avant_h": "tonight_before", "buee_avant_h": "mist_before",
-            "hors_gel": "frost_guard", "tolerance": "tolerance", "pas_maintenant_min": "not_now"}
+            "hors_gel": "frost_guard", "tolerance": "tolerance", "pas_maintenant_min": "not_now",
+            "poele_tient_h": "stove_hold", "depassement": "overheat", "depassement_min": "overheat_minutes"}
 
     @classmethod
     def of(cls, *settings: dict | None) -> "Habits":

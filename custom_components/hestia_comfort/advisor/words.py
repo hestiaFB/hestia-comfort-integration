@@ -41,6 +41,12 @@ TEXTS = {
         "heating_back": "Le chauffage ramène la pièce à {minimum} °C vers {at}",
         "heating_off": "Chauffage éteint : le rallumer donnerait {gain} °C de plus d'ici {hour} h",
         "heating_rising": "Le chauffage réchauffe la pièce : {air} °C prévus à {hour} h ({minimum} °C visés)",
+        "heat_stop": "Coupez le poêle",
+        "stove_off": "Poêle coupé",
+        "overheat": "{air} °C pour {target} °C visés, depuis {minutes} min",
+        "stove_hold": "Le poêle tourne au minimum : sans lui, la pièce reste au-dessus de {minimum} °C jusqu'à {at}",
+        "stove_hold_long": "Le poêle tourne au minimum : sans lui, la pièce reste au-dessus de {minimum} °C au moins jusqu'à {hour} h",
+        "stove_rising": "Le poêle tourne au minimum et la pièce monte encore : {change} °C de plus en 30 min",
         "doubtful": "Mesure douteuse", "doubtful_air": "La température semble fausse ({why}) : pas de conseil tant qu'elle l'est",
         "doubtful_aside": "Mesure douteuse, laissée de côté : {what}", "doubt": "{measure} ({why})",
         "doubt_range": "{value} : valeur impossible", "doubt_jump": "saut soudain à {value}", "doubt_frozen": "figée depuis {since}",
@@ -87,6 +93,12 @@ TEXTS = {
         "heating_back": "The heating brings the room back to {minimum} °C around {at}",
         "heating_off": "Heating off: turning it back on would give {gain} °C more by {hour}:00",
         "heating_rising": "The heating is warming the room: {air} °C expected at {hour}:00 ({minimum} °C aimed at)",
+        "heat_stop": "Turn the stove off",
+        "stove_off": "Stove off",
+        "overheat": "{air} °C for {target} °C aimed at, for {minutes} min",
+        "stove_hold": "The stove runs at its lowest: without it, the room stays above {minimum} °C until {at}",
+        "stove_hold_long": "The stove runs at its lowest: without it, the room stays above {minimum} °C until {hour}:00 at least",
+        "stove_rising": "The stove runs at its lowest and the room is still warming: {change} °C more in 30 min",
         "doubtful": "Doubtful measure", "doubtful_air": "The temperature looks wrong ({why}): no advice while it does",
         "doubtful_aside": "Doubtful measure, left aside: {what}", "doubt": "{measure} ({why})",
         "doubt_range": "{value}: impossible value", "doubt_jump": "sudden jump to {value}", "doubt_frozen": "frozen since {since}",
@@ -133,6 +145,12 @@ TEXTS = {
         "heating_back": "Die Heizung bringt den Raum gegen {at} wieder auf {minimum} °C",
         "heating_off": "Heizung aus: wieder eingeschaltet brächte sie bis {hour} Uhr {gain} °C mehr",
         "heating_rising": "Die Heizung wärmt den Raum: {air} °C erwartet um {hour} Uhr ({minimum} °C angestrebt)",
+        "heat_stop": "Ofen ausschalten",
+        "stove_off": "Ofen aus",
+        "overheat": "{air} °C bei {target} °C Ziel, seit {minutes} min",
+        "stove_hold": "Der Ofen läuft auf kleinster Stufe: ohne ihn bleibt der Raum bis {at} über {minimum} °C",
+        "stove_hold_long": "Der Ofen läuft auf kleinster Stufe: ohne ihn bleibt der Raum mindestens bis {hour} Uhr über {minimum} °C",
+        "stove_rising": "Der Ofen läuft auf kleinster Stufe und der Raum wird weiter wärmer: {change} °C mehr in 30 min",
         "doubtful": "Zweifelhafter Messwert", "doubtful_air": "Die Temperatur scheint falsch ({why}): kein Rat, solange sie es ist",
         "doubtful_aside": "Zweifelhafter Messwert, beiseitegelassen: {what}", "doubt": "{measure} ({why})",
         "doubt_range": "{value}: unmöglicher Wert", "doubt_jump": "plötzlicher Sprung auf {value}", "doubt_frozen": "unverändert seit {since}",
@@ -188,6 +206,8 @@ def _name(gesture: Gesture, path, words, opened: bool) -> str:
         return words["device_off"]
     if gesture.kind.startswith("shutter_"):
         return words["shuttered" if gesture.kind == "shutter_close" else "unshuttered"]
+    if gesture.kind == "heat_stop":
+        return words["stove_off"]
     if gesture.kind.startswith("heat_"):
         return words["heated"] if gesture.kind == "heat_on" else words["heated_to"].format(target=_degrees(gesture.target, "fr"))
     if gesture.kind == "open":
@@ -249,7 +269,12 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             line = words["mould"]
         elif subject == "energy":
             line = words["energy"].format(value=_number(idle.spent - chosen.spent, language))
-    if decision.rule == "safety" and reason and f"safety_{reason}" in words:
+    if decision.rule == "overheat" and decision.measured:
+        # A fact measured, said as such: no forecast behind it.
+        m = decision.measured
+        line = words["overheat"].format(air=_number(m["air"], language), target=_degrees(m["target"], language),
+                                        minutes=round(m["minutes"]))
+    elif decision.rule == "safety" and reason and f"safety_{reason}" in words:
         line = words[f"safety_{reason}"]
     elif gesture.kind == "nothing" and not opened and reason and f"safety_{reason}" in words:
         # A shut room whose openings a safety rule took away: that is why nothing is to do.
@@ -314,6 +339,12 @@ def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
         return words["mist"].format(outdoor=_number(v["outdoor"], language))
     if tip.kind == "heating_rising":
         return words["heating_rising"].format(air=_number(v["air"], language), hour=v["hour"], minimum=_degrees(v["minimum"], language))
+    if tip.kind == "stove_rising":
+        return words["stove_rising"].format(change=_number(v["change"], language))
+    if tip.kind == "stove_hold":
+        return words["stove_hold"].format(minimum=_degrees(v["minimum"], language), at=_time(v["at"], words))
+    if tip.kind == "stove_hold_long":
+        return words["stove_hold_long"].format(minimum=_degrees(v["minimum"], language), hour=v["hour"])
     if tip.kind == "heating_off":
         return words["heating_off"].format(gain=_number(v["gain"], language), hour=v["hour"])
     if tip.kind == "heating_back":

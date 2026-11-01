@@ -87,6 +87,32 @@ def heating_off(twins: "Twins", now: "Now", coming, comfort: Comfort, tolerance:
 WARMING = 0.5
 
 
+# The stove's flame at its lowest: its thermostat asks this share of the power or less (0 to 1).
+STOVE_LOW = 0.1
+# The room still warming by this much over the last half hour, the stove at its lowest, is worth saying (°C).
+STOVE_RISE = 0.3
+
+
+def stove_idle(twins: "Twins", now: "Now", coming, minimum: float, hold_hours: float) -> dict | None:
+    """The stove burning at its lowest in a room already at its set point (Frank, 1 November: it does not stop by
+    itself): {"minutes"} the room stays in its range once it is stopped — None when beyond the horizon — when that is
+    at least `hold_hours`; else {"rise"} °C the room still gained over the last half hour, measured. None otherwise.
+    A passive advice: the stove's share is learned, and lighting it again has a cost."""
+    stove = twins.house_thermostat
+    if stove is None or not now.house_running or now.night or now.air < stove.target or twins.house_now > STOVE_LOW:
+        return None
+    stopped = simulate(twins, now, coming, Gesture("heat_stop"))
+    below = next((k for k, air in enumerate(stopped.air) if air < minimum), None)
+    minutes = None if below is None else below * STEP / 60
+    # Held through the whole horizon counts only when the horizon is as long as the household's hours.
+    held = len(stopped.air) * STEP / 60 if minutes is None else minutes
+    if stopped.air and held >= hold_hours * 60:
+        return {"minutes": minutes}
+    if now.house_rise is not None and now.house_rise >= STOVE_RISE:
+        return {"rise": now.house_rise}
+    return None
+
+
 def heating_back(twins: "Twins", idle: "Path", now: "Now", minimum: float, coming=(),
                  step_minutes: float = STEP / 60) -> dict | None:
     """What the heating does for a room under its range, left as it is: {"minutes"} until it is back to its minimum, or,
@@ -194,6 +220,12 @@ class Now:
     # chauffage à 19 °C » are followed with (advisor/feedback.py).
     heating: bool | None = None
     heating_target: float | None = None
+    # The room's main house heater (the Salon's stove): whether it burns — it does not stop by itself, its thermostat
+    # only lowers the flame —, °C the room gained over the last half hour, measured, and minutes the room has stayed
+    # above its set point by the household's margin (`Habits.overheat`).
+    house_running: bool = False
+    house_rise: float | None = None
+    overheated: float | None = None
 
 
 @dataclass
@@ -312,7 +344,7 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
             path.heating += twins.heat.heat * u.heating * HOURS / 1000
         if twins.house_thermostat is not None:
             # The stove follows the room too; the other house heaters stay as they are.
-            running = twins.house_thermostat.power(felt, u.outdoor, windows)
+            running = 0.0 if gesture.kind == "heat_stop" else twins.house_thermostat.power(felt, u.outdoor, windows)
             u = replace(u, house_heat=max(0.0, u.house_heat + twins.house_power * (running - twins.house_now)))
         before = air
         air, walls = step(twins.heat, air, walls, u)
@@ -436,12 +468,14 @@ def main_subject(scenarios: dict, gesture: Gesture) -> str | None:
 class Decision:
     gesture: Gesture
     gain: float                             # what it saves against « do nothing », in the cost's unit
-    rule: str                               # best | nothing | insignificant | kept | safety | unproven
+    rule: str                               # best | nothing | insignificant | kept | safety | unproven | overheat
     scenarios: dict                         # gesture → its cost terms, for « Pourquoi ? » and the trace
     paths: dict = field(default_factory=dict, repr=False)
     level: str = PROVEN                     # how sure the effect it rests on is (advisor/proof.py)
     # The gesture the twin found worth it, held back because its effect is not proven enough: a passive advice, to try.
     passive: Gesture | None = None
+    # What a rule read on the measures rests on, said as such: « 22,7 °C pour 21,5 °C visés, depuis 35 min ».
+    measured: dict | None = None
 
 
 def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
@@ -486,6 +520,16 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         cheapest = min(gestures, key=order)
         rule = "nothing" if cheapest.kind == "nothing" or nothing - costs[cheapest]["total"] < GAIN else "insignificant"
     gain = nothing - costs[best]["total"]
+    stove = twins.house_thermostat
+    if (stove is not None and now.house_running and not now.night and "heat_stop" not in forbidden
+            and now.overheated is not None and now.overheated >= habits.overheat_minutes):
+        # The stove does not stop by itself (Frank, 1 November): the room measured above its set point by the household's
+        # margin for long enough asks to stop it, before any gesture of the twin. A fact measured, not a forecast.
+        stop = Gesture("heat_stop")
+        paths[stop] = simulate(twins, now, coming, stop)
+        costs[stop] = cost(paths[stop], comfort, weights, stop, now.night)
+        return Decision(stop, nothing - costs[stop]["total"], "overheat", costs, paths,
+                        measured={"air": now.air, "target": stove.target, "minutes": now.overheated})
     if best.kind == "nothing" or proof is None:
         return Decision(best, gain, rule, costs, paths)
     # Only a proven effect sends a gesture to the banner as soon as it is significant; a reinforced one must be clear-cut;

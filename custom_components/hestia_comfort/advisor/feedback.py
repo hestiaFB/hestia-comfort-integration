@@ -42,6 +42,8 @@ def done(kind: str, now: Now, target: float | None = None) -> bool:
         return now.heating is True
     if kind == "heat_to":
         return now.heating is True and None not in (now.heating_target, target) and now.heating_target >= target - 0.25
+    if kind == "heat_stop":
+        return not now.house_running
     if kind in ("shutter_close", "shutter_open") and now.cover is not None:
         return now.cover <= SHUTTER_SHUT if kind == "shutter_close" else now.cover >= SHUTTER_OPEN
     return False

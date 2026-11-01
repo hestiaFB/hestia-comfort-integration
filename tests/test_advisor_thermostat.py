@@ -8,10 +8,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components"
 from dataclasses import replace
 
 from advisor.decide import (Comfort, Gesture, Now, Thermostat, Twins, candidates, decide, from_thermostat, heating_back,
-                            heating_off, simulate)
+                            heating_off, simulate, stove_idle)
 from advisor.feedback import done
 from advisor.house import Opening, Room
-from advisor.knowing import RoomView, heating_catches_up, heating_is_off
+from advisor.household import Habits
+from advisor.knowing import RoomView, heating_catches_up, heating_is_off, stove_at_its_lowest
 from advisor.physics.thermal import Inputs, ordinary
 from advisor.proof import PROVEN
 from advisor.snapshot import capture, replay
@@ -145,6 +146,56 @@ class Stove(unittest.TestCase):
         snap = capture(self.twins, self.now, self.coming, Comfort(minimum=21.5), end_hour=16)
         self.assertEqual(replay(snap)[0].paths[Gesture("nothing")].air[-1],
                          decide(self.twins, self.now, self.coming, Comfort(minimum=21.5)).paths[Gesture("nothing")].air[-1])
+
+
+class StoveAtItsLowest(unittest.TestCase):
+    """The stove does not stop by itself, its thermostat only lowers the flame (Frank, 1 November): said worth stopping
+    when the room holds without it, « Coupez le poêle » once the room stays too warm for too long."""
+
+    def setUp(self):
+        self.twins = Twins(heat=replace(ordinary(CHAMBRE_P), share=0.3), windows=(WEST.size,),
+                           house_thermostat=Thermostat(target=21.5, inside=0.8), house_power=8500.0, house_now=0.0)
+        self.coming = [(Inputs(8.0, hour=13 + k / 12), None) for k in range(36)]
+        self.warm = Now(air=22.5, walls=22.0, opened=(), house_running=True)
+
+    def test_stopping_it_is_said_when_the_room_holds_without_it(self):
+        found = stove_idle(self.twins, self.warm, self.coming, 20.0, 1.0)
+        self.assertIsNotNone(found)
+        self.assertTrue(found.get("minutes") is None or found["minutes"] >= 60)
+        local = datetime(2026, 11, 1, 13, 40, tzinfo=timezone.utc)
+        tip = stove_at_its_lowest(RoomView(local, 45.0, 4.0, minimum=20.0, stove_idle=found, end_hour=16))[0]
+        self.assertIn("Le poêle tourne au minimum : sans lui", tip_text(tip, "fr"))
+
+    def test_a_room_still_warming_is_said_when_it_would_not_hold(self):
+        rising = replace(self.warm, house_rise=0.6)
+        found = stove_idle(self.twins, rising, self.coming, 20.0, 12.0)
+        self.assertEqual(found, {"rise": 0.6})
+        local = datetime(2026, 11, 1, 13, 40, tzinfo=timezone.utc)
+        tip = stove_at_its_lowest(RoomView(local, 45.0, 4.0, stove_idle=found))[0]
+        self.assertEqual(tip_text(tip, "fr"), "Le poêle tourne au minimum et la pièce monte encore : 0,6 °C de plus en 30 min")
+
+    def test_nothing_while_it_heats_under_its_set_point_or_is_off(self):
+        self.assertIsNone(stove_idle(self.twins, replace(self.warm, air=20.5), self.coming, 20.0, 1.0))
+        self.assertIsNone(stove_idle(self.twins, replace(self.warm, house_running=False), self.coming, 20.0, 1.0))
+        self.assertIsNone(stove_idle(replace(self.twins, house_now=0.6), self.warm, self.coming, 20.0, 1.0))
+        self.assertIsNone(stove_idle(self.twins, replace(self.warm, night=True), self.coming, 20.0, 1.0))
+
+    def test_too_warm_for_too_long_is_a_gesture(self):
+        hot = replace(self.warm, air=22.7, overheated=35.0)
+        decision = decide(self.twins, hot, self.coming, Comfort(minimum=21.5), proof={"heating:heat": PROVEN})
+        self.assertEqual((decision.gesture.kind, decision.rule), ("heat_stop", "overheat"))
+        words = phrase(decision, 16)
+        self.assertEqual(words["title"], "Coupez le poêle")
+        self.assertEqual(words["line"], "22,7 °C pour 21,5 °C visés, depuis 35 min")
+        self.assertTrue(done("heat_stop", replace(hot, house_running=False)))
+
+    def test_not_before_the_household_s_delay_nor_at_night(self):
+        comfort = Comfort(minimum=21.5)
+        self.assertEqual(decide(self.twins, replace(self.warm, overheated=20.0), self.coming, comfort).rule != "overheat", True)
+        self.assertNotEqual(decide(self.twins, replace(self.warm, overheated=20.0), self.coming, comfort,
+                                   habits=Habits.of({"depassement_min": 15})).gesture.kind, "nothing")
+        self.assertNotEqual(decide(self.twins, replace(self.warm, overheated=60.0, night=True), self.coming, comfort).rule,
+                            "overheat")
 
 
 if __name__ == "__main__":
