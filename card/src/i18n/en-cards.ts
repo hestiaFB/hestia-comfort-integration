@@ -112,7 +112,7 @@ export const EN_CARDS:Record<string,string>={
  // types.ts: the sections' names and the settings' errors
  'Qualité de l’air':'Air quality','Soleil et volets':'Sun and shutters','Réglage « {name} » invalide.':'Invalid « {name} » setting.','Appui long inconnu.':'Unknown long press.',
  'La page à ouvrir doit être un chemin.':'The page to open must be a path.','Type de carte Hestia Comfort invalide.':'Invalid Hestia Comfort card type.','Format de carte inconnu.':'Unknown card format.',
- 'Choisissez une pièce Hestia Comfort.':'Choose a Hestia Comfort room.','Le titre doit être un texte.':'The title must be text.','Thème inconnu.':'Unknown theme.','Réglage d’affichage invalide.':'Invalid display setting.',
+ 'Choisissez une pièce Hestia Comfort.':'Choose a Hestia Comfort room.','Le titre doit être un texte.':'The title must be text.','Le conseil 3.0 doit être un capteur.':'The 3.0 advice must be a sensor.','Thème inconnu.':'Unknown theme.','Réglage d’affichage invalide.':'Invalid display setting.',
  'Rubrique inconnue.':'Unknown section.','Réglage « graphique » invalide.':'Invalid « graph » setting.','Réglage « lignes À savoir » invalide : de 1 à 8.':'Invalid « Good to know lines » setting: from 1 to 8.',
  'Type de carte invalide.':'Invalid card type.','Ordre des pièces inconnu.':'Unknown room order.','Période inconnue.':'Unknown period.','Type de carte Hestia Confort · bilan invalide.':'Invalid Hestia Comfort · review card type.',
 };

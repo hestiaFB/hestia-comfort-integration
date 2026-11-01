@@ -62,9 +62,28 @@ export class HestiaComfortCard extends LitElement {
   static getStubConfig():Config{return {type:'custom:hestia-comfort-card',format:'tile'};}
   getCardSize(){const f=this.config?.format;return f==='mini'?1:f==='alert'?2:f==='full'?10:f==='measures'?6:f==='horizon'||f==='temperature'?4:3;}
   getGridOptions(){const f=this.config?.format;return {columns:f==='full'?'full':['humidity','air','openings','heating'].includes(f??'')?6:12,rows:'auto',min_columns:f&&['humidity','air','openings','heating'].includes(f)?3:6};}
-  connectedCallback(){super.connectedCallback();this.connect();}
-  disconnectedCallback(){super.disconnectedCallback();this.live.stop();this.stopPartners();this.closeFull();}
-  protected shouldUpdate(changed:PropertyValues){return hassMatters(changed,this.hass);}
+  connectedCallback(){super.connectedCallback();this.connect();
+    // « Laissez ouvert encore 4 min » counts down between two steps of the 3.0 advisor: redrawn every half minute.
+    clearInterval(this.ticking);this.ticking=setInterval(()=>{if(this.advisorState()?.attributes.refermer_a)this.requestUpdate();},30000);}
+  disconnectedCallback(){super.disconnectedCallback();clearInterval(this.ticking);this.live.stop();this.stopPartners();this.closeFull();}
+  /** The 3.0 advisor's decision (HA de test, the bridge of 1 November): redrawn when it changes, like the room's own view. */
+  @state() private said?:string;
+  private ticking?:ReturnType<typeof setInterval>;
+  private advisorState(){const id=this.config?.conseil;return id?this.hass?.states?.[id]:undefined;}
+  private withAdvisor(v:View):View{
+    const s=this.advisorState();if(!s)return v;
+    const piece=typeof s.attributes.piece==='string'?s.attributes.piece:'';
+    const send=this.hass?.callApi?(kind:string)=>{this.said='Envoi…';
+      this.hass!.callApi!<{jusqu_a?:string}>('POST','hestia_advisor_dev/avis',{piece,avis:kind,note:''})
+        .then(r=>{this.said=r?.jusqu_a?`Noté : pas avant ${r.jusqu_a}.`:'Merci, c’est noté.';})
+        .catch(()=>{this.said='Pas pu l’envoyer.';})
+        .finally(()=>{setTimeout(()=>{this.said=undefined;},5000);});}:undefined;
+    return {...v,advisor:{title:s.state,attributes:s.attributes,send,said:this.said}};
+  }
+  protected shouldUpdate(changed:PropertyValues){
+    const id=this.config?.conseil,old=changed.get('hass') as HomeAssistant|undefined;
+    if(id&&changed.has('hass')&&old?.states?.[id]!==this.hass?.states?.[id])return true;
+    return hassMatters(changed,this.hass);}
   // The words follow Home Assistant's language, set before each drawing.
   protected willUpdate(){setLanguage(this.hass?.language);}
   protected updated(changed:PropertyValues){
@@ -118,7 +137,7 @@ export class HestiaComfortCard extends LitElement {
   private panel(full:boolean,modal=false){
     const format=full?'full':this.config!.format??'tile';
     const partners=(this.view!.volume??[]).map(p=>this.partnerViews[p.entry_id]).filter((p):p is View=>!!p);
-    const card=roomCard(this.view!,this.config!,this.state(modal),format,partners);
+    const card=roomCard(this.withAdvisor(this.view!),this.config!,this.state(modal),format,partners);
     // The alert format has nothing to say: hidden on the dashboard, a short note in the card editor's preview.
     if(card===null)return this.preview||this.editMode?html`<ha-card class="nc-c nc-alert-note" data-level="calm"><p>${t('Alerte · {room} : rien à signaler. La carte n’apparaît que lorsqu’un geste est conseillé.',{room:this.view!.title})}</p></ha-card>`:nothing;
     if(format==='full')return card;

@@ -1,3 +1,4 @@
+import type {Advisor3} from './views/advisor3';
 import {t,fr} from './i18n';
 export const LEVELS = ['calm','benefit','action','urgent','neutral'] as const;
 export const ACTIONS = ['ok','ouvrir','fermer','attendre','unknown'] as const;
@@ -46,6 +47,8 @@ export type HoldAction = typeof HOLD_ACTIONS[number];
 export const moduleLabels:Record<Module,string>={windows:fr('Fenêtres'),air:fr('Qualité de l’air'),temperature:fr('Température'),humidity:fr('Humidité'),shutters:fr('Soleil et volets'),coordination:fr('Chauffage')};
 export interface Config {
   type: 'custom:hestia-comfort-card'; entry_id?: string; title?: string; format?: Format;
+  /** The 3.0 advisor's sensor in the HA de test (`sensor.conseil_3_salon`): the banner, « À savoir » and « Pourquoi ? » read it. */
+  conseil?: string;
   modules?: Module[]; animations?: boolean; glass_effect?: boolean; theme?: 'auto'|'light'|'dark';
   /** What the card shows and how it opens: the scale, the measures, the details, and whether advices scroll by themselves. */
   show_scale?: boolean; show_measures?: boolean; show_details?: boolean; measures_open?: boolean; details_open?: boolean; rotate?: boolean;
@@ -126,7 +129,7 @@ export interface Opening {
   sun_share:number; sun_wm2:number|null; wind_side?:string|null; flags:string[];
 }
 export interface View {
-  version:1; entry_id:string; area_id:string|null; title:string; computed_at:string; /** The room's comfort range from its settings. */ comfort_minimum?:number; comfort_maximum?:number;
+  version:1; entry_id:string; area_id:string|null; title:string; /** The 3.0 advisor's decision, when the card reads one (`Config.conseil`). */ advisor?:Advisor3; computed_at:string; /** The room's comfort range from its settings. */ comfort_minimum?:number; comfort_maximum?:number;
   assessment:Assessment; observations:Record<string,Reading>; names?:Record<string,string>; /** Rooms open onto this one: one air, shared openings. */ volume?:{entry_id:string;title:string}[]; /** Sources read from the room sharing this air, by key: {heating:'Salon'}. */ inherited?:Record<string,string>; /** « Salon · Cuisine », the best equipped first. */ volume_name?:string|null;
   /** The feedback loop: the last airing followed (within a day) and the week (engine/feedback.py). */
   feedback?:{last:{measure:'humidity'|'temperature'|'co2'|'voc';before:number;after:number;predicted:number|null;minutes:number}|null;week:{followed:number;ignored:number;evaluated:number;held:number;gains:Record<string,number>}};
@@ -143,6 +146,8 @@ export interface Connection {
 export interface HomeAssistant {
   connection:Connection; user?:{is_admin:boolean}; themes?:{darkMode?:boolean}; language?:string;
   callWS<T>(message:Record<string,unknown>):Promise<T>;
+  states?:Record<string,{state:string;attributes:Record<string,unknown>;last_updated?:string}>;
+  callApi?<T>(method:string,path:string,data?:Record<string,unknown>):Promise<T>;
 }
 export interface Entry {entry_id:string; title:string; area_id:string|null; volume?:string[]; volume_name?:string|null}
 export function cleanConfig(input:Config):Config {
@@ -150,6 +155,7 @@ export function cleanConfig(input:Config):Config {
   if(input.format && !FORMATS.includes(input.format)) throw new Error(t('Format de carte inconnu.'));
   if(input.entry_id!==undefined && typeof input.entry_id!=='string') throw new Error(t('Choisissez une pièce Hestia Comfort.'));
   if(input.title!==undefined && typeof input.title!=='string') throw new Error(t('Le titre doit être un texte.'));
+  if(input.conseil!==undefined && (typeof input.conseil!=='string'||!input.conseil.startsWith('sensor.'))) throw new Error(t('Le conseil 3.0 doit être un capteur.'));
   if(input.theme && !['auto','light','dark'].includes(input.theme)) throw new Error(t('Thème inconnu.'));
   for(const key of ['animations','glass_effect','show_scale','show_measures','show_details','measures_open','details_open','rotate'] as const)
     if(input[key]!==undefined && typeof input[key]!=='boolean') throw new Error(t('Réglage d’affichage invalide.'));

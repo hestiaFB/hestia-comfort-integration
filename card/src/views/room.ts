@@ -1,3 +1,4 @@
+import {factBox3,slides3,why3} from './advisor3';
 import {html,svg,nothing,LitElement,type TemplateResult} from 'lit';
 import {property,state} from 'lit/decorators.js';
 import {SCALE_MARKS,CHIPS,TILE_BLOCKS,DETAIL_ROWS,INSIGHT_TOPICS,PIECES,type Piece,type Config,type View,type Level,type Format,type BannerBlock,type Chip,type HorizonSubject,type Horizon} from '../types';
@@ -477,6 +478,7 @@ const FACT_GROUPS=[{id:'gesture',ic:'hand',title:'Pour le geste',ranks:[0]},{id:
 /** Said elsewhere (30 October, evening): the devices at work in the Air module, what was learned in the « i ». */
 const ELSEWHERE=new Set(['Purificateur','VMC','Dernière aération','Apprentissage']);
 export function factBox(v:View,partners:View[]=[],config:Config={type:'custom:hestia-comfort-card'},list=factList(v,partners,config)):TemplateResult|typeof nothing {
+  if(v.advisor)return factBox3(v.advisor);
   // The first line is what counts most: set apart, and a risk in the « to watch » colour.
   // Three headings, each said only when it has lines: where to act for the gesture, what to keep an eye on, what was learned.
   const line=(f:Fact)=>html`<li class=${rank(f)===1?'risk':''}>${icon(f.ic)}<span><b>${tx(f.title)}</b> · ${partners.length&&f.key==='humidity'&&f.room?`${f.room}, `:''}${tl(f.text)}</span></li>`;
@@ -523,6 +525,7 @@ function airWhy(v:View):TemplateResult {
 export interface Slide extends Advice {level:Level;pill:string}
 /** Every advice of the moment, the main one first: what to do, then the remedies already at work and what Hestia cannot check. */
 export function slides(v:View,blocks:readonly BannerBlock[]=['remedies','later']):Slide[] {
+  if(v.advisor)return slides3(v.advisor);
   const a=v.assessment,main=advice(v),out:Slide[]=[{...main,level:main.level??a.level,pill:main.pill??pills[a.level]}];
   // Remedies at work (purifier, ventilation) are information: they are in « À savoir », not in the banner.
   // What Hestia cannot check is information, not advice: it stays in « Détails ».
@@ -749,6 +752,7 @@ export function whyLines(v:View):TemplateResult {
 /** The banner's « i » answers its pill: « Pourquoi « Au mieux » ? », in one plain sentence, then what to correct (as measured),
  * what holds the gesture back and whether the measures answer. */
 export function whyRoom(v:View,slide?:Slide):TemplateResult {
+  if(v.advisor)return why3(v.advisor);
   const want=needs(v).map(x=>tx(x)),limits=v.assessment.constraints.map(c=>tx(constraintLabels[c]??c));
   const pill=statePill(slide,v.assessment.level),list=want.join(', ');
   const airing=!!slide&&/^(Encore |Laissez ouvert)|^Aération en cours$/.test(slide.title);
@@ -983,7 +987,7 @@ export function roomCard(v:View,config:Config,st:CardState,format:Format='full',
     ?scale({band,day:marks.includes('day')?f?.day_range??null:null,now:ti,out:marks.includes('out')?te:null,nowEntity:v.observations.indoor_temperature?.source??undefined,outEntity:v.observations.outdoor_temperature?.source??undefined}):null;
   // One air whose gesture comes from the other room: the banner says that room's advice, its reason and what it learned.
   const leader=a.reason==='shared_volume'?partners.find(p=>p.title===a.features?.volume?.lead&&p.assessment.reason!=='shared_volume'):undefined;
-  const all=slides(leader??v,config.banner_blocks),top=all[0]?.level??a.level,name=config.title||(partners.length?v.volume_name:null)||v.title;
+  const all=slides(v.advisor?v:leader??v,config.banner_blocks),top=all[0]?.level??a.level,name=config.title||(partners.length?v.volume_name:null)||v.title;
   const still=config.animations===false||config.rotate===false;
   // A measure out of range is framed in orange only when the room asks for a gesture.
   const soft=!['action','urgent'].includes(top);
@@ -996,7 +1000,7 @@ export function roomCard(v:View,config:Config,st:CardState,format:Format='full',
     :html`<div class="nc-tiles">${list.map(t=>tile(t,soft))}</div>`;
   const known=factList(v,partners,config),box=factBox(v,partners,config,known);
   // « Au mieux »: the disk shows what « À savoir » names first, whichever room of the shared air it comes from.
-  if(all.length===1&&all[0].pill==='Au mieux'&&known[0])all[0]={...all[0],disk:known[0].key==='humidity'?'drop':known[0].key==='cold'?'temp':all[0].disk};
+  if(!v.advisor&&all.length===1&&all[0].pill==='Au mieux'&&known[0])all[0]={...all[0],disk:known[0].key==='humidity'?'drop':known[0].key==='cold'?'temp':all[0].disk};
   const detailList=html`<ul class="nc-list">${details(v,config)}</ul>${st.configure?html`<button class="nw-badge nc-configure" @click=${st.configure}>${icon('settings')}${t('Configurer cette pièce')}</button>`:nothing}`;
   const scaleBox=sc?html`<div class="nc-sec nw-glass"><div class="nw-label">${t('Température')}</div>${sc}</div>`:nothing;
   // « Prochaines heures » (engine/horizon.py): under the scale, the banner's subject first, the other one behind a tab.
