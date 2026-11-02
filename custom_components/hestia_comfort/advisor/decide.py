@@ -586,6 +586,10 @@ def aged(gesture: Gesture | None, minutes: float) -> Gesture | None:
     return replace(gesture, after=left if left > 0 else None)
 
 
+# A gesture shown stays at least this long while it still helps (CAHIER-MOTEUR.md § 18.3: one change per half hour).
+HOLD_MINUTES = 30
+
+
 # Among gestures of one kind, one costing this share more than the best (of its cost, or of GAIN) still counts as enough.
 ENOUGH = 0.1
 
@@ -604,9 +608,11 @@ def _shortest(best: Gesture, worth: list[Gesture], costs: dict) -> Gesture:
 
 def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
            previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
-           proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits()) -> Decision:
+           proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits(),
+           held: float | None = None) -> Decision:
     """The gesture to advise. `forbidden`: kinds a safety rule takes away (« open » under the rain, in gusts…).
-    `proof`: the level of the windows' effect on each subject (advisor/proof.py); None, all taken as proven."""
+    `proof`: the level of the windows' effect on each subject (advisor/proof.py); None, all taken as proven.
+    `held`: minutes `previous` has been on the card (HOLD_MINUTES)."""
     if "open" in forbidden and now.opened:
         # The rain or the gusts: what is open is shut, whatever it costs.
         return Decision(Gesture("close"), 0.0, "safety", {})
@@ -621,7 +627,9 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
                 and not (g.kind in ("open", "open_more") and now.night and not habits.open_at_night)
                 and not (g.kind == "open_more" and "open" in forbidden)
                 # Nobody gets up to see to the heating either (CAHIER-MOTEUR.md § 9.1 bis), nor comes back in ten minutes.
-                and not (g.kind.startswith("heat_") and now.night) and not (g.after and now.night)]
+                and not (g.kind.startswith("heat_") and now.night) and not (g.after and now.night)
+                # Nor starts or stops a device: the VMC's fast speed was asked all night long (2 November, Chambre P).
+                and not (g.kind.removesuffix("_off") in DEVICES and now.night)]
     paths = {g: simulate(twins, now, coming, g) for g in gestures}
     costs = {g: cost(paths[g], comfort, weights, g, now.night) for g in gestures}
     nothing = costs[Gesture("nothing")]["total"]
@@ -637,7 +645,11 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
              and significant(idle, paths[g], comfort, now.night, tolerance=habits.tolerance)]
     best = min(worth, key=order) if worth else Gesture("nothing")
     best = _shortest(best, worth, costs)
-    if ((previous in worth or previous == Gesture("nothing")) and previous != best
+    # Only how long changed (« Aérez 30 → 20 → 25 min » in twelve minutes, 2 November): the duration shown stays while it
+    # is about as good, even if, on its own, it no longer makes the difference that would put it forward.
+    longer = (previous is not None and previous in costs and best.kind != "nothing" and previous.kind == best.kind
+              and previous.after == best.after)
+    if ((previous in worth or previous == Gesture("nothing") or longer) and previous != best
             and costs[previous]["total"] - costs[best]["total"] < MARGIN * max(costs[previous]["total"], GAIN)):
         best, rule = previous, "kept"
     elif best.kind != "nothing":
@@ -657,6 +669,12 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         costs[stop] = cost(paths[stop], comfort, weights, stop, now.night)
         return Decision(stop, nothing - costs[stop]["total"], "overheat", costs, paths,
                         measured={"air": now.air, "target": stove.target, "minutes": now.overheated})
+    # A gesture on the card stays HOLD_MINUTES while it still helps: it neither leaves for « Rien à faire » nor drops to
+    # « À essayer » at the next step, to come back at the one after (Chambre P, 2 November: four times in an hour).
+    hold = (previous is not None and previous.kind != "nothing" and held is not None and held < HOLD_MINUTES
+            and previous in costs and nothing - costs[previous]["total"] >= GAIN / 2)
+    if best.kind == "nothing" and hold:
+        best, rule, gain = previous, "kept", nothing - costs[previous]["total"]
     if best.kind == "nothing" or proof is None:
         return Decision(best, gain, rule, costs, paths)
     # Only a proven effect sends a gesture to the banner as soon as it is significant; a reinforced one must be clear-cut;
@@ -666,6 +684,8 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     if found == PROVEN or (found == REINFORCED and significant(paths[Gesture("nothing")], paths[best], comfort, now.night,
                                                                 stricter=REINFORCED_STRICTER, tolerance=habits.tolerance)):
         return Decision(best, gain, rule, costs, paths, level=found)
+    if hold and best == previous:
+        return Decision(best, gain, "kept", costs, paths, level=found)
     return Decision(Gesture("nothing"), gain, "unproven", costs, paths, level=found, passive=best)
 
 

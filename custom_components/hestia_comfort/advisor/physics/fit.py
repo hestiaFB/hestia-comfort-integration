@@ -161,8 +161,50 @@ def gestures(p: Params, samples: list[Sample], since=None, until=None, steps: in
     return out
 
 
+# The windows' effect recalibrated on the openings themselves (CAHIER-MOTEUR.md § 18.3, the main indicator): an
+# opening must have changed the air by this much in the twin's forecast to count (°C), a night moves the effect by this
+# factor at most, and a few rounds settle it (the effect is not exactly proportional to the window's parameter).
+WINDOW_EFFECT, WINDOW_MOVE, WINDOW_ROUNDS = 0.1, 2.0, 3
+
+
+def window_ratio(p: Params, samples: list[Sample], until=None) -> tuple[float | None, int]:
+    """How much more the openings changed the air than the twin gives them: the change the window must have made, given
+    what the twin foresaw without it, against the change it foresaw from the window; and how many openings count."""
+    # Only openings whose own effect stands out from what the twin foresaw without them: elsewhere the room's own drift
+    # (the stove pausing, the sun) hides what the window did (Salon, 1 November: −3.7 °C foreseen without the window).
+    cases = [g for g in gestures(p, samples, until=until) if g["kind"] == "window"
+             and abs(g["forecast"] - g["without"]) >= WINDOW_EFFECT and abs(g["without"]) <= abs(g["forecast"] - g["without"])]
+    ratios = sorted(r for g in cases if (r := (g["measured"] - g["without"]) / (g["forecast"] - g["without"])) > 0)
+    if not ratios:
+        return None, 0
+    # The middle one: one odd opening does not move it.
+    middle = len(ratios) // 2
+    return (ratios[middle] if len(ratios) % 2 else (ratios[middle - 1] + ratios[middle]) / 2), len(ratios)
+
+
+def fit_windows(p: Params, samples: list[Sample], until=None, least: int = 2) -> tuple[Params, dict]:
+    """The window's parameter set so the openings change the air as much in the twin as they did in the room: the
+    day-long fit hardly weighs a few hours of opening (Chambre AL, 1 November: 3 hours open, twice the twin's cooling,
+    and the night lowered its window). At least `least` openings; at most WINDOW_MOVE either way in a night."""
+    start = p
+    ratio, n = window_ratio(p, samples, until)
+    report = {"ouvertures": n, "ecart": None if ratio is None else round(ratio, 2)}
+    if ratio is None or n < least:
+        return p, report
+    for _ in range(WINDOW_ROUNDS):
+        if ratio is None or abs(math.log(ratio)) < 0.05:
+            break
+        moved = min(WINDOW_MOVE, max(1 / WINDOW_MOVE, p.window * ratio / start.window))
+        p = replace(p, window=start.window * moved)
+        ratio, _ = window_ratio(p, samples, until)
+    report["apres"] = None if ratio is None else round(ratio, 2)
+    return p, report
+
+
 def params_of(base: Params, x) -> Params:
-    return replace(base, **{name: (math.exp(v) * getattr(base, name) if log else v) for (name, log, _), v in zip(FREE, x)})
+    # The share of the house's heat a room receives is never below nothing (Chambre P had learned −10 %).
+    return replace(base, **{name: (math.exp(v) * getattr(base, name) if log else max(0.0, v) if name == "share" else v)
+                            for (name, log, _), v in zip(FREE, x)})
 
 
 def _start(base: Params):

@@ -102,6 +102,30 @@ class Gestures(unittest.TestCase):
         self.assertEqual(again.gesture, first.gesture)
 
 
+class Steady(unittest.TestCase):
+    """At most one change per half hour (CAHIER-MOTEUR.md § 18.3): 2 November, « Aérez 30 → 20 → 25 min » in twelve
+    minutes, and Chambre P between « Lancez la VMC » and « Rien à faire » four times in an hour."""
+
+    def setUp(self):
+        self.now = Now(air=21.5, walls=21.5, opened=(), humidity=55.0, co2=1600.0)
+        self.coming = day(outdoor=17.0)
+        self.first = decide(TWINS, self.now, self.coming)
+
+    def test_a_duration_shown_stays_while_about_as_good(self):
+        # « Ouvrez » is the best; « Aérez 30 min », shown before and about as good, stays.
+        self.assertEqual(self.first.gesture.kind, "open")
+        other = Gesture("open", 30)
+        again = decide(TWINS, self.now, self.coming, previous=other)
+        self.assertEqual(again.gesture, other)
+
+    def test_a_gesture_shown_is_held_half_an_hour_while_it_still_helps(self):
+        shown = self.first.gesture
+        demoted = decide(TWINS, self.now, self.coming, proof={}, previous=shown, held=10.0)
+        self.assertEqual((demoted.gesture, demoted.rule), (shown, "kept"))
+        later = decide(TWINS, self.now, self.coming, proof={}, previous=shown, held=40.0)
+        self.assertEqual(later.rule, "unproven")
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -170,11 +194,12 @@ class Tonight(unittest.TestCase):
 
 class Sleeping(unittest.TestCase):
     def test_no_window_is_opened_at_night_whatever_the_air(self):
-        # 3 a.m., stale and damp air: nobody gets up to air in the middle of the night; the VMC can still run.
+        # 3 a.m., stale and damp air: nobody gets up to air in the middle of the night, nor to start the VMC's fast speed
+        # (Frank, 2 November: « Lancez la VMC rapide » was asked all night long in Chambre P).
         now = Now(air=20.0, walls=20.0, opened=(), humidity=75.0, co2=1800.0, night=True)
         decision = decide(replace(TWINS, boost=60.0), now, night(start=3.0, hours=4))
         self.assertFalse(any(g.kind == "open" for g in decision.scenarios))
-        self.assertTrue(any(g.kind == "boost" for g in decision.scenarios))
+        self.assertFalse(any(g.kind == "boost" for g in decision.scenarios))
         # A window left open is still to be closed.
         left = decide(TWINS, replace(now, opened=(FRENCH.size,)), night(start=3.0, hours=4))
         self.assertEqual(left.gesture, Gesture("close"))

@@ -4,13 +4,13 @@ it learned only if it forecasts the last day better than before; the gestures se
 Everything here reads plain history (Home Assistant states as dicts, advisor/bench/history.py) and returns plain values:
 the integration fetches the history and keeps the twins, this module only learns. No SciPy: the twin's own search.
 """
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timedelta
 
 from .bench.history import attribute, contacts, numbers
 from .decide import CROSS, sides_apart
 from .physics.airfit import MOVES, TWINS, _run, score as air_score, values, vector
-from .physics.fit import Sample, _nelder_mead, fit, gestures, score
+from .physics.fit import Sample, _nelder_mead, fit, fit_windows, gestures, score
 from .physics.sunlight import sun_position, through_windows
 from .physics.thermal import STEP, Inputs, Params, shutter_insulation
 from .physics.water import absolute
@@ -18,6 +18,11 @@ from .proof import level
 
 # A twin is relearned only from this many recorded days; with fewer, only the gestures are counted.
 MIN_DAYS = 3
+# The share of its declared flow the VMC's fast speed really gives the room, tried on the humidity it took away: the
+# flow is seldom known (Frank, 2 November: « je ne connais pas son débit »), and 60 m³/h foresaw −9 points in an hour
+# where Chambre P lost 2 in four. Kept only with at least BOOST_MINUTES of fast speed seen, and when it forecasts better.
+BOOST_SCALES = (0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.7, 1.0, 1.3)
+BOOST_MINUTES = 60
 # The last day is kept out of the search, to judge it: the new twin is kept only if it forecasts that day better.
 HELD_OUT = timedelta(hours=24)
 # Gestures are remembered this long.
@@ -113,6 +118,25 @@ def _air_rows(key, history, spec, data, outdoor, outdoor_humidity):
     return [(s, v if (v := series.at(s.when)) is not None and ok(v) else None, outside) for s in data]
 
 
+def _boosted(rows, scale: float):
+    """The rows with the VMC's fast speed at this share of its declared flow."""
+    if scale == 1.0:
+        return rows
+    return [(replace(r[0], inputs=replace(r[0].inputs, vent=r[0].inputs.vent * scale)) if r[0].inputs and r[0].inputs.vent
+             else r[0], *r[1:]) for r in rows]
+
+
+def _boost_scale(kind, x, volume, rows, start, now, kept: float) -> dict | None:
+    """The share of the declared fast speed that forecasts the room's humidity best, when the fast speed ran long enough."""
+    running = sum(1 for r in rows if r[0].inputs and r[0].inputs.vent) * STEP / 60
+    if running < BOOST_MINUTES:
+        return None
+    scores = {k: air_score(kind, x, volume, _boosted(rows, k), start, now) for k in BOOST_SCALES}
+    best = min(scores, key=scores.get)
+    keep = best if scores[best] < scores.get(kept, scores[1.0]) else kept
+    return {"minutes": round(running), "essais": {str(k): round(v, 3) for k, v in scores.items()}, "garde": keep}
+
+
 def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor: str, outdoor_humidity: str,
                location, zone, house_heaters=None, start: datetime | None = None) -> tuple[dict, dict]:
     """The room's twins after a night: (the entry to keep, the report). `entry` is the room's twins as kept (jumeaux.json):
@@ -129,6 +153,10 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
     split = now - HELD_OUT
 
     heat = Params(**entry["heat"])
+    if heat.share < 0:
+        # Learned before the bound: a room receives no less than nothing of the house's heat.
+        heat = replace(heat, share=0.0)
+        entry["heat"] = asdict(heat)
     if days >= MIN_DAYS:
         before = score(heat, data, since=split)
         found = fit(heat, data, until=split, iterations=HEAT_SEARCH, held=spec.declared)
@@ -139,6 +167,16 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
         if kept:
             heat = found
             entry["heat"] = asdict(found)
+        # Then the windows' effect, on the openings themselves; kept when the last day is forecast no worse than 5 % off.
+        tuned, windows = fit_windows(heat, data, until=split)
+        if tuned != heat:
+            now_score, tuned_score = score(heat, data, since=split), score(tuned, data, since=split)
+            windows["garde"] = tuned_score.hour + tuned_score.three <= 1.05 * (now_score.hour + now_score.three)
+            windows["fenetre"] = [round(heat.window, 3), round(tuned.window, 3)]
+            if windows["garde"]:
+                heat = tuned
+                entry["heat"] = asdict(tuned)
+        report["fenetres"] = windows
     seen = [[g["when"].isoformat(), g["forecast"], g["measured"]] for g in gestures(heat, data) if g["kind"] == "window"]
     entry["gestures"]["heat"] = _merge(entry["gestures"].get("heat"), seen, start, now, now)
 
@@ -158,7 +196,12 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
             if kept:
                 x = found
                 entry[key], entry[f"{key}_flow"] = values(kind, x, volume)
-        run = _run(kind, x, volume, rows, start, now)
+        if key == "water" and days >= MIN_DAYS:
+            scale = _boost_scale(kind, x, volume, rows, start, now, entry.get("boost_scale", 1.0))
+            if scale is not None:
+                report["vmc_rapide"] = scale
+                entry["boost_scale"] = scale["garde"]
+        run = _run(kind, x, volume, _boosted(rows, entry.get("boost_scale", 1.0)), start, now)
         seen = [[when.isoformat(), forecast, measured] for measured, forecast, when in run["gestures"]]
         entry["gestures"][subject] = _merge(entry["gestures"].get(subject), seen, start, now, now)
         # Each device started: its effect on this subject (« boost:humidity », « purify:particles »).
