@@ -208,8 +208,8 @@ def candidate(hass, entity_id, key, area_id=None, *, include_legacy=False, indoo
         warnings.append("other_area")
     if key == "windows" and device_class != "window":
         warnings.append("contact_role")
-    # A temperature derived by Versatile Thermostat is second-hand; its climate entity, as the heating, is the extension.
-    if entry.platform in ("template", "plant") or (entry.platform == thermostats.PLATFORM and key != "heating"):
+    # A temperature derived by a speaking thermostat is second-hand; its climate entity, as the heating, is the extension.
+    if entry.platform in ("template", "plant") or (entry.platform in thermostats.SPEAKS and key != "heating"):
         warnings.append("derived")
     if key == "heating" and not attrs.get("hvac_action"):
         warnings.append("no_hvac_action")
@@ -238,7 +238,7 @@ def candidate(hass, entity_id, key, area_id=None, *, include_legacy=False, indoo
             "adapter": adapter, "warnings": list(dict.fromkeys(warnings)), "provenance": chain,
             "device_class": device_class, "atmo_label": attrs.get("Libellé") if adapter == "atmo_daily" else None,
             **({"voc_reference": voc_reference(hass, entry, device_class, attrs.get("unit_of_measurement"))} if key == "voc" else {}),
-            **({"thermostat": thermostats.read(state.state, dict(attrs))} if key == "heating" and entry.platform == thermostats.PLATFORM else {})}
+            **({"thermostat": thermostats.read(state.state, dict(attrs))} if key == "heating" and entry.platform in thermostats.SPEAKS else {})}
 
 
 def catalog(hass, area_id=None, selected=None, indoor_ids=(), *, keys=None, entries=None):

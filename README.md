@@ -122,6 +122,7 @@ Hestia Confort fonctionne seul. Chaque extension installée le rend plus juste, 
 | --- | --- |
 | [Hestia Weather](https://github.com/hestiaFB/hestia-weather-integration) | Le dehors pour toutes les pièces, avec les prévisions, les vigilances et l’air |
 | [Versatile Thermostat](https://github.com/jmcollin78/versatile_thermostat) | La consigne et la raison d’un arrêt : plus de « Rallumez » quand le thermostat s’en charge |
+| [Better Thermostat](https://github.com/KartoffelToby/better_thermostat) | La consigne en cours comme minimum, l’arrêt fenêtre et les préréglages éco, absence et veille |
 | [Adaptive Cover Pro](https://github.com/jrhubott/adaptive-cover-pro) | Les volets pilotés avec le soleil : Confort sait quand ils se ferment |
 | [Alarmo](https://github.com/nielsfaber/alarmo) | Maison vide, nuit, vacances : une fenêtre ouverte alarme armée est signalée |
 
@@ -151,6 +152,17 @@ Dès que vous le choisissez dans l’onglet **Chauffage** d’une pièce :
 - la fenêtre ouverte qu’il détecte est signalée, même sans contact sur la fenêtre.
 
 Un autre thermostat ne dit pas s’il chauffe ? Choisissez son **indicateur de chauffe** (vanne, relais, état de marche) dans l’onglet **Chauffage** : l’apprentissage du chauffage peut alors aller jusqu’au bout.
+
+### Better Thermostat
+
+Dès que vous le choisissez dans l’onglet **Chauffage** d’une pièce :
+
+- la consigne en cours sert de minimum à la pièce, y compris sans préréglage : le confort nommé (souvent 21 °C) ne remplace pas une consigne laissée plus basse ;
+- en éco, en absence ou en veille, une pièce plus fraîche est voulue : Hestia ne demande pas de rallumer ;
+- arrêté par une fenêtre ouverte, il repart seul. Arrêté à la main, « Rallumez le chauffage » reste le geste de la personne ;
+- la fenêtre ouverte qu’il détecte est signalée, même sans contact sur la fenêtre.
+
+Il n’a pas de hors-gel ni de présence à lui. Hestia ne commande rien.
 
 ### Adaptive Cover Pro
 

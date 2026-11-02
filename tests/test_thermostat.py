@@ -111,5 +111,64 @@ class Advice(unittest.TestCase):
         self.assertTrue(a.features["warmth"]["occupied"])
 
 
+# Better Thermostat 1.9: the live set point is `temperature`, presets are a JSON string, slope is K/min.
+BETTER = {"hvac_action": "idle", "preset_mode": "none", "temperature": 19.5, "window_open": False, "temp_slope_K_min": 0.0084,
+          "main_mode": "off", "bt_preset_heat_temperatures": '{"comfort": 21, "eco": 19, "sleep": 18, "away": 16, "none": 19.5}'}
+
+
+class Better(unittest.TestCase):
+    def test_live_set_point_not_the_comfort_preset(self):
+        t = thermostat.read("heat", BETTER)
+        self.assertEqual(t["name"], "Better Thermostat")
+        self.assertEqual((t["mode"], t["preset"], t["target"], t["comfort"], t["eco"], t["frost"]), ("heat", None, 19.5, 21.0, 19.0, None))
+        self.assertAlmostEqual(t["slope"], 0.504)
+        self.assertIsNone(t["off_reason"])
+        self.assertFalse(t["window"])
+        self.assertIsNone(t["occupied"])
+        self.assertFalse(t["active"])
+        # 19.5 °C is what it aims at now; comfort stays 21 °C and does not become the minimum.
+        self.assertEqual(thermostat.reference(t, 24), 19.5)
+        self.assertFalse(thermostat.lowered(t))
+
+    def test_the_climate_state_wins_over_main_mode(self):
+        t = thermostat.read("heat", {**BETTER, "hvac_mode": "off"})
+        self.assertEqual(t["mode"], "heat")
+        self.assertIsNone(t["off_reason"])
+
+    def test_sleep_eco_and_away_aim_lower(self):
+        for preset, target in (("eco", 19), ("away", 16), ("sleep", 18)):
+            t = thermostat.read("heat", {**BETTER, "preset_mode": preset, "temperature": target, "hvac_action": "heating"})
+            self.assertTrue(thermostat.lowered(t), preset)
+            self.assertTrue(t["active"])
+            a = run(target - 1.5, t, heating="idle")
+            self.assertEqual(a.reason, "heat_needed")
+            self.assertTrue(a.features["warmth"]["thermostat"]["lowered"])
+            self.assertIn(a.level, ("calm", "neutral"))
+
+    def test_a_window_stop_resumes_and_a_hand_stop_does_not(self):
+        window = thermostat.read("off", {**BETTER, "window_open": True, "hvac_action": "off"})
+        self.assertEqual((window["off_reason"], window["window"]), ("window", True))
+        stopped = {**window, "slope": None}
+        first = run(17.5, stopped)
+        self.assertIn(run(17.5, stopped, first, NOW + timedelta(minutes=31)).level, ("calm", "neutral"))
+        manual = thermostat.read("off", {**BETTER, "hvac_action": "off"})
+        self.assertEqual(manual["off_reason"], "manual")
+        first = run(17.5, {**manual, "slope": None})
+        self.assertEqual(run(17.5, {**manual, "slope": None}, first, NOW + timedelta(minutes=31)).level, "action")
+
+    def test_an_open_window_while_heating_is_only_said(self):
+        t = thermostat.read("heat", {**BETTER, "window_open": True})
+        self.assertIsNone(t["off_reason"])
+        self.assertTrue(run(21, t, heating="idle").features["thermostat"]["window"])
+
+    def test_cool_presets_and_an_unused_zero(self):
+        t = thermostat.read("cool", {**BETTER, "bt_preset_cool_temperatures": '{"comfort": 24, "eco": 0}'})
+        self.assertEqual((t["comfort"], t["eco"]), (24, None))
+
+    def test_a_json_object_already_decoded(self):
+        t = thermostat.read("heat", {**BETTER, "bt_preset_heat_temperatures": {"comfort": 21, "eco": 19}})
+        self.assertEqual((t["comfort"], t["eco"]), (21, 19))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -51,6 +51,8 @@ class Room:
     """Sources read from the room it shares its air with: key → that room's name."""
     thermostat: bool = False
     """Its heating is a Versatile Thermostat (engine/thermostat.py)."""
+    better: bool = False
+    """Its heating is a Better Thermostat (engine/thermostat.py)."""
     driven_covers: int = 0
     """Its covers driven with the sun (cover_link.py)."""
     drivers: frozenset = frozenset()
@@ -183,7 +185,8 @@ def report(f):
 
     # Extensions: Hestia's own bricks, then other integrations Hestia reads by itself, each making the advice better where it is used.
     vt = [r.title for r in f.rooms if r.thermostat]
-    linked = {"hestia_weather": [f.weather] if f.weather else [], thermostats.PLATFORM: vt, people.PLATFORM: [f.alarm] if f.alarm else [],
+    bt = [r.title for r in f.rooms if r.better]
+    linked = {"hestia_weather": [f.weather] if f.weather else [], thermostats.PLATFORM: vt, thermostats.BETTER: bt, people.PLATFORM: [f.alarm] if f.alarm else [],
               **{key: [r.title for r in f.rooms if key in r.drivers] for key in cover_link.ADAPTERS}, "wled": f.wled}
     installed = {"hestia_weather": f.weather_installed}
     extensions = []
@@ -193,7 +196,7 @@ def report(f):
         text = (t("relié · {place}", place=f.weather) if ext["key"] == "hestia_weather" else f.alarm if ext["key"] == people.PLATFORM
                 else _count(len(found), "{n} pièce", "{n} pièces") + " · " + ", ".join(found)) if found and state != "off" else t("désactivée") if state == "off" else t(ext[state])
         extensions.append({**{k: ext[k] for k in ("key", "name", "official", "url")}, **{k: t(ext[k]) for k in ("role", "use", "without")},
-                           "state": state, "level": "ok" if found else "none", "text": text, "rooms": found if ext["key"] in (thermostats.PLATFORM, "wled") or ext["key"] in cover_link.ADAPTERS else []})
+                           "state": state, "level": "ok" if found else "none", "text": text, "rooms": found if ext["key"] in (thermostats.PLATFORM, thermostats.BETTER, "wled") or ext["key"] in cover_link.ADAPTERS else []})
     # Installed integrations Confort does not read yet: shown so that the person can ask for them.
     others = [{**o, "use": t(o["use"])} for o in OTHERS if o["key"] in f.installed]
     versions = [{"level": "ok", "text": t("Intégration {version}", version=f.version), "why": t("avec sa carte")},
@@ -220,6 +223,11 @@ EXTENSIONS = (
     {"key": thermostats.PLATFORM, "name": thermostats.NAME, "official": False, "url": "https://github.com/jmcollin78/versatile_thermostat",
      "role": N_("Consigne confort, raison d’un arrêt, présets, pente"),
      "use": N_("Consigne de confort, raison d’un arrêt (fenêtre, absence), préréglage et pente de chauffe : plus de conseil de chauffer quand le thermostat s’en charge."),
+     "without": N_("Sans lui : le chauffage est lu sur le thermostat de Home Assistant seulement."),
+     "found": N_("installé, aucun chauffage choisi dans une pièce"), "missing": N_("non installé")},
+    {"key": thermostats.BETTER, "name": "Better Thermostat", "official": False, "url": "https://github.com/KartoffelToby/better_thermostat",
+     "role": N_("Consigne en cours, arrêt fenêtre, préréglages, pente"),
+     "use": N_("La consigne en cours sert de minimum : plus de conseil de chauffer quand Better Thermostat vise déjà cette température. Éco, absence et veille visent plus bas. Une fenêtre qu’il a vue est signalée, et un arrêt fenêtre reprend seul."),
      "without": N_("Sans lui : le chauffage est lu sur le thermostat de Home Assistant seulement."),
      "found": N_("installé, aucun chauffage choisi dans une pièce"), "missing": N_("non installé")},
     {"key": "adaptive_cover_pro", "name": cover_link.NAME, "official": False, "url": "https://github.com/jrhubott/adaptive-cover-pro",
@@ -250,7 +258,6 @@ EXTENSIONS = (
 )
 # Integrations Confort could read one day: listed only when Home Assistant has them.
 OTHERS = (
-    {"key": "better_thermostat", "name": "Better Thermostat", "use": N_("Pourrait donner la consigne et l’arrêt fenêtre ouverte.")},
     {"key": "smartir", "name": "SmartIR", "use": N_("Pourrait dire si la climatisation tourne, et dans quel mode.")},
     {"key": "scheduler", "name": "Scheduler", "use": N_("Pourrait dire quand le chauffage va reprendre.")},
 )
@@ -305,6 +312,7 @@ async def facts(hass, version):
         room.shared = coordinator.inherited() if hasattr(coordinator, "inherited") else {}
         heating = er.async_get(hass).async_get(sources["heating"]) if sources.get("heating") else None
         room.thermostat = bool(heating and heating.platform == thermostats.PLATFORM and thermostats.PLATFORM not in disabled)
+        room.better = bool(heating and heating.platform == thermostats.BETTER and thermostats.BETTER not in disabled)
         driven = {w: r for w, r in (getattr(coordinator, "drivers", None) or {}).items() if w in windows}
         room.driven_covers = len(driven)
         room.drivers = frozenset(r.get("driver", "adaptive_cover_pro") for r in driven.values())

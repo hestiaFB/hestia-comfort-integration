@@ -1,4 +1,4 @@
-"""Versatile Thermostat, recognised by itself: the extension that lets the heating speak for itself.
+"""Versatile Thermostat and Better Thermostat, recognised by themselves: the extensions that let the heating speak.
 
 Any climate entity gives its mode and, often, what it is doing. A Versatile Thermostat says much more, and Hestia reads
 it when the room's heating is one (its platform, never its name):
@@ -14,18 +14,28 @@ it when the room's heating is one (its platform, never its name):
 - the window it saw open, said to the person when no contact of the room says it.
 
 Versatile Thermostat 7 and later group these attributes (`specific_states`, `preset_temperatures`, `window_manager`…);
-earlier versions kept them flat. Both are read. Hestia still commands nothing.
+earlier versions kept them flat. Both are read.
+
+Better Thermostat is read from what it publishes. The live set point is the target, including when no preset is
+selected: the named comfort preset stays the comfort temperature and does not replace the set point. Its slope is in
+kelvin per minute and becomes °C per hour. It has no frost preset and no presence of its own. A window it saw open
+is said; when the climate is off because of that window, the stop resumes by itself, and an off with the window
+closed is the person's to undo. Hestia still commands nothing.
 """
+import json
 import math
 
 PLATFORM = "versatile_thermostat"
 NAME = "Versatile Thermostat"
+BETTER = "better_thermostat"
+# The climates that speak: Versatile Thermostat, and Better Thermostat.
+SPEAKS = (PLATFORM, BETTER)
 # Why the thermostat is off, in its own words, and whether the person is the one to switch it back on.
 OFF_REASONS = {"hvac_off_manual": "manual", "hvac_off_window_detection": "window", "hvac_off_auto_start_stop": "auto_start_stop",
                "hvac_off_sleep_mode": "sleep", "hvac_off_safety_detection": "safety", "hvac_off_central_mode": "central_mode",
                "hvac_off_inhibition": "inhibition"}
-# Presets that aim lower on purpose: a room under its range is then expected.
-LOWERED = ("eco", "frost", "away")
+# Presets that aim lower on purpose: a room under its range is then expected. Sleep is Better Thermostat's night preset.
+LOWERED = ("eco", "frost", "away", "sleep")
 
 
 def _number(value):
@@ -51,9 +61,43 @@ def _on(value):
     return None
 
 
+def _json_map(value):
+    """A dict, or a JSON object stored as text (Better Thermostat preset temperatures); else nothing."""
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            loaded = json.loads(value)
+        except ValueError:
+            return {}
+        return loaded if isinstance(loaded, dict) else {}
+    return {}
+
+
+def _better(state, attrs):
+    """What one Better Thermostat says. The live set point is the target, not the named comfort preset."""
+    mode = state if isinstance(state, str) else None
+    preset = attrs.get("preset_mode")
+    preset = None if preset in (None, "none", "") else str(preset)
+    raw = attrs.get("bt_preset_cool_temperatures") if mode == "cool" else attrs.get("bt_preset_heat_temperatures")
+    temperatures = _json_map(raw)
+    # A preset temperature of 0 is a preset the thermostat does not use.
+    preset_temperature = lambda key: (v if (v := _number(temperatures.get(key))) else None)
+    window = _on(attrs.get("window_open"))
+    slope = _number(attrs.get("temp_slope_K_min"))
+    return {"name": "Better Thermostat", "mode": mode, "action": attrs.get("hvac_action"), "preset": preset,
+            "target": _number(attrs.get("temperature")),
+            "comfort": preset_temperature("comfort"), "eco": preset_temperature("eco"), "frost": None,
+            "off_reason": ("window" if window else "manual") if mode == "off" else None,
+            "slope": None if slope is None else slope * 60,
+            "window": window, "occupied": None, "active": attrs.get("hvac_action") == "heating"}
+
+
 def read(state, attrs):
-    """What one Versatile Thermostat says, from its state and attributes; values it does not give stay None."""
+    """What one speaking thermostat says, from its state and attributes; values it does not give stay None."""
     attrs = attrs if isinstance(attrs, dict) else {}
+    if "bt_preset_heat_temperatures" in attrs or "bt_preset_cool_temperatures" in attrs:
+        return _better(state, attrs)
     mode = attrs.get("hvac_mode") or state
     preset = attrs.get("preset_mode")
     preset = None if preset in (None, "none", "") else str(preset)
@@ -76,7 +120,7 @@ def read(state, attrs):
 
 
 def lowered(thermostat):
-    """The thermostat runs on a preset that aims lower on purpose (eco, frost protection, away)."""
+    """The thermostat runs on a preset that aims lower on purpose (eco, frost protection, away, sleep)."""
     preset = (thermostat or {}).get("preset") or ""
     return thermostat is not None and thermostat.get("mode") not in (None, "off") and any(p in preset for p in LOWERED)
 

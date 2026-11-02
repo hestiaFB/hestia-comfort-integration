@@ -23,7 +23,7 @@ DATA_CONFIG = DOMAIN + "_configuration"
 # The third-party integrations a person can turn off in the general settings.
 # The equipment a room may declare (« Équipements »): each one changes how its air is read.
 EQUIPMENT = ("shower",)
-SWITCHABLE = ("versatile_thermostat", "adaptive_cover_pro", "cover_automatic", "cover_extender", "wled", "alarmo")
+SWITCHABLE = ("versatile_thermostat", "better_thermostat", "adaptive_cover_pro", "cover_automatic", "cover_extender", "wled", "alarmo")
 # A coloured light that shows the advice (« Lumières »): for the whole home or room by room, one look per state of the banner.
 LIGHT_STATES = ("calm", "benefit", "action", "airing", "urgent")
 LIGHT_EFFECTS = ("keep", "off", "solid", "flash")
@@ -255,7 +255,7 @@ class Configuration:
         heated = payload.get("heated", True)
         if not isinstance(heated, bool):
             raise ValueError(t("« Pièce chauffée » doit être oui ou non."))
-        # A Versatile Thermostat's comfort temperature stands as the room's minimum unless the person says otherwise.
+        # A speaking thermostat's set point stands as the room's minimum unless the person says otherwise.
         thermostat_reference = payload.get("thermostat_reference", True)
         if not isinstance(thermostat_reference, bool):
             raise ValueError(t("« Minimum repris du thermostat » doit être oui ou non."))
