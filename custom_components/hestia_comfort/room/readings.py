@@ -72,10 +72,10 @@ class ReadingsMixin:
                 and (now - since).total_seconds() < OPEN_DEBOUNCE_SECONDS)
 
     def _thermostat(self):
-        """What the room's Versatile Thermostat says (engine/thermostat.py); None for any other heating."""
+        """What the room's Versatile Thermostat or Better Thermostat says (engine/thermostat.py); None otherwise."""
         entity_id = self.sources.get("heating")
         entry = er.async_get(self.hass).async_get(entity_id) if entity_id else None
         state = self.hass.states.get(entity_id) if entity_id else None
-        if not self._uses(thermostats.PLATFORM) or not entry or entry.platform != thermostats.PLATFORM or not state or state.state in ("unknown", "unavailable"):
+        if not entry or entry.platform not in thermostats.SPEAKS or not self._uses(entry.platform) or not state or state.state in ("unknown", "unavailable"):
             return None
         return thermostats.read(state.state, dict(state.attributes))

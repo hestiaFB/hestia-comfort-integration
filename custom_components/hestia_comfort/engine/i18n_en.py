@@ -79,6 +79,9 @@ EN: dict[str, str] = {
         "Comfort target, reason for a stop (window, absence), preset and heating slope: no more advice to heat when the thermostat takes care of it.",
     "Sans lui : le chauffage est lu sur le thermostat de Home Assistant seulement.": "Without it: the heating is read from Home Assistant’s thermostat only.",
     "installé, aucun chauffage choisi dans une pièce": "installed, no heating chosen in a room",
+    "Consigne en cours, arrêt fenêtre, préréglages, pente": "Live target, window stop, presets, slope",
+    "La consigne en cours sert de minimum : plus de conseil de chauffer quand Better Thermostat vise déjà cette température. Éco, absence et veille visent plus bas. Une fenêtre qu’il a vue est signalée, et un arrêt fenêtre reprend seul.":
+        "The live target stands as the minimum: no more advice to heat when Better Thermostat already aims for that temperature. Eco, away and sleep aim lower. A window it saw is mentioned, and a window stop resumes by itself.",
     "Volets pilotés avec le soleil": "Shutters driven by the sun",
     "Choisissez les équipements parmi ceux proposés.": "Choose the equipment among those offered.",
     "Volets pilotés par façade, règles et scénarios": "Shutters driven per facade, rules and scenarios",
@@ -94,7 +97,6 @@ EN: dict[str, str] = {
         "Empty home, night, holidays: no airing suggested when nobody is there, and a warning if a window stays open with the alarm set.",
     "Sans elle : l’absence est lue sur les personnes de la maison.": "Without it: absence is read from the people of the home.",
     "installée, pas utilisée": "installed, not used", "non installée": "not installed",
-    "Pourrait donner la consigne et l’arrêt fenêtre ouverte.": "Could give the target and the open-window stop.",
     "Pourrait dire si la climatisation tourne, et dans quel mode.": "Could tell whether the air conditioning runs, and in which mode.",
     "Pourrait dire quand le chauffage va reprendre.": "Could tell when the heating will start again.",
     "qualité de l’air": "air quality",

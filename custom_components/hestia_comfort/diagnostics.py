@@ -21,7 +21,8 @@ ATTRIBUTES = ("unit_of_measurement", "device_class", "state_class", "friendly_na
               "hvac_modes", "preset_mode", "temperature", "current_temperature", "current_position", "percentage",
               "specific_states", "preset_temperatures", "window_manager", "presence_manager", "motion_manager",
               "hvac_off_reason", "temperature_slope", "is_device_active", "window_state", "window_auto_state",
-              "presence_state", "motion_state", "eco_temp", "comfort_temp", "frost_temp")
+              "presence_state", "motion_state", "eco_temp", "comfort_temp", "frost_temp",
+              "window_open", "temp_slope_K_min", "bt_preset_heat_temperatures", "bt_preset_cool_temperatures")
 
 
 def _state(hass, entity_id):

@@ -77,7 +77,7 @@ Le menu de gauche de l’onglet **Confort** a trois pages :
 La rubrique **Extensions** des Réglages généraux a trois parties :
 
 - **Extensions officielles Hestia** : Hestia Weather, ou vos propres capteurs pour le dehors ([L’extérieur](#lextérieur)).
-- **Extensions tierces** : Versatile Thermostat, Adaptive Cover Pro et Alarmo. Chacune dit à quoi elle sert, dans quelles pièces, et a un interrupteur. Coupée, elle n’est lue dans aucune pièce, et les réglages des pièces le disent.
+- **Extensions tierces** : Versatile Thermostat, Better Thermostat, Adaptive Cover Pro et Alarmo. Chacune dit à quoi elle sert, dans quelles pièces, et a un interrupteur. Coupée, elle n’est lue dans aucune pièce, et les réglages des pièces le disent.
 - **Détectées, pas encore lues par Confort** : les intégrations de votre Home Assistant qui pourraient aider, Scheduler par exemple. **Demander** ouvre une demande toute prête sur GitHub ; rien n’est envoyé sans vous.
 
 ![Les extensions dans les Réglages généraux : officielles, tierces avec leur interrupteur, et détectées à proposer](images/hestia-comfort-extensions.png)
@@ -196,6 +196,8 @@ L’attribut `source` de « Chauffage observé » dit d’où vient l’état : 
 - la fenêtre ouverte qu’il détecte, dite dans « À savoir » quand aucun contact de la pièce ne le dit.
 
 Il ne commande rien.
+
+**Avec Better Thermostat**, reconnu tout seul de la même façon : la **consigne en cours** sert de minimum (coché par défaut), pas le préréglage confort. Une pièce à 19 °C quand il vise 19 °C n’est pas « trop fraîche », même si le confort est à 21 °C. En éco, en absence ou en veille, une pièce plus fraîche est voulue. Arrêté par une fenêtre, il repart seul ; arrêté à la main, « Rallumez » reste le geste de la personne. La fenêtre qu’il a vue ouverte est dite dans « À savoir ». Il n’a pas de hors-gel ni de présence. Hestia ne commande rien.
 
 ### La pièce
 

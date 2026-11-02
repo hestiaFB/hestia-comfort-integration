@@ -8,7 +8,7 @@ import {t,t as tr,tx,tl} from '../i18n';
 
 /** The level, said in two or three words: the colour is never the only signal. */
 // Versatile Thermostat's presets and the reasons it stops by itself, in the person's words.
-const presetWord=(p:string|null)=>!p?'mode réduit':p.includes('frost')?'hors-gel':p.includes('away')?'absence':p.includes('eco')?'éco':p;
+const presetWord=(p:string|null)=>!p?'mode réduit':p.includes('frost')?'hors-gel':p.includes('away')?'absence':p.includes('eco')?'éco':p.includes('sleep')?'nuit':p;
 const offWords:Record<string,string>={window:'fenêtre ouverte',auto_start_stop:'arrêt automatique',sleep:'veille',safety:'sécurité',central_mode:'mode central',inhibition:'délestage'};
 
 /** The banner's mood, which sets the ring and the light: « Au mieux » is calm, but not « Tout va bien ». */

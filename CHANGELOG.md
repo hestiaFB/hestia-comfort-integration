@@ -1,3 +1,9 @@
+## À venir
+
+### Améliorations
+
+- **Better Thermostat** est lu comme une extension. La consigne en cours sert de minimum à la pièce. Les préréglages éco, absence et veille visent plus bas. Une fenêtre ouverte est signalée, et un arrêt fenêtre reprend seul. Hestia ne commande rien.
+
 ## 2.1.0b8 — Bêta : l'air en liste et l'encart d'information
 
 ### Avant de mettre à jour
