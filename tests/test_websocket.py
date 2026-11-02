@@ -96,6 +96,24 @@ class WebsocketTests(unittest.IsolatedAsyncioTestCase):
         await self.hass.async_block_till_done()
         self.assertEqual(self.conn.send_message.call_count,count)
 
+    async def test_a_room_reloading_without_runtime_data_does_not_break_the_home_feed(self):
+        """Issue #45: Home Assistant drops runtime_data while a room unloads; the feed must neither raise nor skip the room."""
+        from custom_components.hestia_comfort.websocket import ws_home_subscribe, ws_view, loaded_entries
+        grouped = patch('custom_components.hestia_comfort.websocket.async_call_later',
+                        lambda hass, delay, action: (hass.loop.call_soon(action), lambda: None)[1])
+        grouped.start()
+        self.addCleanup(grouped.stop)
+        entry = await self.add('salon')
+        ws_home_subscribe(self.hass, self.conn, {'id': 3, 'type': 'hestia_comfort/home_subscribe'})
+        coordinator = entry.runtime_data
+        del entry.runtime_data  # what Home Assistant does on unload
+        coordinator.async_set_update_error(ValueError('fixture unavailable'))
+        await self.hass.async_block_till_done()
+        self.assertEqual(len(self.conn.send_message.call_args.args[0]['event']['rooms']), 1)
+        self.assertEqual(loaded_entries(self.hass), [])
+        ws_view(self.hass, self.conn, {'id': 4, 'type': 'hestia_comfort/view', 'entry_id': entry.entry_id})
+        self.assertEqual(self.conn.send_error.call_args.args[1], 'not_found')
+
     def test_a_refresh_that_changed_nothing_is_not_sent_again_before_the_heartbeat(self):
         from custom_components.hestia_comfort import websocket
         conn = Mock()
