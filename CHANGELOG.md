@@ -1,3 +1,13 @@
+## 1.7.29 — Un correctif pour les pièces rechargées
+
+**En bref**
+
+- **Plus d'erreur « runtime_data » dans le journal** quand une pièce se recharge.
+
+### Corrections
+
+- Une pièce qui se recharge ne fait plus planter la mise à jour de la carte du logement : l'information du soleil et des autres mesures continue d'arriver.
+
 ## 1.7.28 — Hestia Confort en anglais, un panneau plus léger, et le passage à la version 2 préparé
 
 **En bref**
