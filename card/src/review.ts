@@ -69,38 +69,38 @@ export class ComfortReview extends LitElement {
  private asked=false;
  static styles=css`
   :host{display:block;--rv-surface:var(--nc-surface,var(--card-background-color,#222932));--rv-muted:var(--nc-muted,var(--secondary-text-color,#bdc5d1));--rv-border:var(--nc-border,var(--divider-color,#657386))}
-  h1{margin:0;font-size:24px;font-weight:600}h2{margin:0;font-size:17px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px}
-  .muted{color:var(--rv-muted);font-size:14px}.small{font-size:12px}
+  h1{margin:0;font-size:var(--nw-fs-case,21px);font-weight:600}h2{margin:0;font-size:var(--nw-fs-title,17px);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .muted{color:var(--rv-muted);font-size:var(--nw-fs-text,14px)}.small{font-size:var(--nw-fs-small,12px)}
   .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px}
   .note{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:16px;border-radius:14px;background:var(--rv-surface)}
   .scale{display:flex;align-items:center;gap:4px}.scale span{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:600;background:color-mix(in srgb,var(--rv-muted) 14%,transparent);color:var(--rv-muted)}
-  .scale span.on{width:46px;height:46px;font-size:22px}
+  .scale span.on{width:46px;height:46px;font-size:var(--nw-fs-case,21px)}
   .scale span.on.good{background:color-mix(in srgb,${CSS_BLUE} 30%,transparent);color:var(--nc-accent,#a1c9e8)}.scale span.on.bad{background:color-mix(in srgb,${CSS_AMBER} 30%,transparent);color:var(--nc-todo,#f2a65a)}
   .letter{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:8px;font-weight:600}
-  .letter.big{min-width:46px;height:46px;font-size:22px;border-radius:12px}
+  .letter.big{min-width:46px;height:46px;font-size:var(--nw-fs-case,21px);border-radius:12px}
   .good{background:color-mix(in srgb,${CSS_BLUE} 24%,transparent);color:var(--nc-accent,#a1c9e8)}.bad{background:color-mix(in srgb,${CSS_AMBER} 26%,transparent);color:var(--nc-todo,#f2a65a)}
-  .none{background:color-mix(in srgb,var(--rv-muted) 14%,transparent);color:var(--rv-muted);font-size:12px;padding:0 8px;font-weight:500}
+  .none{background:color-mix(in srgb,var(--rv-muted) 14%,transparent);color:var(--rv-muted);font-size:var(--nw-fs-small,12px);padding:0 8px;font-weight:500}
   .panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px;margin-top:16px}
   .panel{background:var(--rv-surface);border-radius:14px;padding:14px 16px}
-  .headline{font-size:16px;font-weight:600;margin:6px 0 2px}
+  .headline{font-size:var(--nw-fs-title,17px);font-weight:600;margin:6px 0 2px}
   .rooms{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px}
   .room{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--rv-surface);border:1px solid transparent;border-radius:12px;padding:10px 12px;cursor:pointer;color:inherit;font:inherit;text-align:left}
   .room:hover,.room:focus-visible{border-color:var(--rv-border)}
   section.theme{border-top:1px solid color-mix(in srgb,var(--rv-border) 50%,transparent);padding:18px 0 6px;margin-top:12px}
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:10px 0}
-  .stat{background:var(--rv-surface);border-radius:10px;padding:8px 10px}.stat b{display:block;font-size:19px;font-weight:600}
-  .chips{display:flex;gap:6px;flex-wrap:wrap}.chip{font-size:12px;padding:3px 10px;border-radius:999px}
-  .back{background:none;border:none;color:var(--nc-accent,#a1c9e8);font:inherit;font-size:14px;cursor:pointer;padding:0;margin-bottom:10px}
-  .seg{display:flex;gap:4px}.seg button{font:inherit;font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--rv-border);background:none;color:inherit;cursor:pointer}.seg button.on{background:color-mix(in srgb,${CSS_BLUE} 25%,transparent)}
+  .stat{background:var(--rv-surface);border-radius:10px;padding:8px 10px}.stat b{display:block;font-size:var(--nw-fs-case,21px);font-weight:600}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}.chip{font-size:var(--nw-fs-small,12px);padding:3px 10px;border-radius:999px}
+  .back{background:none;border:none;color:var(--nc-accent,#a1c9e8);font:inherit;font-size:var(--nw-fs-text,14px);cursor:pointer;padding:0;margin-bottom:10px}
+  .seg{display:flex;gap:4px}.seg button{font:inherit;font-size:var(--nw-fs-small,12px);padding:3px 10px;border-radius:999px;border:1px solid var(--rv-border);background:none;color:inherit;cursor:pointer}.seg button.on{background:color-mix(in srgb,${CSS_BLUE} 25%,transparent)}
   svg{width:100%;height:auto;display:block;margin-top:6px}svg .grid{stroke:color-mix(in srgb,var(--rv-muted) 22%,transparent);stroke-width:.5}svg .tick{fill:var(--rv-muted);font-size:9px}
-  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--rv-muted);margin-top:4px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-  details{margin-top:10px;font-size:14px}summary{cursor:pointer;color:var(--rv-muted)}details p{color:var(--rv-muted);line-height:1.6}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:var(--nw-fs-small,12px);color:var(--rv-muted);margin-top:4px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+  details{margin-top:10px;font-size:var(--nw-fs-text,14px)}summary{cursor:pointer;color:var(--rv-muted)}details p{color:var(--rv-muted);line-height:1.6}
   .notice{padding:12px 14px;border-radius:12px;background:var(--rv-surface)}
   .advice{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px}
   .tip{display:block;text-align:left;font:inherit;color:inherit;background:var(--rv-surface);border:1px solid transparent;border-radius:12px;padding:10px 12px}
   .tip.action{border-color:color-mix(in srgb,${CSS_AMBER} 55%,transparent)}.tip.benefit{border-color:color-mix(in srgb,#639922 60%,transparent)}
   button.tip{cursor:pointer}button.tip:hover{background:color-mix(in srgb,var(--rv-surface) 80%,var(--rv-border))}
-  .tip b{display:block;font-size:15px;font-weight:600;margin:2px 0}
+  .tip b{display:block;font-size:var(--nw-fs-text,14px);font-weight:600;margin:2px 0}
   .sheet{max-width:900px}
   /* Animations on arrival: bars grow, lines draw, the grade and the panels rise; none when the system asks for less motion. */
   @keyframes rv-rise{from{opacity:0;transform:translateY(8px)}}@keyframes rv-grow-y{from{transform:scaleY(0)}}@keyframes rv-grow-x{from{transform:scaleX(0)}}
@@ -213,7 +213,7 @@ export class ComfortReview extends LitElement {
   const split=[0,1,2].map(i=>avg(rooms.map(r=>r.themes.air!.split[i])));
   return html`<div class="panel"><h2><span>${tr('Air')}</span>${this.letter(t.letter)}</h2>
    <div class="headline">${t.score} / 100 · ${good(t.letter)?tr('air sain'):tr('à renouveler plus souvent')}</div><div class="muted small">${tr('CO₂, part du temps')} · ${rooms.map(r=>r.title).join(', ')}${rooms.length<this.data!.rooms.length?(rooms.length>1?tr(', seules pièces équipées'):tr(', seule pièce équipée')):''}</div>
-   <div style="display:flex;align-items:center;gap:16px">${this.donut(split)}<div class="legend" style="flex-direction:column;gap:4px;font-size:13px">
+   <div style="display:flex;align-items:center;gap:16px">${this.donut(split)}<div class="legend" style="flex-direction:column;gap:4px;font-size:var(--nw-fs-small,12px)">
     <span><i style="background:${BLUE}"></i>${tr('{n} % très bon',{n:num(split[0],0)})}</span><span><i style="background:${AMBER_LIGHT}"></i>${tr('{n} % correct',{n:num(split[1],0)})}</span><span><i style="background:${AMBER}"></i>${tr('{n} % à renouveler',{n:num(split[2],0)})}</span></div></div></div>`;
  }
  private donut(parts:number[]){

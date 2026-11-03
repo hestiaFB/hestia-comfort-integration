@@ -47,7 +47,7 @@
 .nsc-splash { position:absolute; bottom:3px; width:9px; height:3px; margin-left:-4.5px; border-radius:50%; border:1.2px solid #7fa6cf; opacity:0; animation:nsc-splash .9s ease-out infinite; }
 /* L'heure conseillée, face à nous */
 .nsc-clk { position:absolute; left:50%; bottom:-6px; transform:translateX(-50%); display:inline-flex; align-items:center; gap:4px; padding:3px 9px 3px 6px; border-radius:999px; z-index:5;
-  background:var(--nw-bg); box-shadow:0 0 0 1.5px var(--nsc-frame), 0 4px 10px -4px var(--nsc-shade); font-size:13px; font-weight:700; line-height:1.2; white-space:nowrap; color:var(--nw-fg); }
+  background:var(--nw-bg); box-shadow:0 0 0 1.5px var(--nsc-frame), 0 4px 10px -4px var(--nsc-shade); font-size:var(--nw-fs-text); font-weight:700; line-height:1.2; white-space:nowrap; color:var(--nw-fg); }
 .nsc-clk svg { width:14px; height:14px; flex:none; } .nsc-mn { transform-origin:12px 12px; animation:nsc-spin 6s linear infinite; }
 /* Le volet roulant */
 .nsc-coffre { position:absolute; left:-3px; right:-3px; top:-3px; height:9px; border-radius:3px; background:color-mix(in srgb, var(--nw-fg) 30%, var(--nw-bg)); z-index:2; }

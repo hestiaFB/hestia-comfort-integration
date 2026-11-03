@@ -10,7 +10,7 @@ import './review';
 /** The comfort review on a dashboard: the same review as the hub's « Bilan du logement » page, for the whole family
     (the hub is for administrators only). « summary » opens the full review in a window; « full » shows it in place. */
 export class HestiaComfortReviewCard extends LitElement {
-  static styles=[unsafeCSS(style),css`ha-card{padding:16px}.title{font-size:18px;font-weight:600;margin:0 0 12px}dialog>div:last-child{padding:0 16px 16px}`];
+  static styles=[unsafeCSS(style),css`ha-card{padding:16px}.title{font-size:var(--nw-fs-title);font-weight:600;margin:0 0 12px}dialog>div:last-child{padding:0 16px 16px}`];
   @property({attribute:false}) hass?:HomeAssistant;
   @state() private config?:ReviewConfig;
   @state() private dialogOpen=false;

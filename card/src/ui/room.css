@@ -124,7 +124,7 @@ button.nc-tile { font:inherit; color:inherit; text-align:left; cursor:pointer; b
 .icon { width:18px; height:18px; flex:none; }
 @container (max-width:420px) {
   .nc-hero { padding:16px; } .nc-body { padding:14px 16px; }
-  .nc-advice { font-size:26px; } .nc-disk { width:72px; height:72px; } .nc-disk .icon { width:34px; height:34px; }
+  .nc-advice { font-size:var(--nw-fs-value); } .nc-disk { width:72px; height:72px; } .nc-disk .icon { width:34px; height:34px; }
   .nc-diskwrap { margin:4px 8px 0 2px; }
 }
 /* Mouvement : la lumière du bandeau et l'anneau du rond disent l'état ensemble, des entrées douces.
@@ -227,7 +227,7 @@ button.nc-hit:focus-visible, button.nc-tile:focus-visible { outline:2px solid va
 .nc-hold:focus-visible { outline:2px solid var(--nw-accent); outline-offset:2px; border-radius:var(--nw-radius-card); }
 /* Bandeau compact : même bandeau, plus serré, rond plus petit et décollé de la pastille. */
 .nc-hero.nc-compact { padding:14px 16px; }
-.nc-compact .nc-advice { font-size:24px; letter-spacing:-.6px; }
+.nc-compact .nc-advice { font-size:var(--nw-fs-value); letter-spacing:-.6px; }
 .nc-compact .nc-line { font-size:var(--nw-fs-small); }
 .nc-compact .nc-disk { width:62px; height:62px; } .nc-compact .nc-disk .icon { width:30px; height:30px; }
 .nc-compact .nc-diskwrap { margin:12px 8px 4px 0; }
@@ -253,7 +253,7 @@ button.nc-chip:hover { border-color:color-mix(in srgb, var(--nw-fg) 30%, transpa
 .nc-line-card .nc-disk::before, .nc-line-card .nc-disk::after { inset:-5px; }
 .nc-line-text { flex:1; min-width:0; }
 .nc-line-text span { display:block; font-size:var(--nw-fs-small); color:var(--nw-fg2); }
-.nc-line-text b { display:block; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.nc-line-text b { display:block; font-size:var(--nw-fs-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .nc-line-card .nc-chips { margin:0; flex-wrap:nowrap; }
 .nc-line-value { font-size:var(--nw-fs-title); font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .nc-line-value small { font-size:var(--nw-fs-small); font-weight:400; color:var(--nw-fg2); }
@@ -320,14 +320,14 @@ button.nc-row:hover { background:color-mix(in srgb, var(--nw-fg) 5%, transparent
 .nc-h-tabs button.on { background:var(--nw-fg); color:var(--nw-bg); border-color:var(--nw-fg); }
 .nc-h-svg { display:block; width:100%; height:auto; }
 .nc-h-edge { stroke:color-mix(in oklab, var(--nw-ok) 70%, var(--nw-fg)); stroke-width:1; stroke-dasharray:3 3; opacity:.6; }
-.nc-h-value { font-size:9px; font-weight:700; fill:var(--nw-fg); }
+.nc-h-value { font-size:var(--nw-fs-label); font-weight:700; fill:var(--nw-fg); }
 .nc-h-dot { fill:var(--nw-bg); stroke-width:2; }
 .nc-h-base { fill:none; stroke:var(--nw-fg2); stroke-width:1.6; stroke-dasharray:5 3; }
 .nc-h-line { fill:none; stroke-width:2.6; stroke-linejoin:round; }
 .nc-h-now { stroke:var(--nw-accent); stroke-width:1.4; stroke-dasharray:2 3; }
 .nc-h-strip { fill:color-mix(in srgb, var(--nw-fg) 9%, transparent); }
 .nc-h-keep { fill:color-mix(in oklab, var(--nw-heat) 70%, transparent); }
-.nc-h-tick { font-size:8px; fill:var(--nw-fg2); }
+.nc-h-tick { font-size:var(--nw-fs-label); fill:var(--nw-fg2); }
 .nc-h-start { font-weight:700; fill:var(--nw-fg); }
 .nc-h-result { margin:4px 0 0; text-align:center; font-size:var(--nw-fs-small); }
 .k-h-base { width:14px; border-top:2px dashed var(--nw-fg2); }
@@ -367,7 +367,7 @@ button.nc-row:hover { background:color-mix(in srgb, var(--nw-fg) 5%, transparent
 .nc-mod-v { all:unset; display:block; margin-top:6px; cursor:default; }
 button.nc-mod-v, button.nc-mod-row { cursor:pointer; }
 .nc-mod-v b, .nc-mod-row b { display:inline-flex; align-items:center; gap:8px; }
-.nc-mod-row b { font-size:calc(var(--nw-fs-title) * 1.25); font-weight:700; font-variant-numeric:tabular-nums; }
+.nc-mod-row b { font-size:var(--nw-fs-case); font-weight:600; font-variant-numeric:tabular-nums; }
 .nc-mod-v b small, .nc-mod-row b small { margin-left:-4px; }
 .nc-mod-row b small { font-size:var(--nw-fs-small); font-weight:400; color:var(--nw-fg2); }
 .nc-mod-rows { display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:8px; }
@@ -409,7 +409,7 @@ button.nc-mod-v, button.nc-mod-row { cursor:pointer; }
 .nc-bt { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:18px; align-items:center; }
 .nc-bt-kicker { font-size:var(--nw-fs-small); font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:color-mix(in oklab, var(--c) 55%, var(--nw-fg)); }
 .nc-bt .nc-advice { margin:3px 0 2px; }
-.nc-b.compact .nc-advice { font-size:24px; letter-spacing:-.6px; }
+.nc-b.compact .nc-advice { font-size:var(--nw-fs-value); letter-spacing:-.6px; }
 .nc-bt .nc-line { color:var(--nw-fg2); } .nc-bt .nc-line b { color:var(--nw-fg); }
 /* What helps to act: « ouvert depuis 95 min », the window to open, as a small tag with its pictogram. */
 .nc-bt-tag { display:inline-flex; align-items:center; gap:6px; margin-top:10px; padding:4px 11px 4px 8px; border-radius:var(--nw-radius-pill); font-size:var(--nw-fs-small); font-weight:600;
@@ -443,7 +443,7 @@ button.nc-mod-v, button.nc-mod-row { cursor:pointer; }
 .nc-b .nc-chips { margin-top:14px; }
 .nc-b .nc-why { position:relative; }
 @container (max-width:440px) {
-  .nc-b { padding:16px 16px 6px; } .nc-bt { gap:12px; } .nc-orb { width:58px; height:58px; } .nc-orb .icon { width:26px; height:26px; } .nc-advice { font-size:26px; }
+  .nc-b { padding:16px 16px 6px; } .nc-bt { gap:12px; } .nc-orb { width:58px; height:58px; } .nc-orb .icon { width:26px; height:26px; } .nc-advice { font-size:var(--nw-fs-value); }
 }
 /* Sections of the full card, always open: a quiet title, what it counts, then the content. */
 .nc-sections { gap:22px; }
@@ -457,10 +457,10 @@ button.nc-mod-v, button.nc-mod-row { cursor:pointer; }
 .nc-mini-card { display:flex; align-items:center; gap:14px; padding:10px 14px 10px 16px; }
 .nc-mi-text { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.3; }
 .nc-mi-text span { font-size:var(--nw-fs-small); color:var(--nw-fg2); }
-.nc-mi-text b { font-size:15px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.nc-mi-text b { font-size:var(--nw-fs-text); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .nc-mi-val { display:inline-flex; align-items:center; gap:4px; font-size:var(--nw-fs-small); color:var(--nw-fg2); white-space:nowrap; }
 .nc-mi-val .icon { width:14px; height:14px; } .nc-mi-val.out { color:color-mix(in oklab, var(--nw-watch) 55%, var(--nw-fg)); font-weight:600; }
-.nc-mi-t { font-size:22px; font-weight:700; letter-spacing:-.5px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.nc-mi-t { font-size:var(--nw-fs-value); font-weight:700; letter-spacing:-.5px; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .nc-mi-t small { font-size:var(--nw-fs-small); font-weight:500; color:var(--nw-fg2); }
 /* Alert: a low strip on the advice's colour, never the size of a card. */
 ha-card.nc-alert-card { display:flex; align-items:center; gap:14px; padding:10px 14px 10px 18px; position:relative;
@@ -469,9 +469,9 @@ ha-card.nc-alert-card { display:flex; align-items:center; gap:14px; padding:10px
 .nc-alert-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--c); }
 .nc-al-text { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.3; }
 .nc-al-text > span { font-size:var(--nw-fs-small); color:color-mix(in oklab, var(--c) 35%, var(--nw-fg)); font-weight:600; }
-.nc-al-text > b { font-size:16px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.nc-al-text > b { font-size:var(--nw-fs-title); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .nc-al-text > em { font-style:normal; font-size:var(--nw-fs-small); color:var(--nw-fg2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.nc-al-t { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; }
+.nc-al-t { font-size:var(--nw-fs-title); font-weight:700; font-variant-numeric:tabular-nums; }
 .nc-al-t small { font-size:var(--nw-fs-small); font-weight:500; color:var(--nw-fg2); }
 .nc-mod .nc-spark { height:20px; margin:4px 0 0; }
 /* The round on the left of the advice, on the full card and on the tile alike (Frank, 30 October evening). */
@@ -490,7 +490,7 @@ ha-card.nc-alert-card { display:flex; align-items:center; gap:14px; padding:10px
 .nc-mod-h24 .nc-horizon { margin-top:6px; }
 .nc-mod-h24 .nc-mod-sub { text-align:left; }
 .nc-mod-h24 .nc-legend { margin-top:4px; font-size:var(--nw-fs-small); }
-.nc-mod-text { font-size:calc(var(--nw-fs-title) * 1.05) !important; letter-spacing:-.2px; }
+.nc-mod-text { font-size:var(--nw-fs-title) !important; font-weight:600; letter-spacing:-.01em; }
 @container (min-width:740px) { .nc-upcoming .nc-mod-grid > :not(.nc-mod-wide) { grid-column:span 2; } }
 @container (min-width:740px) { .nc-upcoming .nc-mod-grid:not(:has(.nc-mod-h24)) > * { grid-column:span 2; } }
 /* The « i »: frosted glass as « À savoir », its sentence on the whole width. */
@@ -514,14 +514,14 @@ ha-card.nc-alert-card { display:flex; align-items:center; gap:14px; padding:10px
 .nc-bt-learned { display:inline-flex; align-items:center; gap:4px; font-size:var(--nw-fs-small); font-weight:600; color:color-mix(in oklab, var(--nw-benefit) 60%, var(--nw-fg)); }
 .nc-bt-learned .icon { width:13px; height:13px; }
 .nc-flame { display:inline-grid; place-items:center; color:var(--nw-heat); } .nc-flame .icon { width:15px; height:15px; }
-.nc-spark-cap { display:block; margin-top:2px; font-size:10.5px; color:var(--nw-fg2); letter-spacing:.01em; }
+.nc-spark-cap { display:block; margin-top:2px; font-size:var(--nw-fs-label); color:var(--nw-fg2); letter-spacing:.01em; }
 /* The air's measures one after the other: stacked in one place, a soft fade between them, a dot per measure. */
 hestia-mod-slides { display:block; }
 .nc-mslides { cursor:pointer; }
 .nc-mslides-stack { display:grid; }
 .nc-mslide { grid-area:1/1; opacity:0; visibility:hidden; transition:opacity .45s var(--nw-ease), visibility .45s; }
 .nc-mslide.on { opacity:1; visibility:visible; }
-.nc-mod-tag { display:inline-block; margin-top:6px; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--nw-fg2); }
+.nc-mod-tag { display:inline-block; margin-top:6px; font-size:var(--nw-fs-label); font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--nw-fg2); }
 .nc-mod-tag.out { color:color-mix(in oklab, var(--nw-watch) 60%, var(--nw-fg)); }
 .nc-mslide .nc-mod-line { margin-top:2px; }
 .nc-mdots { display:flex; gap:5px; justify-content:center; margin-top:6px; }
@@ -560,7 +560,7 @@ hestia-mod-slides { display:block; }
 @container (min-width:740px) { .nc-mod-grid .nc-mtabs { gap:4px; } .nc-mod-grid .nc-mtab { padding:3px 8px 3px 6px; } }
 /* A2: the module's measures as a list, grouped by room; each line its state's dot, name, value, way and half hour. */
 .nc-mrows { display:grid; margin-top:6px; }
-.nc-mrow-room { margin:8px 0 2px; font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--nw-fg2); }
+.nc-mrow-room { margin:8px 0 2px; font-size:var(--nw-fs-label); font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--nw-fg2); }
 .nc-mrow-room:first-child { margin-top:2px; }
 .nc-mrow { all:unset; box-sizing:border-box; display:grid; grid-template-columns:auto minmax(0,1fr) auto 22px 52px; align-items:center; gap:7px; padding:5px 0; border-top:1px solid var(--nw-line-soft); }
 .nc-mrow-room + .nc-mrow, .nc-mrows > .nc-mrow:first-child { border-top:0; }
@@ -569,7 +569,7 @@ button.nc-mrow { cursor:pointer; }
 .nc-mrow.bad .nc-mrow-dot { background:var(--nw-watch); }
 .nc-mrow-n { font-size:var(--nw-fs-small); color:var(--nw-fg2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .nc-mrow-v { font-weight:700; font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
-.nc-mrow-v small { font-size:11px; font-weight:400; color:var(--nw-fg2); margin-left:2px; }
+.nc-mrow-v small { font-size:var(--nw-fs-label); font-weight:400; color:var(--nw-fg2); margin-left:2px; }
 .nc-mrow.bad .nc-mrow-v { color:color-mix(in oklab, var(--nw-watch) 60%, var(--nw-fg)); }
 .nc-mrow-c .nc-spark { height:16px; margin:0; }
 .nc-mrows-sub { margin-top:6px !important; }

@@ -80,15 +80,15 @@ const FORMAT_INFO:Record<Format,[string,string,string]>={
 const KIND_NOTE:Record<Kind,string>={large:fr('Un appui déplie la tuile ; un appui long ouvre la complète par-dessus la page.'),
   piece:fr('Chaque carte reprend un module de la complète, tel quel. Une pièce au même air montre ses deux pièces dans le module.'),
   small:fr('Une ligne discrète, ou une alerte qui ne se montre que si besoin.')};
-const styles=css`.note{color:var(--secondary-text-color);font-size:13px;line-height:1.6;margin:0 0 16px}.note.warn{color:var(--primary-text-color)}a{color:var(--primary-color)}
+const styles=css`.note{color:var(--secondary-text-color);font-size:var(--nw-fs-small,12px);line-height:1.6;margin:0 0 16px}.note.warn{color:var(--primary-text-color)}a{color:var(--primary-color)}
   .formats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:4px 0 6px}
-  .formats button{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid var(--divider-color);border-radius:12px;cursor:pointer;color:var(--primary-text-color);font-size:12px;line-height:1.45}
+  .formats button{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid var(--divider-color);border-radius:12px;cursor:pointer;color:var(--primary-text-color);font-size:var(--nw-fs-small,12px);line-height:1.45}
   .formats button:hover{border-color:var(--secondary-text-color)}
   .formats button:focus-visible{outline:2px solid var(--primary-color);outline-offset:2px}
   .formats button.on{border:2px solid var(--primary-color);padding:9px 11px}
   .formats ha-icon{--mdc-icon-size:20px;color:var(--secondary-text-color)}.formats button.on ha-icon{color:var(--primary-color)}
-  .formats b{font-size:14px;font-weight:500}.formats span{color:var(--secondary-text-color)}
-  .note.hint{font-size:12px;margin:0 0 16px}`;
+  .formats b{font-size:var(--nw-fs-text,14px);font-weight:500}.formats span{color:var(--secondary-text-color)}
+  .note.hint{font-size:var(--nw-fs-small,12px);margin:0 0 16px}`;
 /** A link inside Home Assistant opens there, without reloading the page. */
 const follow=(e:MouseEvent)=>{e.preventDefault();history.pushState(null,'',(e.currentTarget as HTMLAnchorElement).getAttribute('href')??'/hestia/confort');
   window.dispatchEvent(new CustomEvent('location-changed',{bubbles:true,composed:true}));};

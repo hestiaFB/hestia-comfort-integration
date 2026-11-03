@@ -125,7 +125,7 @@ export const homeboardStyles=css`
   .nh-disk { flex:none; display:grid; place-items:center; width:46px; height:46px; border-radius:50%; border:2px solid var(--c); color:var(--c); }
   .nh-disk svg { width:22px; height:22px; }
   .nh-band-text { min-width:0; } .nh-band-text p { margin:0; }
-  .nh-title { font-size:21px; font-weight:700; line-height:1.2; }
+  .nh-title { font-size:var(--nw-fs-value); font-weight:700; line-height:1.2; }
   .nh-line, .nh-cap { font-size:var(--nw-fs-small); opacity:.85; margin-top:3px !important; }
   .nh-cap { opacity:.7; }
   .nh-bars { display:flex; gap:6px; }
@@ -140,14 +140,14 @@ export const homeboardStyles=css`
   .nh-tabs button[aria-pressed="true"] { background:var(--nw-fg); color:var(--nw-bg); opacity:1; }
   .nh-themes { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
   .nh-theme { display:grid; grid-template-columns:1fr auto; align-items:center; gap:2px 10px; padding:12px 14px; border-radius:14px; background:color-mix(in srgb, var(--nw-fg) 5%, transparent); }
-  .nh-theme b { font-size:20px; } .nh-theme b small { font-size:12px; font-weight:500; opacity:.7; }
+  .nh-theme b { font-size:var(--nw-fs-value); } .nh-theme b small { font-size:var(--nw-fs-small); font-weight:500; opacity:.7; }
   .nh-note { font-size:var(--nw-fs-small); opacity:.8; }
-  .nh-letter { grid-column:2; grid-row:1 / span 3; display:grid; place-items:center; width:40px; height:40px; border-radius:12px; font-size:20px; font-weight:700;
+  .nh-letter { grid-column:2; grid-row:1 / span 3; display:grid; place-items:center; width:40px; height:40px; border-radius:12px; font-size:var(--nw-fs-value); font-weight:700;
     --c:color-mix(in srgb, var(--nw-fg) 45%, transparent); background:color-mix(in oklab, var(--c) 35%, transparent); color:color-mix(in oklab, var(--c) 45%, var(--nw-fg)); }
   .nh-letter[data-level="calm"] { --c:var(--nw-ok); } .nh-letter[data-level="action"] { --c:var(--nw-act); }
   .nh-chart, .nh-curve { display:flex; flex-direction:column; gap:2px; }
   .nh-chart-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; padding-bottom:6px; }
-  .nh-legend { display:flex; gap:12px; font-size:11px; opacity:.8; }
+  .nh-legend { display:flex; gap:12px; font-size:var(--nw-fs-label); opacity:.8; }
   .nh-legend span { display:flex; align-items:center; gap:5px; }
   .nh-key-range { width:18px; height:6px; border-radius:3px; background:color-mix(in oklab, var(--nw-ok) 45%, transparent); }
   .nh-key-dot { width:9px; height:9px; border-radius:50%; background:var(--nw-ok); }
@@ -166,18 +166,18 @@ export const homeboardStyles=css`
   .nh-range { top:12px; height:8px; border-radius:4px; background:color-mix(in oklab, var(--c) 45%, transparent); }
   .nh-dot { top:9px; width:14px; height:14px; margin-left:-7px; border-radius:50%; box-sizing:border-box; border:2px solid var(--nw-bg); background:var(--c); }
   .nh-axis { min-height:16px; } .nh-axis .nh-track { height:16px; } .nh-axis .nh-track::before { display:none; }
-  .nh-axis em { position:absolute; transform:translateX(-50%); font-style:normal; font-size:11px; opacity:.7; }
+  .nh-axis em { position:absolute; transform:translateX(-50%); font-style:normal; font-size:var(--nw-fs-label); opacity:.7; }
   .nh-axis em.in { color:var(--nw-calm); opacity:1; }
-  .nh-floor { display:flex; justify-content:space-between; padding:10px 0 2px; font-size:11px; opacity:.85; }
+  .nh-floor { display:flex; justify-content:space-between; padding:10px 0 2px; font-size:var(--nw-fs-label); opacity:.85; }
   .nh-out { margin-top:6px; border-top:1px dashed var(--nw-line); }
   .nh-out .nh-name, .nh-out-text { font-size:var(--nw-fs-small); opacity:.8; }
   .nh-curve { position:relative; }
   .nh-curve svg { width:100%; height:120px; display:block; overflow:visible; }
-  .nh-yaxis { position:absolute; right:0; top:28px; height:120px; display:flex; flex-direction:column; justify-content:space-between; font-size:11px; opacity:.6; pointer-events:none; }
+  .nh-yaxis { position:absolute; right:0; top:28px; height:120px; display:flex; flex-direction:column; justify-content:space-between; font-size:var(--nw-fs-label); opacity:.6; pointer-events:none; }
   .nh-c-band { fill:color-mix(in oklab, var(--nw-calm) 14%, transparent); }
   .nh-c-in, .nh-c-out { fill:none; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
   .nh-c-in { stroke:var(--nw-ok); stroke-width:2.5; } .nh-c-out { stroke:color-mix(in srgb, var(--nw-fg) 45%, transparent); stroke-width:2; }
-  .nh-ticks { display:flex; justify-content:space-between; font-size:11px; opacity:.7; }
+  .nh-ticks { display:flex; justify-content:space-between; font-size:var(--nw-fs-label); opacity:.7; }
   .nh-empty { margin:0; font-size:var(--nw-fs-small); opacity:.75; }
   .nh-more { display:flex; flex-direction:column; gap:18px; padding-top:6px; }
   @media (prefers-reduced-motion: no-preference) { .nh-band { transition:background .4s ease; } }

@@ -942,7 +942,7 @@ export function moduleCompact(m:Module):TemplateResult {
 }
 /** « Maintenant »: the temperature across, the others two by two, as Hestia Weather's « Aujourd’hui ». */
 const moduleGrid=(list:Module[],soft:boolean)=>{const wide=list.filter(m=>m.key==='temperature'),rest=list.filter(m=>m.key!=='temperature');
-  return html`<div class="nc-mods">${wide.map(m=>moduleCard(m,soft))}${rest.length?html`<div class="nc-mod-grid">${rest.map(m=>moduleCard(m,soft))}</div>`:nothing}</div>`;};
+  return html`<div class="nc-mods">${wide.map(m=>moduleCard(m,soft))}${rest.length?html`<div class="nc-mod-grid nw-cases">${rest.map(m=>moduleCard(m,soft))}</div>`:nothing}</div>`;};
 /** « À venir », as Hestia Weather's forecasts beside « Aujourd'hui »: each subject's next hours in its own module (what to do as
  * its title, the graph, what it changes), the next gesture, and outside. Modules of the same make as « Maintenant ». */
 function upcoming(v:View,config:Config,plage:(s:HorizonSubject)=>[number,number]|null):TemplateResult|typeof nothing {
@@ -961,7 +961,7 @@ function upcoming(v:View,config:Config,plage:(s:HorizonSubject)=>[number,number]
   // Outside, only when rain is on its way.
   if(a.constraints.includes('rain_soon')||a.rain_soon_minutes!=null)mods.push(html`<div class="nc-mod nw-panel" data-piece="outside"><div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon('rain')}</span><h3>${t('Dehors')}</h3></div>
     <div class="nc-mod-v nw-value"><b class="nc-mod-text">${t('Pluie {when}',{when:tx(rainWhen(a))})}</b></div></div>`);
-  return mods.length?html`<div class="nc-mods nc-upcoming"><div class="nc-mod-grid">${mods}</div></div>`:nothing;
+  return mods.length?html`<div class="nc-mods nc-upcoming"><div class="nc-mod-grid nw-cases">${mods}</div></div>`:nothing;
 }
 /** « En ce moment », on the right of the banner as in Hestia Weather: the temperature, then its day (or the room beside it). */
 function nowBlock(v:View,partners:View[]):TemplateResult|typeof nothing {
