@@ -71,7 +71,11 @@ export class HestiaComfortCard extends LitElement {
   private ticking?:ReturnType<typeof setInterval>;
   private advisorState(){const id=this.config?.conseil;return id?this.hass?.states?.[id]:undefined;}
   private withAdvisor(v:View):View{
-    const s=this.advisorState();if(!s)return v;
+    if(!this.config?.conseil)return v;
+    // The 3.0 advisor not back yet (the HA de test restarting): never the 2.1 advice in its place, which flashed « Aérez »
+    // for twenty seconds after each restart (3 November, Chambre P).
+    const s=this.advisorState();
+    if(!s||['unavailable','unknown'].includes(s.state))return {...v,advisor:{title:'Conseil en attente',attributes:{regle:'waiting',geste:'nothing',phrase:'Le moteur redémarre : le conseil revient dans une minute.'}}};
     const piece=typeof s.attributes.piece==='string'?s.attributes.piece:'';
     const send=this.hass?.callApi?(kind:string)=>{this.said='Envoi…';
       this.hass!.callApi!<{jusqu_a?:string}>('POST','hestia_advisor_dev/avis',{piece,avis:kind,note:''})

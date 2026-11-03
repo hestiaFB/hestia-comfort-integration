@@ -28,7 +28,8 @@ const RULES:Record<string,string>={nothing:'Aucun geste ne ferait mieux : la pi�
   unproven:'Un geste aiderait peut-être, mais son effet n’est pas encore prouvé dans cette pièce : il est à essayer.',
   best:'C’est le geste qui aide le plus, comparé à ne rien faire.',safety:'Une règle de sécurité impose ce geste.',
   overheat:'La pièce dépasse sa consigne depuis un moment : c’est une mesure, pas une prévision.',
-  doubtful:'Une mesure semble fausse : pas de conseil tant qu’elle l’est.'};
+  doubtful:'Une mesure semble fausse : pas de conseil tant qu’elle l’est.',
+  waiting:'Le moteur de conseil redémarre ; il reprend la pièce dès son premier passage.'};
 const LIMITS:Record<string,string>={rain:'il pleut',rain_soon:'la pluie arrive',gusts:'rafales de vent',vigilance:'vigilance météo',
   away:'la maison est en mode absence',frost:'le gel est annoncé'};
 const SOURCES:Record<string,string>={co2:'CO₂',voc:'COV',particles:'particules',humidity:'humidité'};
@@ -44,6 +45,7 @@ export function countdown(a:Record<string,unknown>,now=Date.now()):string|null{
 export function level3(x:Advisor3):{level:Level;pill:string}{
   const a=x.attributes,rule=str(a.regle),gesture=str(a.geste)||'nothing';
   if(rule==='doubtful')return {level:'neutral',pill:'À vérifier'};
+  if(rule==='waiting')return {level:'neutral',pill:'Démarrage'};
   if(rule==='safety')return {level:'urgent',pill:'Attention'};
   if(gesture!=='nothing')return {level:'action',pill:'Geste conseillé'};
   if(str(a.a_essayer))return {level:'benefit',pill:'À saisir'};
@@ -55,7 +57,7 @@ const beyond=(a:Record<string,unknown>)=>/aucun geste ne ferait vraiment mieux|^
 export function slides3(x:Advisor3):Slide3[]{
   const a=x.attributes,gesture=str(a.geste)||'nothing',{level,pill}=level3(x);
   const proof=gesture!=='nothing'&&!['safety','overheat'].includes(str(a.regle))?PROOF[str(a.preuve)]:undefined;
-  return [{title:countdown(a)??x.title,line:str(a.phrase),disk:str(a.regle)==='safety'?'rain':DISKS[gesture]??'check',level,pill,learned:proof}];
+  return [{title:countdown(a)??x.title,line:str(a.phrase),disk:str(a.regle)==='safety'?'rain':str(a.regle)==='waiting'?'clock':DISKS[gesture]??'check',level,pill,learned:proof}];
 }
 
 /** « À savoir » from the 3.0 decision: what to try and the night first, then what is worth watching, then the passive advice. */
