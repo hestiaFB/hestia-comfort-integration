@@ -116,6 +116,8 @@ def rhythm(p: Params, hour: float | None) -> float:
 
 def flow(p: Params, ta: float, u: Inputs) -> float:
     """Outdoor air coming in (m³/h)."""
+    if not u.windows:   # most steps: the nightly learning runs millions of them
+        return p.leaks + u.vent
     return p.leaks + u.vent + p.window * u.cross * sum(window_flow(a, h, ta, u.outdoor, u.wind) for a, h in u.windows)
 
 
@@ -126,7 +128,7 @@ def step(p: Params, ta: float, tm: float, u: Inputs, dt: float = STEP) -> tuple[
     entering = p.glass * u.facade if u.facade is not None else p.sun * max(0.0, u.sun)
     solar = max(0.0, entering) * min(1.0, max(0.0, u.shade))
     q_air = (p.heat * min(1.0, max(0.0, u.heating)) + min(1.0, max(0.0, p.share)) * u.house_heat
-             + p.gains + u.extra + SUN_TO_AIR * solar + rhythm(p, u.hour))
+             + p.gains + u.extra + SUN_TO_AIR * solar + (rhythm(p, u.hour) if p.rhythm_cos or p.rhythm_sin else 0.0))
     q_mass = (1 - SUN_TO_AIR) * solar
     a11, a12 = p.ca / dt + p.h_am + h_ea + hv, -p.h_am
     a21, a22 = -p.h_am, p.cm / dt + p.h_am + h_em

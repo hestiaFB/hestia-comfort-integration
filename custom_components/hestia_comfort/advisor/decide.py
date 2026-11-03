@@ -568,9 +568,18 @@ def effect(gesture: Gesture, subject: str) -> str:
     return f"{device}:{subject}" if device in DEVICES else subject
 
 
+def reference(scenarios: dict, gesture: Gesture) -> Gesture:
+    """What a gesture is said against: « do nothing », but « Laissez ouvert encore 10 min » against shutting now. Against
+    leaving the window open for hours, it « saved » the heating that shutting saves (Chambre P, 3 November: « 2,4 kWh de
+    chauffage économisés » to dry the room, Frank: « pourquoi une économie de chauffage ? »)."""
+    if gesture.kind == "close" and gesture.after and Gesture("close") in scenarios:
+        return Gesture("close")
+    return Gesture("nothing")
+
+
 def main_subject(scenarios: dict, gesture: Gesture) -> str | None:
-    """What a gesture mostly does: the cost term it lowers the most against « do nothing »."""
-    nothing, chosen = scenarios.get(Gesture("nothing")), scenarios.get(gesture)
+    """What a gesture mostly does: the cost term it lowers the most against its `reference`."""
+    nothing, chosen = scenarios.get(reference(scenarios, gesture)), scenarios.get(gesture)
     if gesture.kind == "nothing" or nothing is None or chosen is None:
         return None
     return max(SUBJECTS, key=lambda s: nothing[s] - chosen[s])
@@ -619,6 +628,30 @@ def _shortest(best: Gesture, worth: list[Gesture], costs: dict) -> Gesture:
     return min(same, key=lambda g: (g.minutes is None, g.minutes or 0, g.after or 0)) if same else best
 
 
+def _outside_held(coming):
+    """The coming steps with the outside held as it is now: its temperature, water, wind and sun."""
+    if not coming:
+        return coming
+    u0, w0 = coming[0]
+    return [(replace(u, outdoor=u0.outdoor, sun=u0.sun, wind=u0.wind, facade=u0.facade, facade_shut=u0.facade_shut,
+                     facade_all=u0.facade_all), w0) for u, _ in coming]
+
+
+def _for_the_outside(later: Gesture, twins: Twins, now: Now, coming, comfort: Comfort, weights: Weights, costs: dict,
+                     night: bool) -> bool:
+    """Whether a later airing owes its edge over the same one now to what the outside brings (cooler, drier, the sun gone)
+    more than to the room alone. The forecast ends three hours from now: an airing later leaves the room's own CO₂ less
+    time to grow back by then, and so always looks better, a moment that recedes at every step and never comes (Salon ·
+    Cuisine, 3 November, 15 h to 18 h; Frank: « plus tard » only for what changes outside)."""
+    soon = Gesture(later.kind, later.minutes)
+    real = (costs[soon]["total"] if soon in costs else cost(simulate(twins, now, coming, soon), comfort, weights, soon, night)["total"]) \
+        - costs[later]["total"]
+    held = _outside_held(coming)
+    own = cost(simulate(twins, now, held, soon), comfort, weights, soon, night)["total"] \
+        - cost(simulate(twins, now, held, later), comfort, weights, later, night)["total"]
+    return real - own > own
+
+
 def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
            previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
            proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits(),
@@ -662,6 +695,13 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # long cooking: a 10-minute airing hardly shows, opening does).
     worth = [g for g in gestures if g.kind != "nothing" and nothing - costs[g]["total"] >= GAIN
              and significant(idle, paths[g], comfort, now.night, tolerance=habits.tolerance)]
+    # An airing later only for what the outside brings: otherwise « Aérez » comes when it is worth it now.
+    later = min((g for g in [*worth, previous] if g is not None and g.kind == "open" and g.after and g in costs),
+                key=lambda g: costs[g]["total"], default=None)
+    if later is not None and not _for_the_outside(later, twins, now, coming, comfort, weights, costs, now.night):
+        worth = [g for g in worth if not (g.kind == "open" and g.after)]
+        if previous is not None and previous.kind == "open" and previous.after:
+            previous = None
     best = min(worth, key=order) if worth else Gesture("nothing")
     best = _shortest(best, worth, costs)
     # Only how long changed (« Aérez 30 → 20 → 25 min » in twelve minutes, 2 November): the duration shown stays while it

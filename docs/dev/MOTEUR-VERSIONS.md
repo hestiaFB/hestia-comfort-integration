@@ -14,12 +14,20 @@ Chaque changement du moteur monte son numéro et ajoute une ligne ci-dessous, la
 
 ## Historique
 
+### 3.0.2 — 3 novembre 2026
+
+- « Plus tard » seulement pour ce que le dehors apporte (plus frais, plus sec, le soleil parti). Le moment tardif est rejoué avec le dehors figé : si la pièce seule explique qu'il batte la même aération maintenant, il est écarté. Avant, le CO₂ qui remonte d'ici la fin de la prévision (3 h) faisait paraître tout moment tardif meilleur, et le moment reculait sans jamais venir (Salon · Cuisine, 15 h à 18 h). « Aérez » vient quand aérer maintenant en vaut la peine.
+- « Laissez ouvert encore 10 min » se dit face à « Refermez maintenant », et non face à la fenêtre laissée ouverte trois heures : la Chambre P, ouverte pour l'humidité, disait « 2,4 kWh de chauffage économisés » ; elle dit « 11 points d'humidité en moins ».
+- Avant sa première nuit, une pièce reçoit 5 % du poêle, celle où il se trouve 60 % (au lieu de 20 % partout) : au labo, la Chambre M prévoyait 30 °C à 20 h à l'allumage du poêle et disait « Ouvrez ». Appris ensuite : 74 % au Salon · Cuisine, 0 à 27 % ailleurs.
+- Une surface déclarée après coup garde la chaleur déjà apprise : seuls les jumeaux de l'air sont refaits.
+- L'apprentissage de nuit fouille les 7 derniers jours (les gestes restent comptés sur tout l'historique) et ne refait plus deux fois la même prévision d'une heure : 4 jours en 3,5 s au lieu de 5,2 par pièce sur le banc, 12 jours en 7 s au lieu de 19, et un historique de 60 jours ne coûte plus que 7 jours. Même résultat qu'avant jusqu'à 7 jours.
+
 ### 3.0.1 — 3 novembre 2026
 
 - Un « plus tard » annoncé ne recule plus à chaque calcul : « Aérez 5 min vers 17 h 15 » reste 17 h 15 tant qu'aucun autre moment ne fait nettement mieux. Avant, le moment annoncé n'était jamais comparé (les moments comparés sont espacés d'un quart d'heure à partir de maintenant), et le Salon · Cuisine a dit « dans une heure » de 15 h à 18 h.
 - Un « même air » a le volume de toutes ses pièces : les surfaces déclarées du Salon et de la Cuisine s'additionnent. Avant, seule la pièce qui conseille comptait.
 - Une surface déclarée après coup refait les jumeaux à la bonne taille (les effets observés sont gardés, la nuit réapprend le reste). Avant, ils gardaient pour toujours les 40 m³ d'une pièce ordinaire : au labo, le CO₂ du Salon · Cuisine montait presque trois fois trop vite.
-- « À propos » le dit « 3.0.1 bêta » tant que la génération 3.0 n'a pas fait ses bêtas dans de vraies maisons (`BETA` dans `advisor/__init__.py`). Le numéro écrit dans les instantanés et le journal reste nu.
+- « À propos » le dit « 3.0.x bêta » tant que la génération 3.0 n'a pas fait ses bêtas dans de vraies maisons (`BETA` dans `advisor/__init__.py`). Le numéro écrit dans les instantanés et le journal reste nu.
 
 ### 3.0.0 — 3 novembre 2026
 

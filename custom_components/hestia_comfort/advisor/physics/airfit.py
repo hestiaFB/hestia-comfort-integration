@@ -55,7 +55,8 @@ def _run(kind, x, volume, rows, since, until):
         return 0 <= i < len(rows) and rows[i][0].inputs is not None and rows[i][0].measured is not None \
             and rows[i][1] is not None and rows[i][2] is not None
 
-    hidden, track = None, {}
+    # The one-hour forecast from each start, before its correction: it is what the start an hour later missed.
+    hidden, track, raw = None, {}, {}
     for i, (s, value, outdoor) in enumerate(rows):
         if not ok(i):
             hidden = None
@@ -65,7 +66,9 @@ def _run(kind, x, volume, rows, since, until):
         inside = since <= s.when < until
         if inside and s.when.minute % 30 == 0 and ok(i + THREE):
             missed = 0.0
-            if i - HOUR in track and all(ok(j) for j in range(i - HOUR, i)):
+            if i - HOUR in raw:
+                missed = value - raw[i - HOUR]
+            elif i - HOUR in track and all(ok(j) for j in range(i - HOUR, i)):
                 v, h = rows[i - HOUR][1], track[i - HOUR]
                 for j in range(i - HOUR, i):
                     v, h = model(v, h, j)
@@ -77,6 +80,7 @@ def _run(kind, x, volume, rows, since, until):
                     break
                 v, h = model(v, h, i + k)
                 if k == HOUR - 1:
+                    raw[i] = v
                     at_hour = v + missed * math.exp(-k / 24)
             if good:
                 out["hour"].append(at_hour - rows[i + HOUR][1])

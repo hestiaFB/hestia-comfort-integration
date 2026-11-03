@@ -91,7 +91,7 @@ class TheRoomFromConfortsSettings(unittest.TestCase):
             CUISINE.pop("room", None)
 
     def test_twins_made_again_when_the_size_is_declared_later(self):
-        from custom_components.hestia_comfort.room.advice import _resized
+        from custom_components.hestia_comfort.room.advice import _remade, _resized
         coordinator = salon()
         before = first_twins(spec(coordinator, {}), coordinator.hass, {})
         self.assertEqual((before["volume"], before["air"]["volume"]), (40.0, 40.0))
@@ -103,6 +103,11 @@ class TheRoomFromConfortsSettings(unittest.TestCase):
             # Twins kept from before the marker: their air's volume says what they were made for.
             self.assertTrue(_resized({k: v for k, v in before.items() if k != "volume"}, room))
             self.assertFalse(_resized(first_twins(room, coordinator.hass, {}), room))
+            # The warmth learned is kept, the air made again for 110 m³; nothing learned yet, all is made again.
+            learned = {**before, "heat": {**before["heat"], "h_env": 35.2}, "gestures": {"open": [1]}}
+            again = _remade(learned, "2026-11-03T17:00:00+00:00", first_twins(room, coordinator.hass, {}))
+            self.assertEqual((again["heat"]["h_env"], again["gestures"], again["air"]["volume"]), (35.2, {"open": [1]}, 110.075))
+            self.assertNotEqual(_remade(learned, None, first_twins(room, coordinator.hass, {}))["heat"]["h_env"], 35.2)
         finally:
             SALON.pop("room", None)
 
@@ -116,7 +121,10 @@ class TheRoomFromConfortsSettings(unittest.TestCase):
         room = spec(coordinator, {"climate.poele": 8500.0})
         twins = first_twins(room, coordinator.hass, {"climate.poele": 8500.0})
         self.assertEqual(set(twins) - {"heat", "gestures", "volume"}, {"water", "water_flow", "air", "air_flow", "voc", "voc_flow"})
-        self.assertEqual(twins["heat"]["share"], 0.2)
+        # Most of the stove in the room it stands in, little elsewhere, before the first night.
+        self.assertEqual(twins["heat"]["share"], 0.6)
+        other = {**room, "thermostat_plage": None}
+        self.assertEqual(first_twins(other, coordinator.hass, {"climate.poele": 8500.0})["heat"]["share"], 0.05)
         self.assertEqual(room_spec(room).windows, room["windows"])
 
 

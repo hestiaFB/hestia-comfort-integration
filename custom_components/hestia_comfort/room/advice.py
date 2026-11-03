@@ -44,8 +44,10 @@ EXPOSURES = {"N": 0, "NE": 45, "E": 90, "SE": 135, "S": 180, "SO": 225, "SW": 22
 # m³/h when the person does not know the flow (« Pour aller plus loin »): the fast speed's real share is learned
 # (advisor/nightly.py `boost_scale`).
 FLOWS = {"ventilation_boost": 60.0, "purifier": 150.0}
-# The share of a house heater (a stove) a room receives before anything is learned.
-HOUSE_SHARE = 0.2
+# The share of a house heater (a stove) a room receives before anything is learned: most of it in the room it stands in,
+# little elsewhere (lab, 3 November: learned 0.74 in the Salon · Cuisine, 0 to 0.27 in the other rooms; the Chambre M,
+# given 0.2 before its first night, was forecast 30 °C at 20 h when the stove was lit, and told to open).
+HOUSE_SHARE, HOUSE_SHARE_OWN = 0.05, 0.6
 # The walls' temperature is kept over a restart this long; older, it is taken back from the air of the last hours (a
 # restart just after the stove took the air for the walls: the Salon was forecast 1.5 °C too warm for five hours).
 WALLS_KEPT = timedelta(hours=1)
@@ -221,7 +223,7 @@ def first_twins(room: dict, hass, houses: dict) -> dict:
                     heating_power=heater_power(hass, room["thermostat"]) if room["thermostat"] else None)
     heat = ordinary(declared)
     if houses:
-        heat = replace(heat, share=HOUSE_SHARE)
+        heat = replace(heat, share=HOUSE_SHARE_OWN if room["thermostat_plage"] in houses else HOUSE_SHARE)
     # The volume they were made for: a size declared later on makes them again (`_resized`).
     entry = {"heat": asdict(heat), "gestures": {}, "volume": declared.air}
     sensors = {"water": room["humidity"], "air": room["co2"], "particles": room["particles"], "voc": room["voc"]}
@@ -237,6 +239,12 @@ def _resized(learned: dict, room: dict) -> bool:
                                           and learned[k].get("volume")), None)
     wanted = room["volume"] or ORDINARY_VOLUME
     return made is not None and abs(made - wanted) > 0.02 * wanted
+
+
+def _remade(learned: dict, learned_at, fresh: dict) -> dict:
+    """Twins made again from the size declared: the warmth already learned and the effects seen are kept (a volume
+    changes the air's twins), the night relearns the rest from the recorder."""
+    return {**fresh, "heat": learned["heat"] if learned_at else fresh["heat"], "gestures": learned.get("gestures") or {}}
 
 
 def room_spec(room: dict) -> RoomSpec:
@@ -284,8 +292,7 @@ class RoomAdvisor:
         self.learned = kept.get("twins") or first_twins(self.room, self.hass, self.home.houses)
         self.learned_at, self.earlier, self.report = kept.get("learned_at"), kept.get("earlier") or [], kept.get("report")
         if _resized(self.learned, self.room):
-            # Made again from the size declared, the effects seen kept; the night relearns the rest from the recorder.
-            self.learned = {**first_twins(self.room, self.hass, self.home.houses), "gestures": self.learned.get("gestures") or {}}
+            self.learned = _remade(self.learned, self.learned_at, first_twins(self.room, self.hass, self.home.houses))
             self.learned_at = None
         state = kept.get("state") or {}
         at = dt_util.parse_datetime(state["at"]) if state.get("at") else None

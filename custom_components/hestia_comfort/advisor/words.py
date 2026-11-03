@@ -6,7 +6,7 @@ card; a gain always in plain units (°C, humidity points, minutes); the conditio
 from dataclasses import replace
 from datetime import time
 
-from .decide import SUBJECTS, Decision, Gesture, main_subject
+from .decide import SUBJECTS, Decision, Gesture, main_subject, reference
 from .knowing import Tip
 from .proof import PROVEN, REINFORCED
 
@@ -174,7 +174,7 @@ SOON = 60
 
 
 def subject_of(decision: Decision) -> str | None:
-    """What the advised gesture mostly does: the cost term it lowers the most against « do nothing »."""
+    """What the advised gesture mostly does: the cost term it lowers the most against its reference (advisor/decide.py)."""
     return main_subject(decision.scenarios, decision.gesture)
 
 
@@ -267,7 +267,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         else:
             line = words["nothing_line" if opened else "nothing_shut"]
     if subject and paths:
-        chosen, idle = paths[gesture], paths[Gesture("nothing")]
+        chosen, idle = paths[gesture], paths[reference(paths, gesture)]
         if subject == "heat":
             gain = chosen.air[-1] - idle.air[-1]
             line = words["heat" if gesture.kind in ("close", "shutter_close") else "heat_open"].format(value=_number(abs(gain), language), hour=end_hour)

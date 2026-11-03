@@ -101,15 +101,35 @@ class Gestures(unittest.TestCase):
         again = decide(TWINS, replace(now, co2=1590.0), day(outdoor=17.0), previous=first.gesture)
         self.assertEqual(again.gesture, first.gesture)
 
-    def test_a_moment_said_does_not_slide_an_hour_ahead(self):
+    def test_no_later_airing_for_the_room_s_own_air(self):
         # Salon · Cuisine, 3 November: « Aérez 5 min vers 16 h 10 » at 15 h 12, « … vers 18 h 15 » at 17 h 31, five
-        # minutes further at every step. The moment shown 5 minutes ago (in 55 min) was never weighed, only 45 and 60.
+        # minutes further at every step. Nothing changed outside: the CO₂ growing back before the forecast ends made any
+        # later moment look better. « Aérez » comes when it is worth it now.
         from advisor.snapshot import load, replay
         snap = load(Path(__file__).parent / "fixtures" / "salon-cuisine-3-novembre-16h22.json")
         decision, words = replay(snap)
-        self.assertEqual(decision.gesture, Gesture("open", 5, after=55))
-        self.assertEqual(decision.rule, "kept")
-        self.assertEqual(words["title"], "Aérez 5 min vers 17 h 15")
+        self.assertEqual(decision.gesture, Gesture("nothing"))
+        self.assertEqual(words["title"], "Rien à faire")
+
+    def test_leaving_open_a_little_longer_is_said_against_shutting_now(self):
+        # Chambre P, 3 November at 19 h 19, opened to dry it: « Laissez ouvert encore 10 min » said « 2,4 kWh de
+        # chauffage économisés » — against leaving it open for three hours. Against shutting now, it dries the room.
+        from advisor.snapshot import load, replay
+        decision, words = replay(load(Path(__file__).parent / "fixtures" / "chambre-p-3-novembre-19h19.json"))
+        self.assertEqual(decision.gesture, Gesture("close", after=10))
+        self.assertEqual(words["subject"], "humidity")
+        self.assertIn("humidité", words["line"])
+
+    def test_a_later_airing_for_the_cool_of_the_evening_is_for_the_outside(self):
+        # The room at 26 °C, 27 °C outside now, 14 °C within the hour: twenty minutes in half an hour cool it better, and
+        # the outside, not the room, makes it so.
+        from advisor.decide import Weights, _for_the_outside, cost
+        coming = [(Inputs(max(14.0, 27.0 - k), hour=20.0 + k / 12), absolute(max(14.0, 27.0 - k), 60.0)) for k in range(36)]
+        now, comfort = Now(air=26.0, walls=26.0, opened=(), humidity=50.0), Comfort(minimum=20.0, maximum=24.0)
+        later, soon = Gesture("open", 20, after=30), Gesture("open", 20)
+        costs = {g: cost(simulate(TWINS, now, coming, g), comfort, Weights(), g, False) for g in (later, soon)}
+        self.assertLess(costs[later]["total"], costs[soon]["total"])
+        self.assertTrue(_for_the_outside(later, TWINS, now, coming, comfort, Weights(), costs, False))
 
 
 class Steady(unittest.TestCase):

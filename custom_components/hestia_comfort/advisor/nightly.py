@@ -31,6 +31,10 @@ KEEP = timedelta(days=60)
 # the air's with moves this much smaller than from scratch: a night nudges, it does not start over.
 WARM = 0.3
 HEAT_SEARCH, AIR_SEARCH = 300, 400
+# The searches read the last days only: a night nudges the twin it starts from, the older days were read on the nights
+# before. The gestures are still counted over every recorded day. Lab, 3 November: 11 min for 9 rooms and 3 days on the
+# NAS, and a recorder that keeps 60 days would have taken hours.
+SEARCH_DAYS = 7
 # Sensor faults, never measures (advisor/bench/air_check.py).
 CO2_FLOOR, PM25_CEILING = 300.0, 500.0
 DT = timedelta(seconds=STEP)
@@ -150,7 +154,8 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
     if days <= 0:
         return entry, report
     data = samples(history, spec, outdoor, sun, start, now, location, zone, house_heaters)
-    split = now - HELD_OUT
+    split, recent = now - HELD_OUT, max(start, now - timedelta(days=SEARCH_DAYS))
+    searched = [s for s in data if s.when >= recent]
 
     heat = Params(**entry["heat"])
     if heat.share < 0:
@@ -158,9 +163,9 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
         heat = replace(heat, share=0.0)
         entry["heat"] = asdict(heat)
     if days >= MIN_DAYS:
-        before = score(heat, data, since=split)
-        found = fit(heat, data, until=split, iterations=HEAT_SEARCH, held=spec.declared)
-        after = score(found, data, since=split)
+        before = score(heat, searched, since=split)
+        found = fit(heat, searched, until=split, iterations=HEAT_SEARCH, held=spec.declared)
+        after = score(found, searched, since=split)
         kept = after.hour + after.three < before.hour + before.three
         report["chaleur"] = {"avant": [round(before.hour, 3), round(before.three, 3)],
                              "apres": [round(after.hour, 3), round(after.three, 3)], "garde": kept}
@@ -168,9 +173,9 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
             heat = found
             entry["heat"] = asdict(found)
         # Then the windows' effect, on the openings themselves; kept when the last day is forecast no worse than 5 % off.
-        tuned, windows = fit_windows(heat, data, until=split)
+        tuned, windows = fit_windows(heat, searched, until=split)
         if tuned != heat:
-            now_score, tuned_score = score(heat, data, since=split), score(tuned, data, since=split)
+            now_score, tuned_score = score(heat, searched, since=split), score(tuned, searched, since=split)
             windows["garde"] = tuned_score.hour + tuned_score.three <= 1.05 * (now_score.hour + now_score.three)
             windows["fenetre"] = [round(heat.window, 3), round(tuned.window, 3)]
             if windows["garde"]:
@@ -184,20 +189,21 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
         if key not in entry or not getattr(spec, "humidity" if key == "water" else SENSORS[key][0]):
             continue
         rows = _air_rows(key, history, spec, data, outdoor, outdoor_humidity)
+        last = [r for r in rows if r[0].when >= recent]
         volume = entry[key]["volume"]
         x = vector(kind, entry[key], entry[f"{key}_flow"])
         if days >= MIN_DAYS:
-            before = air_score(kind, x, volume, rows, split, now)
-            found = _nelder_mead(lambda y: air_score(kind, y, volume, rows, start, split), x,
+            before = air_score(kind, x, volume, last, split, now)
+            found = _nelder_mead(lambda y: air_score(kind, y, volume, last, recent, split), x,
                                  [m * WARM for m in MOVES[kind]], AIR_SEARCH)
-            after = air_score(kind, found, volume, rows, split, now)
+            after = air_score(kind, found, volume, last, split, now)
             kept = after < before
             report[subject] = {"avant": round(before, 3), "apres": round(after, 3), "garde": kept}
             if kept:
                 x = found
                 entry[key], entry[f"{key}_flow"] = values(kind, x, volume)
         if key == "water" and days >= MIN_DAYS:
-            scale = _boost_scale(kind, x, volume, rows, start, now, entry.get("boost_scale", 1.0))
+            scale = _boost_scale(kind, x, volume, last, recent, now, entry.get("boost_scale", 1.0))
             if scale is not None:
                 report["vmc_rapide"] = scale
                 entry["boost_scale"] = scale["garde"]

@@ -83,7 +83,8 @@ def forecasts(p: Params, samples: list[Sample], since: datetime | None = None, u
     """Every half-hour forecast of one and three hours between `since` and `until`, with what was then measured:
     (start, measured at start, forecast at one hour, measured then, forecast at three hours, measured then, window open).
     `recent`: how the error of the last hour corrects the forecast (`RECENT`)."""
-    out, walls, walls_at = [], None, {}
+    # The one-hour forecast from each start, before its correction: it is what the start an hour later missed.
+    out, walls, walls_at, raw = [], None, {}, {}
     for i, s in enumerate(samples):
         if s.inputs is None or s.measured is None:
             walls = None
@@ -95,7 +96,8 @@ def forecasts(p: Params, samples: list[Sample], since: datetime | None = None, u
             missed = None
             if recent and (i - HOUR) in walls_at:
                 then = samples[i - HOUR]
-                guessed = _simulate(p, samples, i - HOUR, then.measured, walls_at[i - HOUR], HOUR)
+                guessed = raw[i - HOUR] if (i - HOUR) in raw else _simulate(p, samples, i - HOUR, then.measured,
+                                                                             walls_at[i - HOUR], HOUR)
                 missed = None if guessed is None else s.measured - guessed
             air, mass, at_hour, opened = s.measured, walls, None, False
             for k in range(THREE):
@@ -106,6 +108,7 @@ def forecasts(p: Params, samples: list[Sample], since: datetime | None = None, u
                 opened = opened or (k < HOUR and bool(u.windows))
                 air, mass = step(p, air, mass, u)
                 if k == HOUR - 1:
+                    raw[i] = air
                     at_hour = air + correction(recent, missed, k)
             if air is not None:
                 out.append((s.when, s.measured, at_hour, samples[i + HOUR].measured, air + correction(recent, missed, THREE - 1),
