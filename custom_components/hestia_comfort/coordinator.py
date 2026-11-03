@@ -19,7 +19,8 @@ from .engine.sources import Reading
 from .engine.verdict import verdict
 from .configuration import DATA_CONFIG
 from .exterior import exterior_reading
-from . import cover_link, weather_link
+from . import advisor_home, cover_link, weather_link
+from .room.advice import verdict as advisor_verdict
 from .room.constants import FULL_SPAN, MEASURES, MEASURE_COOLDOWN, SHARED_SOURCES, SHORT_SPAN, STATE_KINDS, SUN_SMOOTHING, TWIN_FORMAT  # noqa: F401 - also read by the tests
 from .room.learning import LearningMixin
 from .room.volume import VolumeMixin
@@ -168,6 +169,13 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
         stored = await self._feedback_store.async_load() or {}
         self.feedback = feedback.keep(stored.get("records"), dt_util.utcnow())
         await self._restore_learning()
+        # The 3.0 advisor (advisor_home.py): this room advises its air when it leads it. One that fails to start leaves
+        # the room on the 2.1 advice.
+        try:
+            self.advisor = await advisor_home.async_room(self.hass, self)
+        except Exception:  # noqa: BLE001
+            logging.getLogger(__name__).exception("Hestia Comfort: advisor 3.0 for %s", self.config.get("name"))
+            self.advisor = None
         await self.async_config_entry_first_refresh()
 
     @callback
@@ -510,6 +518,11 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
         except (KeyError, TypeError, ValueError):
             logging.getLogger(__name__).exception("Hestia Comfort: verdict for %s", view["title"])
             view["verdict"] = None
+        # The 3.0 advisor's decision for this room's air (room/advice.py), shown by the card in place of the 2.1 advice.
+        view["advice3"] = advisor_home.result(self.hass, self.entry_id)
+        # The entities and the lights then say the 3.0 decision too, never the 2.1 one beside it.
+        if view["advice3"]:
+            view["verdict"] = advisor_verdict(view["advice3"], view)
         return view
 
     def outdoor_entity(self):

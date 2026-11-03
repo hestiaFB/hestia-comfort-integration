@@ -41,6 +41,8 @@ def async_setup_websocket(hass):
     websocket_api.async_register_command(hass, ws_periods)
     for command in (ws_configuration, ws_discover, ws_overview, ws_weather, ws_validate, ws_save, ws_remove):
         websocket_api.async_register_command(hass, command)
+    for command in (ws_advice_opinion, ws_atelier, ws_trace):
+        websocket_api.async_register_command(hass, command)
 
 
 # A view that did not change is sent again only this often: the cards call a view older than 75 s stale.
@@ -318,3 +320,50 @@ async def ws_remove(hass, connection, msg):
         connection.send_error(msg["id"], "invalid_config", str(err))
     else:
         connection.send_result(msg["id"], result)
+
+
+# The 3.0 advisor (advisor_home.py, room/advice.py): what the card and the hub's expert pages ask of it.
+OPINIONS = ("faux", "inutile", "pas_maintenant")
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/advice_opinion", vol.Required("entry_id"): str,
+                                  vol.Required("avis"): vol.In(OPINIONS), vol.Optional("note", default=""): vol.All(str, vol.Length(max=500))})
+@websocket_api.async_response
+async def ws_advice_opinion(hass, connection, msg):
+    """« Ce conseil ne va pas », sent by the card: the situation kept to be replayed; « Pas maintenant » puts the gesture
+    aside for the household's time, until the hour sent back."""
+    from .advisor_home import DATA
+    home = hass.data.get(DATA)
+    advisor = home.advisor_of(msg["entry_id"]) if home else None
+    if advisor is None:
+        connection.send_error(msg["id"], "not_found", "Pas de conseil 3.0 pour cette pièce")
+        return
+    connection.send_result(msg["id"], {"jusqu_a": await advisor.opinion(msg["avis"], msg["note"])})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/atelier"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_atelier(hass, connection, msg):
+    """The Atelier's chronology: the advice changes, the snapshots kept, the opinions and the gestures followed."""
+    from .advisor_home import DATA
+    from .advisor_store import AdvisorFiles
+    home = hass.data.get(DATA)
+    files = home.files if home else AdvisorFiles(hass.config.path())
+    connection.send_result(msg["id"], await hass.async_add_executor_job(files.atelier, dt_util.utcnow()))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/trace", vol.Required("file"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_trace(hass, connection, msg):
+    """One decision's trace, layer by layer, from a snapshot or a reported situation."""
+    from .advisor_home import DATA
+    from .advisor_store import AdvisorFiles
+    home = hass.data.get(DATA)
+    files = home.files if home else AdvisorFiles(hass.config.path())
+    found = await hass.async_add_executor_job(files.trace, msg["file"])
+    if found is None:
+        connection.send_error(msg["id"], "not_found", "Instantané introuvable")
+    else:
+        connection.send_result(msg["id"], found)

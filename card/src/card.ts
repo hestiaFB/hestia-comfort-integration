@@ -64,13 +64,23 @@ export class HestiaComfortCard extends LitElement {
   getGridOptions(){const f=this.config?.format;return {columns:f==='full'?'full':['humidity','air','openings','heating'].includes(f??'')?6:12,rows:'auto',min_columns:f&&['humidity','air','openings','heating'].includes(f)?3:6};}
   connectedCallback(){super.connectedCallback();this.connect();
     // « Laissez ouvert encore 4 min » counts down between two steps of the 3.0 advisor: redrawn every half minute.
-    clearInterval(this.ticking);this.ticking=setInterval(()=>{if(this.advisorState()?.attributes.refermer_a)this.requestUpdate();},30000);}
+    clearInterval(this.ticking);this.ticking=setInterval(()=>{if(this.view?.advice3?.refermer_a||this.advisorState()?.attributes.refermer_a)this.requestUpdate();},30000);}
   disconnectedCallback(){super.disconnectedCallback();clearInterval(this.ticking);this.live.stop();this.stopPartners();this.closeFull();}
   /** The 3.0 advisor's decision (HA de test, the bridge of 1 November): redrawn when it changes, like the room's own view. */
   @state() private said?:string;
   private ticking?:ReturnType<typeof setInterval>;
   private advisorState(){const id=this.config?.conseil;return id?this.hass?.states?.[id]:undefined;}
   private withAdvisor(v:View):View{
+    // The 3.0 advisor of the integration (advisor_home.py): its decision comes with the room's view.
+    if(v.advice3){
+      const a=v.advice3,entry=v.entry_id;
+      const send=this.hass?.connection?.sendMessagePromise?(kind:string)=>{this.said='Envoi…';
+        this.hass!.connection.sendMessagePromise!<{jusqu_a?:string|null}>({type:'hestia_comfort/advice_opinion',entry_id:entry,avis:kind})
+          .then(r=>{this.said=r?.jusqu_a?`Noté : pas avant ${r.jusqu_a}.`:'Merci, c’est noté.';})
+          .catch(()=>{this.said='Pas pu l’envoyer.';})
+          .finally(()=>{setTimeout(()=>{this.said=undefined;},5000);});}:undefined;
+      return {...v,advisor:{title:typeof a.title==='string'?a.title:'',attributes:a,send:a.regle==='waiting'?undefined:send,said:this.said}};
+    }
     if(!this.config?.conseil)return v;
     // The 3.0 advisor not back yet (the HA de test restarting): never the 2.1 advice in its place, which flashed « Aérez »
     // for twenty seconds after each restart (3 November, Chambre P).

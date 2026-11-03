@@ -9,7 +9,7 @@ from aiohttp import web
 from homeassistant.components import websocket_api
 from homeassistant.components.http import HomeAssistantView, StaticPathConfig
 from homeassistant.core import callback
-from . import domain_migration, health, weather_link
+from . import advisor_home, domain_migration, health, weather_link
 from .engine import feedback
 from .light_driver import light_info
 from .engine.i18n import language, speaking, t
@@ -150,8 +150,10 @@ def ws_twins(hass, connection, msg):
                       "sun_shade": getattr(coordinator, "sun_shade", None),
                       # The air it has learned: CO₂ and VOC with enough open half hours to promise a result.
                       "air": [name for name, model in air.items() if model and model.get("open_samples", 0) >= 6],
-                      "questions": _questions(coordinator, msg.get("language"))})
-    connection.send_result(msg["id"], {"version": 1, "rooms": rooms})
+                      "questions": _questions(coordinator, msg.get("language")),
+                      # The 3.0 advisor's own learning (advisor_home.py): effects and their proof, shown in its place.
+                      "advisor": advisor_home.knowing(hass, entry.entry_id)})
+    connection.send_result(msg["id"], {"version": 1, "rooms": rooms, "outside": advisor_home.outside(hass)})
 
 
 def _questions(coordinator, lang):

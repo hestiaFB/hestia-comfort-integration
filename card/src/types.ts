@@ -129,7 +129,7 @@ export interface Opening {
   sun_share:number; sun_wm2:number|null; wind_side?:string|null; flags:string[];
 }
 export interface View {
-  version:1; entry_id:string; area_id:string|null; title:string; /** The 3.0 advisor's decision, when the card reads one (`Config.conseil`). */ advisor?:Advisor3; computed_at:string; /** The room's comfort range from its settings. */ comfort_minimum?:number; comfort_maximum?:number;
+  version:1; entry_id:string; area_id:string|null; title:string; /** The 3.0 advisor's decision, when the card reads one (`Config.conseil`). */ advisor?:Advisor3; /** The integration's 3.0 advisor for this room's air (advisor_home.py): its decision, « waiting » just after a restart; absent without one. */ advice3?:Record<string,unknown>|null; computed_at:string; /** The room's comfort range from its settings. */ comfort_minimum?:number; comfort_maximum?:number;
   assessment:Assessment; observations:Record<string,Reading>; names?:Record<string,string>; /** Rooms open onto this one: one air, shared openings. */ volume?:{entry_id:string;title:string}[]; /** Sources read from the room sharing this air, by key: {heating:'Salon'}. */ inherited?:Record<string,string>; /** « Salon · Cuisine », the best equipped first. */ volume_name?:string|null;
   /** The feedback loop: the last airing followed (within a day) and the week (engine/feedback.py). */
   feedback?:{last:{measure:'humidity'|'temperature'|'co2'|'voc';before:number;after:number;predicted:number|null;minutes:number}|null;week:{followed:number;ignored:number;evaluated:number;held:number;gains:Record<string,number>}};
@@ -142,6 +142,7 @@ export interface ViewEvent {version:1; view?:View; reload?:boolean; unavailable?
 export type Unsubscribe = () => Promise<void>|void;
 export interface Connection {
   subscribeMessage<T>(callback:(event:T)=>void, message:Record<string,unknown>):Promise<Unsubscribe>;
+  sendMessagePromise?<T>(message:Record<string,unknown>):Promise<T>;
 }
 export interface HomeAssistant {
   connection:Connection; user?:{is_admin:boolean}; themes?:{darkMode?:boolean}; language?:string;
