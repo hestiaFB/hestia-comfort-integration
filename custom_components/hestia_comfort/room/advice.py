@@ -440,7 +440,8 @@ class RoomAdvisor:
         return False
 
     def _good_to_know(self, now, air, opening, comfort, humidity=None, coldest=None, bedtime=None, asleep=False,
-                      shutter_night=None, wake=None, back=None, off=None, end_hour=None, stove=None, sun_warms=None):
+                      shutter_night=None, wake=None, back=None, off=None, end_hour=None, stove=None, sun_warms=None,
+                      outdoor=None, outdoor_rh=None, water=False):
         """« Bon à savoir »: the sun on the windows (Adaptive Cover Pro's hours first), a gesture seen to work."""
         local = dt_util.as_local(now)
         acp = {}
@@ -456,7 +457,8 @@ class RoomAdvisor:
                         opened_at=dt_util.as_local(opening[0]) if opening else None,
                         air_at_opening=opening[1] if opening else None, humidity=humidity, coldest_tonight=coldest,
                         bedtime=bedtime, asleep=asleep, shutter_night=shutter_night, wake=wake, heating_back=back,
-                        heating_off=off, end_hour=end_hour, stove_idle=stove, sun_gain=sun_warms)
+                        heating_off=off, end_hour=end_hour, stove_idle=stove, sun_gain=sun_warms,
+                        outdoor=outdoor, outdoor_humidity=outdoor_rh, water_matters=water)
         return tips(view)
 
     def _tonight(self, twins, current, local, bedtime, wake, coming, comfort, proof, marks, taken, habits):
@@ -632,8 +634,13 @@ class RoomAdvisor:
         off = heating_off(twins, current, coming, comfort, habits.tolerance)
         # The stove at its lowest in a room warm enough: worth stopping, or the room still warming (passive).
         stove = stove_idle(twins, current, coming, comfort.minimum, habits.stove_hold) if decision.rule != "overheat" else None
+        # The humidity in question: a window open, above its mark, or a gesture for it — then the outside air is said in
+        # water, the reason an airing dries the room even at 78 % outside (advisor/knowing.py `outside_water`).
+        water = bool(current.opened) or (current.humidity is not None and current.humidity > comfort.humidity) \
+            or words.get("subject") == "humidity" \
+            or (decision.passive is not None and main_subject(decision.scenarios, decision.passive) == "humidity")
         good = self._good_to_know(now, air, opening, comfort, current.humidity, coldest, bedtime, night, shutter_night, wake,
-                                  back, off, end_hour, stove, sun_gain(twins, current, coming))
+                                  back, off, end_hour, stove, sun_gain(twins, current, coming), outdoor, outdoor_rh, water)
         good_words = [tip_text(t, now=local) for t in good]
         night_text = None
         if night_coming and not night and local >= bedtime - timedelta(hours=habits.tonight_before):

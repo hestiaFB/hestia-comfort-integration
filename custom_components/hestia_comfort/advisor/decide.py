@@ -782,7 +782,9 @@ def tonight(twins: Twins, now: Now, coming, bedtime_minutes: int, comfort: Comfo
     there is nothing worth saying. The night's stricter gaps apply (`significant`)."""
     at_night = replace(now, night=True)
     later = Gesture("close", after=bedtime_minutes) if now.opened else Gesture("open", after=bedtime_minutes)
-    if later.kind == "open" and forbidden & {"open", "open_long"}:
+    # A window left open while the household sleeps only when it says it would (« Ouvrir une fenêtre la nuit », off by
+    # default): Chambre P, 3 November, « Cette nuit, pensez à ouvrir » — « à cette période, personne n'ouvre la nuit ».
+    if later.kind == "open" and (forbidden & {"open", "open_long"} or not habits.open_at_night):
         return None
     gestures = [Gesture("nothing"), later]
     paths = {g: simulate(twins, at_night, coming, g) for g in gestures}

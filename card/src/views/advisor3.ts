@@ -70,7 +70,8 @@ export function factBox3(x:Advisor3):TemplateResult|typeof nothing{
   const groups=[
     {id:'gesture',ic:'hand',title:'Pour le geste',lines:[str(a.a_essayer),str(a.cette_nuit),...aside.map(([what,until])=>`Mis de côté jusqu’à ${until} : ${what}`)].filter(Boolean)},
     {id:'watch',ic:'eye',title:'À surveiller',lines:doubts},
-    {id:'know',ic:'info',title:'Bon à savoir',lines:list(a.bon_a_savoir)},
+    // « Cette nuit, pensez à… » is a gesture: said once, under « Pour le geste ».
+    {id:'know',ic:'info',title:'Bon à savoir',lines:list(a.bon_a_savoir).filter(l=>l!==str(a.cette_nuit))},
   ].filter(g=>g.lines.length);
   return groups.length?html`<div class="nc-facts"><div class="nw-label">À savoir</div><div class="nc-facts-box nw-glass">${groups.map(g=>html`<section class="nc-facts-g" data-group=${g.id}>
     <h4>${icon(g.ic)}${g.title}</h4><ul>${g.lines.map(l=>html`<li>${icon(g.ic)}<span>${l}</span></li>`)}</ul></section>`)}</div></div>`:nothing;

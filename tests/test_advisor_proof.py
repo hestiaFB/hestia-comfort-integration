@@ -138,3 +138,19 @@ class Mist(unittest.TestCase):
         self.assertEqual(tip_text(tip), "Buée probable sur les vitres cette nuit (1,0 °C dehors)")
         self.assertEqual(mist_tonight(replace(view, humidity=45.0)), [])
         self.assertEqual(mist_tonight(replace(view, now=evening.replace(hour=11))), [])
+
+
+class OutsideWater(unittest.TestCase):
+    def test_the_outside_air_said_in_water(self):
+        # Chambre P, 3 November: 69 % at 18.1 °C inside, 78 % at 9.9 °C outside. In %, opening looks like raising the
+        # humidity; in water, the outside air is the drier one (Frank: « sans explication je vais comparer »).
+        from advisor.knowing import outside_water
+        evening = datetime(2026, 11, 3, 19, 30, tzinfo=PARIS)
+        view = RoomView(evening, *HOME, air=18.1, humidity=69.0, outdoor=9.9, outdoor_humidity=78.0, water_matters=True)
+        [tip] = outside_water(view)
+        self.assertEqual(tip_text(tip), "Dehors 78 % à 9,9 °C, mais moins d'eau qu'ici : 7,3 g par m³ contre 10,7")
+        self.assertEqual(outside_water(replace(view, water_matters=False)), [])
+        [wetter] = outside_water(replace(view, outdoor=18.0, outdoor_humidity=90.0))
+        self.assertEqual(wetter.kind, "outside_wetter")
+        [same] = outside_water(replace(view, outdoor=15.0, outdoor_humidity=80.0))
+        self.assertEqual(same.kind, "outside_same")

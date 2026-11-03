@@ -14,6 +14,12 @@ Chaque changement du moteur monte son numéro et ajoute une ligne ci-dessous, la
 
 ## Historique
 
+### 3.0.4 — 3 novembre 2026
+
+- « Cette nuit, pensez à ouvrir » seulement si le foyer ouvre la nuit (« Ouvrir une fenêtre la nuit », éteint par défaut). Avant, le conseil du soir oubliait ce réglage : la Chambre P le disait le 3 novembre, quand personne n'ouvre la nuit.
+- Nouveau « Bon à savoir » quand l'humidité est en jeu (fenêtre ouverte, humidité au-dessus de son repère, geste ou essai pour elle) : l'air de dehors dit en eau, pas en %. Par exemple « Dehors 78 % à 9,9 °C, mais moins d'eau qu'ici : 7,3 g par m³ contre 10,7 ». Sinon « plus d'eau qu'ici, aérer fait monter l'humidité » ou « autant d'eau qu'ici ». Sans lui, le % de dehors semblait contredire le conseil.
+- Le soir, l'humidité se dit en valeur (« 62 % d'humidité au lieu de 70 % ») et non plus en points. La carte ne répète plus « Cette nuit, pensez à… » dans « Bon à savoir ».
+
 ### 3.0.3 — 3 novembre 2026
 
 - L'humidité se dit en valeur, à l'heure où le geste fait le plus : « Vers 19 h 35 : 56 % d'humidité au lieu de 67 % ». Avant : « 13,6 points d'humidité en moins », une différence à recalculer soi-même (Frank : « c'est vraiment difficile à comprendre »).

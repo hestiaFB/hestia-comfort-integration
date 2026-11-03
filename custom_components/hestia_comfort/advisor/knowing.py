@@ -9,7 +9,8 @@ from datetime import datetime, timedelta
 
 from .physics.sunlight import bearing_name, sun_hours
 from .physics.surface import misted
-from .proof import LIVE_MINUTES, LIVE_SHARE, PROVEN, REINFORCED, SUPPOSED
+from .physics.water import absolute
+from .proof import LIVE_MINUTES, LIVE_SHARE, PROVEN, REINFORCED, SUPPOSED, WATER_GAP
 
 # The sun is said only when it warms the room by this much over the coming hours (°C): the days it changes nothing, its
 # line goes (Frank, 3 November: a room with three windows had three sun lines).
@@ -69,6 +70,11 @@ class RoomView:
     stove_idle: dict | None = None
     # °C the sun adds to the room over the coming hours (advisor/decide.py `sun_gain`); None when not known.
     sun_gain: float | None = None
+    # The outside air, and whether the room's humidity is in question now: a window open, the humidity above its mark, a
+    # gesture or a tip for it (`outside_water`).
+    outdoor: float | None = None
+    outdoor_humidity: float | None = None
+    water_matters: bool = False
 
 
 def sun_on_windows(view: RoomView) -> list[Tip]:
@@ -195,7 +201,19 @@ def stove_at_its_lowest(view: RoomView) -> list[Tip]:
     return [Tip("stove_hold", {"minimum": view.minimum, "at": at}, "heat", 2, at, SUPPOSED)]
 
 
-PROVIDERS = [gesture_seen, mist_tonight, heating_catches_up, heating_is_off, stove_at_its_lowest, shutter_at_night,
+def outside_water(view: RoomView) -> list[Tip]:
+    """The outside air in water, not in %: 78 % at 10 °C holds less water than 69 % at 18 °C, and an airing dries the room.
+    Without it, the % outside says the opposite of the advice (Frank, 3 November: « sans explication je vais comparer avec
+    l'humidité extérieure »). Said when the humidity is in question; a fact of physics, proven."""
+    if not view.water_matters or None in (view.air, view.humidity, view.outdoor, view.outdoor_humidity):
+        return []
+    inside, outside = absolute(view.air, view.humidity), absolute(view.outdoor, view.outdoor_humidity)
+    kind = "outside_drier" if outside <= inside - WATER_GAP else "outside_wetter" if outside >= inside + WATER_GAP else "outside_same"
+    return [Tip(kind, {"outdoor": view.outdoor, "outdoor_humidity": view.outdoor_humidity, "inside": inside, "outside": outside},
+                "humidity", 3, None, PROVEN)]
+
+
+PROVIDERS = [outside_water, gesture_seen, mist_tonight, heating_catches_up, heating_is_off, stove_at_its_lowest, shutter_at_night,
              sun_on_windows]
 
 

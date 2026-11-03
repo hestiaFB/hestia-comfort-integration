@@ -217,6 +217,16 @@ class Tonight(unittest.TestCase):
         self.assertEqual(found.gesture, Gesture("close", after=120))
         self.assertRegex(tonight_text(found, 7), r"^Cette nuit, pensez à refermer : vous gardez \d+,\d °C d'ici 7 h$")
 
+    def test_no_window_left_open_for_the_night_unless_the_household_would(self):
+        # Chambre P, 3 November: « Cette nuit, pensez à ouvrir » with « Ouvrir une fenêtre la nuit » off.
+        from advisor.decide import tonight
+        from advisor.household import Habits
+        # A summer room at 28 °C, 15 °C outside all night: worth opening at bedtime, only for a household that would.
+        now, coming = Now(air=28.0, walls=28.0, opened=(), humidity=50.0), night(outdoor=15.0, start=20.0, hours=11)
+        self.assertIsNone(tonight(TWINS, now, coming, 120, comfort=Comfort(19, 24)))
+        found = tonight(TWINS, now, coming, 120, comfort=Comfort(19, 24), habits=Habits(open_at_night=True))
+        self.assertEqual(found.gesture, Gesture("open", after=120))
+
     def test_nothing_to_say_on_a_mild_night(self):
         from advisor.decide import tonight
         now = Now(air=21.0, walls=21.0, opened=(), humidity=50.0)
