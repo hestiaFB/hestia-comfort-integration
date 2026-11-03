@@ -75,6 +75,9 @@ class RoomView:
     outdoor: float | None = None
     outdoor_humidity: float | None = None
     water_matters: bool = False
+    # The share of its forecast the window open now really does (advisor/opening.py), and the humidity when it was opened.
+    window_share: float | None = None
+    humidity_at_opening: float | None = None
 
 
 def sun_on_windows(view: RoomView) -> list[Tip]:
@@ -213,7 +216,18 @@ def outside_water(view: RoomView) -> list[Tip]:
                 "humidity", 3, None, PROVEN)]
 
 
-PROVIDERS = [outside_water, gesture_seen, mist_tonight, heating_catches_up, heating_is_off, stove_at_its_lowest, shutter_at_night,
+def window_weak(view: RoomView) -> list[Tip]:
+    """The window open now renews little of the air, measured since it was opened: the reason the advice does not count on
+    it (advisor/opening.py) — a leaf ajar, a tilted sash."""
+    from .opening import WEAK
+    if view.window_share is None or view.window_share >= WEAK or view.opened_at is None or None in (view.air, view.air_at_opening):
+        return []
+    values = {"since": view.opened_at, "air_then": view.air_at_opening, "air": view.air,
+              "humidity_then": view.humidity_at_opening, "humidity": view.humidity}
+    return [Tip("open_weak", values, "heat", 4, None, PROVEN)]
+
+
+PROVIDERS = [window_weak, outside_water, gesture_seen, mist_tonight, heating_catches_up, heating_is_off, stove_at_its_lowest, shutter_at_night,
              sun_on_windows]
 
 

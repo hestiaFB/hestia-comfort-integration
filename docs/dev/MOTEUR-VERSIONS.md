@@ -14,6 +14,10 @@ Chaque changement du moteur monte son numéro et ajoute une ligne ci-dessous, la
 
 ## Historique
 
+### 3.0.5 — 3 novembre 2026
+
+- La fenêtre ouverte est regardée au travail (`advisor/opening.py`). Au premier pas où elle est vue ouverte, le moteur garde ce que le jumeau lui prête. Dix minutes plus tard, il compare à la mesure : la température d'abord, l'eau de l'air si la température bouge trop peu. Le reste de l'aération est jugé avec la part réellement faite (0 à 1,5 fois la prévision). Chambre P, 3 novembre, un battant entrouvert : 12 % de la prévision. « Laissez ouvert encore 10 min · 13,6 points d'humidité en moins » devient « Rien à faire », avec en « Bon à savoir » : « Ouverte depuis 19 h 19 : 18,2 → 18,1 °C, 67 → 69 % : elle renouvelle peu l'air ». La part est notée dans le journal (`part_fenetre`).
+
 ### 3.0.4 — 3 novembre 2026
 
 - « Cette nuit, pensez à ouvrir » seulement si le foyer ouvre la nuit (« Ouvrir une fenêtre la nuit », éteint par défaut). Avant, le conseil du soir oubliait ce réglage : la Chambre P le disait le 3 novembre, quand personne n'ouvre la nuit.

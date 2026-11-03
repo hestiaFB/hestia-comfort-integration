@@ -53,6 +53,8 @@ TEXTS = {
         "doubt_range": "{value} : valeur impossible", "doubt_jump": "saut soudain à {value}", "doubt_frozen": "figée depuis {since}",
         "m_temperature": "température", "m_humidity": "humidité", "m_co2": "CO₂", "m_particles": "particules", "m_voc": "COV",
         "mist": "Buée probable sur les vitres cette nuit ({outdoor} °C dehors)",
+        "open_weak": "Ouverte depuis {since} : {air_then} → {air} °C, {humidity_then} → {humidity} % : elle renouvelle peu l'air",
+        "open_weak_air": "Ouverte depuis {since} : {air_then} → {air} °C : elle renouvelle peu l'air",
         "outside_drier": "Dehors {rh} % à {outdoor} °C, mais moins d'eau qu'ici : {outside} g par m³ contre {inside}",
         "outside_wetter": "Dehors, plus d'eau qu'ici : {outside} g par m³ contre {inside}, aérer fait monter l'humidité",
         "outside_same": "Dehors, autant d'eau qu'ici ({outside} g par m³) : aérer ne fait pas baisser l'humidité",
@@ -108,6 +110,8 @@ TEXTS = {
         "doubt_range": "{value}: impossible value", "doubt_jump": "sudden jump to {value}", "doubt_frozen": "frozen since {since}",
         "m_temperature": "temperature", "m_humidity": "humidity", "m_co2": "CO₂", "m_particles": "particles", "m_voc": "VOC",
         "mist": "Misted panes likely tonight ({outdoor} °C outside)",
+        "open_weak": "Open since {since}: {air_then} → {air} °C, {humidity_then} → {humidity}%: it renews little air",
+        "open_weak_air": "Open since {since}: {air_then} → {air} °C: it renews little air",
         "outside_drier": "{rh}% outside at {outdoor} °C, but less water than in here: {outside} g per m³ against {inside}",
         "outside_wetter": "More water outside than in here: {outside} g per m³ against {inside}, airing raises the humidity",
         "outside_same": "As much water outside as in here ({outside} g per m³): airing does not lower the humidity",
@@ -163,6 +167,8 @@ TEXTS = {
         "doubt_range": "{value}: unmöglicher Wert", "doubt_jump": "plötzlicher Sprung auf {value}", "doubt_frozen": "unverändert seit {since}",
         "m_temperature": "Temperatur", "m_humidity": "Feuchte", "m_co2": "CO₂", "m_particles": "Partikel", "m_voc": "VOC",
         "mist": "Heute Nacht wahrscheinlich beschlagene Scheiben ({outdoor} °C draußen)",
+        "open_weak": "Offen seit {since}: {air_then} → {air} °C, {humidity_then} → {humidity} %: es kommt wenig frische Luft",
+        "open_weak_air": "Offen seit {since}: {air_then} → {air} °C: es kommt wenig frische Luft",
         "outside_drier": "Draußen {rh} % bei {outdoor} °C, aber weniger Wasser als hier: {outside} g pro m³ gegen {inside}",
         "outside_wetter": "Draußen mehr Wasser als hier: {outside} g pro m³ gegen {inside}, Lüften erhöht die Feuchte",
         "outside_same": "Draußen so viel Wasser wie hier ({outside} g pro m³): Lüften senkt die Feuchte nicht",
@@ -375,6 +381,11 @@ def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
         return words["sun_gain"].format(line=line, gain=_number(v["gain"], language)) if v.get("gain") is not None else line
     if tip.kind == "mist":
         return words["mist"].format(outdoor=_number(v["outdoor"], language))
+    if tip.kind == "open_weak":
+        key = "open_weak" if None not in (v["humidity_then"], v["humidity"]) else "open_weak_air"
+        return words[key].format(since=_time(v["since"], words), air_then=_number(v["air_then"], language),
+                                 air=_number(v["air"], language), humidity_then=round(v["humidity_then"] or 0),
+                                 humidity=round(v["humidity"] or 0))
     if tip.kind.startswith("outside_"):
         return words[tip.kind].format(rh=round(v["outdoor_humidity"]), outdoor=_number(v["outdoor"], language),
                                       outside=_number(v["outside"], language), inside=_number(v["inside"], language))

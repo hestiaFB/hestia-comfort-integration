@@ -25,6 +25,7 @@ from ..advisor.household import Habits
 from ..advisor.house import ORDINARY_VOLUME, Opening as Declared, Room
 from ..advisor.knowing import RoomView, Window, tips
 from ..advisor.nightly import RoomSpec
+from ..advisor.opening import Opened, scaled, seen_share
 from ..advisor.physics.air import AirParams, ParticleParams
 from ..advisor.physics.airfit import TWINS, first, values
 from ..advisor.physics.fit import HOUR
@@ -269,6 +270,8 @@ class RoomAdvisor:
         self.trail, self.air_trail = deque(maxlen=HOUR), deque(maxlen=8)
         # When the windows were opened, and the air and humidity then: the gesture under way (proof.live).
         self.opening = None
+        # The same opening with the twin's forecast for it, to see how much of it the window really does (advisor/opening.py).
+        self.opened_seen = None
         # The gesture shown last: (gesture, when, since when it has been on the card).
         self.previous = None
         # The gesture the card asks for, followed until done or replaced; the gestures put aside by « Pas maintenant ».
@@ -404,7 +407,7 @@ class RoomAdvisor:
     def _opening(self, now, opened, air, humidity):
         """(since, air, humidity) of the opening under way, as this step first saw it; None when shut or not seen."""
         if not opened:
-            self.opening = None
+            self.opening = self.opened_seen = None
             return None
         if self.opening is None:
             self.opening = (now, air, humidity)
@@ -441,7 +444,7 @@ class RoomAdvisor:
 
     def _good_to_know(self, now, air, opening, comfort, humidity=None, coldest=None, bedtime=None, asleep=False,
                       shutter_night=None, wake=None, back=None, off=None, end_hour=None, stove=None, sun_warms=None,
-                      outdoor=None, outdoor_rh=None, water=False):
+                      outdoor=None, outdoor_rh=None, water=False, share=None):
         """« Bon à savoir »: the sun on the windows (Adaptive Cover Pro's hours first), a gesture seen to work."""
         local = dt_util.as_local(now)
         acp = {}
@@ -458,7 +461,8 @@ class RoomAdvisor:
                         air_at_opening=opening[1] if opening else None, humidity=humidity, coldest_tonight=coldest,
                         bedtime=bedtime, asleep=asleep, shutter_night=shutter_night, wake=wake, heating_back=back,
                         heating_off=off, end_hour=end_hour, stove_idle=stove, sun_gain=sun_warms,
-                        outdoor=outdoor, outdoor_humidity=outdoor_rh, water_matters=water)
+                        outdoor=outdoor, outdoor_humidity=outdoor_rh, water_matters=water, window_share=share,
+                        humidity_at_opening=opening[2] if opening else None)
         return tips(view)
 
     def _tonight(self, twins, current, local, bedtime, wake, coming, comfort, proof, marks, taken, habits):
@@ -576,6 +580,11 @@ class RoomAdvisor:
                                       aimed.get("preset", stat.attributes.get("preset_mode")),
                                       (stat.attributes.get("preset_temperatures") or {}).get("comfort_temp"))
         opening = self._opening(now, opened, air, current.humidity)
+        # The window open now, seen at work: the rest of the airing is judged with the share of its forecast it really does
+        # (Chambre P, 3 November: one leaf ajar, « 13,6 points d'humidité en moins » while the humidity rose).
+        share = seen_share(self.opened_seen, now, air, current.humidity) if opened and self.opened_seen else None
+        if share is not None:
+            twins = scaled(twins, share)
         proof = self._proof(current, outdoor, coming[0][1])
         # A source running now (a cooking, a shower…): the last half hour replayed on the twin against the measures.
         rows = list(self.air_trail)
@@ -603,6 +612,10 @@ class RoomAdvisor:
                 proof[subject] = PROVEN
                 decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
                                   holidays=away, habits=habits, held=held)
+        if opened and opening and self.opened_seen is None:
+            # What the twin gives the windows left open, from the moment they are first seen open.
+            path = decision.paths[Gesture("nothing")]
+            self.opened_seen = Opened(opening[0], opening[1], opening[2], tuple(path.air), tuple(path.humidity or ()))
         snap = capture(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
                        holidays=away, habits=habits, reason=reason, held=held, end_hour=end_hour, hour=local.hour + local.minute / 60,
                        room=name, when=now.isoformat(), version=home.version)
@@ -640,7 +653,8 @@ class RoomAdvisor:
             or words.get("subject") == "humidity" \
             or (decision.passive is not None and main_subject(decision.scenarios, decision.passive) == "humidity")
         good = self._good_to_know(now, air, opening, comfort, current.humidity, coldest, bedtime, night, shutter_night, wake,
-                                  back, off, end_hour, stove, sun_gain(twins, current, coming), outdoor, outdoor_rh, water)
+                                  back, off, end_hour, stove, sun_gain(twins, current, coming), outdoor, outdoor_rh, water,
+                                  share)
         good_words = [tip_text(t, now=local) for t in good]
         night_text = None
         if night_coming and not night and local >= bedtime - timedelta(hours=habits.tonight_before):
@@ -670,6 +684,7 @@ class RoomAdvisor:
                        "mesures": {"air": air, "humidite": current.humidity, "co2": current.co2, "particules": current.particles,
                                    "cov": current.voc, "dehors": outdoor, "fenetres": len(opened)},
                        "plage": [comfort.minimum, comfort.maximum], "cette_nuit": night_text, "preuve": decision.level,
+                       "part_fenetre": None if share is None else round(share, 2),
                        "preuves": proof, "a_essayer": words["try"], "bon_a_savoir": good_words,
                        "pas_maintenant": {k: dt_util.as_local(until).strftime("%H h %M") for k, until in self.paused.items() if k in aside},
                        "douteuses": doubt_text(doubts), "calcule_a": now.isoformat(), "moteur": home.version}
