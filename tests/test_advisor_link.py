@@ -189,5 +189,15 @@ class WhatTheHubShows(unittest.TestCase):
         self.assertEqual(advisor_home.result(h, "chambre")["title"], "Rien à faire")
 
 
+class TheEnginesOwnVersion(unittest.TestCase):
+    def test_its_number_and_its_history_go_together(self):
+        from custom_components.hestia_comfort.advisor import VERSION
+        major, minor, fix = VERSION.split(".")
+        self.assertTrue(major.isdigit() and minor.isdigit() and fix.isdigit())
+        history = (Path(__file__).resolve().parents[1] / "docs" / "dev" / "MOTEUR-VERSIONS.md").read_text(encoding="utf-8")
+        # The newest entry of the history is the version the code says.
+        self.assertEqual(history.split("\n### ")[1].split(" ")[0], VERSION)
+
+
 if __name__ == "__main__":
     unittest.main()

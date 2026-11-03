@@ -32,7 +32,7 @@ export const EN_ROOM:Record<string,string>={"Puissance de chauffe, dernière dem
  'L’air sera plus sec : {0}':'The air will be drier: {0}','{0} d’humidité, la fenêtre la baisse à peine':'{0} humidity, the window barely lowers it',
  'Visez {0} : des murs plus chauds ne moisissent pas':'Aim for {0}: warmer walls do not grow mould','Des murs plus chauds {0}':'Warmer walls {0}','Pièce fraîche : {0}':'Cool room: {0}',
  '{0}, sous votre plage':'{0}, below your range','Le soleil {0}':'The sun {0}','{0} : {1}':'{0}: {1}','Home Assistant {0}':'Home Assistant {0}',
- 'Ouverte, {0} en {1} min':'Open, {0} in {1} min','{0}{1} en {2} min':'{0}{1} in {2} min','Aérer {0}':'Airing {0}','Aérer ne la baisserait {0}':'Airing would lower it {0}',
+ 'Ouverte, de {0} à {1} en {2} min':'Open, from {0} to {1} in {2} min','{0}de {1} à {2} en {3} min':'{0}from {1} to {2} in {3} min','Aérer {0}':'Airing {0}','Aérer ne la baisserait {0}':'Airing would lower it {0}',
  // Banner: the bold parts
  'plus sec':'drier','réchauffe la pièce':'warms the room','refroidit la pièce':'cools the room','cela ne change rien':'it makes no difference','n’est pas possible':'is not possible',
  'aérez plutôt au réveil':'air when you wake up instead','sèche d’elle-même':'dries by itself','refroidirait trop vite':'would cool too fast','n’apporterait rien':'would bring nothing',
@@ -71,7 +71,7 @@ export const EN_ROOM:Record<string,string>={"Puissance de chauffe, dernière dem
  'courte et franche, à refaire dans la journée : les murs restent chauds':'short and wide open, to repeat during the day: the walls stay warm',
  'il réchauffe la pièce : volets et rideaux ouverts, fenêtre fermée':'it warms the room: shutters and curtains open, window closed','il réchauffe la pièce : volets et rideaux ouverts':'it warms the room: shutters and curtains open',
  'il chauffe la pièce : baissez le volet ou le store':'it heats the room: lower the shutter or blind','l’aération la baissera peu':'airing will lower it little','aérer refroidirait une pièce déjà fraîche':'airing would cool a room already cool',
- 'elle attendra que l’on puisse aérer':'it will wait until airing is possible','{what}{before} → {after}{unit}':'{what}{before} → {after}{unit}','{text} (prévu {value})':'{text} (expected {value})',
+ 'elle attendra que l’on puisse aérer':'it will wait until airing is possible','{what}de {before} à {after}{unit}':'{what}from {before} to {after}{unit}','{text} (prévu {value})':'{text} (expected {value})',
  'humidité {value}':'humidity {value}','température {value}':'temperature {value}','CO₂ {value}':'CO₂ {value}','COV {value}':'VOC {value}',
  
  

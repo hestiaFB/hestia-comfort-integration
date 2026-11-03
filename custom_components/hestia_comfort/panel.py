@@ -69,7 +69,10 @@ async def async_setup_panel(hass):
         hass.data[DOMAIN + "_panel_asset"] = True
     await async_register_brick(hass, {
         "domain": DOMAIN, "name": "Hestia Confort", "slug": "confort", "version": VERSION,
-        "icon": "mdi:home-thermometer-outline", "navigation": 3, "module_url": f"{ASSETS}/panel.js?v={VERSION}",
+        "icon": "mdi:home-thermometer-outline", "navigation": 3,
+        "menu": [["", "Vue d’ensemble", "home"], ["pieces", "Pièces", "rooms"], ["reglages", "Réglages", "settings"],
+                 ["apprentissage", "Apprentissage", "learning"], ["extensions", "Extensions", "extensions"], ["bilan", "Bilan", "review"],
+                 ["a-propos", "À propos", "info"]], "module_url": f"{ASSETS}/panel.js?v={VERSION}",
         "element": "hestia-comfort-setup", "status": comfort_status, "legacy_path": "hestia-confort",
         "migration": migration_status,
     }, f"{ASSETS}/hestia-socle.js?v={VERSION}")

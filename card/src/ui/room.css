@@ -8,7 +8,8 @@
 /* Une couleur imposée par la carte (thème clair ou sombre forcé) ; sinon le thème Home Assistant. */
 :host([forced="light"]) { --nw-fg:#253047; --nw-fg2:#5b687b; --nw-bg:#fff; }
 :host([forced="dark"]) { --nw-fg:#edf1f7; --nw-fg2:#b2bdcd; --nw-bg:#222932; }
-ha-card.nc-c { --nc-base:var(--nw-bg); overflow:hidden; border-radius:var(--nw-radius-card); background:var(--nw-bg); color:var(--nw-fg); font-family:var(--ha-font-family-body, Roboto, system-ui, sans-serif); container-type:inline-size; }
+/* La police et les angles de la carte sont ceux de la charte (hestia-charte). */
+ha-card.nc-c { --nc-base:var(--nw-bg); overflow:hidden; background:var(--nw-bg); color:var(--nw-fg); container-type:inline-size; }
 .nc-hero { position:relative; isolation:isolate; overflow:hidden; padding:18px 20px 16px;
   background:linear-gradient(115deg, var(--nc-base) 40%, color-mix(in oklab, var(--c) 16%, var(--nc-base)) 100%); }
 /* Followed by « À savoir », the banner's light goes on behind it and fades out, seen through its frosted box: no
@@ -24,7 +25,6 @@ ha-card.nc-c { --nc-base:var(--nw-bg); overflow:hidden; border-radius:var(--nw-r
 .nc-top { display:flex; align-items:center; gap:8px; min-width:0; }
 .nc-top h2 { margin:0; font-size:var(--nw-fs-title); font-weight:700; letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .nc-top .nw-info { min-height:0; }
-.nc-top .nw-info .icon { width:15px; height:15px; }
 .nw-fold-head, .nc-configure, button.nc-tile { min-height:0; }
 .nc-level { margin-left:auto; }
 .nc-grid { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:16px; align-items:center; margin-top:14px; }
@@ -39,36 +39,19 @@ ha-card.nc-c { --nc-base:var(--nw-bg); overflow:hidden; border-radius:var(--nw-r
   box-shadow:inset 0 1px 0 color-mix(in srgb, #fff 40%, transparent), 0 10px 28px -12px color-mix(in oklab, var(--c) 80%, transparent); }
 .nc-disk .icon { width:42px; height:42px; }
 .nc-cap { font-size:var(--nw-fs-small); color:var(--nw-fg2); text-align:center; margin-top:8px; max-width:110px; }
-.nc-why { margin-top:12px; padding:10px 12px; border-radius:var(--nw-radius); border:1px solid var(--nw-line); background:var(--nw-glass-strong); backdrop-filter:var(--nw-blur); -webkit-backdrop-filter:var(--nw-blur); font-size:var(--nw-fs-text); }
+.nc-why { margin-top:12px; padding:10px 12px; font-size:var(--nw-fs-text); }
+/* Sans le cadre de verre de la charte (.nw-glass), un encart plus discret. */
+.nc-why:not(.nw-glass) { border-radius:var(--nw-radius); border:1px solid var(--nw-line); background:var(--nw-glass-strong); backdrop-filter:var(--nw-blur); -webkit-backdrop-filter:var(--nw-blur); }
 .nc-why[hidden] { display:none; }
 .nc-why p { margin:0; } .nc-why p + p { margin-top:4px; }
 .nc-sec { margin-top:18px; padding:12px 14px 10px; }
-/* Échelle : piste fine, plage, anneau et sa bulle (comme le Ressenti de Hestia Weather). */
-.nc-scale { position:relative; height:62px; margin:8px 10px 0; }
-.nc-track { position:absolute; left:0; right:0; top:30px; height:8px; border-radius:4px; background:color-mix(in srgb, var(--nw-fg) 9%, transparent); }
-.nc-band { position:absolute; top:30px; height:8px; border-radius:4px; background:color-mix(in oklab, var(--nw-ok) 80%, transparent); }
-.nc-zone { position:absolute; top:30px; height:8px; }
-/* With the zones, the range is the calm green: the charter's « ok » is its cold blue. */
-.nc-band.zoned, .k-band.zoned { background:color-mix(in oklab, var(--nw-calm) 85%, transparent); }
-.nc-zone.cold { border-radius:4px 0 0 4px; background:color-mix(in oklab, var(--nw-cold) 45%, transparent); }
-.nc-zone.warm { border-radius:0 4px 4px 0; background:color-mix(in oklab, var(--nw-heat) 45%, transparent); }
-/* The last 24 hours: a whisker (two ends and a thin line) laid over the track, never hiding the range. */
-.nc-day { position:absolute; top:26px; height:16px; box-sizing:border-box; border-left:2px solid var(--nw-fg); border-right:2px solid var(--nw-fg);
-  background:linear-gradient(var(--nw-fg), var(--nw-fg)) center / 100% 2px no-repeat; }
-.nc-ring { position:absolute; top:24px; width:20px; height:20px; margin-left:-10px; border-radius:50%; box-sizing:border-box; background:var(--nw-bg);
-  border:4px solid color-mix(in oklab, var(--c) 70%, var(--nw-fg)); box-shadow:0 1px 4px color-mix(in srgb, var(--nw-fg) 20%, transparent); }
-.nc-now { top:0; transform:translateX(-50%); font-size:var(--nw-fs-text); }
+/* L'échelle est celle de la charte (hestia-charte, .nw-scale-*) ; ici seulement les points des pièces (carte du logement) et la légende. */
 .nc-mk { position:absolute; border-radius:50%; }
-.nc-mk.out { top:29px; width:10px; height:10px; margin-left:-5px; background:var(--nw-bg); border:2px solid var(--nw-fg2); }
-.nc-mk.room { top:28px; width:12px; height:12px; margin-left:-6px; background:color-mix(in oklab, var(--c) 75%, var(--nw-fg)); box-shadow:0 0 0 2px var(--nw-bg); }
-.nc-lb { position:absolute; top:44px; transform:translateX(-50%); font-size:var(--nw-fs-small); color:var(--nw-fg2); white-space:nowrap; }
-.nc-lb.up { top:6px; } .nc-lb b { color:var(--nw-fg); }
-.nc-legend { margin-top:6px; }
+.nc-mk.room { top:47px; z-index:2; width:12px; height:12px; margin-left:-6px; background:color-mix(in oklab, var(--c) 75%, var(--nw-fg)); box-shadow:0 0 0 2px var(--nw-bg); }
+.nc-legend { margin-top:2px; }
 .nc-legend i { display:inline-block; }
-.k-band { width:10px; height:10px; border-radius:3px; background:color-mix(in oklab, var(--nw-ok) 80%, transparent); }
-.k-day { width:14px; height:10px; box-sizing:border-box; border-left:2px solid var(--nw-fg); border-right:2px solid var(--nw-fg); background:linear-gradient(var(--nw-fg), var(--nw-fg)) center / 100% 2px no-repeat; }
-.k-zone { width:10px; height:10px; border-radius:3px; } .k-zone.cold { background:color-mix(in oklab, var(--nw-cold) 45%, transparent); } .k-zone.warm { background:color-mix(in oklab, var(--nw-heat) 45%, transparent); }
-.k-out { width:9px; height:9px; border-radius:50%; border:2px solid var(--nw-fg2); }
+.k-day { width:14px; height:3px; border-radius:2px; background:color-mix(in srgb, var(--nw-fg) 45%, transparent); }
+.k-out { width:9px; height:9px; box-sizing:border-box; border-radius:50%; border:2px solid var(--nw-fg2); }
 .k-room { width:10px; height:10px; border-radius:50%; background:color-mix(in oklab, var(--nw-ok) 75%, var(--nw-fg)); }
 /* Corps : sections repliables. */
 .nc-body { padding:14px 20px 16px; border-top:1px solid var(--nw-line-soft); display:grid; gap:14px; }
@@ -83,6 +66,9 @@ ha-card.nc-c { --nc-base:var(--nw-bg); overflow:hidden; border-radius:var(--nw-r
 .nc-ic { display:grid; place-items:center; width:22px; height:22px; border-radius:7px; flex:none;
   background:color-mix(in oklab, var(--c) 28%, transparent); color:color-mix(in oklab, var(--c) 60%, var(--nw-fg)); }
 .nc-ic .icon { width:14px; height:14px; }
+/* Dans l'en-tête d'un module, le pictogramme est celui de la charte (.nw-panel-icon) : au trait, sans fond. */
+.nc-ic.nw-panel-icon { width:auto; height:auto; border-radius:0; background:none; color:var(--nw-fg2); }
+.nc-ic.nw-panel-icon .icon { width:18px; height:18px; }
 .nc-tile b { display:block; margin-top:6px; font-size:var(--nw-fs-title); font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .nc-tile b small { font-size:var(--nw-fs-small); font-weight:400; color:var(--nw-fg2); margin-left:2px; }
 .nc-tile em { display:block; font-style:normal; font-size:var(--nw-fs-small); color:var(--nw-fg2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -105,16 +91,8 @@ hestia-note-ticker { display:block; flex:1; min-width:0; }
 .nc-tile.out.soft .nc-ic { background:color-mix(in oklab, var(--nw-fg) 10%, transparent); color:var(--nw-fg2); }
 .nc-tile.out.soft em { font-weight:500; color:var(--nw-fg2); }
 /* Capteur muet : contour en pointillés, valeur effacée ; juste après un démarrage, la tuile scintille comme un chargement. */
-.nc-tile b:has(.nc-way) { display:flex; align-items:center; gap:8px; }
-.nc-tile b .nc-way { display:inline-flex; flex:none; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%;
-  color:var(--t, var(--nw-fg2)); background:color-mix(in oklab, var(--t, var(--nw-fg2)) 14%, transparent); }
-.nc-way .icon { width:14px; height:14px; stroke-width:2.2; }
-.nc-way[data-way="up"] .icon { --r:-90deg; } .nc-way[data-way="down"] .icon { --r:90deg; } .nc-way .icon { transform:rotate(var(--r,0deg)); }
-.nc-way[data-way="up"] .icon { animation:nc-way-up 1.8s ease-in-out infinite; } .nc-way[data-way="down"] .icon { animation:nc-way-down 1.8s ease-in-out infinite; }
-.nc-way[data-way="stable"] .icon { animation:nc-way-flat 2.4s ease-in-out infinite; }
-@keyframes nc-way-up { 0%,100% { transform:rotate(-90deg) translateX(-2px); opacity:.55; } 50% { transform:rotate(-90deg) translateX(2px); opacity:1; } }
-@keyframes nc-way-down { 0%,100% { transform:rotate(90deg) translateX(-2px); opacity:.55; } 50% { transform:rotate(90deg) translateX(2px); opacity:1; } }
-@keyframes nc-way-flat { 0%,100% { transform:translateX(-1px); } 50% { transform:translateX(2px); } }
+/* La flèche de tendance est celle de la charte (.nw-trend) : après la valeur, sans disque ni boucle. */
+.nc-tile b:has(.nc-way), .nc-mod b:has(.nc-way) { display:inline-flex; align-items:baseline; gap:6px; }
 /* Green only when the measure heads back to your range, orange when it leaves it further; grey otherwise. */
 [data-tone="better"] { --t:var(--nw-benefit); } [data-tone="worse"] { --t:var(--nw-act); }
 .nc-spark { position:relative; height:24px; margin:6px 0 2px; }
@@ -197,12 +175,11 @@ button.nc-tile { font:inherit; color:inherit; text-align:left; cursor:pointer; b
 .nc-tiles > :nth-child(2) { animation-delay:.05s; } .nc-tiles > :nth-child(3) { animation-delay:.1s; } .nc-tiles > :nth-child(4) { animation-delay:.15s; }
 .nc-tiles > :nth-child(5) { animation-delay:.2s; } .nc-tiles > :nth-child(n+6) { animation-delay:.25s; }
 @keyframes nc-rise { from { opacity:0; transform:translateY(8px) scale(.98); } }
-.nc-ring, .nc-now, .nc-mk.room { animation:nc-pop .7s var(--nw-ease) both; }
-.nc-band, .nc-day { animation:nc-grow .8s var(--nw-ease) both; transform-origin:left center; }
+.nc-mk.room { animation:nc-pop .7s var(--nw-ease) both; }
 @keyframes nc-pop { from { opacity:0; scale:.4; } }
 @keyframes nc-grow { from { opacity:0; transform:scaleX(.2); } }
 @media (prefers-reduced-motion:reduce) {
-  .nc-hero::before, .nc-hero::after, .nc-disk, .nc-disk::before, .nc-disk::after, .nc-tile.out em::before, .nc-tile.mute::after, .nc-way .icon, .nc-spark svg, .nc-spark-dot::after, .nc-stack > .nc-slide, .nc-tiles > *, .nc-ring, .nc-now, .nc-mk.room, .nc-band, .nc-day { animation:none !important; }
+  .nc-hero::before, .nc-hero::after, .nc-disk, .nc-disk::before, .nc-disk::after, .nc-tile.out em::before, .nc-tile.mute::after, .nc-spark svg, .nc-spark-dot::after, .nc-stack > .nc-slide, .nc-tiles > *, .nc-mk.room { animation:none !important; }
   .nc-stack > .nc-slide { transform:none !important; filter:none !important; }
 }
 :host([still]) *, :host([still]) *::before, :host([still]) *::after { animation:none !important; transition:none !important; }
@@ -240,7 +217,7 @@ button.nc-tile:hover { border-color:color-mix(in srgb, var(--nw-fg) 28%, transpa
 button.nc-tile.out:hover { border-color:color-mix(in oklab, var(--c) 90%, var(--nw-fg)); }
 button.nc-hit { padding:0; min-height:0; box-sizing:border-box; cursor:pointer; font:inherit; color:inherit; }
 button.nc-mk.nc-hit::before { content:''; position:absolute; inset:-10px; }
-button.nc-now { border:1px solid var(--nw-line); min-height:0; padding:2px 9px; font-size:var(--nw-fs-text); font-weight:700; line-height:18px; }
+button.nw-scale-pin { min-height:0; }
 button.nc-hit:focus-visible, button.nc-tile:focus-visible { outline:2px solid var(--nw-accent); outline-offset:2px; }
 
 /* Formats (comme Hestia Weather) : tuile, tuile dépliée, mini, mesures, alerte. */
@@ -363,10 +340,6 @@ button.nc-row:hover { background:color-mix(in srgb, var(--nw-fg) 5%, transparent
 .nc-sub { flex-basis:100%; font-size:var(--nw-fs-small); color:var(--nw-fg2); }
 .nc-moment { display:flex; flex-direction:column; align-items:flex-end; gap:2px; flex:none; text-align:right; }
 .nc-moment .nc-level { margin:0 0 4px; }
-.nc-moment-v { all:unset; cursor:pointer; border-radius:8px; }
-.nc-moment-t { font-size:calc(var(--nw-fs-title) * 1.9); font-weight:700; letter-spacing:-1px; line-height:1; font-variant-numeric:tabular-nums; }
-.nc-moment-t small { font-size:var(--nw-fs-small); font-weight:500; letter-spacing:0; margin-left:2px; vertical-align:top; }
-.nc-moment-d { font-size:var(--nw-fs-small); color:var(--nw-fg2); white-space:nowrap; }
 .nc-weatherlike .nc-grid { margin-top:6px; }
 /* Folded: the advice in a see-through bubble, its disk small, as Hestia Weather's ticker. */
 .nc-bubble { margin-top:10px; max-width:min(100%, 420px); padding:8px 12px; border-radius:var(--nw-radius); background:var(--nw-glass-clear); border:1px solid var(--nw-line);
@@ -389,25 +362,23 @@ button.nc-row:hover { background:color-mix(in srgb, var(--nw-fg) 5%, transparent
 @container (max-width:480px) { .nc-mod-grid { grid-template-columns:1fr; } }
 .nc-mod { position:relative; overflow:hidden; border:1px solid var(--nw-line); border-radius:var(--nw-radius); padding:10px 12px; min-width:0; background:var(--nw-bg); }
 .nc-mod-h { display:flex; align-items:center; gap:8px; min-width:0; }
-.nc-mod-h b { font-weight:600; font-size:var(--nw-fs-text); }
-.nc-mod-h .nc-ic { width:24px; height:24px; border-radius:8px; display:grid; place-items:center; background:color-mix(in oklab, var(--nw-fg) 8%, transparent); }
-.nc-mod-h .nc-ic .icon { width:16px; height:16px; }
+/* Les en-têtes, titres, valeurs et chiffres des modules sont ceux de la charte (.nw-panel-head, .nw-value, .nw-stats). */
 .nc-src { margin-left:auto; font-size:var(--nw-fs-small); }
 .nc-mod-v { all:unset; display:block; margin-top:6px; cursor:default; }
 button.nc-mod-v, button.nc-mod-row { cursor:pointer; }
-.nc-mod-v b, .nc-mod-row b { display:inline-flex; align-items:center; gap:8px; font-size:calc(var(--nw-fs-title) * 1.25); font-weight:700; font-variant-numeric:tabular-nums; }
-.nc-mod-v b small, .nc-mod-row b small { font-size:var(--nw-fs-small); font-weight:400; color:var(--nw-fg2); margin-left:-4px; }
+.nc-mod-v b, .nc-mod-row b { display:inline-flex; align-items:center; gap:8px; }
+.nc-mod-row b { font-size:calc(var(--nw-fs-title) * 1.25); font-weight:700; font-variant-numeric:tabular-nums; }
+.nc-mod-v b small, .nc-mod-row b small { margin-left:-4px; }
+.nc-mod-row b small { font-size:var(--nw-fs-small); font-weight:400; color:var(--nw-fg2); }
 .nc-mod-rows { display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:8px; }
 .nc-mod-row { all:unset; display:flex; flex-direction:column; gap:1px; }
 .nc-mod-row span { font-size:var(--nw-fs-small); color:var(--nw-fg2); }
 .nc-mod-row.out span { color:color-mix(in oklab, var(--nw-watch) 55%, var(--nw-fg)); font-weight:600; }
 .nc-mod-sub { margin:1px 0 0; font-size:var(--nw-fs-small); color:var(--nw-fg2); }
-.nc-mod .nc-scale, .nc-mod .nc-legend { margin-top:6px; }
-.nc-mod-stats { display:grid; grid-template-columns:repeat(var(--n, 3), minmax(0, 1fr)); gap:6px; margin-top:8px; padding-top:7px; border-top:1px solid var(--nw-line-soft); }
-.nc-mod-stats > * { all:unset; display:flex; flex-direction:column; gap:1px; min-width:0; }
+.nc-mod .nw-scale, .nc-mod .nc-legend { margin-top:6px; }
+.nc-mod-stats { margin-top:8px; }
+.nc-mod-stats > * { all:unset; display:flex; flex-direction:column; gap:2px; min-width:0; }
 .nc-mod-stats button { cursor:pointer; }
-.nc-mod-stats span { font-size:11.5px; color:var(--nw-fg2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.nc-mod-stats b { font-size:var(--nw-fs-text); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .nc-mod.out { border-color:color-mix(in oklab, var(--c) 45%, var(--nw-line)); }
 .nc-mod.out::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--c); }
 .nc-mod.out.soft::before { display:none; }
@@ -427,8 +398,8 @@ button.nc-mod-v, button.nc-mod-row { cursor:pointer; }
 .nc-b-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
 .nc-b-id { display:flex; flex-direction:column; gap:3px; min-width:0; }
 .nc-b-name { display:flex; align-items:center; flex-wrap:wrap; gap:6px 8px; min-width:0; }
-.nc-b-name h2 { margin:0; font-size:var(--nw-fs-title); font-weight:700; letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.nc-b-name .nw-info { min-height:0; } .nc-b-name .nw-info .icon { width:15px; height:15px; }
+.nc-b-name h2 { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.nc-b-name .nw-info { min-height:0; }
 .nc-b-name .nc-level { margin:0 0 0 4px; }
 .nc-b-sub { font-size:var(--nw-fs-small); color:var(--nw-fg2); }
 /* « En ce moment », top right as in Hestia Weather: the temperature large, its day under it. */
@@ -476,14 +447,12 @@ button.nc-mod-v, button.nc-mod-row { cursor:pointer; }
 }
 /* Sections of the full card, always open: a quiet title, what it counts, then the content. */
 .nc-sections { gap:22px; }
-.nc-part-h { display:flex; align-items:baseline; gap:10px; margin:0 0 10px; font:inherit; }
-.nc-part-h .nw-sum { font-size:var(--nw-fs-small); color:var(--nw-fg2); }
+.nc-part-h { margin:0 0 10px; }
 .nc-part-h .nw-sum b { font-weight:600; color:color-mix(in oklab, var(--nw-watch) var(--nw-ink), var(--nw-fg)); }
 .nc-part .nc-mods { margin-top:0; }
 /* « À la carte »: a plain white card, the module as it is (detailed) or the measure and its curve (compact). */
 .nc-piece-card.compact > .nc-mod { padding:14px 16px 12px; }
 .nc-mod-compact .nc-spark { height:34px; margin-top:10px; }
-.nc-mod-compact .nc-mod-v b { font-size:calc(var(--nw-fs-title) * 1.6); }
 /* Mini: one thin line, the advice's tinted square, the room above its advice, the temperature. */
 .nc-mini-card { display:flex; align-items:center; gap:14px; padding:10px 14px 10px 16px; }
 .nc-mi-text { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.3; }
@@ -525,20 +494,14 @@ ha-card.nc-alert-card { display:flex; align-items:center; gap:14px; padding:10px
 @container (min-width:740px) { .nc-upcoming .nc-mod-grid > :not(.nc-mod-wide) { grid-column:span 2; } }
 @container (min-width:740px) { .nc-upcoming .nc-mod-grid:not(:has(.nc-mod-h24)) > * { grid-column:span 2; } }
 /* The « i »: frosted glass as « À savoir », its sentence on the whole width. */
-.nc-b-why.nw-glass { padding:10px 14px; background:var(--nw-glass-clear); }
+.nc-b-why.nw-glass { padding:10px 14px; }
 .nc-why-head { max-width:none; }
 /* Modules, lower: the note beside the value, tighter margins, a flatter curve; the figures on one line. */
 .nc-mod-line { display:flex; align-items:baseline; flex-wrap:wrap; gap:2px 10px; margin-top:4px; }
 .nc-mod-line .nc-mod-v, .nc-mod-line .nc-mod-rows { margin-top:0; }
 .nc-mod-line .nc-mod-sub { margin:0; }
 .nc-mod .nc-spark { height:16px; margin:2px 0 0; }
-.nc-mod-stats { margin-top:6px; padding-top:6px; gap:4px 8px; }
-.nc-mod-stats b { font-size:var(--nw-fs-small); }
-.nc-mod-h { min-height:24px; }
-/* The trend arrow of a module, in its small tinted round (green back to your range, orange away from it, grey otherwise). */
-.nc-mod b .nc-way { display:inline-flex; flex:none; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%;
-  color:color-mix(in oklab, var(--t, var(--nw-fg2)) 75%, var(--nw-fg)); background:color-mix(in oklab, var(--t, var(--nw-fg2)) 20%, var(--nw-bg)); }
-.nc-mod b .nc-way .icon { width:15px; height:15px; stroke-width:2.6; }
+
 /* The sun in its yellow, the heating in its orange: colours of what they are, not of a range. */
 .nc-spark[data-key="solar"] { --t:color-mix(in oklab, var(--nw-watch) 85%, var(--nw-fg)); }
 .nc-spark[data-key="heating"] { --t:var(--nw-heat); }
@@ -592,8 +555,6 @@ hestia-mod-slides { display:block; }
 .nc-mslides .nc-mod-line .nc-src { margin-left:auto; }
 /* A curve is the history, never a verdict: neutral ink; the arrow says the way, the dot the state. The sun and the heating keep their colours. */
 .nc-mod .nc-spark:not([data-key="solar"]):not([data-key="heating"]) { --t:var(--nw-fg2); }
-/* The arrow says the way only, up or down, in neutral ink: a colour that disagreed with the state would mislead (31 October). */
-.nc-way, .nc-mod b .nc-way, .nc-tile b .nc-way { --t:var(--nw-fg2); }
 /* In a narrow module, the tabs keep to one line each: the name shortens, the value stays. */
 .nc-mtab { max-width:100%; } .nc-mtab span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
 @container (min-width:740px) { .nc-mod-grid .nc-mtabs { gap:4px; } .nc-mod-grid .nc-mtab { padding:3px 8px 3px 6px; } }
@@ -610,10 +571,11 @@ button.nc-mrow { cursor:pointer; }
 .nc-mrow-v { font-weight:700; font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
 .nc-mrow-v small { font-size:11px; font-weight:400; color:var(--nw-fg2); margin-left:2px; }
 .nc-mrow.bad .nc-mrow-v { color:color-mix(in oklab, var(--nw-watch) 60%, var(--nw-fg)); }
-.nc-mrow-w .nc-way { width:20px !important; height:20px !important; }
 .nc-mrow-c .nc-spark { height:16px; margin:0; }
 .nc-mrows-sub { margin-top:6px !important; }
 /* A narrow card keeps the names whole: the small curve steps aside first. */
 .nc-mrow { grid-template-columns:auto minmax(48px,1fr) auto 22px 52px; }
 @container (max-width:300px) { .nc-mrow { grid-template-columns:auto minmax(0,1fr) auto 22px; } .nc-mrow-c { display:none; } }
 @container (min-width:740px) { .nc-mod-grid .nc-mrow { grid-template-columns:auto minmax(0,1fr) auto 20px 34px; gap:5px; } }
+/* Ouvertures (3 novembre) : une ligne par fenêtre ouverte, à la façon de la liste de l'Air — point, nom, état. */
+.nc-open-list .nc-mrow { grid-template-columns:auto minmax(0,1fr) auto; }

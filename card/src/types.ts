@@ -137,7 +137,15 @@ export interface View {
   /** What the room's twin has learned so far (engine/twin.py). */ twin?:{status:'learning'|'ready';days:number;samples:number;next_hour:{temperature:number;humidity:number}|null;precision:{hours:number;temperature:number;humidity:number}|null;
     /** How much of the room is learned: 100 % once everything it has is seen. */ progress?:{percent:number;complete:boolean;parts:Partial<Record<'days'|'precision'|'sun'|'windows'|'heating'|'air',number>>;seen:{days:number;airings:number;open?:number};
       /** What the advice can already promise, measure by measure. */ ready?:{humidity:boolean;temperature:boolean;air:string[]}}}; /** Home Assistant (or the room) has just started: silent sensors are still loading. */ starting?:boolean;
+  /** What the body feels in the room; the advice still judges the air. */ feel?:Feel|null;
 }
+/** What the body feels in the room (engine/feel.py): the air, half of what the surfaces add, a draught, damp warm air. */
+export interface Feel {feels:number; air:number; outdoor:number|null; walls:'bien'|'moyenne'|'peu'; glazing:'simple'|'double'|'triple';
+  factors:{walls:{delta:number;gap:number|null;wall:number|null;pane:number|null;shutters:boolean};
+    sun:{delta:number;wm2:number|null;night:boolean;hidden:boolean};
+    heating:{delta:number;kind:'stove'|'radiator'|'floor'|'ac'|null;on:boolean}|null;
+    draught:{delta:number;open:boolean;gust:number|null};
+    humidity:{delta:number;value:number;dew:number}|null}}
 export interface ViewEvent {version:1; view?:View; reload?:boolean; unavailable?:boolean}
 export type Unsubscribe = () => Promise<void>|void;
 export interface Connection {

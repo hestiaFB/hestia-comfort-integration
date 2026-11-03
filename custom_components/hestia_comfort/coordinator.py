@@ -15,6 +15,7 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN, LEARNING_REFRESH_SECONDS, OPEN_DEBOUNCE_SECONDS, SOURCES, STARTUP_GRACE_SECONDS, VIEW_VERSION
 from .engine.assessment import Opening, Settings, assess
 from .engine import feedback, habits, horizon, learning, night, twin, voc as vocs
+from .engine.feel import feel
 from .engine.sources import Reading
 from .engine.verdict import verdict
 from .configuration import DATA_CONFIG
@@ -511,6 +512,13 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
                 "observations": {k: asdict(v) for k, v in readings.items()},
                 "names": {e: (state.name if (state := self.hass.states.get(e)) else e) for e in self.windows},
                 "starting": (now - self.started).total_seconds() < STARTUP_GRACE_SECONDS}
+        # What the body feels in the room (engine/feel.py): shown on the card, the advice still judges the air.
+        # A ressenti that fails only leaves the card on the thermometer.
+        try:
+            view["feel"] = self._feel(readings, selected)
+        except (KeyError, TypeError, ValueError, AttributeError):
+            logging.getLogger(__name__).exception("Hestia Comfort: ressenti for %s", view["title"])
+            view["feel"] = None
         # What the card's banner says, as states for the entities (engine/verdict.py, kept word for word with the card).
         # A verdict that fails leaves the room's advice standing: its entities only go unknown.
         try:
@@ -557,6 +565,28 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
         if rain is not None and rain.usable and rain.value is True:
             self.rained_at = now
         return self.rained_at.isoformat() if self.rained_at else None
+
+    def _feel(self, readings, selected):
+        """The room's ressenti: its air, its walls and panes, the sun through them, its heating, a draught, damp air."""
+        def number(key):
+            reading = readings.get(key)
+            value = reading.value if reading and reading.usable else None
+            return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+        heating = None
+        if (entity := selected.get("heating")) and (state := readings.get("heating")) is not None and state.usable:
+            heating = {"on": state.value == "heating", "kind": self._heater_kind(entity), "power": number("heating_power")}
+        foyer = (self.home_configuration.home.get("foyer") if self.home_configuration else None) or {}
+        sun = self._sun()
+        covers = {k[6:]: v for k in readings if k.startswith("cover:") and (v := number(k)) is not None}
+        return feel(number("indoor_temperature"), number("outdoor_temperature"), number("indoor_humidity"), number("wind_gust"),
+                    openings=self.previous.openings if self.previous else (), covers=covers, heating=heating,
+                    night=sun is not None and sun.elevation < 0,
+                    walls=foyer.get("isolation", "moyenne"), glazing=foyer.get("vitrage", "double"))
+
+    def _heater_kind(self, entity):
+        """What the heating is (stove, radiator, floor…), as set in this room or in the room it is shared from."""
+        configs = [self.config, *({**e.data, **e.options} for e in self.hass.config_entries.async_entries(DOMAIN))]
+        return next((h.get("kind") for c in configs for h in c.get("heaters") or () if isinstance(h, dict) and h.get("entity_id") == entity), None)
 
     def _weather_place(self):
         home = self.home_configuration.home if self.home_configuration else {}

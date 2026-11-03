@@ -643,13 +643,13 @@ class RoomAdvisor:
                        "plage": [comfort.minimum, comfort.maximum], "cette_nuit": night_text, "preuve": decision.level,
                        "preuves": proof, "a_essayer": words["try"], "bon_a_savoir": good_words,
                        "pas_maintenant": {k: dt_util.as_local(until).strftime("%H h %M") for k, until in self.paused.items() if k in aside},
-                       "douteuses": doubt_text(doubts), "calcule_a": now.isoformat()}
+                       "douteuses": doubt_text(doubts), "calcule_a": now.isoformat(), "moteur": home.version}
         changed = self.shown != (words["title"], words["try"])
         await hass.async_add_executor_job(home.files.keep, self.slug, now, local, snap, decision, words, changed)
         if changed:
             self.shown = (words["title"], words["try"])
             await hass.async_add_executor_job(home.files.journal, {
-                "heure": now.isoformat(), "piece": name, "conseil": words["title"], "phrase": words["line"],
+                "heure": now.isoformat(), "moteur": home.version, "piece": name, "conseil": words["title"], "phrase": words["line"],
                 "pourquoi": words["why"], "a_essayer": words["try"], "preuve": decision.level, "bon_a_savoir": good_words,
                 "gain": round(decision.gain, 2), "ecart_1h": None if missed is None else round(missed, 2),
                 "mesures": {"air": air, "dehors": outdoor, "fenetres_ouvertes": len(opened), "humidite": current.humidity,
@@ -671,6 +671,6 @@ class RoomAdvisor:
             self.paused[gesture] = until
         file = await self.hass.async_add_executor_job(self.home.files.signal, self.slug, dt_util.as_local(now), kind, note, shown)
         await self.hass.async_add_executor_job(self.home.files.feedback, {
-            "heure": now.isoformat(), "piece": self.room["name"], "type": "avis", "avis": kind, "note": note, "geste": gesture,
+            "heure": now.isoformat(), "moteur": self.home.version, "piece": self.room["name"], "type": "avis", "avis": kind, "note": note, "geste": gesture,
             "conseil": shown["conseil"], "phrase": shown["phrase"], "fichier": file})
         return dt_util.as_local(until).strftime("%H h %M") if until else None

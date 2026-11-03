@@ -3,6 +3,9 @@ import {property,state} from 'lit/decorators.js';
 import style from './ui/charter.css';
 import charte from './ui/hestia-charte.css';
 import roomStyle from './ui/room.css';
+import sceneStyle from './ui/scene.css';
+import traitStyle from './ui/trait.css';
+import {watchOffscreen} from './ui/offscreen';
 import {cleanConfig,type Config,type View,type HomeAssistant} from './types';
 import {icon} from './ui/icons';
 import {roomCard,asking,type CardState} from './views/room';
@@ -13,6 +16,12 @@ import './editor';
 import './review-card';
 import './home';
 
+// Manrope, the cards' font (the « Trait » style): declared once in the page, as the hub does, from the integration's files.
+if(!document.getElementById('hestia-hub-fonts')){const style=document.createElement('style');style.id='hestia-hub-fonts';
+  style.textContent=[400,500,600,700].map(w=>`@font-face{font-family:Manrope;src:url('/hestia_comfort-assets/manrope-${w}.ttf');font-weight:${w};font-display:swap}`).join('');document.head.append(style);}
+// Its light weights, for the large thin figures: the variable font, apart from the hub's, which has none of them.
+if(!document.getElementById('hestia-light-fonts')){const style=document.createElement('style');style.id='hestia-light-fonts';
+  style.textContent="@font-face{font-family:Manrope;src:url('/hestia_comfort-assets/manrope-variable.ttf') format('truetype');font-weight:200 300;font-display:swap}";document.head.append(style);}
 let instances=0;
 const problems:Record<string,[string,string]>={
   choose_entry:[fr('Choisissez une pièce'),fr('Plusieurs pièces Hestia Comfort sont configurées. Choisissez celle de cette carte dans ses réglages.')],
@@ -26,8 +35,10 @@ const problems:Record<string,[string,string]>={
   connection:[fr('Connexion indisponible'),fr('Le conseil est retiré. La carte réessaie automatiquement ; vérifiez la connexion et les journaux de l’intégration.')],
 };
 export class HestiaComfortCard extends LitElement {
-  static styles=[unsafeCSS(style),unsafeCSS(charte),unsafeCSS(roomStyle)];
+  static styles=[unsafeCSS(style),unsafeCSS(charte),unsafeCSS(roomStyle),unsafeCSS(sceneStyle),unsafeCSS(traitStyle)];
   @property({attribute:false}) hass?:HomeAssistant;
+  /** Stops watching whether the card is in view (its animations pause out of view). */
+  private unwatch?:()=>void;
   @state() private config?:Config;
   @state() private view?:View;
   /** The rooms sharing this room's air: one card shows them all. */
@@ -62,10 +73,10 @@ export class HestiaComfortCard extends LitElement {
   static getStubConfig():Config{return {type:'custom:hestia-comfort-card',format:'tile'};}
   getCardSize(){const f=this.config?.format;return f==='mini'?1:f==='alert'?2:f==='full'?10:f==='measures'?6:f==='horizon'||f==='temperature'?4:3;}
   getGridOptions(){const f=this.config?.format;return {columns:f==='full'?'full':['humidity','air','openings','heating'].includes(f??'')?6:12,rows:'auto',min_columns:f&&['humidity','air','openings','heating'].includes(f)?3:6};}
-  connectedCallback(){super.connectedCallback();this.connect();
+  connectedCallback(){super.connectedCallback();this.connect();this.unwatch=watchOffscreen(this);
     // « Laissez ouvert encore 4 min » counts down between two steps of the 3.0 advisor: redrawn every half minute.
     clearInterval(this.ticking);this.ticking=setInterval(()=>{if(this.view?.advice3?.refermer_a||this.advisorState()?.attributes.refermer_a)this.requestUpdate();},30000);}
-  disconnectedCallback(){super.disconnectedCallback();clearInterval(this.ticking);this.live.stop();this.stopPartners();this.closeFull();}
+  disconnectedCallback(){super.disconnectedCallback();this.unwatch?.();clearInterval(this.ticking);this.live.stop();this.stopPartners();this.closeFull();}
   /** The 3.0 advisor's decision (HA de test, the bridge of 1 November): redrawn when it changes, like the room's own view. */
   @state() private said?:string;
   private ticking?:ReturnType<typeof setInterval>;

@@ -1,0 +1,95 @@
+/* Les scènes du bandeau (ui/scene.ts) : la fenêtre vue un peu de biais, son ciel, son voilage, ce que l'air porte ;
+   la VMC ; le radiateur. Même cadre et même légère perspective pour toutes. Transform et opacité seulement. */
+.nsc { --nsc-frame:color-mix(in srgb, var(--nw-fg) 70%, transparent); --nsc-sash:color-mix(in srgb, var(--nw-fg) 72%, var(--nw-bg));
+  --nsc-shade:color-mix(in srgb, var(--nw-fg) 22%, transparent); --nsc-ease:cubic-bezier(.23,1,.32,1);
+  position:relative; width:108px; height:116px; flex:none; perspective:460px; color:var(--nw-fg); }
+.nc-b.compact .nsc { zoom:.82; }
+.nsc-obj { position:absolute; left:6px; right:6px; top:4px; bottom:4px; transform:rotateY(-10deg); transform-style:preserve-3d; }
+.nsc-fr { border-radius:6px; box-shadow:0 0 0 2px var(--nsc-frame), 3px 3px 0 2px color-mix(in srgb, var(--nw-fg) 8%, transparent); }
+/* Le ciel, repris de Hestia Weather */
+.nsc-sky { position:absolute; inset:0; overflow:hidden; border-radius:4px; background:linear-gradient(180deg, var(--sa), var(--sb));
+  box-shadow:inset 4px 0 0 color-mix(in srgb, #000 10%, transparent), inset 0 3px 0 color-mix(in srgb, #000 6%, transparent); }
+.nsc-sun { position:absolute; width:15px; height:15px; margin:-7.5px 0 0 -7.5px; border-radius:50%; background:var(--sun);
+  box-shadow:0 0 0 5px color-mix(in srgb, var(--sun) 35%, transparent), 0 0 22px 8px color-mix(in srgb, var(--sun) 40%, transparent); }
+.nsc-sun.big { width:22px; height:22px; margin:-11px 0 0 -11px; animation:nsc-blaze 3s ease-in-out infinite; }
+.nsc-moon { position:absolute; width:15px; height:15px; margin:-7.5px 0 0 -7.5px; border-radius:50%; box-shadow:inset -4px 3px 0 0 var(--sun); }
+.nsc-star { position:absolute; width:2px; height:2px; border-radius:50%; background:#fff; animation:nsc-tw 3.4s ease-in-out infinite; }
+.nsc-cloud { position:absolute; width:28px; height:8px; border-radius:8px; background:rgba(255,255,255,.92); animation:nsc-drift 22s ease-in-out infinite alternate; }
+.nsc-cloud::before { content:""; position:absolute; left:7px; top:-6px; width:12px; height:12px; border-radius:50%; background:inherit; }
+.nsc-cloud.dark { width:58px; height:16px; border-radius:12px; background:#6b7788; animation:nsc-storm 7s ease-in-out infinite alternate; }
+.nsc-cloud.dark::before { left:12px; top:-12px; width:24px; height:24px; }
+.nsc-hill { position:absolute; left:-30%; right:-30%; bottom:-34%; height:56%; border-radius:50%; background:var(--hill); }
+.nsc-drop { position:absolute; top:-12px; width:2px; height:12px; border-radius:2px; background:rgba(240,247,255,.95); transform:rotate(4deg); animation:nsc-fall .8s linear infinite; }
+/* Les deux battants : le principal, à droite avec la poignée, s'ouvre */
+.nsc-pane { position:absolute; top:0; bottom:0; width:50%; border:3.5px solid var(--nsc-sash); border-radius:3px; box-sizing:border-box;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, #fff 35%, transparent);
+  background:linear-gradient(128deg, rgba(255,255,255,.5) 0%, rgba(255,255,255,.14) 26%, rgba(255,255,255,0) 44%, rgba(255,255,255,0) 70%, rgba(255,255,255,.16) 100%), color-mix(in srgb, #cfe3f2 16%, transparent); }
+.nsc-pl { left:0; transform-origin:left center; } .nsc-pr { right:0; transform-origin:right center; }
+.nsc-handle { position:absolute; left:2px; top:44%; width:3px; height:12px; border-radius:2px; background:color-mix(in srgb, var(--nw-fg) 75%, var(--nw-bg)); }
+.nsc.open .nsc-pr { animation:nsc-open 800ms var(--nsc-ease) both, nsc-sway 3.6s ease-in-out 800ms infinite alternate; }
+.nsc.invite .nsc-pr { animation:nsc-nudge 3.2s var(--nsc-ease) infinite; }
+/* Le voilage, pendu à sa tringle au-dessus du cadre : il pend, se gonfle quand l'air entre, est aspiré quand il sort */
+.nsc-rod { position:absolute; left:1px; right:1px; top:-6px; height:3px; border-radius:2px; background:color-mix(in srgb, var(--nw-fg) 55%, var(--nw-bg)); z-index:3; }
+.nsc-voile { position:absolute; left:10px; top:-4px; width:40%; height:92%; z-index:2; transform-origin:30% 0; pointer-events:none; animation:nsc-hang 6s ease-in-out infinite alternate; }
+.nsc-voile svg { width:100%; height:100%; display:block; overflow:visible; }
+.nsc.in .nsc-voile { animation:nsc-billow-in 2.6s ease-in-out infinite; }
+.nsc.out .nsc-voile { transform-origin:20% 0; animation:nsc-billow-out 3s ease-in-out infinite; }
+/* Ce que l'air porte : il naît petit dans l'ouverture et grandit en venant vers nous ; quand l'air sort, l'inverse */
+.nsc-motes { position:absolute; inset:0; pointer-events:none; z-index:4; }
+.nsc-mote { position:absolute; left:0; top:0; width:5px; height:5px; margin:-2.5px 0 0 -2.5px; border-radius:50%; background:var(--wc);
+  box-shadow:0 0 0 1px var(--wh), 0 0 6px 1px var(--wc); opacity:0; animation:nsc-carry var(--d) cubic-bezier(.4,.1,.6,1) var(--l) infinite; }
+.nsc.out .nsc-mote { animation-direction:reverse; }
+.nsc.stale .nsc-mote, .nsc.dust .nsc-mote { width:3.5px; height:3.5px; margin:-1.75px 0 0 -1.75px; box-shadow:0 0 0 .8px var(--wh); }
+/* La pluie qui entre : rien devant les vitres ; des rebonds sur l'appui et une flaque au sol */
+.nsc-rain-in { position:absolute; left:55%; right:9%; top:calc(100% - 4px); height:14px; pointer-events:none; z-index:4; }
+.nsc-hop { position:absolute; top:0; width:2.5px; height:2.5px; margin-left:-1.25px; border-radius:50%; background:#cfe3f7; box-shadow:0 0 0 .8px rgba(30,70,120,.6); opacity:0; animation:nsc-hop .75s ease-in infinite; }
+.nsc-puddle { position:absolute; left:-4px; right:-4px; bottom:0; height:5px; border-radius:50%; background:radial-gradient(closest-side, rgba(120,165,215,.55), rgba(120,165,215,.15)); animation:nsc-spread 4s ease-in-out infinite alternate; }
+.nsc-splash { position:absolute; bottom:3px; width:9px; height:3px; margin-left:-4.5px; border-radius:50%; border:1.2px solid #7fa6cf; opacity:0; animation:nsc-splash .9s ease-out infinite; }
+/* L'heure conseillée, face à nous */
+.nsc-clk { position:absolute; left:50%; bottom:-6px; transform:translateX(-50%); display:inline-flex; align-items:center; gap:4px; padding:3px 9px 3px 6px; border-radius:999px; z-index:5;
+  background:var(--nw-bg); box-shadow:0 0 0 1.5px var(--nsc-frame), 0 4px 10px -4px var(--nsc-shade); font-size:13px; font-weight:700; line-height:1.2; white-space:nowrap; color:var(--nw-fg); }
+.nsc-clk svg { width:14px; height:14px; flex:none; } .nsc-mn { transform-origin:12px 12px; animation:nsc-spin 6s linear infinite; }
+/* Le volet roulant */
+.nsc-coffre { position:absolute; left:-3px; right:-3px; top:-3px; height:9px; border-radius:3px; background:color-mix(in srgb, var(--nw-fg) 30%, var(--nw-bg)); z-index:2; }
+.nsc-tablier { position:absolute; left:0; right:0; top:0; height:58%; z-index:1; border-radius:3px 3px 2px 2px; transform-origin:top; animation:nsc-descend 1.4s var(--nsc-ease) both;
+  background:repeating-linear-gradient(180deg, color-mix(in srgb, var(--nw-fg) 12%, var(--nw-bg)) 0 5px, color-mix(in srgb, var(--nw-fg) 26%, var(--nw-bg)) 5px 6px);
+  box-shadow:0 2px 0 color-mix(in srgb, var(--nw-fg) 45%, var(--nw-bg)); }
+/* La VMC */
+.nsc-plate { position:absolute; inset:6px 2px; border-radius:18px; background:color-mix(in srgb, var(--nw-fg) 5%, var(--nw-bg)); box-shadow:0 0 0 2px var(--nsc-frame), 3px 3px 0 2px color-mix(in srgb, var(--nw-fg) 8%, transparent); }
+.nsc-mouth { position:absolute; left:50%; top:50%; width:66px; height:66px; margin:-33px 0 0 -33px; border-radius:50%;
+  background:radial-gradient(circle, color-mix(in srgb, var(--nw-fg) 30%, var(--nw-bg)), color-mix(in srgb, var(--nw-fg) 12%, var(--nw-bg)) 70%); box-shadow:0 0 0 2px var(--nsc-frame); }
+.nsc-blades { position:absolute; inset:6px; animation:nsc-spin 1.6s linear infinite; } .nsc-grille { position:absolute; inset:0; }
+/* Le radiateur et la chaleur qui monte */
+.nsc-rad { position:absolute; left:4px; right:4px; bottom:10px; height:56px; border-radius:7px; box-shadow:0 0 0 2px var(--nsc-frame), 3px 3px 0 2px color-mix(in srgb, var(--nw-fg) 8%, transparent);
+  background:repeating-linear-gradient(90deg, color-mix(in srgb, var(--nw-fg) 6%, var(--nw-bg)) 0 10px, color-mix(in srgb, var(--nw-fg) 22%, var(--nw-bg)) 10px 12px); }
+.nsc-rad::after { content:""; position:absolute; right:-9px; bottom:8px; width:7px; height:12px; border-radius:2px; background:color-mix(in srgb, var(--nw-fg) 55%, var(--nw-bg)); }
+.nsc-feet { position:absolute; bottom:2px; width:5px; height:8px; border-radius:0 0 2px 2px; background:var(--nsc-frame); }
+.nsc-heat { position:absolute; left:0; right:0; top:0; height:46px; width:100%; overflow:visible; }
+.nsc-heat path { fill:none; stroke:var(--nw-heat); stroke-width:2.6; stroke-linecap:round; opacity:0; animation:nsc-waft 2.6s ease-out infinite; }
+.nsc-heat path:nth-child(2) { animation-delay:-.9s; } .nsc-heat path:nth-child(3) { animation-delay:-1.7s; }
+
+@keyframes nsc-tw { 50% { opacity:.15; } }
+@keyframes nsc-drift { to { transform:translateX(10px); } }
+@keyframes nsc-storm { from { transform:translateX(-24px); } to { transform:translateX(6px); } }
+@keyframes nsc-blaze { 50% { transform:scale(1.12); } }
+@keyframes nsc-fall { from { transform:translateY(0) rotate(4deg); } to { transform:translateY(130px) rotate(4deg); } }
+@keyframes nsc-open { from { transform:rotateY(0); } to { transform:rotateY(58deg); } }
+@keyframes nsc-sway { from { transform:rotateY(58deg); } to { transform:rotateY(50deg); } }
+@keyframes nsc-nudge { 0%,62%,100% { transform:rotateY(0); } 74% { transform:rotateY(18deg); } 86% { transform:rotateY(4deg); } }
+@keyframes nsc-hang { from { transform:skewX(-.6deg); } to { transform:skewX(.6deg); } }
+@keyframes nsc-billow-in { 0%,100% { transform:skewX(-5deg) scale(1.02,.99); } 30% { transform:skewX(-15deg) scale(1.1,.95); } 55% { transform:skewX(-9deg) scale(1.05,.97); } 75% { transform:skewX(-13deg) scale(1.08,.96); } }
+@keyframes nsc-billow-out { 0%,100% { transform:skewX(6deg) scale(.96,1); } 35% { transform:skewX(14deg) scale(.9,.98); } 65% { transform:skewX(9deg) scale(.93,.99); } }
+@keyframes nsc-carry { 0% { transform:translate(var(--x0),var(--y0)) scale(.3); opacity:0; } 25% { opacity:.95; } 100% { transform:translate(var(--x1),var(--y1)) scale(1.6); opacity:0; } }
+@keyframes nsc-hop { 0% { transform:translate(0,0); opacity:1; } 45% { transform:translate(calc(var(--dx) * .5),-3px); opacity:1; } 100% { transform:translate(var(--dx),8px); opacity:0; } }
+@keyframes nsc-spread { from { transform:scaleX(.78); } to { transform:scaleX(1); } }
+@keyframes nsc-splash { 0% { transform:scale(.2); opacity:0; } 20% { opacity:1; } 100% { transform:scale(1.5); opacity:0; } }
+@keyframes nsc-spin { to { transform:rotate(360deg); } }
+@keyframes nsc-descend { from { transform:scaleY(.12); } }
+@keyframes nsc-waft { 0% { opacity:0; transform:translateY(8px); } 35% { opacity:.95; } 100% { opacity:0; transform:translateY(-12px); } }
+/* Mouvement réduit ou carte figée : la scène reste, dans son état (battant ouvert, voilage au repos), sans particules. */
+@media (prefers-reduced-motion:reduce) {
+  .nsc *, .nsc *::before, .nsc *::after { animation:none !important; }
+  .nsc.open .nsc-pr { transform:rotateY(54deg); } .nsc-motes, .nsc-hop, .nsc-splash { display:none; }
+}
+:host([still]) .nsc.open .nsc-pr { transform:rotateY(54deg); }
+:host([still]) .nsc-motes, :host([still]) .nsc-hop, :host([still]) .nsc-splash { display:none; }

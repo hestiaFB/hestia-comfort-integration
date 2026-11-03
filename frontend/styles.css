@@ -167,3 +167,15 @@ details.howto{padding-left:0;margin:6px 0}details.howto summary{cursor:pointer;c
 .sk-thin{stroke:var(--nk-muted,#b2aea7);stroke-dasharray:3 3}.sk-acc{stroke:var(--nk-accent,#a6c8d7);stroke-width:2}.sk-acc-fill,.sk-badge{fill:var(--nk-accent,#a6c8d7)}
 .sk-sun circle{fill:none;stroke:var(--nk-todo,#e2b777);stroke-width:2}.sk-sun path{fill:none;stroke:var(--nk-todo,#e2b777);stroke-width:1.5}
 .sk-txt{fill:var(--nk-muted,#b2aea7);font-size:12px}.sk-badge-t{fill:var(--primary-background-color,#1b1c1e);font-size:12px;font-weight:700;text-anchor:middle}
+/* Hub 1.20: an opening's details under its contact row. */
+.opening-box{margin:-14px 4px 26px;padding:6px 14px 10px;border:1px solid var(--nk-border,var(--nc-border));border-top:0;border-radius:0 0 16px 16px}
+.opening-box .opening{margin-top:0}
+/* The room's page: what it measures now, under its name (CAHIER-HUB.md § 5.3). */
+.room-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-8px 0 18px}
+.room-m{font-size:13px;padding:2px 10px;border:1px solid var(--nk-border,var(--nc-border));border-radius:999px;color:var(--primary-text-color)}
+.room-step{margin:-8px 0 18px;color:var(--nk-muted,var(--nc-muted));font-size:14px}
+.danger-row .nk-row-lab{color:var(--nk-alert,var(--error-color))}
+.nk-indent{padding-left:16px;color:var(--nk-muted,var(--nc-muted))}
+.nk-bar{display:inline-block;width:80px;height:6px;border-radius:999px;background:var(--nk-border,var(--nc-border));overflow:hidden;vertical-align:middle}
+.nk-bar i{display:block;height:100%;background:var(--nk-ok,var(--primary-color));border-radius:999px}
+.ac-kpi-go{text-align:left;font:inherit;color:inherit;cursor:pointer;margin:0;min-height:0}.ac-kpi-go:hover{border-color:var(--primary-color)}

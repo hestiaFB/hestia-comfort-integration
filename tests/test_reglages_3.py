@@ -25,11 +25,11 @@ class Foyer(Fixture):
         self.assertEqual(clean_foyer(None), {})
         set_ = {"sommeil": {"debut": "22:30", "fin": "06:45"}, "ouvrir_la_nuit": True, "tolerance": 1.5,
                 "aeration_max_min": 20, "plus_tard_max_min": 90, "appareils_max_min": 45, "hors_gel": 8.5,
-                "poele_tient_h": 2.5, "depassement": 1.5, "depassement_min": 45}
+                "poele_tient_h": 2.5, "depassement": 1.5, "depassement_min": 45, "isolation": "peu", "vitrage": "simple"}
         self.assertEqual(clean_foyer(set_), set_)
         for wrong in ({"aeration_max_min": 7}, {"aeration_max_min": 90}, {"aeration_max_min": 12}, {"tolerance": 3},
                       {"hors_gel": 4}, {"sommeil": {"debut": "22:00", "fin": "23:00"}}, {"sommeil": {"debut": "25:00", "fin": "07:00"}},
-                      {"ouvrir_la_nuit": "oui"}, {"inconnu": 1}, {"pas_maintenant_min": True}):
+                      {"ouvrir_la_nuit": "oui"}, {"inconnu": 1}, {"pas_maintenant_min": True}, {"isolation": "forte"}, {"vitrage": 2}):
             with self.assertRaises(ValueError, msg=wrong):
                 clean_foyer(wrong)
 
@@ -37,6 +37,9 @@ class Foyer(Fixture):
         self.assertEqual(clean_foyer({"tolerance": 2}, room=True), {"tolerance": 2})
         with self.assertRaises(ValueError):
             clean_foyer({"aeration_max_min": 20}, room=True)
+        # The walls and the glazing are the house's, never a room's.
+        with self.assertRaises(ValueError):
+            clean_foyer({"isolation": "bien"}, room=True)
 
     async def test_saved_at_once_never_blocking_a_room_and_kept_by_the_exterior(self):
         before = self.service.revision()

@@ -3,6 +3,9 @@ import {property,state} from 'lit/decorators.js';
 import style from './ui/charter.css';
 import charte from './ui/hestia-charte.css';
 import roomStyle from './ui/room.css';
+import sceneStyle from './ui/scene.css';
+import traitStyle from './ui/trait.css';
+import {watchOffscreen} from './ui/offscreen';
 import {html as h2} from 'lit';
 import {isView,number,numeric} from './view';
 import {advice,needs,coldSettled,scale,fold,hero,tileSummary,pills,moreInfo,type CardState,type Advice,type Slide} from './views/room';
@@ -28,7 +31,7 @@ interface Home {
 
 /** The home card: a synthesis of every room. It never replaces the room cards' advice. */
 export class HestiaComfortHomeCard extends LitElement {
-  static styles=[unsafeCSS(style),unsafeCSS(charte),unsafeCSS(roomStyle),homeboardStyles];
+  static styles=[unsafeCSS(style),unsafeCSS(charte),unsafeCSS(roomStyle),unsafeCSS(sceneStyle),unsafeCSS(traitStyle),homeboardStyles];
   @property({attribute:false}) hass?:HomeAssistant;
   @state() private config?:HomeConfig;
   @state() private rooms:View[]=[];
@@ -54,8 +57,10 @@ export class HestiaComfortHomeCard extends LitElement {
   static getConfigElement(){return document.createElement('hestia-comfort-home-card-editor');}
   static getStubConfig():HomeConfig{return {type:'custom:hestia-comfort-home-card'};}
   getCardSize(){const f=this.config?.format;return f==='mini'?1:f==='alert'?2:f==='list'?1+this.rooms.length:f==='tile'?4:4+this.rooms.length;}
-  connectedCallback(){super.connectedCallback();this.connect();}
-  disconnectedCallback(){super.disconnectedCallback();this.stop();}
+  connectedCallback(){super.connectedCallback();this.connect();this.unwatch=watchOffscreen(this);}
+  disconnectedCallback(){super.disconnectedCallback();this.stop();this.unwatch?.();}
+  /** Stops watching whether the card is in view (its animations pause out of view). */
+  private unwatch?:()=>void;
   protected shouldUpdate(changed:PropertyValues){return hassMatters(changed,this.hass);}
   // The words follow Home Assistant's language, set before each drawing.
   protected willUpdate(){setLanguage(this.hass?.language);}

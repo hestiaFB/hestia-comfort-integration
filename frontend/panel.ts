@@ -4,11 +4,12 @@ import {live} from 'lit/directives/live.js';
 import styles from './styles.css';
 // The comfort review is shared with its Lovelace card (card/src/review.ts).
 import '../card/src/review';
-import {frame,noteBox,hubStyles,modernStyles,helpTip,defaultValue,pageHead,todoFrame,itemsFrame,stepMenu,stepFooter,extensionsFrame,detectedFrame,versionsFrame,extensionCard as nkExtensionCard,removeBlock as nkRemoveBlock,pageStyles,setLanguage,addDictionary,t,fr,currentLocale,currentLanguage,type NkLine,type NkLevel} from './socle/ui';
+import {kpis,todoLists,listSection,listRow,saveBar,tabBar,numberField,segmented,toggle,moreRow,frame,noteBox,hubStyles,modernStyles,helpTip,defaultValue,pageHead,todoFrame,itemsFrame,stepMenu,stepFooter,extensionsFrame,detectedFrame,versionsFrame,extensionCard as nkExtensionCard,aboutPage,removeBlock as nkRemoveBlock,pageStyles,setLanguage,addDictionary,t,fr,currentLocale,currentLanguage,type NkLine,type NkLevel} from './socle/ui';
 import {PANEL_EN} from './i18n-en';
 import {lightEditor,noLights,type Lights,type LightRule,type LightInfo} from './lights';
 import {foyerPage,roomFoyer,toleranceName,FOYER_DEFAULTS,duration,type Foyer} from './foyer';
 import {overhangSketch} from './sketch';
+import {roomLearning3,outside3,firstMissing} from './learning3';
 import {words,labels,indoor,outdoor,multiple,exposures,kinds,measurement,newRoom,coverage,exteriorSummary,livingArea,defaultOpening,warningText,warningId,stages,intros,outdoorGroups,airSource,airChoices,exteriorChoices,airReferenceDefaults,vocPreset,thresholdSources,type Choice,type Candidate,type Discovery,type Health,type HealthLine,type Target,type Snapshot,type Hass,type Room,type RoomConfig,type Spec,type Twins,type Twin,type Progress,type Extension,seasonNames,ordinarySize,type Heater,type OpeningMeta,type RoomBuilt,type CustomEquipment} from './model';
 // Confort's words beside the hub's (socle 1.13): French in the code, English for any other language.
 addDictionary('en',PANEL_EN);
@@ -34,10 +35,13 @@ function learnState(tw:Twin,g?:Progress|null):{label:string;cls:string;missing:s
   if((p.air??1)<1)missing.push(t('air pas encore vu fenêtre ouverte'));
   return {label:g.complete?t('Optimal'):`${g.percent} %`,cls:g.complete?'ok':'',missing};
 }
-const roomSections=[{stage:0,path:'temperature',label:fr('Température'),title:fr('Température et humidité'),icon:'temperature'},{stage:1,path:'ouvertures',label:fr('Ouvertures'),title:fr('Fenêtres et portes'),icon:'openings'},{stage:2,path:'air',label:fr('Air intérieur'),title:fr('Qualité de l’air'),icon:'air'},{stage:6,path:'presence',label:fr('Présence'),title:fr('Présence'),icon:'presence'},{stage:3,path:'chauffage',label:fr('Chauffage'),title:fr('Chauffage'),icon:'heating'},{stage:4,path:'piece',label:fr('La pièce'),title:fr('La pièce et ses réglages'),icon:'room'},{stage:7,path:'notifications',label:fr('Notifications'),title:fr('Notifications'),icon:'light'}];
-const roomOrder=[0,1,2,6,3,4,7,5];
+// A sensor's name in a row of the room's page: the page already says which room.
+const rowLabels:Record<string,string>=words({indoor_temperature:fr('Température'),indoor_humidity:fr('Humidité'),co2:fr('CO₂'),pm25:fr('Particules fines'),voc:fr('COV'),illuminance:fr('Luminosité'),presence:fr('Présence'),purifier:fr('Purificateur'),ventilation:fr('VMC'),ventilation_boost:fr('Vitesse rapide'),heating_indicator:fr('Indicateur de chauffe')});
+const roomSections=[{stage:0,path:'mesures',label:fr('Mesures'),title:fr('Mesures'),icon:'temperature'},{stage:1,path:'ouvertures',label:fr('Ouvertures'),title:fr('Fenêtres et portes'),icon:'openings'},{stage:3,path:'chauffage',label:fr('Chauffage'),title:fr('Chauffage'),icon:'heating'},{stage:2,path:'equipements',label:fr('Équipements'),title:fr('Équipements'),icon:'air'},{stage:4,path:'piece',label:fr('La pièce'),title:fr('La pièce'),icon:'room'},{stage:8,path:'apprentissage',label:fr('Apprentissage'),title:fr('Apprentissage'),icon:'learning'},{stage:7,path:'notifications',label:fr('Notifications'),title:fr('Notifications'),icon:'light'}];
+// A new room goes through the tabs as steps, then its summary; a room that exists opens on its tabs, with the save bar.
+const roomOrder=[0,1,3,2,4,5];
 // The step menu ends on « Récapitulatif », as in every Hestia brick (socle 1.12).
-const menuSections=[...roomSections,{stage:5,path:'recapitulatif',label:fr('Récapitulatif'),title:fr('Récapitulatif'),icon:'review'}];
+const createSections=[...roomSections.filter(x=>x.stage<7),{stage:5,path:'recapitulatif',label:fr('Récapitulatif'),title:fr('Récapitulatif'),icon:'review'}];
 const repository='https://github.com/hestiaFB/hestia-comfort-integration';
 // The third-party integrations by theme on the Extensions page, as in Hestia Weather; one not listed here goes under « Autres ».
 const themes:[string,string[]][]=[[fr('Chauffage'),['versatile_thermostat']],[fr('Volets'),['adaptive_cover_pro','cover_automatic','cover_extender']],[fr('Présence'),['alarmo']],[fr('Lumières'),['wled']],[fr('Autres'),[]]];
@@ -78,10 +82,17 @@ export class ComfortSetup extends LitElement {
  @state() private health?:Health;
  @state() private healthLoading=true;
  @state() private twins?:Twins;
+ // The integration whose page is open under Extensions.
+ @state() private extKey?:string;
+ // « Réglages → Lumière »: the light of the whole home, on its own page.
+ @state() private lightPage=false;
+ private originalExterior='';
+ // The room's settings as saved, to show the save bar only once something changed (CAHIER-HUB.md § 6).
+ private original='';
  @state() private healthError='';
  private healthGeneration=0;
  // The tab opens on the home's technical state; « Modifier » leads to the rooms.
- @state() private page:'health'|'rooms'|'review'|'settings'|'foyer'='health';
+ @state() private page:'health'|'rooms'|'review'|'settings'|'foyer'|'pieces'|'learning'|'about'='health';
  /** A room or the general settings being read: nothing else is shown meanwhile, not even the home for an instant. */
  @state() private opening=false;
  @state() private cardLoad:'idle'|'loading'|'done'|'failed'='idle';
@@ -144,7 +155,7 @@ export class ComfortSetup extends LitElement {
   return html`${this.head()}${this.healthError?html`<p class="notice error" role="alert">${t('Le bilan technique n’a pas pu être chargé.')} ${this.healthError}</p>
    <div class="actions"><button @click=${()=>void this.loadHealth()}>${t('Réessayer')}</button></div>`
    :html`<p class="muted" role="status">${t('Chargement du bilan technique…')}</p>`}
-   ${itemsFrame({title:t('Vos pièces'),items:this.snapshot!.rooms.map(r=>({name:r.title,detail:coverage(r.config)}))})}`;
+   ${this.roomList()}`;
  }
  private async goTo(t:Target){
   if(t.kind==='exterior')return this.editExterior();
@@ -159,64 +170,58 @@ export class ComfortSetup extends LitElement {
  private healthPage(){const h=this.health!,twins=this.twins?.rooms??[];
   // A sensor read from the room sharing the air is counted once, in the room that has it.
   const cells=h.rooms.flatMap(r=>r.cells).filter(c=>c.level!=='shared'),configured=h.sensors?.total??cells.filter(c=>c.level!=='none').length,answering=h.sensors?.answering??cells.filter(c=>c.level==='ok').length;
-  const known=twins.filter(r=>r.progress?.complete).length,todo=h.todo.length,tips=h.tips.length;
-  const kpi=(value:string,label:string,cls='')=>html`<div class=${'ac-kpi '+cls}><b>${value}</b><span>${label}</span></div>`;
+  const avg=twins.length?Math.round(twins.reduce((a,r)=>a+(r.advisor?.pourcent??r.progress?.percent??0),0)/twins.length):0,followed=twins.reduce((n,r)=>n+(r.week?.followed??0),0);
   return html`${this.head({level:h.level==='ok'?'ok':'todo',text:h.level==='ok'?t('Tout fonctionne'):h.summary,detail:h.rooms_summary})}
-  <div class="ac-kpis">${kpi(`${answering} / ${configured}`,t('capteurs qui répondent'),answering===configured?'ok':'bad')}
-   ${kpi(`${known} / ${twins.length||h.rooms.length}`,t('pièces observées à 100 %'),twins.length&&known===twins.length?'ok':'')}
-   ${kpi(String(todo),(many(todo)?t('points à régler'):t('point à régler'))+(tips?' · '+t('{n} à améliorer',{n:tips}):''),todo?'bad':'ok')}</div>
-  ${todoFrame(h.todo.map(l=>this.nkLine(l)),h.tips.map(l=>this.nkLine(l)))}
-  ${this.roomsBox()}
-  <div class="ac-cols">${this.learningBox()}<div>${this.extensionsSummary()}</div></div>${this.versionsBox()}`;}
+  ${kpis([{value:`${answering} / ${configured}`,label:t('capteurs qui répondent'),level:answering===configured?'ok':'todo'},
+   {value:`${avg} %`,label:t('du logement appris'),go:()=>this.path('apprentissage')},
+   {value:String(followed),label:many(followed)?t('conseils suivis cette semaine'):t('conseil suivi cette semaine')}])}
+  ${todoLists(h.todo.map(l=>this.nkLine(l)),h.tips.map(l=>this.nkLine(l)))}
+  ${this.roomList()}`;}
  /** The top of the Accueil: the same as every brick's, with its way to the general settings. */
- private head(state?:{level:NkLevel;text:string;detail?:string}){return pageHead({title:t('Confort'),subtitle:t('Vos pièces, ce que Confort apprend et ses extensions.'),state,actions:[{label:t('Réglages généraux'),onClick:()=>this.path('reglages'),disabled:this.busy}]});}
+ private head(state?:{level:NkLevel;text:string;detail?:string}){return pageHead({title:t('Confort'),state});}
+ /** The rooms, one line each: what it measures, how much is learned; a tap opens the room. */
+ private roomList(title=t('Pièces')){const twins=new Map((this.twins?.rooms??[]).map(r=>[r.entry_id,r])),todo=new Map<string,number>();
+  for(const l of this.health?.todo??[])if(l.target?.kind==='room')todo.set(l.target.entry_id,(todo.get(l.target.entry_id)??0)+1);
+  // The overview says how each room is now; the list of rooms, what each one measures.
+  const now=(r:Room)=>{const v=(id?:string|string[])=>{const e=Array.isArray(id)?id[0]:id,x=e?this.hass?.states?.[e]?.state:undefined;return x!=null&&x!==''&&Number.isFinite(Number(x))?Number(x):undefined;};
+   const temp=v(r.config.sources.indoor_temperature),hum=v(r.config.sources.indoor_humidity);
+   return [temp!=null?num(temp,1)+' °C':'',hum!=null?num(hum,0)+' %':''].filter(Boolean).join(' · ')||undefined;};
+  const overview=!!title;
+  return listSection(title,this.snapshot!.rooms.map(r=>{const others=(this.volumeName(r.entry_id)??'').split(' · ').filter(x=>x&&x!==r.title),same=others.length?t('même air que {names}',{names:others.join(t(' et '))}):'',bad=todo.get(r.entry_id);
+   return listRow({name:r.title,label:overview?(bad?html`<strong>${r.title}</strong>`:r.title):html`${r.title}${bad?html` <span class="nk-pill todo">${t('À régler')}</span>`:nothing}`,level:bad?'todo':undefined,
+    sub:overview?same||undefined:[coverage(r.config),same].filter(Boolean).join(' · '),value:overview?now(r):undefined,go:()=>void this.openRoom(r.entry_id)});}),
+   overview?{help:html`<p>${t('Appris : ce que Confort a vu de chaque pièce. À 100 %, une semaine de mesures, des prévisions justes, cinq aérations et le chauffage en marche.')}</p>`}:{});}
+ /** « Pièces »: every room, to open or to add. */
+ private roomsPage(){return html`${pageHead({title:t('Pièces'),actions:[{label:this.adding?t('Fermer'):t('Ajouter une pièce'),onClick:()=>{this.adding=!this.adding;}}]})}
+  ${this.adding?html`<div class="ac-add">${this.addRoom()}</div>`:nothing}${this.roomList('')}`;}
+ /** « Apprentissage »: what Confort has learned of each room, and what it still has to see. */
+ private learningPage(){const rooms=this.twins?.rooms??[];
+  const avg=rooms.length?Math.round(rooms.reduce((a,r)=>a+(r.advisor?.pourcent??r.progress?.percent??0),0)/rooms.length):0;
+  // The questions Confort asks to learn faster (habits, use of a room): answered here in one tap.
+  const asked=rooms.flatMap(r=>(r.questions??[]).map(q=>({...q,entry_id:r.entry_id})));
+  const answer=async(entry_id:string,key:string,value:string)=>{
+   try{await this.ws({type:'hestia_comfort/answer',entry_id,key,answer:value});this.twins=await this.ws<Twins>({type:'hestia_comfort/twins'});}
+   catch(e){this.error=this.message(e);}};
+  const weeks=rooms.map(r=>r.week).filter(w=>w&&(w.followed||w.ignored)),sum=(k:'followed'|'ignored'|'evaluated'|'held')=>weeks.reduce((n,w)=>n+w![k],0);
+  const shade=rooms.map(r=>r.sun_shade).find(s=>s)??null,morning=!!shade?.shaded.some(a=>a<180),afternoon=!!shade?.shaded.some(a=>a>=180);
+  const when=morning&&afternoon?t('le matin et l’après-midi'):morning?t('le matin'):afternoon?t('l’après-midi'):'';
+  return html`${pageHead({title:t('Apprentissage'),subtitle:rooms.length?t('{n} % du logement appris',{n:avg}):t('Chargement…')})}
+  ${asked.length?listSection(t('Pour affiner l’apprentissage'),asked.map(q=>listRow({label:q.text,sub:q.hint,value:segmented(q.text,[['yes',t('Oui')],['no',t('Non')],['unknown',t('Je ne sais pas')]],undefined,v=>void answer(q.entry_id,q.key,v))}))):nothing}
+  ${listSection(t('Pièces'),rooms.map(r=>{const st=learnState(r.twin,r.progress),p=r.twin.precision,a=r.advisor;
+   // The 3.0 advisor, when it reads the room: the share of its effects proven, and the first thing still to see.
+   if(a){const left=firstMissing(a);return listRow({label:r.title,sub:left?t('Encore : {what}',{what:left}):t('tout vu'),
+    value:html`<span class="nk-bar" aria-hidden="true"><i style=${'width:'+a.pourcent+'%'}></i></span>${t('{n} %',{n:a.pourcent})}`,go:()=>void this.openRoom(r.entry_id,'apprentissage')});}
+   const pc=r.progress?.percent;
+   return listRow({label:r.title,sub:st.missing.length?t('Encore : {what}',{what:st.missing.join(', ')}):p?t('tout vu · ±{temp} °C · ±{hum} %',{temp:num(p.temperature,p.temperature<1?2:1),hum:num(p.humidity,0)}):t('tout vu'),
+    value:pc!=null?html`<span class="nk-bar" aria-hidden="true"><i style=${'width:'+pc+'%'}></i></span>${t('{n} %',{n:pc})}`:st.label,go:()=>void this.openRoom(r.entry_id,'apprentissage')});}),{help:html`<p>${t('Chaque nuit, Confort relit les derniers jours de chaque pièce : comment elle se refroidit, ce que font ses fenêtres, son chauffage, le soleil. Il vérifie ses prévisions de la veille. À 100 %, tout ce que la pièce possède a été vu et ses prévisions sont justes.')}</p>`})}
+  ${weeks.length?listSection(t('Cette semaine'),[listRow({label:t('Conseils suivis'),value:t('{a} sur {b}',{a:sum('followed'),b:sum('followed')+sum('ignored')})}),
+   ...(sum('evaluated')?[listRow({label:t('Prévisions tenues'),value:t('{a} sur {b}',{a:sum('held'),b:sum('evaluated')})})]:[])]):nothing}
+  ${this.twins?.outside?outside3(this.twins.outside):shade?listSection(t('Le dehors'),[listRow({label:t('Soleil de la station'),sub:when?t('À l’ombre {when} : le soleil y est estimé.',{when}):undefined,value:when?t('estimé'):t('mesuré')})]):nothing}`;}
  private nkLine(l:HealthLine):NkLine{return {level:l.level,text:l.text,why:l.why,go:l.target?{label:l.target.label,onClick:()=>void this.goTo(l.target!),disabled:this.busy}:null};}
  /** Versions and useful links, as on Hestia Weather's home. */
  private versionsBox(){const h=this.health!,version=h.version??'';
   const bricks=(h.extensions??[]).filter(x=>x.official&&x.state==='linked').map(x=>x.name);
-  return versionsFrame([[t('Intégration'),version||t('Version non reçue')],[t('Carte'),version||t('Version non reçue')],['API','hestia_comfort_api v1'],[t('Socle commun'),h.socle||t('Version non reçue')],[t('Liaisons'),bricks.length?bricks.join(' · '):t('Aucune brique reliée')]],repository,'hestia_comfort');}
- /** The state of each extension, in one word; linking and installing are in the general settings. */
- private extensionsSummary(){const h=this.health!,level:Record<string,NkLevel>={ok:'ok',act:'todo'};
-  return extensionsFrame((h.extensions??[]).map(x=>({name:x.name,group:x.official?t('Briques Hestia'):t('Extensions tierces'),pill:{text:t(extState[x.state][0]),level:level[extState[x.state][1]]??'none'}})),{label:t('Gérer les extensions'),onClick:()=>this.path('extensions'),disabled:this.busy});}
- /** Where the station's sun sensor is shaded, learned from its history: there the sun is estimated. */
- private shadeRow(){
-  const shade=(this.twins?.rooms??[]).map(r=>r.sun_shade).find(s=>s)??null;if(!shade)return nothing;
-  const morning=shade.shaded.some(a=>a<180),afternoon=shade.shaded.some(a=>a>=180);
-  const when=morning&&afternoon?t('le matin et l’après-midi'):morning?t('le matin'):afternoon?t('l’après-midi'):'';
-  return html`<p class="hint">${when?t('Ensoleillement : station à l’ombre {when}, soleil estimé.',{when}):t('Ensoleillement : station dégagée.')}</p>`;
- }
- /** Each room once: what measures it, how well it is learned, and a clear way to change it or add another. */
- private roomsBox(){const h=this.health!,twins=new Map((this.twins?.rooms??[]).map(r=>[r.entry_id,r]));
-  const observed=(entry_id:string)=>{const r=twins.get(entry_id);if(!r)return html`<span class="muted">—</span>`;const st=learnState(r.twin,r.progress);return html`<span class=${'tw-pill '+st.cls}>${st.label}</span>`;};
-  // What is left to see, in words; once everything is seen, how closely the room is forecast.
-  const left=(entry_id:string)=>{const r=twins.get(entry_id);if(!r)return html`<span class="muted">—</span>`;
-   const st=learnState(r.twin,r.progress),p=r.twin.precision;
-   return st.missing.length?html`<span class="ac-prec ac-left">${st.missing.map(m=>html`<span>${m}</span>`)}</span>`
-    :html`<span class="ac-prec">${p?t('tout vu · ±{temp} °C · ±{hum} %',{temp:num(p.temperature,p.temperature<1?2:1),hum:num(p.humidity,0)}):t('tout vu')}</span>`;};
-  // What the advice can already promise, measure by measure (« Conseil optimisé » on the card), or what holds it back.
-  const optimised=(entry_id:string)=>{const r=twins.get(entry_id);if(!r)return html`<span class="muted">—</span>`;
-   const ready=r.progress?.ready,p=r.twin.precision,seen=r.progress?.seen;if(!ready)return html`<span class="muted">—</span>`;
-   const learnt=[ready.humidity?t('humidité'):'',ready.temperature?t('température'):'',...(ready.air??[]).map(a=>a==='co2'?'CO₂':'COV')].filter(Boolean);
-   if(learnt.length)return html`<span class="ac-ready">${learnt.join(' · ')}</span>`;
-   const blocked=r.twin.status!=='ready'||(seen?.days??0)<7?t('une semaine de mesures d’abord'):!p?t('prévisions à vérifier')
-    :p.temperature>0.5&&p.humidity>3?t('prévisions à affiner (±{temp} °C, ±{hum} %)',{temp:num(p.temperature,2),hum:num(p.humidity,0)})
-    :(seen?.airings??0)<5&&(seen?.open??0)<6?t('fenêtres à observer davantage')
-    :p.humidity>3?t('humidité à affiner (±{hum} %)',{hum:num(p.humidity,0)}):t('température à affiner (±{temp} °C)',{temp:num(p.temperature,2)});
-   return html`<span class="muted">${t('pas encore')}</span><span class="ac-prec">${blocked}</span>`;};
-  // What the other room weighs here, as learned by this room's twin: its windows, its air, its heating.
-  const byTitle=new Map((this.twins?.rooms??[]).map(x=>[x.title,x]));
-  const weights=(r:{entry_id:string;title:string},others:string[])=>{const me=twins.get(r.entry_id)?.twin.room,other=others.length===1?byTitle.get(others[0])?.twin.room:null;
-   const heat=me?.heating_degrees!=null&&other?.heating_degrees?Math.round(100*me.heating_degrees/other.heating_degrees):null;
-   const parts=[me?.far_window_percent!=null?t('fenêtres {n} %',{n:me.far_window_percent}):'',me?.mixing_percent!=null?t('air {n} % par heure',{n:me.mixing_percent}):'',heat!=null?t('chauffage {n} %',{n:Math.min(heat,100)}):''].filter(Boolean);
-   return parts.length?html`<small class="ac-weight">${t('Poids ici : {parts}',{parts:parts.join(' · ')})}</small>`:nothing;};
-  const shared=(r:{entry_id:string;title:string})=>{const others=(this.volumeName(r.entry_id)??'').split(' · ').filter(x=>x&&x!==r.title);return others.length?html`<small>${t('Même air que {names}',{names:others.join(t(' et '))})}</small>${weights(r,others)}`:nothing;};
-  // Read only: a room opens its sheet in the review; changing it is in the general settings.
-  return frame(t('Vos pièces'),html`<div class="ac-bar"><p class="hint">${t('Appuyez sur une pièce pour voir son bilan.')}</p></div>
-   <div class="ac-list"><div class="ac-r ac-head" aria-hidden="true"><span>${t('Pièce')}</span><span>${t('Observé')}</span><span>${t('Ce qui reste à apprendre')}</span><span>${t('Conseils optimisés')}</span></div>
-   <ul class="ac-rows" aria-label=${t('Vos pièces')}>${h.rooms.map(r=>html`<li class="ac-r"><div class="ac-room"><button class="link ac-open" @click=${()=>this.path('bilan/'+r.entry_id)}>${r.title}</button>${shared(r)}</div>
-     <div class="ac-cell ac-c1" data-label=${t('Observé')}>${observed(r.entry_id)}</div><div class="ac-cell ac-c2" data-label=${t('Ce qui reste à apprendre')}>${left(r.entry_id)}</div>
-     <div class="ac-cell ac-c3" data-label=${t('Conseils optimisés')}>${optimised(r.entry_id)}</div></li>`)}</ul></div>
-   <div class="ac-foot"><p class="hint">${t('Observé : ce que Confort a vu de la pièce ; Optimal quand il a tout vu. Conseils optimisés : ce qu’il prévoit assez juste pour annoncer un résultat.')}</p></div>`,{className:'ac-rooms'});}
+  return versionsFrame([[t('Intégration'),version||t('Version non reçue')],[t('Carte'),version||t('Version non reçue')],[t('Moteur de conseil'),h.advisor||t('Version non reçue')],['API','hestia_comfort_api v1'],[t('Socle commun'),h.socle||t('Version non reçue')],[t('Liaisons'),bricks.length?bricks.join(' · '):t('Aucune brique reliée')]],repository,'hestia_comfort');}
  /** A new room: one of the Home Assistant areas not yet followed, or a free room. */
  private addRoom(){const s=this.snapshot!,used=new Set(s.rooms.map(r=>r.config.area_id).filter((a):a is string=>!!a));const living=livingArea(s.areas,used);
   const areas=s.areas.filter(a=>!a.outdoor&&!used.has(a.area_id)&&(s.rooms.length||a!==living));
@@ -230,66 +235,28 @@ export class ComfortSetup extends LitElement {
   if(group.size<2)return null;
   return rooms.filter(r=>group.has(r.entry_id)).sort((a,b)=>Object.keys(b.config.sources??{}).length-Object.keys(a.config.sources??{}).length||a.title.localeCompare(b.title,'fr')).map(r=>r.title).join(' · ');
  }
- /** What learning asks and what it gave this week; the state of each room is in « Vos pièces ». */
- private learningBox(){
-  return frame(t('Apprentissage'),html`${this.learningHow()}${this.learningQuestions()}${this.learningWeek()}`);
- }
- /** What learning is, in a few plain lines, and how far the home has got. */
- private learningHow(){
-  const rooms=(this.twins?.rooms??[]).filter(r=>r.progress),mean=rooms.length?Math.round(rooms.reduce((n,r)=>n+r.progress!.percent,0)/rooms.length):null;
-  const done=rooms.filter(r=>r.progress!.complete).length;
-  // Rooms that already give at least one optimised advice, without waiting for 100 %.
-  const some=rooms.filter(r=>{const x=r.progress!.ready;return !!x&&(x.humidity||x.temperature||(x.air??[]).length>0);}).length;
-  return html`${mean!=null?html`<div class="tw-week">${[[`${mean} %`,t('du logement observé')],[`${some} / ${rooms.length}`,many(some)?t('pièces ont déjà des conseils optimisés'):t('pièce a déjà des conseils optimisés')],[`${done} / ${rooms.length}`,many(done)?t('pièces observées à 100 %'):t('pièce observée à 100 %')]].map(([b,t])=>html`<div><b>${b}</b><span>${t}</span></div>`)}</div>`:nothing}
-   <ul class="tw-how">
-    <li>${t('Confort observe chaque pièce toutes les 30 minutes : température, humidité, soleil, fenêtres, chauffage.')}</li>
-    <li>${t('Il en déduit comment elle réagit, puis vérifie ses prévisions sur la veille.')}</li>
-    <li>${t('« Observé » dit ce que Confort a vu. « Conseils optimisés » : dès que ses prévisions sont assez justes pour une mesure (humidité, température, air), le conseil annonce son résultat.')}</li>
-    <li>${t('100 % : il a tout vu. Une semaine de mesures, des prévisions justes, cinq aérations, le chauffage en marche.')}</li></ul>`;
- }
- /** Questions on the habits found: a « yes » names a cause; nothing is ever guessed without it. */
- private learningQuestions(){
-  const asked=(this.twins?.rooms??[]).flatMap(r=>(r.questions??[]).map(q=>({...q,entry_id:r.entry_id})));
-  if(!asked.length)return nothing;
-  const answer=async(entry_id:string,key:string,value:string)=>{
-   try{await this.ws({type:'hestia_comfort/answer',entry_id,key,answer:value});this.twins=await this.ws<Twins>({type:'hestia_comfort/twins'});}
-   catch(e){this.error=this.message(e);}};
-  return html`<h3 class="tw-sub">${t('Pour affiner l’apprentissage')}</h3>${asked.map(q=>html`<div class="tw-q"><p>${q.text}<small>${q.hint}</small></p>
-   <div class="tw-btns">${[['yes',t('Oui')],['no',t('Non')],['unknown',t('Je ne sais pas')]].map(([v,l])=>html`<button @click=${()=>void answer(q.entry_id,q.key,v)}>${l}</button>`)}</div></div>`)}`;
- }
- /** The week of the feedback loop, over every room: airings followed, what they gave, predictions held. */
- private learningWeek(){
-  const weeks=(this.twins?.rooms??[]).map(r=>({title:r.title,w:r.week})).filter(x=>x.w&&(x.w.followed||x.w.ignored));
-  if(!weeks.length)return nothing;
-  const sum=(k:'followed'|'ignored'|'evaluated'|'held')=>weeks.reduce((n,x)=>n+x.w![k],0);
-  const dry=weeks.filter(x=>x.w!.gains.humidity!=null),gain=dry.length?dry.reduce((n,x)=>n+x.w!.gains.humidity,0)/dry.length:null;
-  const best=[...dry].sort((a,b)=>a.w!.gains.humidity-b.w!.gains.humidity)[0];
-  const tile=(value:string,label:string)=>html`<div><b>${value}</b><span>${label}</span></div>`;
-  return html`<h3 class="tw-sub">${t('Cette semaine')}</h3><div class="tw-week">
-   ${tile(String(sum('followed')),many(sum('followed'))?t('aérations conseillées et suivies'):t('aération conseillée et suivie'))}
-   ${gain!=null?tile(`${num(gain,0)} %`,t('d’humidité en moyenne après une aération')):nothing}
-   ${sum('evaluated')?tile(t('{n} sur {total}',{n:sum('held'),total:sum('evaluated')}),t('prévisions tenues')):nothing}
-   ${best?tile(best.title,t('la pièce qui gagne le plus à être aérée')):nothing}
-   ${sum('ignored')?tile(String(sum('ignored')),many(sum('ignored'))?t('conseils laissés sans suite'):t('conseil laissé sans suite')):nothing}</div>`;
- }
  /** A command of Confort, answered in the panel's language (engine/i18n.py). */
  private ws<T>(msg:Record<string,unknown>){return this.hass!.callWS<T>({...msg,language:this.hass!.language});}
  private message(e:unknown){return typeof e==='object'&&e&&'message' in e?String(e.message):t('La connexion est indisponible. Réessayez sans quitter votre brouillon.');}
- private path(path:string){if(!this.isConnected)return;this.opening=false;const full='/'+path.replace(/^\//,'');this.routeHandled=full==='/'?'':full;const [key,sub]=path.split('/');if(key==='bilan'){this.page='review';this.reviewRoom=sub;}else if(key==='reglages')this.page=sub==='foyer'?'foyer':'settings';else if(key==='pieces'||!key)this.page=key==='pieces'?'rooms':'health';history.pushState(null,'',(this.route?.prefix??'/hestia/confort')+(path?'/'+path:''));window.dispatchEvent(new CustomEvent('location-changed'));}
+ private path(path:string){if(!this.isConnected)return;this.opening=false;const full='/'+path.replace(/^\//,'');this.routeHandled=full==='/'?'':full;const [key,sub]=path.split('/');if(key==='bilan'){this.page='review';this.reviewRoom=sub;}else if(key==='reglages'){this.page='settings';this.lightPage=sub==='lumiere';}else if(key==='pieces'&&!sub)this.page='pieces';else if(key==='apprentissage')this.page='learning';else if(key==='a-propos')this.page='about';else if(!key)this.page='health';this.extKey=key==='extensions'?sub:undefined;history.pushState(null,'',(this.route?.prefix??'/hestia/confort')+(path?'/'+path:''));window.dispatchEvent(new CustomEvent('location-changed'));}
  private remember(){if(this.workspaceKey&&(this.draft||this.exteriorDraft))this.drafts.set(this.workspaceKey,{draft:this.draft,exteriorDraft:this.exteriorDraft,discovery:this.discovery,entryId:this.entryId,stage:this.stage,revision:this.revision,acknowledged:this.acknowledged,proposed:this.proposed,search:this.search,weatherEntry:this.weatherEntry});}
  private async followRoute(){
   const path=this.route?.path??'';if(this.routeHandled===path)return;
   // A route that is not the browser's address is a late copy of one already left (Home Assistant can send the former
   // page again just after a save): following it reopened that page behind the preview, stuck on « Chargement… ».
   const here=decodeURI(location.pathname).replace(/\/$/,'');if(this.route?.prefix&&here!==(this.route.prefix+path).replace(/\/$/,''))return;this.routeHandled=path;const generation=++this.workspaceGeneration;this.remember();
-  const [id,section]=path.split('/').filter(Boolean);const key=id??'';
+  const [id,section]=path.split('/').filter(Boolean);const key=id??'';this.extKey=key==='extensions'?section:undefined;
   // A newer page takes over: the « Chargement… » of the one it replaces must not stay forever.
   this.opening=false;this.workspaceKey=key;this.draft=undefined;this.exteriorDraft=undefined;this.discovery=undefined;this.entryId=undefined;this.preview=undefined;this.error='';this.saved='';this.confirmDiscard=false;this.confirmRemove=false;
   // The tab opens on its technical home; « pieces » is the list of rooms to set.
   // « pieces » (the former list of rooms) is now the general settings, like every brick's.
-  if(key==='pieces'){this.path('reglages');return;}
+  // The menu's pages (CAHIER-HUB.md § 5.1): the rooms, and what each has learned.
+  if(key==='pieces'&&!section){this.page='pieces';if(!this.health)void this.loadHealth();return;}
+  if(key==='apprentissage'){this.page='learning';if(!this.twins)void this.loadHealth();return;}
+  // « À propos », a page of every brick's menu (socle 1.22): versions and the project's links.
+  if(key==='a-propos'){this.page='about';if(!this.health)void this.loadHealth();return;}
   // The general settings only list the rooms; the extensions (and the outside they give) have their own page.
-  if(key==='reglages'){this.page=section==='foyer'?'foyer':'settings';return;}
+  if(key==='reglages'){this.page='settings';this.lightPage=section==='lumiere';return;}
   this.page=key==='bilan'?'review':'health';this.reviewRoom=key==='bilan'?section:undefined;if(key==='bilan')return;
   const cached=this.drafts.get(key);
   if(cached){Object.assign(this,cached);this.stage=roomSections.find(x=>x.path===section)?.stage??(section==='recapitulatif'?5:cached.stage);return;}
@@ -327,17 +294,17 @@ export class ComfortSetup extends LitElement {
   catch(e){this.error=this.message(e);}finally{this.busy=false;}
  }
  private async editRoom(room:Room,route=true){
-  const cached=this.drafts.get(room.entry_id);if(route&&cached){Object.assign(this,cached);this.workspaceKey=room.entry_id;this.path(room.entry_id+'/'+(roomSections.find(x=>x.stage===this.stage)?.path??'recapitulatif'));return;}
+  const cached=this.drafts.get(room.entry_id);if(route&&cached){Object.assign(this,cached);this.workspaceKey=room.entry_id;this.path(room.entry_id+'/'+(roomSections.find(x=>x.stage===this.stage)?.path??'mesures'));return;}
   const generation=this.workspaceGeneration;this.begin();
   try{const d=await this.discover(room.config.area_id,room.entry_id);if(generation!==this.workspaceGeneration)return;this.discovery=d;this.revision=d.revision;this.entryId=room.entry_id;
    const config=structuredClone(room.config);config.area_id??=null;config.openings??={};for(const id of config.windows)config.openings[id]??={...defaultOpening(),sheltered:config.rain_exposed===false};
-   this.draft=config;this.proposed=[];this.stage=0;this.acknowledged=[...(config.acknowledged??[])];this.workspaceKey=room.entry_id;if(route)this.path(room.entry_id+'/temperature');}
+   this.draft=config;this.original=JSON.stringify(config);this.proposed=[];this.stage=0;this.acknowledged=[...(config.acknowledged??[])];this.workspaceKey=room.entry_id;if(route)this.path(room.entry_id+'/mesures');}
   catch(e){this.error=this.message(e);}finally{this.busy=false;}
  }
  private async editExterior(route=true){
   const cached=this.drafts.get('extensions');if(route&&cached){Object.assign(this,cached);this.workspaceKey='extensions';this.path('extensions');return;}
   const generation=this.workspaceGeneration;this.begin();
-  try{const d=await this.discover();if(generation!==this.workspaceGeneration)return;this.discovery=d;this.revision=d.revision;this.exteriorDraft=structuredClone(this.snapshot!.home.sources);this.weatherEntry=this.snapshot!.home.weather??null;this.acknowledged=[...(this.snapshot!.home.acknowledged??[])];this.proposed=[];this.workspaceKey='extensions';if(this.weatherEntry)await this.useWeather(this.weatherEntry,true);if(route)this.path('extensions');}
+  try{const d=await this.discover();if(generation!==this.workspaceGeneration)return;this.discovery=d;this.revision=d.revision;this.exteriorDraft=structuredClone(this.snapshot!.home.sources);this.weatherEntry=this.snapshot!.home.weather??null;this.acknowledged=[...(this.snapshot!.home.acknowledged??[])];this.proposed=[];this.workspaceKey='extensions';if(this.weatherEntry)await this.useWeather(this.weatherEntry,true);this.originalExterior=JSON.stringify([this.exteriorDraft,this.weatherEntry]);if(route)this.path('extensions');}
   catch(e){this.error=this.message(e);}finally{this.busy=false;}
  }
  // Takes Hestia Weather's station and signals as the whole exterior; only the caution on the air stays the person's.
@@ -349,68 +316,6 @@ export class ComfortSetup extends LitElement {
   catch(e){if(quiet)this.weatherEntry=entry_id;this.error=this.message(e);}finally{if(!quiet)this.busy=false;}
  }
  private ownSensors(){if(this.exteriorDraft?.pollution?.adapter==='hestia_air')this.clear('pollution');this.weatherEntry=null;this.weatherAir=null;this.weatherSeason=null;this.saved='';}
- // The exterior: its source first; with Hestia Weather everything is read from it, with own sensors each one is chosen.
- private exteriorSource(){const s=this.snapshot!,nw=s.hestia_weather,from=this.weatherEntry?'weather':'own';
-  return html`<span id="l-from" class="sr-only">${t('Source des mesures du dehors')}</span>
-   ${this.choiceList('from','l-from',exteriorChoices(s),from,v=>v==='weather'?void this.useWeather(nw!.places[0].entry_id):this.ownSensors())}
-   ${from==='weather'&&(nw?.places.length??0)>1?this.zone(t('Lieu Hestia Weather'),nw!.places.map(p=>({value:p.entry_id,label:p.title})),this.weatherEntry!,id=>void this.useWeather(id)):nothing}`;}
- /** One line per outdoor measure: its name, then its sensor (a choice only with own sensors), then its value now. */
- private exteriorRows(){const weather=!!this.weatherEntry,all=(key:string)=>this.discovery?.candidates[key]??[];
-  const keys=outdoorGroups.flatMap(([,k])=>k),spec=this.exteriorDraft!.pollution,air=all('pollution').find(x=>x.entity_id===spec?.entity_id),wa=this.weatherAir;
-  // The air comes from Hestia Weather's own choice (Atmo France or a WAQI station), or from its index entity.
-  const airName=spec?.adapter==='hestia_air'&&wa?'Hestia Weather · '+wa.provider:air?air.name:'—';
-  const airValue=spec?.adapter==='hestia_air'?(wa?.index?html`<span>${wa.label??t('indice {n}',{n:wa.index})}</span>`:html`<span class="bad">${t('ne répond pas')}</span>`)
-   :air?html`<span class=${air.available?'':'bad'}>${air.atmo_label??measurement(air)}</span>`:html`<span class="muted">${spec?'—':t('non fourni par Hestia Weather')}</span>`;
-  const title=this.snapshot?.hestia_weather?.places.find(p=>p.entry_id===this.weatherEntry)?.title;
-  const value=(key:string)=>{const id=this.selected(key)[0],c=all(key).find(x=>x.entity_id===id);
-   // With Hestia Weather, its season comes through its interface, as on its own card.
-   if(weather&&key==='season')return this.weatherSeason?html`<span>${seasonNames[this.weatherSeason]??this.weatherSeason}</span>`:html`<span class="muted">${t('non fourni par Hestia Weather')}</span>`;
-   if(key==='season'&&c)return html`<span class=${c.available?'':'bad'}>${seasonNames[String(c.value).toLowerCase().trim()]??c.value}</span>`;
-   return !id?html`<span class="muted">${weather?t('non fourni par Hestia Weather'):'—'}</span>`:c?html`<span class=${c.available?'':'bad'}>${key==='wind_bearing'&&c.available&&c.value!==''&&Number.isFinite(Number(c.value))?t(exposures[Math.round(Number(c.value)/45)%8][1]):measurement(c)}</span>`:weather?html`<span class="muted">—</span>`:html`<span class="bad">${t('introuvable')}</span>`;};
-  const sensor=(key:string)=>{const id=this.selected(key)[0]??'',c=all(key).find(x=>x.entity_id===id);
-   if(weather)return html`<span class="ex-name">${key==='season'?t('Hestia Weather'):c?.name??(id||'—')}</span>`;
-   const ids=all(key).map(x=>x.entity_id);if(!ids.length)return html`<span class="muted">${t('Aucun capteur compatible')}</span>`;
-   const changed=(v:unknown)=>{if(v===''||v==null){if(id)this.clear(key,id);}else this.pick(key,v);};
-   return html`${this.pickerTag?this.selector(key,ids,id,labels[key],changed):html`<select aria-label=${labels[key]} @change=${(e:Event)=>changed((e.target as HTMLSelectElement).value)}><option value="" ?selected=${!id}>${t('Aucun')}</option>${all(key).map(x=>html`<option value=${x.entity_id} ?selected=${x.entity_id===id}>${x.name} · ${this.where(x)}</option>`)}</select>`}${c?this.warnings(c,key,true):nothing}`;};
-  const rows=html`<div class="ex-rows">${keys.map(k=>html`<div class=${'ex-row'+(weather?'':' own')}><b>${labels[k]}</b><div class="ex-sensor">${sensor(k)}</div><div class="ex-value">${value(k)}</div></div>`)}
-    ${weather?html`<div class="ex-row"><b>${labels.pollution}</b><div class="ex-sensor"><span class="ex-name">${airName}</span></div><div class="ex-value">${airValue}</div></div>`:nothing}</div>`;
-  // With Hestia Weather the measures are only read: folded, under its choice. Own sensors are chosen one by one.
-  if(weather)return html`<details class="ex-fold"><summary>${t('Voir les {n} mesures reprises',{n:keys.length+1})}${title?' · '+title:''}</summary>${noteBox(t('Lu dans Hestia Weather'),t('Reprises telles quelles. Une autre station se choisit dans Hestia Weather.'))}${rows}${this.shadeRow()}</details>${this.exteriorDraft!.pollution?this.airCaution():nothing}`;
-  return frame(t('Vos capteurs'),rows);}
- /** The person's caution on a daily air index (Atmo France scale, also used by Hestia Weather). */
- private airCaution(){const spec=this.exteriorDraft!.pollution;
-  return spec&&['atmo_daily','hestia_index','hestia_air'].includes(spec.adapter??'')?html`<label class="ex-caution">${t('Prudence à partir du niveau')}<select @change=${(e:Event)=>{this.exteriorDraft={...this.exteriorDraft!,pollution:{...spec!,block_from:Number((e.target as HTMLSelectElement).value)}};}}>${[t('Moyen'),t('Dégradé'),t('Mauvais'),t('Très mauvais'),t('Extrêmement mauvais')].map((label,i)=>html`<option value=${i+2} ?selected=${(spec!.block_from??4)===i+2}>${label}</option>`)}</select></label><p class="hint">${t('Votre préférence de prudence, pas une consigne sanitaire.')}</p>`:nothing;}
- // The outdoor air: with Hestia Weather, its index of the day; otherwise an integration, then its zone or place.
- /** The people the room is for: one for a bedroom, several for a shared room, none for the whole household. */
- private personsBlock(){const d=this.draft;if(!d)return nothing;const states=this.hass?.states??{},all=Object.keys(states).filter(e=>e.startsWith('person.')).sort(),mine=new Set(d.persons??[]);
-  const toggle=(e:string,on:boolean)=>{const next=new Set(mine);if(on)next.add(e);else next.delete(e);this.draft={...d,persons:[...next]};};
-  return frame(t('Personnes de la pièce'),html`<p class="hint">${t('Cochez les personnes à qui sert la pièce : une pour une chambre, plusieurs pour une pièce commune. La pièce compte alors comme vide quand elles sont toutes absentes, même si d’autres sont à la maison. Sans case cochée, toute la maison compte.')}</p>
-   ${all.length?all.map(e=>html`<label class="check"><input type="checkbox" .checked=${mine.has(e)} @change=${(ev:Event)=>toggle(e,(ev.target as HTMLInputElement).checked)}>${String(states[e]?.attributes?.friendly_name??e)} <span class="muted">· ${states[e]?.state==='home'?t('à la maison'):t('absent')}</span></label>`)
-    :html`<p class="muted">${t('Aucune personne dans Home Assistant (Paramètres → Personnes).')}</p>`}`);}
- private airBlock(){const all=this.discovery?.candidates.pollution??[],spec=this.exteriorDraft!.pollution,current=airSource(spec);
-  const pickSource=(v:string)=>{if(v===current)return;if(v==='none'){this.clear('pollution');return;}
-   const first=all.find(c=>c.adapter===(v==='atmo'?'atmo_daily':'hestia_index'));if(first)this.choose('pollution',first);};
-  const zones=spec&&current!=='other'?all.filter(c=>c.adapter===spec.adapter):[],c=all.find(x=>x.entity_id===spec?.entity_id);
-  if(this.weatherEntry)return nothing;
-  return frame(labels.pollution,html`<span id="l-air" class="sr-only">${labels.pollution}</span><p class="hint">${t('Une précaution régionale du jour, pas une mesure à vos fenêtres.')}</p>
-   ${this.choiceList('air','l-air',airChoices(this.snapshot!,all,current),current,pickSource)}
-   ${spec&&current!=='other'?this.zone(current==='atmo'?t('Zone Atmo France'):t('Lieu Hestia Weather'),zones.map(z=>({value:z.entity_id,label:z.name+' · '+measurement(z)})),spec.entity_id,id=>this.pick('pollution',id)):nothing}
-   ${current==='other'?html`<p class="hint">${c?.name??spec!.entity_id}</p>`:nothing}${c?this.warnings(c):nothing}${this.airCaution()}`);}
- // ---- Pieces shared by every step (charte des onglets de réglage) ----
- // What the step is for, in a frame that folds and stays folded.
- private intro(key:string){if(key==='6')return html`<div class="nk-step-help">${helpTip(t('Présence'),help.presence,t('À quoi sert cette étape ?'))}</div>`;return html`<div class="nk-step-help">${helpTip(t('Comprendre cette étape'),html`<ul>${intros[key].map(line=>html`<li>${t(line)}</li>`)}</ul>`,t('À quoi sert cette étape ?'))}</div>`;}
-
- private choiceList(name:string,label:string,choices:Choice[],value:string,pick:(v:string)=>void){
-  return html`<div class="sources" role="radiogroup" aria-labelledby=${label}>${choices.map(c=>html`<label class="source ${c.value===value?'on':''} ${c.available?'':'off'}">
-   <input type="radio" name=${name} .checked=${c.value===value} ?disabled=${!c.available||this.busy} @change=${()=>pick(c.value)}>
-   <span><strong>${c.label}${c.badge?html` <em class="ex-badge benefit">${c.badge}</em>`:nothing}</strong><span>${c.hint}</span>${c.available?nothing:html`<span>${c.missing}${c.url?html` · <a href=${c.url} target="_blank" rel="noreferrer">${t('installer {name}',{name:c.label})}</a>`:nothing}</span>`}</span></label>`)}</div>`;}
- // The zone, place or device of the chosen source, shown even when there is only one.
- private zone(label:string,options:{value:string;label:string}[],value:string,pick:(v:string)=>void,hint=''){
-  const known=options.some(o=>o.value===value);
-  return html`<label class="zone">${label}<select ?disabled=${this.busy} @change=${(e:Event)=>pick((e.target as HTMLSelectElement).value)}>
-   ${known?nothing:html`<option value="" selected disabled>${t('Introuvable · choisissez-en un autre')}</option>`}
-   ${options.map(o=>html`<option value=${o.value} ?selected=${o.value===value}>${o.label}</option>`)}</select></label>${hint?html`<p class="hint">${hint}</p>`:nothing}`;}
-
  private async changeArea(area_id:string){
   if(!this.draft)return;this.busy=true;this.error='';
   try{const d=await this.discover(area_id||null,this.entryId);this.discovery=d;this.revision=d.revision;this.draft={...this.draft,area_id:area_id||null,floor_id:null};}
@@ -432,7 +337,7 @@ export class ComfortSetup extends LitElement {
    d.area_id?t('La pièce Home Assistant vous sera de nouveau proposée.'):t('Vous pourrez la recréer comme pièce libre.')],keep:t('Garder la pièce'),confirm:t('Supprimer la pièce'),asking:this.confirmRemove,busy:this.busy,
    onAsk:()=>{this.confirmRemove=true;},onCancel:()=>{this.confirmRemove=false;},onConfirm:()=>void this.removeRoom()});}
  private cancel(){if(this.draft||this.exteriorDraft){this.confirmDiscard=true;return;}this.discard();}
- private discard(){const back=this.draft&&!this.exteriorDraft?'reglages':'';this.drafts.delete(this.workspaceKey);this.workspaceKey='';this.path(back);this.confirmDiscard=false;this.draft=undefined;this.exteriorDraft=undefined;this.discovery=undefined;this.entryId=undefined;this.error='';this.acknowledged=[];this.proposed=[];}
+ private discard(){const back=this.draft&&!this.exteriorDraft?'pieces':'';this.drafts.delete(this.workspaceKey);this.workspaceKey='';this.path(back);this.confirmDiscard=false;this.draft=undefined;this.exteriorDraft=undefined;this.discovery=undefined;this.entryId=undefined;this.error='';this.acknowledged=[];this.proposed=[];}
  private selected(key:string):string[]{if(this.exteriorDraft)return this.exteriorDraft[key]?[this.exteriorDraft[key].entity_id]:[];if(!this.draft)return [];return key==='presence'?(this.draft.presence??[]):key==='windows'?this.draft.windows:this.draft.sources[key]?[this.draft.sources[key]]:[];}
  private choose(key:string,c:Candidate){
   const previous=this.selected(key);
@@ -449,7 +354,6 @@ export class ComfortSetup extends LitElement {
   this.acknowledged=this.acknowledged.filter(v=>v!==warningId(key,removed));
  }
  private setOpening(id:string,change:Partial<RoomConfig['openings'][string]>){const d=this.draft!;this.draft={...d,openings:{...d.openings,[id]:{...(d.openings[id]??defaultOpening()),...change}}};}
- private warnings(c:Candidate,_key?:string,_selected?:boolean){return html`${c.warnings.filter(w=>!(w==='derived'&&c.warnings.includes('alias'))).map(w=>html`<p class="warning hint">${warningText[w]??t('Source à vérifier.')}</p>`)}${c.provenance.length>1?html`<p class="provenance">${t('Origine de la mesure :')} ${c.provenance.map((p,i)=>html`${i?' → ':nothing}${p.name}${p.area_id?` (${this.areaName(p.area_id)})`:nothing}`)}</p>`:nothing}`;}
  // Sensors chosen with a warning that the person has not confirmed yet: one confirmation covers them all.
  private pending(){const keys=this.exteriorDraft?[...outdoor]:[...indoor,'illuminance','co2','pm25','voc','purifier','ventilation','ventilation_boost','presence','heating','windows'];const out:{id:string;name:string}[]=[];
   for(const key of keys)for(const id of this.selected(key)){const c=this.discovery?.candidates[key]?.find(x=>x.entity_id===id);if(c?.warnings.length&&!this.acknowledged.includes(warningId(key,id)))out.push({id:warningId(key,id),name:c.name});}
@@ -457,8 +361,6 @@ export class ComfortSetup extends LitElement {
   return out;}
  private confirmBlock(){const list=this.pending();if(!list.length)return nothing;
   return html`<div class="notice confirm"><p>${(list.length===1?t('Un capteur est à vérifier (autre pièce, porte d’appareil ou mesure recopiée) : {names}.',{names:list.map(x=>x.name).join(', ')}):t('{n} capteurs sont à vérifier (autre pièce, porte d’appareil ou mesure recopiée) : {names}.',{n:list.length,names:list.map(x=>x.name).join(', ')}))+' '+(this.exteriorDraft?t('Les explications sont plus haut.'):t('Les explications sont aux étapes précédentes.'))}</p><label class="check"><input type="checkbox" .checked=${this.confirmed} @change=${(e:Event)=>{this.confirmed=(e.target as HTMLInputElement).checked;if(this.confirmed)this.error='';}}>${t('J’ai vérifié, je confirme mes choix.')}</label></div>`;}
- private where(c:Candidate){return c.area_id?this.areaName(c.area_id):t('Sans pièce');}
- private candidateRow(c:Candidate,key:string){return html`<div class="candidate"><div><strong>${c.name}</strong><p>${measurement(c)} · ${this.where(c)}${c.reference?' · '+t('référence de la pièce'):nothing}</p>${this.warnings(c,key,false)}</div><button @click=${()=>this.choose(key,c)}>${t('Utiliser')}</button></div>`;}
  private replace(key:string,old:string,id:unknown){
   if(id===''||id===undefined||id===null){this.clear(key,old);return;}  // the picker's cross removes the sensor
   if(typeof id!=='string'||id===old)return;
@@ -474,30 +376,28 @@ export class ComfortSetup extends LitElement {
   if(this.pickerTag==='ha-selector')return html`<ha-selector .hass=${this.hass} .selector=${{entity:{include_entities:ids}}} .value=${live(value)} .required=${false} .label=${label} @value-changed=${(e:CustomEvent)=>changed(e.detail?.value)}></ha-selector>`;
   return html`<ha-entity-picker .hass=${this.hass} .includeEntities=${ids} .value=${live(value)} .required=${false} .label=${label} @value-changed=${(e:CustomEvent)=>changed(e.detail?.value)}></ha-entity-picker>`;
  }
- private picker(key:string,all:Candidate[],selected:string[]){
-  const free=all.filter(c=>!selected.includes(c.entity_id));
-  if(!free.length)return html`<p class="hint">${t('Aucun autre capteur compatible dans Home Assistant.')}</p>`;
-  const label=multiple.has(key)&&selected.length?(key==='presence'?t('Ajouter un autre capteur de présence'):t('Ajouter un autre ouvrant')):t('Choisir un autre capteur');
-  if(this.pickerTag)return html`<div class="picker">${this.selector(key,free.map(c=>c.entity_id),'',label,id=>this.pick(key,id))}</div>`;
-  const text=(this.search[key]??'').toLowerCase();
-  return html`<div class="picker"><label>${label}<input type="search" placeholder=${t('Tapez un nom, une pièce…')} .value=${this.search[key]??''} @input=${(e:Event)=>this.search={...this.search,[key]:(e.target as HTMLInputElement).value}}></label>${text?html`<div class="search-results">${free.filter(c=>(c.name+' '+c.entity_id+' '+this.where(c)).toLowerCase().includes(text)).slice(0,8).map(c=>this.candidateRow(c,key))}</div>`:nothing}</div>`;
- }
- private chosen(key:string,id:string,all:Candidate[],selected:string[]){
-  const c=all.find(x=>x.entity_id===id);
-  // Each chosen sensor is itself a picker: choosing another one replaces it in place.
-  const ids=[id,...all.filter(x=>!selected.includes(x.entity_id)).map(x=>x.entity_id)];
-  return html`<div class="choice">${this.pickerTag?html`<div class="chosen">${this.selector(key,ids,id,labels[key]===labels.windows?t('Ouvrant'):labels[key],v=>this.replace(key,id,v))}</div>`:html`<strong>${c?.name??id}</strong>`}
-   <span>${c?measurement(c)+' · '+this.where(c):t('Capteur introuvable ou incompatible · choisissez-en un autre')}</span>${this.proposed.includes(id)?html`<span>${t('Proposé par Hestia · gardez-le, changez-le ou retirez-le')}</span>`:nothing}${c?.reference?html`<span>${t('Référence de cette pièce dans Home Assistant')}</span>`:nothing}${c?this.warnings(c,key,true):nothing}${key==='windows'?this.openingDetails(id):nothing}<button class="link" @click=${()=>this.clear(key,id)}>${t('Retirer')}</button></div>`;
- }
- private openingSource(id:string,key:'cover_entity'|'auto_entity'|'override_entity',kind:string,label:string){const m=this.draft!.openings[id]??defaultOpening(),all=this.discovery?.candidates[kind]??[],value=m[key]??'';
-  const change=(next:unknown)=>{if(typeof next==='string'){this.acknowledged=this.acknowledged.filter(a=>a!==warningId(kind,value));this.confirmed=false;this.setOpening(id,{[key]:next||undefined});}};
-  return html`<label>${this.pickerTag?nothing:label}${this.pickerTag?this.selector(kind,[...new Set([...(value?[value]:[]),...all.map(c=>c.entity_id)])],value,label,change):html`<select @change=${(e:Event)=>change((e.target as HTMLSelectElement).value)}><option value="" ?selected=${!value}>${t('Non renseigné')}</option>${value&&!all.some(c=>c.entity_id===value)?html`<option selected value=${value}>${value} · ${t('introuvable')}</option>`:nothing}${all.map(c=>html`<option value=${c.entity_id} ?selected=${value===c.entity_id}>${c.name} · ${measurement(c)}</option>`)}</select>`}</label>${all.find(c=>c.entity_id===value)?this.warnings(all.find(c=>c.entity_id===value)!):nothing}`;
- }
- private evolutionNumber(key:'glazing_factor'|'presence_delay_minutes'|'voc_delay_minutes'|'voc_pause_minutes',label:string,initial:number,min:number,max:number,step:number){const d=this.draft!;return html`<label>${label}<input type="number" min=${min} max=${max} step=${step} .value=${String(d.evolution?.[key]??initial)} @input=${(e:Event)=>this.draft={...d,evolution:{...d.evolution,[key]:Number((e.target as HTMLInputElement).value)}}}></label>`;}
  /** Chauffage : d'abord si la pièce est chauffée ; éteint, le thermostat et ses réglages s'effacent (gardés pour un retour). */
- private heatingStage(){const d=this.draft!,heated=d.heated!==false;
-  return html`<label class="check ex-switch heat-switch"><input type="checkbox" role="switch" .checked=${heated} @change=${(e:Event)=>this.draft={...d,heated:(e.target as HTMLInputElement).checked}}>${t('Pièce chauffée')}</label>
-   ${heated?html`${this.heatersFrame()}${this.plageFrame()}${d.sources.heating||d.sources.heating_indicator?this.field('heating_indicator'):nothing}`:noteBox(t('Pièce non chauffée'),t('Hestia ne conseillera jamais de réchauffer cette pièce et ne lit pas son chauffage.'))}`;}
+ private heatingStage(){const d=this.draft!,heated=d.heated!==false,head=listRow({label:t('Pièce chauffée'),value:toggle(t('Pièce chauffée'),heated,on=>this.draft={...this.draft!,heated:on},this.busy)});
+  if(!heated)return html`${listSection(t('Chauffage'),[head])}${noteBox(t('Pièce non chauffée'),t('Hestia ne conseillera jamais de la réchauffer.'))}`;
+  const list=this.heaters(),all=this.discovery?.candidates.heating??[],free=all.filter(c=>!list.some(h=>h.entity_id===c.entity_id)).map(c=>c.entity_id),found=(id:string)=>all.find(c=>c.entity_id===id),vt=this.uses('versatile_thermostat');
+  const add=(id:string)=>({entity_id:id,scope:this.looksLikeStove(id)?'house':'room'} as Heater);
+  const rows=[head,...list.flatMap((h,i)=>{const c=found(h.entity_id);return [
+   listRow({label:t('Chauffage'),sub:c?(c.thermostat&&vt?t('Versatile Thermostat'):measurement(c)):t('Capteur introuvable ou incompatible · choisissez-en un autre'),
+    value:this.selector('heating',[h.entity_id,...free],h.entity_id,'',v=>this.setHeaters(typeof v==='string'&&v?list.map((x,j)=>j===i?add(v):x):list.filter((_,j)=>j!==i)))}),
+   listRow({label:html`<span class="nk-indent">${t('Il chauffe')}</span>`,value:segmented(t('Il chauffe'),[['room',t('Cette pièce')],['house',t('Toute la maison')]],h.scope,scope=>this.setHeaters(list.map((x,j)=>j===i?{...x,scope}:x)),this.busy)})];}),
+   free.length?listRow({label:t('Ajouter un chauffage'),value:this.selector('heating',free,'','',v=>{if(typeof v==='string'&&v)this.setHeaters([...list,add(v)]);})}):nothing,
+   ...(d.sources.heating||d.sources.heating_indicator?this.sensorRows('heating_indicator'):[])];
+  const p=this.plage(),now=(id:string)=>{const th=found(id)?.thermostat;const v=th&&vt?((th.preset??'').includes('frost')?th.comfort:th.target??th.comfort):undefined;return v==null?undefined:t('{t} en ce moment',{t:String(v).replace('.',',')+' °C'});};
+  const radio=(id:string|null,label:string,sub?:string)=>html`<label class="nk-row nk-row-go"><span class="nk-row-lab">${label}${sub?html`<small>${sub}</small>`:nothing}</span><input type="radio" name="plage" .checked=${p===id} ?disabled=${this.busy} @change=${()=>this.setHeaters(list,id)}></label>`;
+  const set=(i:number,change:Partial<Heater>)=>this.setHeaters(list.map((x,j)=>{if(j!==i)return x;const n={...x,...change};if(!n.kind)delete n.kind;if(n.power==null||Number.isNaN(n.power))delete n.power;return n;}));
+  const known=list.filter(h=>h.kind||h.power).length;
+  return html`${listSection(t('Chauffages'),rows,{help:html`<p>${t('Un poêle, un insert ou une cheminée chauffent toute la maison : chaque pièce apprend la part qui lui arrive.')}</p>`})}
+  ${list.some(h=>found(h.entity_id)?.thermostat)&&!vt?noteBox(t('Versatile Thermostat désactivé'),t('Coupé dans Extensions : ce chauffage est lu comme un thermostat ordinaire.')):nothing}
+  ${list.length?listSection(t('La plage suit'),[...list.map(h=>radio(h.entity_id,found(h.entity_id)?.name??h.entity_id,now(h.entity_id))),radio(null,t('Aucun'),t('La plage reste celle des Mesures.'))],
+   {help:html`<p>${t('La consigne du thermostat devient le minimum de la pièce. En éco, la pièce est attendue plus fraîche ; en hors-gel, c’est la consigne confort qui compte.')}</p>`}):nothing}
+  ${list.length?listSection('',[moreRow(t('Pour aller plus loin'),t('{n} sur {total}',{n:known,total:list.length}),list.map((h,i)=>{const c=found(h.entity_id),fromVt=!!c?.thermostat&&vt;
+   return listRow({label:c?.name??h.entity_id,sub:fromVt?t('Puissance lue dans Versatile Thermostat.'):undefined,value:html`<select aria-label=${t('Type')} @change=${(e:Event)=>set(i,{kind:(e.target as HTMLSelectElement).value||undefined})}><option value="" ?selected=${!h.kind}>${t('Type…')}</option>${[['radiator',t('Radiateur')],['floor',t('Plancher')],['stove',t('Poêle ou insert')],['ac',t('Climatisation')]].map(([v,l])=>html`<option value=${v} ?selected=${h.kind===v}>${l}</option>`)}</select>
+    ${fromVt?nothing:html`<input type="number" aria-label=${t('Puissance (W)')} min="100" max="20000" step="50" placeholder="W" .value=${h.power==null?'':String(h.power)} @input=${(e:Event)=>{const raw=(e.target as HTMLInputElement).value;set(i,{power:raw===''?undefined:Number(raw)});}}><span class="nk-unit">W</span>`}`});}))]):nothing}`;}
  /** The room's heatings: the one saved by Confort 2.1 when none is listed yet, a stove proposed for the whole house. */
  private heaters():Heater[]{const d=this.draft!;if(d.heaters?.length)return d.heaters;const id=d.sources.heating;return id?[{entity_id:id,scope:this.looksLikeStove(id)?'house':'room'}]:[];}
  private looksLikeStove(id:string){const c=this.discovery?.candidates.heating?.find(x=>x.entity_id===id);return /po[eê]le|stove|insert|chemin[ée]e|granul/i.test(`${c?.name??''} ${id}`);}
@@ -508,113 +408,49 @@ export class ComfortSetup extends LitElement {
   let plage=follow===undefined?this.plage():follow;if(plage&&!ids.includes(plage))plage=ids[0]??null;
   const sources={...d.sources},main=plage??ids[0];if(main)sources.heating=main;else delete sources.heating;
   this.draft={...d,heaters:list,sources,thermostat_plage:plage,thermostat_reference:plage!==null||!list.length};}
- private heatersFrame(){const list=this.heaters(),all=this.discovery?.candidates.heating??[],free=all.filter(c=>!list.some(h=>h.entity_id===c.entity_id));
-  const found=(id:string)=>all.find(c=>c.entity_id===id),deg=(v:number|null|undefined)=>v==null?'—':String(v).replace('.',',')+' °C';
-  const versatile=list.some(h=>found(h.entity_id)?.thermostat),off=versatile&&!this.uses('versatile_thermostat');
-  const heater=(h:Heater,i:number)=>{const c=found(h.entity_id),th=this.uses('versatile_thermostat')?c?.thermostat:undefined;return html`<div class="heater">
-   <strong>${c?.name??h.entity_id}</strong> <span class="hint">${c?(th?t('Versatile Thermostat · confort {comfort}, éco {eco}, hors-gel {frost}',{comfort:deg(th.comfort),eco:deg(th.eco),frost:deg(th.frost)}):measurement(c)+' · '+this.where(c)):t('Capteur introuvable ou incompatible · choisissez-en un autre')}</span>
-   <p class="label">${t('Ce chauffage chauffe')}</p>
-   <div class="nk-seg" role="group" aria-label=${t('Ce chauffage chauffe')}>${(['room','house'] as const).map(scope=>html`<button type="button" aria-pressed=${String(h.scope===scope)} ?disabled=${this.busy} @click=${()=>this.setHeaters(list.map((x,j)=>j===i?{...x,scope}:x))}>${scope==='room'?t('Cette pièce'):t('Toute la maison')}</button>`)}</div>
-   <p class="why">${h.scope==='house'?t('Toute la maison : un poêle, un insert, une cheminée. Chaque pièce apprend la part de chaleur qui lui arrive.'):t('Cette pièce : un radiateur, un plancher chauffant, un convecteur.')}</p>
-   <button class="link" ?disabled=${this.busy} @click=${()=>this.setHeaters(list.filter((_,j)=>j!==i))}>${t('Retirer')}</button></div>`;};
-  return frame(t('Les chauffages de la pièce'),html`${list.map(heater)}
-   ${list.length?nothing:html`<p class="hint">${t('Aucun chauffage choisi : Hestia lit seulement la température de la pièce.')}</p>`}
-   ${free.length?html`<label>${list.length?t('Ajouter un autre chauffage'):t('Choisir le chauffage')}<select ?disabled=${this.busy} @change=${(e:Event)=>{const el=e.target as HTMLSelectElement,id=el.value;el.value='';if(id)this.setHeaters([...list,{entity_id:id,scope:this.looksLikeStove(id)?'house':'room'}]);}}><option value="">${t('Choisir…')}</option>${free.map(c=>html`<option value=${c.entity_id}>${c.name} · ${this.where(c)}</option>`)}</select></label>`:nothing}
-   ${off?noteBox(t('Versatile Thermostat désactivé'),t('Coupé dans Réglages généraux, rubrique Extensions : ce chauffage est lu comme un thermostat ordinaire, sans ses consignes ni la raison d’un arrêt.'))
-    :versatile?noteBox(t('Lu dans Versatile Thermostat'),t('Ses consignes, la raison d’un arrêt, sa pente de température, la présence et la fenêtre ouverte qu’il détecte. Il ne commande rien.')):nothing}
-   ${this.heatersMore(list)}`,{count:list.length?(list.length>1?t('{n} choisis',{n:list.length}):t('Choisi')):t('Facultatif'),className:'nk-field-section nk-plain'});}
- /** « Pour aller plus loin »: the type of each heating, and its power when Versatile Thermostat does not give it. */
- private heatersMore(list:Heater[]){if(!list.length)return nothing;const all=this.discovery?.candidates.heating??[];
-  const set=(i:number,change:Partial<Heater>)=>this.setHeaters(list.map((x,j)=>{if(j!==i)return x;const n={...x,...change};if(!n.kind)delete n.kind;if(n.power==null||Number.isNaN(n.power))delete n.power;return n;}));
-  const n=list.filter(h=>h.kind||h.power).length;
-  return html`<details class="group"><summary>${t('Pour aller plus loin')} · ${t('{n} sur {total} renseignés',{n,total:list.length})}</summary>${list.map((h,i)=>{const c=all.find(x=>x.entity_id===h.entity_id),vt=!!c?.thermostat&&this.uses('versatile_thermostat');return html`<div class="sensor-settings"><h4>${c?.name??h.entity_id}</h4>
-   <label>${t('Type')}<select @change=${(e:Event)=>set(i,{kind:(e.target as HTMLSelectElement).value||undefined})}><option value="" ?selected=${!h.kind}>${t('Je ne sais pas')}</option>${[['radiator',t('Radiateur, convecteur')],['floor',t('Plancher chauffant')],['stove',t('Poêle ou insert')],['ac',t('Climatisation réversible')]].map(([v,l])=>html`<option value=${v} ?selected=${h.kind===v}>${l}</option>`)}</select></label>
-   ${vt?html`<p class="hint">${t('Puissance : lue dans Versatile Thermostat.')}</p>`:html`<label>${t('Puissance (W)')}<input type="number" min="100" max="20000" step="50" .value=${h.power==null?'':String(h.power)} @input=${(e:Event)=>{const raw=(e.target as HTMLInputElement).value;set(i,{power:raw===''?undefined:Number(raw)});}}></label>`}</div>`;})}
-   <p class="why">${t('Ce que ça débloque : les kWh de chaque geste, et des gestes de chauffage plus sûrs dès le premier jour.')}</p></details>`;}
- /** The heating whose set point is the room's minimum (CAHIER-MOTEUR.md § 6.8), or none. */
- private plageFrame(){const list=this.heaters();if(!list.length)return nothing;const p=this.plage(),all=this.discovery?.candidates.heating??[];
-  const now=(id:string)=>{const th=all.find(c=>c.entity_id===id)?.thermostat;const v=th?((th.preset??'').includes('frost')?th.comfort:th.target??th.comfort):undefined;return v==null?'':' · '+t('{t} en ce moment',{t:String(v).replace('.',',')+' °C'});};
-  const radio=(id:string|null,label:unknown)=>html`<label class="check"><input type="radio" name="plage" .checked=${p===id} ?disabled=${this.busy} @change=${()=>this.setHeaters(list,id)}>${label}</label>`;
-  return frame(t('La plage de la pièce suit'),html`${list.map(h=>radio(h.entity_id,html`<span><strong>${all.find(c=>c.entity_id===h.entity_id)?.name??h.entity_id}</strong>${now(h.entity_id)}</span>`))}${radio(null,t('Aucun : la plage reste celle de l’onglet Température'))}
-   <p class="why">${t('La consigne du thermostat devient le minimum de la pièce. En éco, la pièce est attendue plus fraîche. En hors-gel, c’est la consigne confort qui compte.')}</p>`,{className:'nk-field-section nk-plain'});}
- private airPresence(){return html`${['co2','pm25','voc','purifier','ventilation'].map(key=>this.field(key))}${this.draft?.sources.ventilation?this.field('ventilation_boost'):nothing}`;}
- private sensorSettings(key:string){const d=this.draft!;if(!d)return nothing;const selected=!!this.selected(key).length;if(!selected&&!['pm25','voc'].includes(key))return nothing;
- if(key==='purifier'||key==='ventilation_boost'){const k=key,v=d.flows?.[k],purifier=k==='purifier';
-  return html`<div class="sensor-settings"><label>${purifier?t('Débit d’air propre (m³/h)'):t('Débit en vitesse rapide (m³/h)')}<input type="number" min=${purifier?20:10} max=${purifier?1000:600} step="5" .value=${v==null?'':String(v)} @input=${(e:Event)=>{const raw=(e.target as HTMLInputElement).value,flows={...d.flows};if(raw==='')delete flows[k];else flows[k]=Number(raw);this.draft={...d,flows};}}></label>
-   <p class="why">${purifier?t('Sur la notice ou la boîte : « CADR ». Une durée juste dès le premier jour : « Lancez le purificateur 25 min ». Vide, Hestia suppose un purificateur ordinaire et se corrige au fil des utilisations.'):t('Sur la notice de la VMC. Une durée juste dès le premier jour. Vide, Hestia suppose une VMC ordinaire et se corrige au fil des utilisations.')}</p></div>`;}
- const voc=this.discovery?.candidates.voc?.find(c=>c.entity_id===d.sources.voc),unit=voc?(voc.unit??''):(d.evolution?.voc_threshold?.unit??''),preset=vocPreset(voc),availableVoc=this.discovery?.candidates.voc?.find(c=>vocPreset(c)),availablePreset=vocPreset(availableVoc);
- if(key==='co2')return html`<div class="sensor-settings"><h4>${t('Repère d’interprétation')}</h4>
-  ${this.number('co2_action',t('Aérer à partir de (ppm)'),1000,50)}<p class="why">${t('À 1 500 ppm, aérer vite : ce second repère est fixe (HCSP).')}</p>
-  ${defaultValue('1 000 ppm',()=>this.draft={...d,settings:{...d.settings,co2_action:airReferenceDefaults.co2_action}},html`<p class="hint">${t('Pourquoi : le HCSP retient 800 ppm comme objectif de renouvellement d’air et 1 500 ppm comme valeur d’action rapide dans les établissements recevant du public. Ces repères en sont inspirés pour le logement, avec un palier intermédiaire à 1 000 ppm. Ces valeurs décrivent le confinement, pas la toxicité ni l’ensemble des polluants. Les anciens repères Hestia étaient 1 000 / 1 200 / 1 600 ppm.')} <a href=${thresholdSources.co2} target="_blank" rel="noopener noreferrer">${t('Source : HCSP, avis du 21 janvier 2022')}</a>.</p>`,{applied:d.settings.co2_action===airReferenceDefaults.co2_action})}</div>`;
- if(key==='pm25')return html`<div class="sensor-settings"><h4>${t('Repère d’interprétation')}</h4>
-  ${selected?this.number('pm25_action',t('PM2.5 : seuil de signalement (µg/m³)'),25):nothing}
-  ${defaultValue('15 µg/m³',()=>this.draft={...d,settings:{...d.settings,pm25_action:airReferenceDefaults.pm25_action}},html`<p class="hint">${t('Pourquoi 15 : l’OMS recommande 15 µg/m³ en moyenne sur 24 heures (et 5 sur un an). 15 sert ici de repère de vigilance sur la mesure reçue ; ce n’est pas une exposition calculée sur 24 heures. Un pic n’est donc pas un dépassement de la moyenne OMS, et une mesure basse ne garantit pas l’absence de risque. Le seuil Hestia précédent était 25.')} <a href=${thresholdSources.pm25} target="_blank" rel="noopener noreferrer">${t('Source : OMS, lignes directrices 2021')}</a>.</p>`,{applied:d.settings.pm25_action===15,disabled:!selected,note:!selected?t('Choisissez le capteur pour activer le suivi.'):undefined})}</div>`;
- if(key==='voc')return html`<div class="sensor-settings"><h4>${t('Repère d’interprétation')}</h4>
-  ${d.sources.voc?html`<p class="hint">${t('Capteur choisi : {name}. Unité : {unit}. Le seuil reste attaché à cette unité ; changer de capteur ou d’unité impose de le vérifier.',{name:voc?.name??d.sources.voc,unit:unit||t('indice sans unité')})}</p>
-  <label>${t('Seuil COV ({unit})',{unit:unit||t('indice')})}<input type="number" min="0" step="any" .value=${d.evolution?.voc_threshold?.unit===unit?String(d.evolution.voc_threshold.value):''} @input=${(e:Event)=>{const value=(e.target as HTMLInputElement).value,evolution={...d.evolution};if(value)evolution.voc_threshold={value:Number(value),unit};else delete evolution.voc_threshold;this.draft={...d,evolution};}}></label>
-  ${preset?html`${defaultValue(t('Indice 150'),()=>this.draft={...d,evolution:{...d.evolution,voc_threshold:{...preset}}},html`<p class="hint">${t('Pourquoi 150 : pour la VINDSTYRKA IKEA identifiée, c’est l’exemple d’action de Sensirion. L’indice 100 correspond au niveau habituel appris par le capteur ; un indice plus haut signale davantage de COV par rapport à cet historique. Ce n’est ni une concentration, ni une limite sanitaire. L’adaptation du capteur peut ramener une pollution persistante vers 100.')} <a href=${thresholdSources.voc} target="_blank" rel="noopener noreferrer">${t('Source : Sensirion, fonctionnement du VOC Index')}</a>.</p>`,{applied:d.evolution?.voc_threshold?.value===preset.value&&d.evolution?.voc_threshold?.unit===preset.unit})}`:html`<p class="hint">${t('Aucune valeur par défaut pour ce capteur : son unité seule ne suffit pas à justifier un seuil commun. Utilisez un repère documenté par son fabricant dans cette unité ; les indices ne sont pas convertis en ppb ou en µg/m³. À défaut de seuil, la mesure reste visible sans verdict COV.')}</p><p class="hint">${t('L’UBA rappelle que le total des COV ne permet pas à lui seul d’évaluer le risque sanitaire. Un seuil d’une substance ou un repère TVOC ne s’applique pas automatiquement à tous les capteurs grand public.')} <a href=${thresholdSources.tvoc} target="_blank" rel="noopener noreferrer">${t('Source : agence allemande de l’environnement, AIR')}</a>.</p>`}
-  <p class="hint">${t('Vous pouvez laisser le seuil vide pour suivre la mesure sans l’interpréter.')}</p>
-  `:html`<p class="hint">${t('Choisissez votre capteur COV pour activer le suivi.')}</p>${availablePreset?defaultValue(t('Indice {n}',{n:availablePreset.value}),()=>{},html`<p class="hint">${t('Pourquoi 150 : pour la VINDSTYRKA IKEA identifiée, c’est l’exemple d’action de Sensirion. L’indice 100 correspond au niveau habituel appris par le capteur ; un indice plus haut signale davantage de COV par rapport à cet historique. Ce n’est ni une concentration, ni une limite sanitaire. L’adaptation du capteur peut ramener une pollution persistante vers 100.')} <a href=${thresholdSources.voc} target="_blank" rel="noopener noreferrer">${t('Source : Sensirion, fonctionnement du VOC Index')}</a>.</p>`,{applied:false,disabled:true,note:t('Pour le capteur reconnu : {name}',{name:availableVoc!.name})}):html`<p class="hint">${t('Valeur par défaut : selon le modèle et l’unité du capteur.')}</p>`}`}</div>`;
- if(key==='indoor_humidity')return html`<div class="sensor-settings"><h4>${t('Humidité maximale')}</h4>${this.number('humidity_high',t('Humidité maximale (%)'),62)}${defaultValue('60 %',()=>this.draft={...d,settings:{...d.settings,humidity_high:airReferenceDefaults.humidity_high}},html`<p class="hint">${t('L’ADEME conseille 40 à 60 % d’humidité. Vous pouvez adapter cette plage à la pièce.')} <a href=${thresholdSources.humidity} target="_blank" rel="noopener noreferrer">${t('Source : ADEME, Respirer un air sain chez soi')}</a>.</p>`,{applied:d.settings.humidity_high===60})}<p class="hint">${t('Jusqu’à 3 points hors de votre plage : légèrement humide ou sec. Jusqu’à 10 points : air humide ou sec. Au-delà : très humide ou très sec. Ces paliers Hestia graduent l’affichage, ce ne sont pas des seuils sanitaires. La durée et l’amélioration sont indiquées séparément ; aérer n’est conseillé que si cela aide.')}</p></div>`;
- if(key==='presence')return html`<div class="sensor-settings">${this.evolutionNumber('presence_delay_minutes',t('Délai avant de considérer la pièce vide (minutes)'),5,0,120,1)}${helpTip(t('Comprendre le délai de présence'),html`<p>${t('5 minutes est un choix pratique Hestia pour éviter les changements trop rapides. Le délai commence après une absence réellement signalée ; le silence d’un détecteur de mouvement ne suffit pas. Une pièce vide conserve son suivi et ses alertes.')}</p>`,t('Comprendre ce réglage'))}</div>`;
- if(key==='indoor_temperature')return html`<div class="sensor-settings"><h4>${t('Votre plage de confort')}</h4>${this.uses('versatile_thermostat')&&this.discovery?.candidates.heating?.find(c=>c.entity_id===d.sources.heating)?.thermostat&&d.thermostat_reference!==false?noteBox(t('Lu dans Versatile Thermostat'),t('Le minimum suit la consigne de votre Versatile Thermostat (onglet Chauffage). Celui saisi ici sert si le thermostat ne répond pas.')):nothing}${this.number('minimum',t('Minimum (°C)'),20,0.5)}${this.number('maximum',t('Maximum en hiver (°C)'),24,0.5)}${this.number('summer_maximum',t('Maximum en été (°C)'),26,0.5)}${defaultValue(t('20–24 °C l’hiver, 26 °C l’été'),()=>this.draft={...d,settings:{...d.settings,minimum:20,maximum:24,summer_maximum:26}},html`<p class="hint">${t('Les températures où vous vous sentez bien dans cette pièce. En dessous, Hestia parle de chauffage ; au-dessus, de rafraîchir. Le maximum passe doucement de la valeur d’hiver à celle d’été avec la saison. C’est un choix personnel, pas une limite de santé.')}</p>`,{applied:d.settings.minimum===20&&d.settings.maximum===24&&(d.settings.summer_maximum??26)===26})}</div>`;
-
- return nothing;
- }
  /** Who moves the cover. Adaptive Cover Pro, CoverAutomatic and Cover Extender are recognised by themselves and each signal they give is shown;
      any other automation is told by hand. Full width, below the cover's own fields. */
- private coverDriver(id:string,cover?:string|null){
-  const m=this.draft!.openings[id]??defaultOpening(),found=cover?this.discovery?.drivers?.[cover]:undefined,driver=found&&this.uses(found.driver??'adaptive_cover_pro')?found:undefined;
-  const fields=html`${this.openingSource(id,'auto_entity','shutter_auto',t('Interrupteur qui active le pilotage automatique'))}${this.openingSource(id,'override_entity','shutter_override',t('Capteur « repris à la main »'))}`;
-  if(!driver)return html`<div class="wide"><h4>${t('Qui pilote ce volet ?')}</h4>${found?html`<p class="hint">${t('{name} est désactivé dans Réglages généraux, rubrique Extensions : ses signaux ne sont pas lus.',{name:found.name})}</p>`:nothing}<p class="hint">${t('Si une automatisation ouvre et ferme ce volet, indiquez l’interrupteur qui l’active et, s’il existe, le capteur qui signale que vous avez repris la main. Rien n’est commandé : le conseil évite seulement ce que l’automatisme fait déjà.')}</p>${fields}</div>`;
-  const sig=driver.signals,row=(label:string,s:{name:string;on:boolean}|null|undefined,on:string,off:string)=>s?html`<li><b>${label}</b> · ${s.on?on:off}<span class="hint"> (${s.name})</span></li>`:nothing;
-  const names:Record<string,string>=Object.fromEntries(exposures.map(([k,l])=>[k,t(l)]));
-  return html`<div class="wide driver"><h4>${t('Piloté par {name}',{name:driver.name})}</h4>
-   <p class="hint">${t('Ces signaux sont lus tout seuls, rien à renseigner :')}</p>
-   <ul>${row(t('Intégration'),sig?.enabled,t('activée'),t('désactivée : elle ne pilote rien'))}${row(t('Pilotage automatique'),sig?.auto,t('activé'),t('coupé'))}${row(t('Suivi du soleil'),sig?.tracking,t('activé'),t('coupé'))}${row(t('Mode climat'),sig?.climate,t('activé'),t('coupé : il ne ferme pas contre la chaleur'))}${row(t('Détection de la reprise à la main'),sig?.detection,t('activée'),t('coupée : un volet bougé à la main ne sera pas reconnu'))}${row(t('Repris à la main'),sig?.override,'oui','non')}${row(t('Soleil devant la fenêtre'),sig?.sun,'oui','non')}
-    ${driver.azimuth!=null?html`<li><b>${t('Orientation de la fenêtre')}</b> · ${Math.round(driver.azimuth)}°${driver.exposure?` (${names[driver.exposure]})`:''}${driver.exposure&&m.exposure!==driver.exposure?html` <button class="link" @click=${()=>this.setOpening(id,{exposure:driver.exposure})}>${t('Utiliser pour l’exposition')}</button>`:nothing}</li>`:nothing}</ul>
-   ${noteBox(t('Bon à savoir'),t('Ainsi, quand {name} pilote le volet, aucun geste ne vous est demandé ; s’il est coupé, vous êtes prévenu avant que le soleil n’arrive sur la fenêtre. Rien n’est commandé.',{name:driver.name}))}
-   ${m.auto_entity||m.override_entity?html`<h4>${t('Signaux choisis à la main')}</h4><p class="hint">${t('Ils remplacent ceux de {name}. Retirez-les pour revenir à la détection.',{name:driver.name})}</p>${fields}`:nothing}</div>`;
- }
- private openingDetails(id:string){const m=this.draft!.openings[id]??defaultOpening(),found=m.shutter==='connected'&&m.cover_entity?this.discovery?.drivers?.[m.cover_entity]:undefined,known=found&&this.uses(found.driver??'adaptive_cover_pro')?found:undefined;return html`<div class="opening">
-  <label>${t('Exposition')}<select @change=${(e:Event)=>this.setOpening(id,{exposure:(e.target as HTMLSelectElement).value||null})}><option value="" ?selected=${!m.exposure}>${t('Je ne sais pas')}</option>${exposures.map(([v,l])=>html`<option value=${v} ?selected=${m.exposure===v}>${t(l)}</option>`)}</select></label>
-  <label>${t('Angle précis (facultatif)')}<input type="number" min="0" max="359" step="1" inputmode="numeric" placeholder=${m.exposure?String(({N:0,NE:45,E:90,SE:135,S:180,SO:225,O:270,NO:315} as Record<string,number>)[m.exposure]??''):t('0 à 359')} .value=${m.azimuth!=null?String(m.azimuth):''}
-   @input=${(e:Event)=>{const raw=(e.target as HTMLInputElement).value;this.setOpening(id,{azimuth:raw===''?null:Number(raw)});}}></label>
-  <p class="hint wide">${t('En degrés, si vous le connaissez : nord 0, est 90, sud 180, ouest 270. Il affine le calcul du soleil sur cette fenêtre.')}</p>
-  <label>${t('Type')}<select @change=${(e:Event)=>this.setOpening(id,{kind:(e.target as HTMLSelectElement).value})}>${kinds.map(([v,l])=>html`<option value=${v} ?selected=${m.kind===v}>${t(l)}</option>`)}</select></label>
-  <label class="check"><input type="checkbox" .checked=${m.sheltered} @change=${(e:Event)=>this.setOpening(id,{sheltered:(e.target as HTMLInputElement).checked})}>${t('Abrité par une avancée de toit ou un balcon')}</label>
-  <label>${t('Volet')}<select @change=${(e:Event)=>{const shutter=(e.target as HTMLSelectElement).value as 'none'|'manual'|'connected';this.setOpening(id,{shutter,cover_entity:undefined,auto_entity:undefined,override_entity:undefined,shutter_habit:undefined});}}>${[['none',t('Sans volet')],['manual',t('Volet manuel (bois, battant…)')],['connected',t('Volet connecté')]].map(([v,l])=>html`<option value=${v} ?selected=${(m.shutter??'none')===v}>${l}</option>`)}</select></label>
-  ${m.shutter==='manual'?html`<div class="wide"><p class="label">${t('Le plus souvent, ce volet est')}</p><div class="nk-seg" role="group" aria-label=${t('Le plus souvent, ce volet est')}>${([['open',t('Ouvert')],['closed',t('Fermé')],['varies',t('Ça dépend')]] as const).map(([v,l])=>html`<button type="button" aria-pressed=${String(m.shutter_habit===v)} @click=${()=>this.setOpening(id,{shutter_habit:m.shutter_habit===v?undefined:v})}>${l}</button>`)}</div>
-   <p class="why">${t('Sa position n’est pas mesurée. Ce que ça change : Hestia compte le soleil qui entre d’habitude ; les conseils restent au conditionnel, « si le volet est ouvert… ».')}</p></div>`:nothing}
-  ${m.shutter==='connected'?this.openingSource(id,'cover_entity','covers',t('Volet de cet ouvrant')):nothing}
-  ${m.shutter==='connected'?this.coverDriver(id,m.cover_entity):nothing}
-  <div class="wide"><p class="label">${t('Taille')}</p></div>
-  ${(['width','height'] as const).map(key=>html`<label>${key==='width'?t('Largeur (m)'):t('Hauteur (m)')}<input type="number" min="0.2" max="6" step="0.05" placeholder=${String((known?.[key]??ordinarySize(m.kind)[key==='width'?0:1])).replace('.',',')} .value=${m[key]===undefined?'':String(m[key])} @input=${(e:Event)=>{const value=(e.target as HTMLInputElement).value;this.setOpening(id,{[key]:value===''?undefined:Number(value)});}}></label>`)}
-  <p class="why wide">${known?.width!=null||known?.height!=null?t('Reprise de {name} ; une valeur saisie ici la remplace.',{name:known.name}):t('Vide : environ {w} × {h} m, la taille ordinaire de ce type d’ouvrant.',{w:String(ordinarySize(m.kind)[0]).replace('.',','),h:String(ordinarySize(m.kind)[1]).replace('.',',')})} ${t('Ce que ça change : l’air qui entre, et le soleil qui chauffe la pièce.')}</p>
-  <details class="group wide"><summary>${t('Pour aller plus loin')} · ${t('{n} sur {total} renseignés',{n:(m.glazing?1:0)+(m.overhang_depth!=null?1:0),total:2})}</summary>
-   <label>${t('Vitrage')}<select @change=${(e:Event)=>this.setOpening(id,{glazing:((e.target as HTMLSelectElement).value||undefined) as OpeningMeta['glazing']})}><option value="" ?selected=${!m.glazing}>${t('Je ne sais pas')}</option>${([['simple',t('Simple')],['double',t('Double')],['triple',t('Triple')]] as const).map(([v,l])=>html`<option value=${v} ?selected=${m.glazing===v}>${l}</option>`)}</select></label>
-   <p class="why">${t('Ce que ça débloque : la buée sur la vitre la nuit, et la chaleur perdue par la fenêtre.')}</p>
-   <h4>${t('Avancée au-dessus de la fenêtre')}</h4><p class="hint">${t('Un débord de toit, un balcon de l’étage, une casquette en béton. Pas d’avancée : laissez vide.')}</p>
-   ${overhangSketch()}
-   <div class="sensor-settings">${(['overhang_depth','overhang_gap'] as const).map(key=>html`<label><span class="kbd">${key==='overhang_depth'?'A':'B'}</span>${key==='overhang_depth'?t('Profondeur (m)'):t('Écart (m)')}<input type="number" min="0" max="20" step="0.05" placeholder=${key==='overhang_depth'?'0,60':'0,30'} .value=${m[key]===undefined?'':String(m[key])} @input=${(e:Event)=>{const value=(e.target as HTMLInputElement).value;this.setOpening(id,{[key]:value===''?undefined:Number(value)});}}></label>`)}</div>
-   <details class="howto"><summary>${t('Comment mesurer')}</summary><ul><li>${t('A : du mur jusqu’au bord de l’avancée, à l’horizontale. Depuis le sol avec un mètre ruban tendu, ou en comptant les tuiles qui dépassent (environ 0,3 m par tuile).')}</li><li>${t('B : du dessous de l’avancée jusqu’au haut de la fenêtre, à la verticale.')}</li><li>${t('Une valeur à 10 cm près suffit.')}</li></ul></details>
-   <p class="why">${t('Ce que ça débloque : l’heure où l’avancée cache le soleil de la fenêtre. L’été, le soleil haut est caché ; l’hiver, le soleil bas entre.')}</p>
-  </details></div>`;}
- private field(key:string){
-  const all=this.discovery?.candidates[key]??[],selected=this.selected(key),room=this.draft;
-  const proposals=(this.exteriorDraft?all.filter(c=>c.outside):all.filter(c=>c.local)).filter(c=>!selected.includes(c.entity_id));
-  const canAdd=multiple.has(key)||!selected.length;
-  const where=this.exteriorDraft?t('dans vos pièces extérieures'):room?.area_id?t('dans la pièce {name}',{name:this.areaName(room.area_id)}):'';
-  return frame(labels[key],html`
-   ${key==='windows'&&selected.length?html`${helpTip(t('Comprendre l’exposition'),html`<p>${t('L’exposition est le côté vers lequel regarde l’ouvrant. Elle permet de savoir quand le soleil y entre.')}</p>`,t('Comprendre ce réglage'))}`:nothing}
-   ${selected.map(id=>this.chosen(key,id,all,selected))}
-   ${canAdd&&proposals.length?html`<p class="hint strong">${proposals.length===1?t('Trouvé {where}',{where}):(multiple.has(key)?t('Trouvés {where} : choisissez ceux qui conviennent',{where}):t('Trouvés {where} : choisissez celui qui convient',{where}))}</p><div class="candidates">${proposals.slice(0,5).map(c=>this.candidateRow(c,key))}</div>`:nothing}
-   ${canAdd&&!proposals.length&&!selected.length?html`<p class="notice">${where?t('Rien trouvé {where}. Vous pouvez en choisir un ailleurs ci-dessous.',{where}):t('Pièce libre : choisissez le capteur ci-dessous.')}</p>`:nothing}
-   ${canAdd?this.picker(key,all,selected):nothing}
-   ${this.draft?this.sensorSettings(key):nothing}
-   ${key!=='indoor_temperature'&&!selected.length?html`<button class="link" @click=${()=>{this.clear(key);this.saved=t('{name} : laissé vide pour l’instant.',{name:labels[key]});}}>${t('Continuer sans')}</button>`:nothing}
-  `,{count:key==='indoor_temperature'?t('Obligatoire'):selected.length?t('Choisi'):t('Facultatif'),help:help[key],className:this.exteriorDraft?'nk-setting-section nk-plain':'nk-field-section nk-plain'});
- }
+ private sensorRows(key:string){const all=this.discovery?.candidates[key]??[],sel=this.selected(key),free=all.filter(c=>!sel.includes(c.entity_id));
+  const order=(xs:Candidate[])=>[...xs.filter(c=>c.local),...xs.filter(c=>!c.local)].map(c=>c.entity_id);
+  const rows=sel.map(id=>{const c=all.find(x=>x.entity_id===id);
+   return listRow({label:rowLabels[key]??t(labels[key]),sub:c?html`${measurement(c)}${c.warnings.length?html` · <span class="warning" title=${warningText[c.warnings[0]]??t('Source à vérifier.')}>${t('source à vérifier')}</span>`:nothing}`:t('Capteur introuvable ou incompatible · choisissez-en un autre'),
+    value:this.selector(key,[id,...order(free)],id,'',v=>this.replace(key,id,v))});});
+  if(multiple.has(key)||!sel.length){const mine=free.find(c=>c.local);
+   rows.push(listRow({label:sel.length?t('Ajouter'):html`${rowLabels[key]??t(labels[key])}${key==='indoor_temperature'?html` <span class="nk-pill">${t('Obligatoire')}</span>`:nothing}`,name:rowLabels[key]??t(labels[key]),
+    value:html`${mine&&!sel.length?html`<button class="link" ?disabled=${this.busy} @click=${()=>this.choose(key,mine)}>${t('Utiliser {name}',{name:mine.name})}</button>`:nothing}${this.selector(key,order(free),'','',v=>this.pick(key,v))}`}));}
+  return rows;}
+ /** The openings: each its contact (changed in place), then what it is; « Ajouter un ouvrant » from a contact. */
+ private windowsTab(){const d=this.draft!,all=this.discovery?.candidates.windows??[],free=all.filter(c=>!d.windows.includes(c.entity_id)).map(c=>c.entity_id);
+  return html`${d.windows.map(id=>{const c=all.find(x=>x.entity_id===id);
+   return listSection(c?.name??id,[listRow({label:t('Contact'),sub:c?measurement(c):undefined,value:this.selector('windows',[id,...free],id,'',v=>this.replace('windows',id,v))}),...this.openingRows(id),
+    html`<button type="button" class="nk-row nk-row-go danger-row" ?disabled=${this.busy} @click=${()=>this.clear('windows',id)}><span class="nk-row-lab">${t('Retirer cet ouvrant')}</span></button>`],
+    {help:html`<p>${t('La taille règle l’air qui entre et le soleil reçu. L’exposition dit quand le soleil arrive sur la fenêtre.')}</p>`});})}
+  ${listSection(d.windows.length?'':t('Fenêtres et portes'),[listRow({label:t('Ajouter un ouvrant'),sub:t('Le contact de la porte ou de la fenêtre.'),value:this.selector('windows',free,'','',v=>this.pick('windows',v))}),
+   d.windows.length?nothing:listRow({label:t('Pas de contact ici, c’est voulu'),sub:t('Hestia ne le proposera plus.'),value:toggle(t('Pas de contact ici, c’est voulu'),d.windows_unmeasured===true,on=>this.draft={...this.draft!,windows_unmeasured:on})})])}`;}
+ /** One opening in rows (CAHIER-HUB.md § 5.3): where it faces, what it is, its size, its shutter; the rest in « Pour aller plus loin ». */
+ private openingRows(id:string){const m=this.draft!.openings[id]??defaultOpening(),found=m.shutter==='connected'&&m.cover_entity?this.discovery?.drivers?.[m.cover_entity]:undefined,driver=found&&this.uses(found.driver??'adaptive_cover_pro')?found:undefined;
+  const select=(label:string,value:string|undefined,options:[string,string][],set:(v:string)=>void)=>html`<select aria-label=${label} @change=${(e:Event)=>set((e.target as HTMLSelectElement).value)}>${options.map(([v,l])=>html`<option value=${v} ?selected=${(value??'')===v}>${l}</option>`)}</select>`;
+  const metres=(key:'width'|'height'|'overhang_depth'|'overhang_gap',label:string,placeholder:string)=>html`<input type="number" aria-label=${label} min="0" max="20" step="0.05" placeholder=${placeholder} .value=${m[key]===undefined?'':String(m[key])} @input=${(e:Event)=>{const v=(e.target as HTMLInputElement).value;this.setOpening(id,{[key]:v===''?undefined:Number(v)});}}>`;
+  const pick=(key:'cover_entity'|'auto_entity'|'override_entity',kind:string)=>{const all=this.discovery?.candidates[kind]??[],value=m[key]??'';
+   return this.selector(kind,[...new Set([...(value?[value]:[]),...all.map(c=>c.entity_id)])],value,'',next=>{if(typeof next==='string'){this.acknowledged=this.acknowledged.filter(a=>a!==warningId(kind,value));this.confirmed=false;this.setOpening(id,{[key]:next||undefined});}});};
+  const [w,h]=ordinarySize(m.kind),size=(n:number)=>String(n).replace('.',','),sig=driver?.signals;
+  const signal=(label:string,x:{name:string;on:boolean}|null|undefined,on:string,off:string)=>x?html`<li><b>${label}</b> · ${x.on?on:off}</li>`:nothing;
+  const known=(m.glazing?1:0)+(m.overhang_depth!=null?1:0)+(m.azimuth!=null?1:0);
+  return [listRow({label:t('Exposition'),value:select(t('Exposition'),m.exposure??'',[['',t('Je ne sais pas')],...exposures.map(([v,l])=>[v,t(l)] as [string,string])],v=>this.setOpening(id,{exposure:v||null}))}),
+   listRow({label:t('Type'),value:select(t('Type'),m.kind,kinds.map(([v,l])=>[v,t(l)] as [string,string]),v=>this.setOpening(id,{kind:v}))}),
+   listRow({label:t('Taille'),sub:m.width!=null||m.height!=null?undefined:driver?.width!=null?t('Reprise de {name}.',{name:driver.name}):t('Vide : environ {w} × {h} m.',{w:size(w),h:size(h)}),
+    value:html`${metres('width',t('Largeur (m)'),size(driver?.width??w))}<span class="nk-unit">×</span>${metres('height',t('Hauteur (m)'),size(driver?.height??h))}<span class="nk-unit">m</span>`}),
+   listRow({label:t('Abritée par une avancée ou un balcon'),value:toggle(t('Abritée par une avancée ou un balcon'),m.sheltered,on=>this.setOpening(id,{sheltered:on}))}),
+   listRow({label:t('Volet'),value:segmented(t('Volet'),[['none',t('Aucun')],['manual',t('Manuel')],['connected',t('Motorisé')]],m.shutter??'none',shutter=>this.setOpening(id,{shutter,cover_entity:undefined,auto_entity:undefined,override_entity:undefined,shutter_habit:undefined}))}),
+   m.shutter==='manual'?listRow({label:t('Le plus souvent, il est'),sub:t('Sa position n’est pas mesurée : les conseils restent au conditionnel.'),value:segmented(t('Le plus souvent, il est'),[['open',t('Ouvert')],['closed',t('Fermé')],['varies',t('Ça dépend')]],m.shutter_habit,v=>this.setOpening(id,{shutter_habit:v}))}):nothing,
+   m.shutter==='connected'?listRow({label:driver?html`${t('Volet motorisé')} ${helpTip(t('Piloté par {name}',{name:driver.name}),html`<p>${t('Ces signaux sont lus tout seuls, rien à renseigner :')}</p><ul>${signal(t('Intégration'),sig?.enabled,t('activée'),t('désactivée : elle ne pilote rien'))}${signal(t('Pilotage automatique'),sig?.auto,t('activé'),t('coupé'))}${signal(t('Suivi du soleil'),sig?.tracking,t('activé'),t('coupé'))}${signal(t('Mode climat'),sig?.climate,t('activé'),t('coupé : il ne ferme pas contre la chaleur'))}${signal(t('Détection de la reprise à la main'),sig?.detection,t('activée'),t('coupée : un volet bougé à la main ne sera pas reconnu'))}</ul>`)}`:t('Volet motorisé'),
+    sub:driver?t('Piloté par {name} : aucun geste demandé.',{name:driver.name}):t('Sa position est lue dans Home Assistant.'),value:pick('cover_entity','covers')}):nothing,
+   moreRow(t('Pour aller plus loin'),t('{n} sur {total}',{n:known,total:3}),[
+    listRow({label:t('Vitrage'),value:select(t('Vitrage'),m.glazing,[['',t('Je ne sais pas')],['simple',t('Simple')],['double',t('Double')],['triple',t('Triple')]],v=>this.setOpening(id,{glazing:(v||undefined) as OpeningMeta['glazing']}))}),
+    listRow({label:html`${t('Avancée au-dessus')} ${helpTip(t('Avancée au-dessus'),html`${overhangSketch()}<p>${t('Un débord de toit, un balcon de l’étage, une casquette en béton. A : du mur jusqu’au bord, à l’horizontale. B : du dessous de l’avancée jusqu’au haut de la fenêtre. À 10 cm près suffit.')}</p>`)}`,sub:t('A : du mur au bord. B : du dessous au haut de la fenêtre.'),
+     value:html`<span class="nk-unit">A</span>${metres('overhang_depth',t('Profondeur (m)'),'0,60')}<span class="nk-unit">B</span>${metres('overhang_gap',t('Écart (m)'),'0,30')}<span class="nk-unit">m</span>`}),
+    listRow({label:t('Angle précis'),sub:t('Nord 0, est 90, sud 180, ouest 270.'),value:html`<input type="number" aria-label=${t('Angle précis')} min="0" max="359" step="1" .value=${m.azimuth!=null?String(m.azimuth):''} @input=${(e:Event)=>{const raw=(e.target as HTMLInputElement).value;this.setOpening(id,{azimuth:raw===''?null:Number(raw)});}}><span class="nk-unit">°</span>`}),
+    ...(m.shutter==='connected'&&!driver?[listRow({label:t('Interrupteur du pilotage automatique'),sub:t('Si une automatisation ouvre et ferme ce volet.'),value:pick('auto_entity','shutter_auto')}),listRow({label:t('Capteur « repris à la main »'),value:pick('override_entity','shutter_override')})]:[])])];}
  private go(stage:number){this.stage=stage;if(this.workspaceKey)this.path(this.workspaceKey+'/'+(roomSections.find(x=>x.stage===stage)?.path??'recapitulatif'));this.error='';this.saved='';this.updateComplete.then(()=>{this.renderRoot.querySelector<HTMLElement>('h1')?.focus();});}
  /** What must be right before going on or saving; '' when it is. */
  private problem(all=false){const d=this.draft!,s=d.settings;
@@ -637,66 +473,61 @@ export class ComfortSetup extends LitElement {
    this.snapshot=await this.ws<Snapshot>({type:'hestia_comfort/save_config',config,home:isHome,revision,...(entryId?{entry_id:entryId}:{}),acknowledged:this.acknowledged});
    if(workspace!==this.workspaceGeneration)return;
    this.drafts.delete(this.workspaceKey);this.workspaceKey='';this.path('');this.draft=undefined;this.exteriorDraft=undefined;this.discovery=undefined;this.entryId=undefined;
-   if(wasRoom){this.preview=edited??this.snapshot.rooms.find(r=>!before.has(r.entry_id))?.entry_id;this.previewEdited=!!edited;if(this.preview)this.path('apercu/'+this.preview);}
-   this.saved=wasRoom?'':t('L’extérieur est enregistré. Toutes vos pièces l’utilisent.');}
+   if(wasRoom&&edited){const tab=roomSections.find(x=>x.stage===this.stage)?.path??'mesures';await this.openRoom(edited,tab);this.saved=t('Enregistré');return;}
+   if(wasRoom){this.preview=this.snapshot.rooms.find(r=>!before.has(r.entry_id))?.entry_id;this.previewEdited=false;if(this.preview)this.path('apercu/'+this.preview);}
+   if(isHome){await this.editExterior();this.saved=t('Enregistré');}}
   catch(e){this.error=this.message(e);}finally{this.busy=false;}
  }
- private number(key:string,label:string,initial:number,step=1){const d=this.draft!;return html`<label>${label}<input type="number" step=${step} .value=${String(d.settings[key]??initial)} @input=${(e:Event)=>this.draft={...d,settings:{...d.settings,[key]:Number((e.target as HTMLInputElement).value)}}}></label>`;}
  private floorName(){const d=this.draft!;const id=d.area_id?this.snapshot?.areas.find(a=>a.area_id===d.area_id)?.floor_id:d.floor_id;return this.snapshot?.floors?.find(f=>f.floor_id===id)?.name??t('Non renseigné');}
+ /** « La pièce » (CAHIER-HUB.md § 5.3): its name and place, the rooms it shares its air with, what differs from the house, how it is built. */
  private preferences(){const d=this.draft!,used=new Set(this.snapshot!.rooms.filter(r=>r.entry_id!==this.entryId).map(r=>r.config.area_id));
-  return html`${frame(t('La pièce'),html`<label>${t('Nom')}<input type="text" maxlength="100" .value=${d.name} @input=${(e:Event)=>this.draft={...d,name:(e.target as HTMLInputElement).value}}></label>
-   <label>${t('Pièce Home Assistant')}<select @change=${(e:Event)=>this.changeArea((e.target as HTMLSelectElement).value)}><option value="" ?selected=${!d.area_id}>${t('Aucune (pièce libre)')}</option>${this.snapshot!.areas.filter(a=>!a.outdoor&&(!used.has(a.area_id)||a.area_id===d.area_id)).map(a=>html`<option value=${a.area_id} ?selected=${a.area_id===d.area_id}>${a.name}</option>`)}</select></label>
-   ${d.area_id?html`<p>${t('Étage :')} <strong>${this.floorName()}</strong></p>${noteBox(t('Repris de Home Assistant'),t('Pour le modifier, changez l’étage de cette pièce dans Home Assistant.'))}`:html`<label>${t('Étage (facultatif)')}<select @change=${(e:Event)=>this.draft={...d,floor_id:(e.target as HTMLSelectElement).value||null}}><option value="" ?selected=${!this.snapshot?.floors?.some(f=>f.floor_id===d.floor_id)}>${t('Non renseigné')}</option>${(this.snapshot?.floors??[]).map(f=>html`<option value=${f.floor_id} ?selected=${d.floor_id===f.floor_id}>${f.name}</option>`)}</select></label>`}
-   <p class="hint">${t('Le suivi fonctionne aussi de plain-pied, sans étage à configurer.')}</p>
-   <p class="hint">${t('Rattacher la pièce permet de proposer ses capteurs. Vous pouvez toujours en choisir ailleurs.')}</p>`,{className:'nk-field-section nk-plain'})}
-   ${this.sharedAir()}
-   ${this.equipmentFrame()}
-   ${roomFoyer({house:this.foyer(),room:d.foyer??{},busy:this.busy,change:next=>{this.draft={...this.draft!,foyer:next};}})}
-   ${this.roomMore()}`;}
+  const others=this.snapshot!.rooms.filter(r=>r.entry_id!==this.entryId),open=d.open_to??[],theirs=(r:{config:RoomConfig})=>!!this.entryId&&(r.config.open_to??[]).includes(this.entryId);
+  return html`${listSection(t('La pièce'),[listRow({label:t('Nom'),value:html`<input type="text" aria-label=${t('Nom')} maxlength="100" .value=${d.name} @input=${(e:Event)=>this.draft={...this.draft!,name:(e.target as HTMLInputElement).value}}>`}),
+   listRow({label:t('Pièce Home Assistant'),sub:d.area_id?undefined:t('Rattachée, ses capteurs sont proposés en premier.'),value:html`<select aria-label=${t('Pièce Home Assistant')} @change=${(e:Event)=>this.changeArea((e.target as HTMLSelectElement).value)}><option value="" ?selected=${!d.area_id}>${t('Aucune (pièce libre)')}</option>${this.snapshot!.areas.filter(a=>!a.outdoor&&(!used.has(a.area_id)||a.area_id===d.area_id)).map(a=>html`<option value=${a.area_id} ?selected=${a.area_id===d.area_id}>${a.name}</option>`)}</select>`}),
+   d.area_id?listRow({label:t('Étage'),sub:t('Repris de Home Assistant.'),value:this.floorName()})
+    :listRow({label:t('Étage'),value:html`<select aria-label=${t('Étage')} @change=${(e:Event)=>this.draft={...this.draft!,floor_id:(e.target as HTMLSelectElement).value||null}}><option value="" ?selected=${!this.snapshot?.floors?.some(f=>f.floor_id===d.floor_id)}>${t('Non renseigné')}</option>${(this.snapshot?.floors??[]).map(f=>html`<option value=${f.floor_id} ?selected=${d.floor_id===f.floor_id}>${f.name}</option>`)}</select>`})])}
+  ${others.length?listSection(t('Même air'),others.map(r=>listRow({label:r.title,sub:theirs(r)?t('Déclaré depuis cette pièce'):undefined,value:toggle(r.title,open.includes(r.entry_id)||theirs(r),on=>this.draft={...this.draft!,open_to:on?[...open,r.entry_id]:open.filter(x=>x!==r.entry_id)},theirs(r))})),
+   {help:html`<p>${t('Les pièces sans mur ni porte entre elles, comme un salon ouvert sur sa cuisine : leurs fenêtres comptent pour les deux, et le même air ne reçoit jamais deux gestes contraires.')}</p>`}):nothing}
+  ${listSection('',[roomFoyer({house:this.foyer(),room:d.foyer??{},busy:this.busy,change:next=>{this.draft={...this.draft!,foyer:next};}}),this.roomMore()])}
+  ${this.entryId?listSection('',[html`<button type="button" class="nk-row nk-row-go" ?disabled=${this.busy} @click=${()=>this.refreshCandidates()}><span class="nk-row-lab">${t('Rechercher à nouveau les capteurs')}</span></button>`]):nothing}
+  ${this.removeBlock()}`;}
  /** « Pour aller plus loin »: how the room is built, every answer optional (REGLAGES-3.md § 4.4). */
  private roomMore(){const d=this.draft!,r=d.room??{};
   const set=(change:Partial<RoomBuilt>)=>{const n:Record<string,unknown>={...this.draft!.room,...change};for(const k of Object.keys(n))if(n[k]===undefined||n[k]===''||Number.isNaN(n[k])||(Array.isArray(n[k])&&!(n[k] as unknown[]).length))delete n[k];this.draft={...this.draft!,room:n as RoomBuilt};};
   const count=(['uses','surface','height','outside','wall_material','insulation','partitions'] as const).filter(k=>r[k]!==undefined).length;
-  const select=(key:'uses'|'wall_material'|'insulation'|'partitions',label:string,options:[string,string][])=>html`<label>${label}<select @change=${(e:Event)=>set({[key]:(e.target as HTMLSelectElement).value||undefined})}><option value="" ?selected=${!r[key]}>${t('Je ne sais pas')}</option>${options.map(([v,l])=>html`<option value=${v} ?selected=${r[key]===v}>${l}</option>`)}</select></label>`;
-  const number=(key:'surface'|'height',label:string,min:number,max:number,step:number,hint:string)=>html`<label>${label}<input type="number" min=${min} max=${max} step=${step} placeholder=${hint} .value=${r[key]==null?'':String(r[key])} @input=${(e:Event)=>{const raw=(e.target as HTMLInputElement).value;set({[key]:raw===''?undefined:Number(raw)});}}></label>`;
+  const select=(key:'uses'|'wall_material'|'insulation'|'partitions',label:string,options:[string,string][])=>listRow({label,value:html`<select aria-label=${label} @change=${(e:Event)=>set({[key]:(e.target as HTMLSelectElement).value||undefined})}><option value="" ?selected=${!r[key]}>${t('Je ne sais pas')}</option>${options.map(([v,l])=>html`<option value=${v} ?selected=${r[key]===v}>${l}</option>`)}</select>`});
+  const number=(key:'surface'|'height',label:string,unit:string,step:number,hint:string,sub?:string)=>listRow({label,sub,value:html`<input type="number" aria-label=${label} min="0" step=${step} placeholder=${hint} .value=${r[key]==null?'':String(r[key])} @input=${(e:Event)=>{const raw=(e.target as HTMLInputElement).value;set({[key]:raw===''?undefined:Number(raw)});}}><span class="nk-unit">${unit}</span>`});
   const sides=r.outside??[],sideName:Record<string,string>={N:t('Nord'),E:t('Est'),S:t('Sud'),O:t('Ouest')};
-  return frame(t('Pour aller plus loin'),html`<div class="sensor-settings">
-   ${select('uses',t('Usage'),[['bedroom',t('Chambre')],['living',t('Séjour')],['kitchen',t('Cuisine')],['bathroom',t('Salle de bain')],['office',t('Bureau')],['other',t('Autre')]])}<span></span>
-   ${number('surface',t('Surface (m²)'),2,200,0.5,'16')}${number('height',t('Hauteur sous plafond (m)'),1.8,8,0.05,'2,50')}
-   <p class="why">${t('Ce que ça débloque : la bonne durée d’aération dès le premier jour. Une grande pièce met plus longtemps à changer d’air qu’une petite. Vide, Hestia suppose une pièce ordinaire de 16 m² et se corrige au fil des jours.')}</p>
-   <h4>${t('Les murs')}</h4><p class="hint">${t('Murs qui donnent dehors. Les autres touchent une autre pièce ou le voisin.')}</p>
-   <div class="nk-chips">${['N','E','S','O'].map(side=>html`<button type="button" class="nk-chip" aria-pressed=${String(sides.includes(side))} @click=${()=>set({outside:sides.includes(side)?sides.filter(x=>x!==side):[...sides,side]})}>${sideName[side]}</button>`)}</div>
-   ${select('wall_material',t('Murs du dehors, faits en'),[['heavy',t('Pierre, béton, brique')],['wood',t('Bois, ossature bois')]])}
-   ${select('insulation',t('Isolés'),[['inside',t('Par l’intérieur (doublage)')],['outside',t('Par l’extérieur')],['none',t('Pas isolés')]])}
-   ${select('partitions',t('Murs entre les pièces'),[['light',t('Cloisons légères (placo, carreaux de plâtre)')],['heavy',t('Murs lourds (brique, pierre, béton)')]])}
-   <p class="why">${t('Ce que ça débloque : combien de temps la pièce garde sa fraîcheur ou sa chaleur. Un mur en pierre isolé par l’extérieur garde la chaleur ; isolé par l’intérieur, presque plus. Avec vos réponses, Hestia part de votre maison, pas d’une maison ordinaire : des conseils justes dès la première semaine.')}</p></div>`,
-   {collapsible:true,open:false,count:t('{n} sur {total} renseignés',{n:count,total:7}),className:'nk-field-section nk-plain'});}
+  return moreRow(t('Pour aller plus loin'),t('{n} sur {total}',{n:count,total:7}),[
+   select('uses',t('Usage'),[['bedroom',t('Chambre')],['living',t('Séjour')],['kitchen',t('Cuisine')],['bathroom',t('Salle de bain')],['office',t('Bureau')],['other',t('Autre')]]),
+   number('surface',t('Surface'),'m²',0.5,'16',r.surface==null?t('Vide : une pièce ordinaire de 16 m².'):undefined),number('height',t('Hauteur sous plafond'),'m',0.05,'2,50'),
+   listRow({label:t('Murs qui donnent dehors'),value:html`<span class="nk-chips">${['N','E','S','O'].map(side=>html`<button type="button" class="nk-chip" aria-pressed=${String(sides.includes(side))} @click=${()=>set({outside:sides.includes(side)?sides.filter(x=>x!==side):[...sides,side]})}>${sideName[side]}</button>`)}</span>`}),
+   select('wall_material',t('Murs du dehors'),[['heavy',t('Pierre, béton, brique')],['wood',t('Bois')]]),
+   select('insulation',t('Isolés'),[['inside',t('Par l’intérieur')],['outside',t('Par l’extérieur')],['none',t('Pas isolés')]]),
+   select('partitions',t('Murs entre les pièces'),[['light',t('Cloisons légères')],['heavy',t('Murs lourds')]])]);}
  /** What the room holds that warms, wets or loads its air (REGLAGES-3.md § 4.4): each may say when it runs. */
- private equipmentFrame(){const d=this.draft!,mine=d.equipment??[],links=d.equipment_links??{},custom=d.custom_equipment??[];
-  const toggle=(key:string,on:boolean)=>{const l={...links};if(!on)delete l[key];this.draft={...this.draft!,equipment:on?[...mine,key]:mine.filter(x=>x!==key),equipment_links:l};};
-  const link=(key:string)=>this.entityChoice(links[key]??'',v=>{const l={...this.draft!.equipment_links??{}};if(v)l[key]=v;else delete l[key];this.draft={...this.draft!,equipment_links:l};});
-  const item=(key:string,label:string,effect:string)=>html`<label class="check"><input type="checkbox" .checked=${mine.includes(key)} @change=${(e:Event)=>toggle(key,(e.target as HTMLInputElement).checked)}><span>${label}<br><span class="hint">${effect}</span></span></label>${mine.includes(key)?html`<div class="eq-link">${link(key)}</div>`:nothing}`;
+ /** « Équipements » (CAHIER-HUB.md § 5.3): the VMC, the purifier, and what warms, wets or loads the air; each may say when it runs. */
+ private equipmentTab(){const d=this.draft!,mine=d.equipment??[],links=d.equipment_links??{},custom=d.custom_equipment??[],ids=this.runEntities();
+  const flow=(k:'purifier'|'ventilation_boost',label:string,sub?:string)=>listRow({label,sub,value:numberField({label,value:d.flows?.[k],unit:'m³/h',step:5,min:10,max:1000,set:v=>{const flows={...this.draft!.flows};if(v===undefined)delete flows[k];else flows[k]=v;this.draft={...this.draft!,flows};}})});
+  const run=(value:string,changed:(id:string)=>void)=>this.selector('equipment',[...new Set([...(value?[value]:[]),...ids])],value,'',v=>changed(typeof v==='string'?v:''));
+  const sub=(label:string)=>html`<span class="nk-indent">${label}</span>`;
+  const setOn=(key:string,on:boolean)=>{const l={...links};if(!on)delete l[key];this.draft={...this.draft!,equipment:on?[...mine,key]:mine.filter(x=>x!==key),equipment_links:l};};
+  const item=(key:string,label:string,effect:string)=>[listRow({label,sub:effect,value:toggle(label,mine.includes(key),on=>setOn(key,on))}),
+   mine.includes(key)?listRow({label:sub(t('Pour savoir quand il marche')),sub:links[key]?undefined:t('Facultatif : une prise, un interrupteur, une puissance.'),value:run(links[key]??'',v=>{const l={...this.draft!.equipment_links??{}};if(v)l[key]=v;else delete l[key];this.draft={...this.draft!,equipment_links:l};})}):nothing];
   const setCustom=(i:number,change:Partial<CustomEquipment>|null)=>{const list=[...(this.draft!.custom_equipment??[])];if(change)list[i]={...list[i],...change};else list.splice(i,1);this.draft={...this.draft!,custom_equipment:list};};
   const effects:[string,string][]=[['heat',t('Chauffe')],['cool',t('Rafraîchit')],['humid',t('Mouille l’air')],['dry',t('Assèche l’air')],['voc',t('COV, odeurs')],['particles',t('Particules, fumée')],['purify',t('Purifie')]];
-  return frame(t('Équipements'),html`<p class="hint">${t('Ce qui chauffe, mouille ou charge l’air de la pièce. Relié à une entité, Hestia sait quand il marche : il n’a plus à le deviner.')}</p>
-   ${item('shower',t('Douche ou baignoire'),t('Humidité'))}${item('hob',t('Plaque de cuisson'),t('Humidité, COV, particules, chaleur'))}${item('oven',t('Four'),t('COV, chaleur'))}
-   ${item('hood',t('Hotte'),t('Enlève l’humidité et le COV de la cuisson'))}${item('drying',t('Sèche-linge ou linge qui sèche'),t('Humidité'))}${item('fan',t('Ventilateur'),t('Rafraîchit la peau, pas l’air : environ 2 °C ressentis de moins'))}
-   ${custom.map((c,i)=>html`<div class="heater"><label>${t('Nom')}<input type="text" maxlength="40" .value=${c.name} @input=${(e:Event)=>setCustom(i,{name:(e.target as HTMLInputElement).value})}></label>
-    <p class="label">${t('Ce qu’il change')}</p><div class="nk-chips">${effects.map(([v,l])=>html`<button type="button" class="nk-chip" aria-pressed=${String(c.effects.includes(v))} @click=${()=>setCustom(i,{effects:c.effects.includes(v)?c.effects.filter(x=>x!==v):[...c.effects,v]})}>${l}</button>`)}</div>
-    ${this.entityChoice(c.entity_id??'',v=>setCustom(i,{entity_id:v||null}))}<button class="link" @click=${()=>setCustom(i,null)}>${t('Retirer')}</button></div>`)}
-   ${custom.length<10?html`<button ?disabled=${this.busy} @click=${()=>this.draft={...this.draft!,custom_equipment:[...custom,{name:'',effects:[],entity_id:null}]}}>${t('Ajouter un autre équipement')}</button>`:nothing}
-   <p class="why">${t('Ce que ça débloque : « C’est le four : le COV retombera quand il s’arrête ». Hestia ne conseille pas d’aérer contre une source qu’il sait passagère, et apprend ce que fait chaque équipement.')}</p>`,{className:'nk-field-section nk-plain'});}
+  return html`${listSection(t('VMC'),[...this.sensorRows('ventilation'),...(d.sources.ventilation?[...this.sensorRows('ventilation_boost'),flow('ventilation_boost',t('Débit en vitesse rapide'))]:[])],
+   {help:html`<p>${t('Le débit, sur la notice, donne une durée juste dès le premier jour. Vide, Hestia suppose une VMC ordinaire et se corrige au fil des utilisations.')}</p>`})}
+  ${listSection(t('Purificateur'),[...this.sensorRows('purifier'),...(d.sources.purifier?[flow('purifier',t('Débit d’air propre'),t('« CADR » sur la notice ou la boîte.'))]:[])])}
+  ${listSection(t('Ce qui change l’air de la pièce'),[...item('shower',t('Douche ou baignoire'),t('Humidité')),...item('hob',t('Plaque de cuisson'),t('Humidité, COV, particules')),...item('oven',t('Four'),t('COV, chaleur')),
+   ...item('hood',t('Hotte'),t('Enlève l’humidité et le COV')),...item('drying',t('Linge qui sèche'),t('Humidité')),...item('fan',t('Ventilateur'),t('Rafraîchit la peau, pas l’air')),
+   ...custom.flatMap((c,i)=>[listRow({label:html`<input type="text" maxlength="40" aria-label=${t('Nom de l’équipement')} placeholder=${t('Nom de l’équipement')} .value=${c.name} @input=${(e:Event)=>setCustom(i,{name:(e.target as HTMLInputElement).value})}>`,value:html`<button type="button" class="nk-reset-s" @click=${()=>setCustom(i,null)}>${t('Retirer')}</button>`}),
+    listRow({label:sub(t('Ce qu’il change')),value:html`<span class="nk-chips">${effects.map(([v,l])=>html`<button type="button" class="nk-chip" aria-pressed=${String(c.effects.includes(v))} @click=${()=>setCustom(i,{effects:c.effects.includes(v)?c.effects.filter(x=>x!==v):[...c.effects,v]})}>${l}</button>`)}</span>`}),
+    listRow({label:sub(t('Pour savoir quand il marche')),value:run(c.entity_id??'',v=>setCustom(i,{entity_id:v||null}))})]),
+   custom.length<10?html`<button type="button" class="nk-row nk-row-go" ?disabled=${this.busy} @click=${()=>this.draft={...this.draft!,custom_equipment:[...custom,{name:'',effects:[],entity_id:null}]}}><span class="nk-row-lab">${t('Ajouter un autre équipement')}</span><span class="nk-chev" aria-hidden="true">+</span></button>`:nothing],
+   {help:html`<p>${t('Relié à une entité, Hestia sait quand il marche : « C’est le four, le COV retombera quand il s’arrête ».')}</p>`})}`;}
  /** What can say an equipment runs: a switch, a plug, a fan, a contact, or a power sensor. */
  private runEntities(){const s=this.hass?.states??{};return Object.keys(s).filter(id=>/^(switch|binary_sensor|fan|input_boolean)\./.test(id)||id.startsWith('sensor.')&&(s[id].attributes?.device_class==='power'||s[id].attributes?.unit_of_measurement==='W')).sort();}
- private entityChoice(value:string,changed:(id:string)=>void){const ids=this.runEntities(),label=t('Pour savoir quand il marche (facultatif)');
-  if(this.pickerTag)return html`<div class="picker">${this.selector('equipment',[...new Set([...(value?[value]:[]),...ids])],value,label,v=>changed(typeof v==='string'?v:''))}</div>`;
-  return html`<label>${label}<select @change=${(e:Event)=>changed((e.target as HTMLSelectElement).value)}><option value="" ?selected=${!value}>${t('Aucune entité')}</option>${ids.map(id=>html`<option value=${id} ?selected=${id===value}>${String(this.hass?.states?.[id]?.attributes?.friendly_name??id)}</option>`)}</select></label>`;}
- /** Rooms with no wall or door between them share one air: their windows are common, their advice never opposite. */
- private sharedAir(){const d=this.draft!,others=this.snapshot!.rooms.filter(r=>r.entry_id!==this.entryId);if(!others.length)return nothing;
-  const mine=d.open_to??[],theirs=(r:{config:RoomConfig})=>!!this.entryId&&(r.config.open_to??[]).includes(this.entryId);
-  return frame(t('Même air'),html`<p class="hint">${t('Cochez les pièces ouvertes sur celle-ci, sans mur ni porte entre elles (un salon ouvert sur sa cuisine). Leurs fenêtres comptent pour les deux, et le même air ne reçoit jamais deux gestes contraires.')}</p>
-   ${others.map(r=>html`<label class="check"><input type="checkbox" .checked=${mine.includes(r.entry_id)||theirs(r)} ?disabled=${theirs(r)}
-    @change=${(e:Event)=>{const on=(e.target as HTMLInputElement).checked;this.draft={...d,open_to:on?[...mine,r.entry_id]:mine.filter(x=>x!==r.entry_id)};}}>${r.title}${theirs(r)?' '+t('(déclaré depuis cette pièce)'):''}</label>`)}`,{className:'nk-field-section nk-plain'});}
  private summary(){const d=this.draft!,home=this.snapshot!.home;const name=(key:string,id?:string)=>id?this.discovery?.candidates[key]?.find(v=>v.entity_id===id)?.name??id:'';
   const metas=d.windows.map(id=>d.openings[id]??defaultOpening());const counts=new Map<string,number>();for(const m of metas)if(m.exposure)counts.set(m.exposure,(counts.get(m.exposure)??0)+1);
   const expo=[...counts].map(([e,n])=>n+' '+t(exposures.find(x=>x[0]===e)![1]).toLowerCase()).join(', ');const unknown=metas.filter(m=>!m.exposure).length,sheltered=metas.filter(m=>m.sheltered).length;
@@ -708,64 +539,124 @@ export class ComfortSetup extends LitElement {
    <dt>${t('Extérieur')}</dt><dd>${home.configured?exteriorSummary(home.sources):t('À configurer depuis Mon logement')}</dd></dl>`)}
    ${this.confirmBlock()}`;}
  private errorBlock(){return this.error?html`<p class="notice error" role="alert">${this.error}</p>`:nothing;}
- private wizard(){const d=this.draft!,section=roomSections.find(x=>x.stage===this.stage),at=roomOrder.indexOf(this.stage);
-  return html`${pageHead({back:{label:t('Réglages généraux'),onClick:()=>this.cancel()},title:d.name?t('Configurer {name}',{name:d.name}):t('Configurer la pièce'),subtitle:`${d.area_id?t('Pièce Home Assistant : {name}',{name:this.areaName(d.area_id)}):t('Pièce libre')} · ${t('Les réglages de cette pièce')}`})}
-  ${stepMenu(t('Réglages de la pièce'),menuSections.map(x=>({label:t(x.label),title:t(x.title),icon:x.icon,current:x.stage===this.stage,onClick:()=>this.go(x.stage)})),this.busy)}
-  <div class="room-content-head"><h2>${section?t(section.title):t('Récapitulatif')}</h2></div>${this.intro(String(this.stage))}
-  ${this.stage===0?[...indoor,'illuminance'].map(key=>this.field(key)):this.stage===1?html`${this.field('windows')}${this.draft&&!this.draft.windows.length?html`<label class="check"><input type="checkbox" .checked=${this.draft.windows_unmeasured===true} @change=${(e:Event)=>this.draft={...this.draft!,windows_unmeasured:(e.target as HTMLInputElement).checked}}>${t('Pas de contact de fenêtre ici, c’est voulu : ne plus le suggérer')}</label>`:nothing}`:this.stage===2?this.airPresence():this.stage===6?html`${this.field('presence')}${this.personsBlock()}`:this.stage===3?this.heatingStage():this.stage===4?this.preferences():this.stage===7?this.notifications():this.summary()}
-  ${this.stage!==4&&this.stage!==5&&this.stage!==7&&!(this.stage===3&&d.heated===false)?html`<button class="link" ?disabled=${this.busy} @click=${()=>this.refreshCandidates()}>${t('Rechercher à nouveau les capteurs')}</button>`:nothing}${this.errorBlock()}
-  ${stepFooter({previous:at>0?{label:t('Étape précédente'),onClick:()=>this.go(roomOrder[at-1]),disabled:this.busy}:undefined,
-   next:this.stage!==5?{label:t('Continuer'),onClick:()=>this.next(),disabled:this.busy}:undefined,
-   save:this.entryId?{label:t('Enregistrer'),onClick:()=>this.saveRoom(),disabled:this.busy}:this.stage===5?{label:t('Créer la pièce'),onClick:()=>void this.save(),disabled:this.busy}:undefined})}${this.removeBlock()}`;}
+ /** What changed in the room since it was opened: one per setting changed, for the save bar. */
+ private changes(){if(!this.draft||!this.original)return 0;const before=JSON.parse(this.original) as Record<string,unknown>,now=this.draft as unknown as Record<string,unknown>;
+  return [...new Set([...Object.keys(before),...Object.keys(now)])].filter(k=>JSON.stringify(before[k])!==JSON.stringify(now[k])).length;}
+ /** Under the room's name: what it measures now, whether something is to set, how much is learned. */
+ private roomChips(){const d=this.draft!,all=this.discovery?.candidates??{},todo=(this.health?.todo??[]).some(l=>l.target?.kind==='room'&&l.target.entry_id===this.entryId);
+  const now=['indoor_temperature','indoor_humidity','co2','voc'].flatMap(k=>{const c=all[k]?.find(x=>x.entity_id===this.selected(k)[0]);return c?.available?[measurement(c)]:[];});
+  const room=this.twins?.rooms.find(x=>x.entry_id===this.entryId),learned=room?.advisor?.pourcent??room?.progress?.percent;
+  return html`<div class="room-chips">${now.map(m=>html`<span class="room-m">${m}</span>`)}${this.health?html`<span class=${'nk-pill '+(todo?'todo':'ok')}>${todo?t('À régler'):t('Rien à faire')}</span>`:nothing}${learned!=null?html`<span class="nk-pill">${t('{n} % appris',{n:learned})}</span>`:nothing}</div>`;}
+ /** « Mesures » (CAHIER-HUB.md § 5.3): the sensors, the comfort range, the marks of what is measured, who the room is for. */
+ private measuresTab(){const d=this.draft!,st=d.settings,has=(k:string)=>!!this.selected(k).length;
+  const setting=(key:string,dflt:number)=>(v:number|undefined)=>this.draft={...this.draft!,settings:{...this.draft!.settings,[key]:v??dflt}};
+  const num=(label:string,key:string,unit:string,dflt:number,step=1)=>listRow({label,value:numberField({label,value:st[key],unit,dflt,step,set:setting(key,dflt)})});
+  // The minimum read from the thermostat the range follows: shown, never a field that says the opposite (CAHIER-HUB.md § 5.3).
+  const c=this.discovery?.candidates.heating?.find(x=>x.entity_id===d.sources.heating),th=this.uses('versatile_thermostat')&&d.thermostat_reference!==false?c?.thermostat:undefined;
+  const set=th?((th.preset??'').includes('frost')?th.comfort:th.target??th.comfort):undefined;
+  const minimum=th?listRow({label:t('Minimum'),sub:t('La consigne de {name}, en ce moment.',{name:c!.name}),value:html`${set==null?'—':String(set).replace('.',',')+' °C'} <button class="link" ?disabled=${this.busy} @click=${()=>this.go(3)}>${t('Changer')}</button>`}):num(t('Minimum'),'minimum','°C',20,0.5);
+  const voc=this.discovery?.candidates.voc?.find(x=>x.entity_id===d.sources.voc),unit=voc?(voc.unit??''):(d.evolution?.voc_threshold?.unit??''),preset=vocPreset(voc),vt=d.evolution?.voc_threshold;
+  const setVoc=(v:number|undefined)=>{const evolution={...this.draft!.evolution},value=v??preset?.value;if(value===undefined)delete evolution.voc_threshold;else evolution.voc_threshold={value,unit};this.draft={...this.draft!,evolution};};
+  const marks=[has('indoor_humidity')?num(t('Humidité au-dessus de'),'humidity_high','%',60):null,has('co2')?num(t('Aérer à partir de'),'co2_action','ppm',1000,50):null,
+   has('pm25')?num(t('Particules fines au-dessus de'),'pm25_action','µg/m³',15):null,
+   has('voc')?listRow({label:t('COV au-dessus de'),sub:preset||vt?.unit===unit?undefined:t('Vide : la mesure est suivie sans verdict.'),value:numberField({label:t('COV au-dessus de'),value:vt?.unit===unit?vt.value:undefined,unit:unit||t('indice'),dflt:preset?.value,set:setVoc})}):null].filter(x=>x);
+  const persons=Object.keys(this.hass?.states??{}).filter(e=>e.startsWith('person.')).sort(),mine=new Set(d.persons??[]);
+  const person=(e:string)=>{const on=mine.has(e);return html`<button type="button" class="nk-chip" aria-pressed=${String(on)} @click=${()=>{const next=new Set(mine);if(on)next.delete(e);else next.add(e);this.draft={...this.draft!,persons:[...next]};}}>${String(this.hass?.states?.[e]?.attributes?.friendly_name??e)}</button>`;};
+  const presence=[persons.length?listRow({label:t('Personnes de la pièce'),sub:t('Sans personne cochée, toute la maison compte.'),value:html`<span class="nk-chips">${persons.map(person)}</span>`}):null,
+   has('presence')?listRow({label:t('Pièce vide après'),value:numberField({label:t('Pièce vide après'),value:d.evolution?.presence_delay_minutes,unit:'min',dflt:5,min:0,max:120,set:v=>this.draft={...this.draft!,evolution:{...this.draft!.evolution,presence_delay_minutes:v??5}}})}):null].filter(x=>x);
+  return html`${listSection(t('Capteurs'),['indoor_temperature','indoor_humidity','co2','pm25','voc','illuminance','presence'].flatMap(key=>this.sensorRows(key)))}
+  ${listSection(t('Plage de confort'),[minimum,num(t('Maximum en hiver'),'maximum','°C',24,0.5),num(t('Maximum en été'),'summer_maximum','°C',26,0.5)],{help:html`<p>${t('Les températures où vous vous sentez bien. Le maximum passe de l’hiver à l’été avec la saison. C’est un choix personnel, pas une limite de santé.')}</p>`})}
+  ${marks.length?listSection(t('Repères'),marks,{help:html`<p>${t('Humidité : l’ADEME conseille 40 à 60 %. Jusqu’à 3 points au-dessus, l’air est dit légèrement humide ; jusqu’à 10, humide ; au-delà, très humide. Ces paliers graduent l’affichage, ce ne sont pas des seuils sanitaires.')}</p>
+   <p>${t('CO₂ : repères du HCSP ; à 1 500 ppm, aérer vite (fixe). Particules fines : 15 µg/m³, la moyenne sur 24 h recommandée par l’OMS. COV : l’indice 100 est le niveau habituel appris par le capteur ; 150 est l’exemple d’action de Sensirion.')}</p>
+   <p><a href=${thresholdSources.humidity} target="_blank" rel="noopener noreferrer">ADEME</a> · <a href=${thresholdSources.co2} target="_blank" rel="noopener noreferrer">HCSP</a> · <a href=${thresholdSources.pm25} target="_blank" rel="noopener noreferrer">OMS</a> · <a href=${thresholdSources.voc} target="_blank" rel="noopener noreferrer">Sensirion</a></p>`}):nothing}
+  ${presence.length?listSection(t('Présence'),presence):nothing}`;}
+ private wizard(){const d=this.draft!,creating=!this.entryId,section=roomSections.find(x=>x.stage===this.stage),at=roomOrder.indexOf(this.stage);
+  const tabs=creating?createSections:roomSections.filter(x=>x.stage!==7||this.lights().mode==='rooms');
+  const content=this.stage===0?this.measuresTab()
+   :this.stage===1?this.windowsTab()
+   :this.stage===2?this.equipmentTab()
+   :this.stage===3?this.heatingStage():this.stage===4?html`${this.preferences()}<p><button class="link" ?disabled=${this.busy} @click=${()=>this.refreshCandidates()}>${t('Rechercher à nouveau les capteurs')}</button></p>${this.removeBlock()}`
+   :this.stage===8?this.roomLearning():this.stage===7?this.notifications():this.summary();
+  return html`${pageHead({back:{label:t('Pièces'),onClick:()=>this.cancel()},title:d.name?d.name:t('Nouvelle pièce')})}
+  ${creating?html`<p class="room-step">${t('Nouvelle pièce · étape {n} sur {total}',{n:at+1,total:roomOrder.length})}</p>`:this.roomChips()}
+  ${tabBar(t('Réglages de la pièce'),tabs.map(x=>({label:t(x.label),current:x.stage===this.stage,onClick:()=>this.go(x.stage)})),this.busy)}
+  ${content}${this.errorBlock()}
+  ${creating?stepFooter({previous:at>0?{label:t('Étape précédente'),onClick:()=>this.go(roomOrder[at-1]),disabled:this.busy}:undefined,
+   next:this.stage!==5?{label:t('Continuer'),onClick:()=>this.next(),disabled:this.busy}:undefined,save:this.stage===5?{label:t('Créer la pièce'),onClick:()=>void this.save(),disabled:this.busy}:undefined})
+   :saveBar({count:this.changes(),busy:this.busy,cancel:()=>{this.draft=JSON.parse(this.original);this.error='';},save:()=>this.saveRoom(),done:this.saved===t('Enregistré')?this.saved:undefined})}`;}
+ /** « Apprentissage » of one room: how far its learning is, what it still has to see, how closely it is forecast. */
+ private roomLearning(){const r=this.twins?.rooms.find(x=>x.entry_id===this.entryId);
+  if(!r)return html`<p class="muted" role="status">${t('Chargement…')}</p>`;
+  if(r.advisor)return roomLearning3(r.advisor);
+  const st=learnState(r.twin,r.progress),p=r.twin.precision,g=r.progress,w=r.week;
+  const part=(key:'days'|'precision'|'sun'|'windows'|'heating'|'air',label:string)=>g&&g.parts[key]!==undefined?listRow({label,value:g.parts[key]!>=1?t('vu'):`${Math.round(g.parts[key]!*100)} %`}):nothing;
+  return html`${listSection(t('Où en est la pièce'),[listRow({label:t('Appris'),value:g?`${g.percent} %`:st.label}),part('days',t('Mesures')),part('precision',t('Prévisions')),part('sun',t('Soleil')),part('windows',t('Fenêtres')),part('heating',t('Chauffage')),part('air',t('Air'))])}
+  ${listSection(t('Ce qui manque encore'),st.missing.length?st.missing.map(m=>listRow({label:m})):[listRow({label:t('Rien : tout ce que la pièce possède a été vu.')})])}
+  ${listSection(t('Ses prévisions'),[listRow({label:t('Justesse'),value:p?t('±{temp} °C · ±{hum} %',{temp:num(p.temperature,p.temperature<1?2:1),hum:num(p.humidity,0)}):t('pas encore vérifiées')}),
+   ...(w?[listRow({label:t('Cette semaine'),value:t('{a} conseils suivis, {b} laissés',{a:w.followed,b:w.ignored})})]:[])])}`;}
  /** The general settings: the rooms, Hestia's own bricks, then the other integrations Confort reads or could read. */
- private exterior(){const h=this.health,ext=h?.extensions??[],weather=ext.find(x=>x.key==='hestia_weather');
-  return html`${pageHead({back:{label:t('Accueil Confort'),onClick:()=>this.cancel()},title:t('Extensions'),subtitle:t('Les autres briques Hestia, le dehors qu’elles donnent, et les intégrations que Confort lit.')})}
-  <h2 class="ex-sec">${t('Extensions officielles Hestia')}</h2>
-  ${this.extensionCard({...(weather??{key:'hestia_weather',name:t('Hestia Weather'),official:true,level:'none',role:'',use:t('Le dehors pour toutes les pièces : température, humidité, pluie, vent, soleil, saison, pollution, alertes et prévisions.'),without:'',url:'https://github.com/hestiaFB/hestia-weather-integration',text:'',rooms:[]}),
-    state:this.weatherEntry?'linked':this.snapshot?.hestia_weather?.installed&&this.snapshot.hestia_weather.places.length?'found':'missing'},
-    html`${this.exteriorSource()}${this.weatherEntry?this.exteriorRows():nothing}`)}
-  ${this.weatherEntry?nothing:html`${this.exteriorRows()}${this.airBlock()}`}
-  <h2 class="ex-sec">${t('Extensions tierces')}</h2><p class="hint">${t('Rangées par thème. Toutes facultatives : chacune affine les conseils là où elle sert.')}</p>
-  ${h?themes.map(([label,keys])=>{const items=ext.filter(x=>!x.official&&(keys.length?keys.includes(x.key):!themes.some(([,k])=>k.includes(x.key))));
-   return items.length?html`<h3 class="ex-theme">${t(label)}</h3>${items.map(x=>this.extensionCard(x))}`:nothing;}):html`<p class="muted" role="status">${t('Recherche des extensions…')}</p>`}
-  ${detectedFrame({brick:t('Confort'),repository:'https://github.com/hestiaFB/hestia-comfort-integration',version:h?.version??'',rows:h?.others??[]})}
-  ${this.confirmBlock()}${this.errorBlock()}${stepFooter({previous:{label:t('Annuler'),onClick:()=>this.cancel()},save:{label:t('Enregistrer'),onClick:()=>void this.save(),disabled:this.busy}})}`;}
+ /** What changed in the outside since the page opened, for the save bar. */
+ private exteriorChanges(){if(!this.exteriorDraft||!this.originalExterior)return 0;const [sources,weather]=JSON.parse(this.originalExterior) as [Record<string,unknown>,string|null],now=this.exteriorDraft as unknown as Record<string,unknown>;
+  return [...new Set([...Object.keys(sources),...Object.keys(now)])].filter(k=>JSON.stringify(sources[k])!==JSON.stringify(now[k])).length+((weather??null)!==(this.weatherEntry??null)?1:0);}
+ /** « Extensions » (CAHIER-HUB.md § 5.4): where the outside comes from, in one choice, then the integrations Confort reads. */
+ private exterior(){const h=this.health,ext=h?.extensions??[];if(this.extKey)return this.extensionPage(ext.find(x=>x.key===this.extKey));
+  const row=(x:Extension)=>{const off=x.state==='off',missing=x.state==='missing';
+   return listRow({label:x.name,control:true,sub:missing?t('Pas installée'):off?t('Pas utilisée'):x.rooms.length?x.rooms.slice(0,3).join(', ')+(x.rooms.length>3?'…':''):x.state==='found'?t('Trouvée, pas encore liée'):x.use,
+    value:missing?undefined:toggle(t('Utiliser {name}',{name:x.name}),!off,on=>void this.useExtension(x.key,on),this.busy),go:()=>this.path('extensions/'+x.key)});};
+  return html`${pageHead({title:t('Extensions'),subtitle:t('D’où vient le dehors, et les intégrations que Confort lit.')})}
+  ${this.outdoorSection()}
+  ${h?themes.map(([label,keys])=>{const items=ext.filter(x=>!x.official&&(keys.length?keys.includes(x.key):!themes.some(([,k])=>k.includes(x.key))));return items.length?listSection(t(label),items.map(row)):nothing;}):html`<p class="muted" role="status">${t('Recherche des extensions…')}</p>`}
+  ${this.confirmBlock()}${this.errorBlock()}
+  ${saveBar({count:this.exteriorChanges(),busy:this.busy,cancel:()=>{const [sources,weather]=JSON.parse(this.originalExterior);this.exteriorDraft=sources;this.weatherEntry=weather;if(weather)void this.useWeather(weather,true);this.error='';},save:()=>void this.save(),done:this.saved===t('Enregistré')?this.saved:undefined})}`;}
+ /** « Le dehors »: Hestia Weather gives it all; otherwise one sensor per measure, and the air of the day. Set once, for every room. */
+ private outdoorSection(){const s=this.snapshot!,nw=s.hestia_weather,weather=!!this.weatherEntry,can=!!nw?.installed&&!!nw.places.length,spec=this.exteriorDraft!.pollution;
+  const all=(key:string)=>this.discovery?.candidates[key]??[];
+  const rows:unknown[]=[listRow({label:t('D’où vient le dehors'),sub:weather?t('Hestia Weather donne tout le dehors : mesures, prévisions, alertes et air.'):t('Une mesure par capteur, sans prévisions ni alertes.'),
+   value:can?segmented(t('D’où vient le dehors'),[['weather','Hestia Weather'],['own',t('Vos capteurs')]],weather?'weather':'own',v=>v==='weather'?void this.useWeather(nw!.places[0].entry_id):this.ownSensors(),this.busy)
+    :html`<a href=${hacsUrl('https://github.com/hestiaFB/hestia-weather-integration')} target="_blank" rel="noreferrer">${t('Installer Hestia Weather')}</a>`})];
+  if(weather&&(nw?.places.length??0)>1)rows.push(listRow({label:t('Lieu Hestia Weather'),value:html`<select aria-label=${t('Lieu Hestia Weather')} @change=${(e:Event)=>void this.useWeather((e.target as HTMLSelectElement).value)}>${nw!.places.map(p=>html`<option value=${p.entry_id} ?selected=${p.entry_id===this.weatherEntry}>${p.title}</option>`)}</select>`}));
+  if(!weather){
+   for(const key of outdoorGroups.flatMap(([,k])=>k)){const id=this.selected(key)[0]??'',c=all(key).find(x=>x.entity_id===id),ids=all(key).map(x=>x.entity_id);if(!ids.length&&!id)continue;
+    rows.push(listRow({label:t(labels[key]),sub:c?measurement(c):undefined,value:this.selector(key,ids,id,'',v=>{if(v===''||v==null){if(id)this.clear(key,id);}else this.pick(key,v);})}));}
+   const air=this.discovery?.candidates.pollution??[],current=airSource(spec),choices=airChoices(s,air,current).filter(c=>c.available);
+   rows.push(listRow({label:t('Air du dehors'),sub:t('Une précaution régionale du jour, pas une mesure à vos fenêtres.'),value:segmented(t('Air du dehors'),choices.map(c=>[c.value,c.label] as [string,string]),current,v=>{if(v===current)return;if(v==='none'){this.clear('pollution');return;}const first=air.find(c=>c.adapter===(v==='atmo'?'atmo_daily':'hestia_index'));if(first)this.choose('pollution',first);},this.busy)}));
+   if(spec&&current!=='other'){const zones=air.filter(c=>c.adapter===spec.adapter);if(zones.length>1)rows.push(listRow({label:current==='atmo'?t('Zone Atmo France'):t('Lieu Hestia Weather'),value:html`<select aria-label=${t('Zone')} @change=${(e:Event)=>this.pick('pollution',(e.target as HTMLSelectElement).value)}>${zones.map(z=>html`<option value=${z.entity_id} ?selected=${z.entity_id===spec.entity_id}>${z.name}</option>`)}</select>`}));}}
+  if(spec&&['atmo_daily','hestia_index','hestia_air'].includes(spec.adapter??''))rows.push(listRow({label:t('Ne pas aérer dès l’indice'),sub:t('Votre prudence, pas une consigne sanitaire.'),
+   value:html`<select aria-label=${t('Ne pas aérer dès l’indice')} @change=${(e:Event)=>{this.exteriorDraft={...this.exteriorDraft!,pollution:{...spec,block_from:Number((e.target as HTMLSelectElement).value)}};}}>${[t('Moyen'),t('Dégradé'),t('Mauvais'),t('Très mauvais'),t('Extrêmement mauvais')].map((label,i)=>html`<option value=${i+2} ?selected=${(spec.block_from??4)===i+2}>${label}</option>`)}</select>`}));
+  return listSection(t('Le dehors'),rows,{help:html`<p>${t('Une seule source pour toutes les pièces.')}</p>`});}
+ /** One integration: used or not in Confort, where it serves, what Confort does without it. */
+ private extensionPage(x?:Extension){if(!x)return html`<p class="muted" role="status">${t('Chargement…')}</p>`;const off=x.state==='off',missing=x.state==='missing';
+  const step=x.key==='versatile_thermostat'?'chauffage':['adaptive_cover_pro','cover_automatic','cover_extender'].includes(x.key)?'ouvertures':'',first=this.snapshot?.rooms[0];
+  return html`${pageHead({back:{label:t('Extensions'),onClick:()=>this.path('extensions')},title:x.name,subtitle:x.use})}
+  ${listSection('',[missing?listRow({label:t('Pas installée dans Home Assistant'),value:x.key==='wled'?html`<a href="https://my.home-assistant.io/redirect/config_flow_start/?domain=wled" target="_blank" rel="noreferrer">${t('Ajouter dans Home Assistant')}</a>`:html`<a href=${hacsUrl(x.url)} target="_blank" rel="noreferrer">${t('Installer avec HACS')}</a>`})
+   :listRow({label:t('Utiliser dans Confort'),sub:off?t('Confort l’ignore, sans rien désinstaller.'):undefined,value:toggle(t('Utiliser dans Confort'),!off,on=>void this.useExtension(x.key,on),this.busy)})])}
+  ${!missing&&!off?listSection(t('Où elle sert'),x.rooms.length?x.rooms.map(n=>listRow({label:n})):[listRow({label:t('Nulle part pour l’instant.'),value:step&&first?html`<button type="button" class="nk-reset-s" @click=${()=>void this.openRoom(first.entry_id,step)}>${t('Lier dans une pièce')}</button>`:x.key==='wled'?html`<button type="button" class="nk-reset-s" @click=${()=>this.goSettings()}>${t('Régler')}</button>`:undefined})]):nothing}
+  ${x.without?listSection(t('Sans elle'),[listRow({label:x.without})]):nothing}`;}
  /** Réglages généraux: the rooms to change or add, and how to show their cards; nothing here waits for a save. */
- private settingsPage(){return html`${pageHead({back:{label:t('Accueil Confort'),onClick:()=>this.path('')},title:t('Réglages généraux'),subtitle:t('Vos pièces et les cartes.')})}
-  ${this.roomsSettings()}
-  ${this.householdSettings()}
+ private settingsPage(){if(this.lightPage)return this.lightScreen();const h=this.health,version=h?.version??'';
+  return html`${pageHead({title:t('Réglages'),subtitle:t('Ce qui vaut pour toute la maison.')})}
+  ${foyerPage({head:false,foyer:this.foyer(),busy:this.busy,stove:this.hasStove(),allergy:!!this.snapshot?.home.pollen_allergy,weatherLinked:!!this.snapshot?.home.weather,back:{label:'',onClick:()=>{}},change:next=>void this.saveFoyer(next),setAllergy:on=>void this.setPollenAllergy(on)})}
   ${this.lightsCard()}
-  ${frame(t('Les cartes'),html`<p class="hint">${t('Dans un tableau de bord :')} <strong>${t('Ajouter une carte')}</strong>${t(', puis')} <strong>${t('Hestia Confort')}</strong> ${t('pour une pièce (les pièces au même air n’en font qu’une), ou')} <strong>${t('Hestia Confort · logement')}</strong> ${t('pour la synthèse.')}</p>`)}
   ${this.errorBlock()}`;}
- /** The household: a summary of its page (« Réglages du foyer »), where everything is set and saved at once. */
- private householdSettings(){const f={...FOYER_DEFAULTS,...this.foyer()};
-  return frame(t('Le foyer'),html`<p class="hint">${t('Votre façon de vivre : Hestia s’y adapte dans toutes les pièces.')}</p>
-   <dl class="summary compact"><dt>${t('Sommeil')}</dt><dd>${f.sommeil.debut} – ${f.sommeil.fin}</dd><dt>${t('Combien de conseils')}</dt><dd>${toleranceName(f.tolerance)}</dd>
-   <dt>${t('Aération la plus longue')}</dt><dd>${duration(f.aeration_max_min)}</dd><dt>${t('Hors-gel pendant les vacances')}</dt><dd>${String(f.hors_gel).replace('.',',')} °C</dd>
-   <dt>${t('Allergie aux pollens')}</dt><dd>${this.snapshot?.home.pollen_allergy?t('oui'):t('non')}</dd></dl>
-   <button class="primary" ?disabled=${this.busy} @click=${()=>this.path('reglages/foyer')}>${t('Régler le foyer')}</button>`);}
+ /** « À propos » (socle 1.22): Confort's versions, its advice engine's, how to add a card, the project's links. */
+ private aboutScreen(){const h=this.health,version=h?.version??'';
+  const bricks=(h?.extensions??[]).filter(x=>x.official&&x.state==='linked').map(x=>x.name);
+  return aboutPage({name:'Hestia Confort',repository,card:t('Tableau de bord → Ajouter une carte → Hestia Confort, ou Hestia Confort · logement.'),
+   versions:[[t('Hestia Confort'),version||'—'],...(h?.advisor?[[t('Moteur de conseil'),h.advisor] as [string,string]]:[]),['API','hestia_comfort_api v1'],
+    ...(h?.socle?[[t('Socle commun'),h.socle] as [string,string]]:[]),[t('Liaisons'),bricks.length?bricks.join(' · '):t('Aucune brique reliée')]]});}
  private foyer():Foyer{return this.snapshot?.home.foyer??{};}
  /** A heating for the whole house in some room: the stove's settings are shown. */
  private hasStove(){return !!this.snapshot?.rooms.some(r=>(r.config.heaters??[]).some(h=>h.scope==='house'||h.kind==='stove'));}
- private foyerScreen(){return html`${foyerPage({foyer:this.foyer(),busy:this.busy,stove:this.hasStove(),allergy:!!this.snapshot?.home.pollen_allergy,weatherLinked:!!this.snapshot?.home.weather,
-   back:{label:t('Réglages généraux'),onClick:()=>this.path('reglages')},change:next=>void this.saveFoyer(next),setAllergy:on=>void this.setPollenAllergy(on)})}${this.errorBlock()}`;}
  private async saveFoyer(foyer:Foyer){this.busy=true;this.error='';
   try{this.snapshot=await this.ws<Snapshot>({type:'hestia_comfort/set_foyer',foyer});this.revision=this.snapshot.revision;}
   catch(e){this.error=this.message(e);}finally{this.busy=false;}}
  private async setPollenAllergy(allergy:boolean){this.busy=true;
   try{this.snapshot=await this.ws<Snapshot>({type:'hestia_comfort/set_pollen_allergy',allergy});this.revision=this.snapshot.revision;}
   catch(e){this.error=(e as {message?:string}).message??t('Le réglage n’a pas pu être enregistré.');}finally{this.busy=false;}}
- /** Every room, to change or to add; what needs setting is named on its line. */
- private roomsSettings(){const todo=new Map<string,number>();for(const l of this.health?.todo??[])if(l.target?.kind==='room')todo.set(l.target.entry_id,(todo.get(l.target.entry_id)??0)+1);
-  return itemsFrame({title:t('Vos pièces'),hint:t('Capteurs, ouvrants, même air et réglages de chaque pièce.'),
-   add:{label:this.adding?t('Fermer'):t('Ajouter une pièce'),onClick:()=>{this.adding=!this.adding;}},addContent:this.adding?html`<div class="ac-add">${this.addRoom()}</div>`:nothing,
-   items:this.snapshot!.rooms.map(r=>{const n=todo.get(r.entry_id)??0,others=(this.volumeName(r.entry_id)??'').split(' · ').filter(x=>x&&x!==r.title);
-    return {name:r.title,note:others.length?t('même air que {names}',{names:others.join(t(' et '))}):undefined,detail:coverage(r.config),pill:n?{text:n>1?t('{n} points à régler',{n}):t('1 point à régler'),level:'todo' as NkLevel}:undefined,
-     edit:{label:t('Modifier'),onClick:()=>void this.openRoom(r.entry_id),disabled:this.busy}};})});}
  /** From the general settings to a room: their draft is kept for the way back. */
  private async openRoom(entry_id:string,section=''){const room=this.snapshot?.rooms.find(r=>r.entry_id===entry_id);if(!room)return;
   // They stay on screen while the room loads: no other page shows in between.
-  this.remember();this.workspaceKey='';await this.editRoom(room);if(this.draft)this.exteriorDraft=undefined;else this.workspaceKey='reglages';const stage=roomSections.find(x=>x.path===section)?.stage;if(section&&stage!=null&&this.draft)this.go(stage);}
+  this.remember();this.workspaceKey='';await this.editRoom(room);if(this.draft)this.exteriorDraft=undefined;else this.workspaceKey='pieces';const stage=roomSections.find(x=>x.path===section)?.stage;if(section&&stage!=null&&this.draft)this.go(stage);}
  /** One extension: what it is for, its state, and the one thing to do (link it, install it) when it is not used. */
  /** The lights that show the advice, saved at once: the whole home here, or room by room in each room's Notifications tab. */
  private lights():Lights{return this.snapshot?.home.lights??noLights();}
@@ -782,16 +673,17 @@ export class ComfortSetup extends LitElement {
   if(l.mode==='home'&&l.home)users[l.home.entity_id]=t('Confort · {room}',{room:t('Tout le logement')});
   if(l.mode==='rooms')for(const r of this.snapshot?.rooms??[])if(l.rooms[r.entry_id])users[l.rooms[r.entry_id].entity_id]=t('Confort · {room}',{room:r.title});
   return users;}
- private lightsCard(){const l=this.lights(),rooms=this.snapshot?.rooms??[],wled=this.wledOn();
+ /** « Lumières »: who drives the light, then the light itself on its own page (or in each room's Notifications). */
+ private lightsCard(){const l=this.lights(),rooms=this.snapshot?.rooms??[];
   const name=(r?:LightRule|null)=>r?String(this.hass?.states?.[r.entity_id]?.attributes?.friendly_name??r.entity_id):t('aucune');
-  const mode=(m:Lights['mode'])=>html`<label class="check"><input type="radio" name="li-mode" .checked=${l.mode===m} ?disabled=${this.busy} @change=${()=>void this.saveLights({...l,mode:m})}>${m==='home'?t('Tout le logement'):t('Pièce par pièce')}</label>`;
-  return frame(t('Notifications lumineuses'),html`<p class="hint">${t('Une lumière prend la couleur du conseil : bleu tout va bien, vert à saisir, orange un geste.')}</p>
-   <p class="hint">${wled?t('WLED est activé dans Extensions : ses bandeaux, leurs segments et leurs effets sont proposés.'):t('Une ampoule couleur suffit. Activez WLED dans Extensions pour ses bandeaux, leurs segments et leurs effets.')}</p>
-   <div class="li-when" role="radiogroup" aria-label=${t('Qui pilote la lumière ?')}><p class="hint">${t('Qui pilote la lumière ?')}</p>${mode('home')}${mode('rooms')}</div>
-   ${l.mode==='home'?lightEditor({hass:this.hass,wled,rule:l.home,busy:this.busy,info:this.infoOf(l.home),users:this.lightUsers(),follows:[{value:'home',label:t('Tout le logement')},...rooms.map(r=>({value:r.entry_id,label:r.title}))],change:rule=>void this.saveLights({...l,home:rule})})
-    :html`<ul class="li-rooms">${rooms.map(r=>html`<li><span><strong>${r.title}</strong> · ${name(l.rooms[r.entry_id])}</span><button class="nk-edit" ?disabled=${this.busy} @click=${()=>void this.openRoom(r.entry_id,'notifications')}>${t('Régler')}</button></li>`)}</ul>
-     <p class="hint">${t('Chaque pièce règle sa lumière dans son onglet Notifications.')}</p>`}
-   ${noteBox(t('Enregistré tout de suite.'),nothing)}`,{className:'li-settings'});}
+  return listSection(t('Lumières'),[listRow({label:t('Qui pilote la lumière'),value:segmented(t('Qui pilote la lumière'),[['home',t('Tout le logement')],['rooms',t('Pièce par pièce')]],l.mode,m=>void this.saveLights({...l,mode:m}),this.busy)}),
+   ...(l.mode==='home'?[listRow({label:t('Lumière'),value:name(l.home),go:()=>this.path('reglages/lumiere')})]:rooms.map(r=>listRow({label:r.title,value:name(l.rooms[r.entry_id]),go:()=>void this.openRoom(r.entry_id,'notifications')})))],
+   {help:html`<p>${t('Une lumière prend la couleur du conseil : bleu tout va bien, vert à saisir, orange un geste.')}</p>`});}
+ /** The light of the whole home, with its rule, its colours and its effects. */
+ private lightScreen(){const l=this.lights(),rooms=this.snapshot?.rooms??[];
+  return html`${pageHead({back:{label:t('Réglages'),onClick:()=>this.path('reglages')},title:t('Lumière')})}
+  ${lightEditor({hass:this.hass,wled:this.wledOn(),rule:l.home,busy:this.busy,info:this.infoOf(l.home),users:this.lightUsers(),follows:[{value:'home',label:t('Tout le logement')},...rooms.map(r=>({value:r.entry_id,label:r.title}))],change:rule=>void this.saveLights({...l,home:rule})})}
+  ${this.errorBlock()}`;}
  /** To the general settings, the draft open here kept for later, as when opening another room. */
  private goSettings(){this.remember();this.workspaceKey='';this.draft=undefined;this.exteriorDraft=undefined;this.path('reglages');}
  /** WLED used: installed in Home Assistant and not turned off in Extensions. */
@@ -801,16 +693,7 @@ export class ComfortSetup extends LitElement {
   const light=l.mode==='home'?frame(t('Lumière'),html`${noteBox(t('Bon à savoir'),t('La lumière est réglée pour tout le logement, dans Réglages généraux.'))}<button class="nk-edit" ?disabled=${this.busy} @click=${()=>this.goSettings()}>${t('Ouvrir le réglage')}</button>`,{className:'nk-field-section nk-plain'})
    :!id?frame(t('Lumière'),html`<p class="hint">${t('Créez d’abord la pièce : sa lumière se règle ensuite ici.')}</p>`,{className:'nk-field-section nk-plain'})
    :lightEditor({hass:this.hass,wled:this.wledOn(),rule:l.rooms[id]??null,busy:this.busy,info:this.infoOf(l.rooms[id]??null),users:this.lightUsers(),taken:this.snapshot?.rooms.find(r=>r.entry_id!==id&&l.rooms[r.entry_id]&&l.rooms[r.entry_id].entity_id===l.rooms[id]?.entity_id)?.title,change:rule=>{const rooms={...l.rooms};if(rule)rooms[id]={...rule,follow:id};else delete rooms[id];void this.saveLights({...l,rooms});}});
-  return html`${light}${frame(t('Sur le téléphone'),noteBox(t('Bientôt'),t('Prévenir sur le téléphone quand un geste est conseillé.')),{className:'nk-field-section nk-plain'})}`;}
- private extensionCard(x:Extension,body:unknown=nothing){const [said,cls]=extState[x.state],word=t(said);
-  // Linking a heating or a cover is a room's choice: the first room opens on that step.
-  const step=x.key==='versatile_thermostat'?'chauffage':['adaptive_cover_pro','cover_automatic','cover_extender'].includes(x.key)?'ouvertures':'';const first=this.snapshot?.rooms[0];
-  // Hestia Weather's own choice already says how to install it.
-  const off=x.state==='off',act=x.key==='wled'?(x.state==='missing'?html`<a class="ex-act" href="https://my.home-assistant.io/redirect/config_flow_start/?domain=wled" target="_blank" rel="noreferrer">${t('Ajouter dans Home Assistant')}</a>`:x.state==='found'?html`<button class="nk-edit" ?disabled=${this.busy} @click=${()=>this.goSettings()}>${t('Régler')}</button>`:nothing):x.state==='missing'&&!x.official?html`<a class="ex-act" href=${hacsUrl(x.url)} target="_blank" rel="noreferrer">${t('Installer avec HACS')}</a>`
-   :x.state==='found'&&step&&first?html`<button class="nk-edit" ?disabled=${this.busy} @click=${()=>void this.openRoom(first.entry_id,step)}>${t('Lier')}</button>`:nothing;
-  const detail=off?t('Confort ne s’en sert pas.')+' '+x.without:x.key==='wled'&&x.state!=='missing'?(x.state==='linked'?t('Notifications lumineuses : {names}',{names:x.rooms.join(', ')}):t('Trouvé dans Home Assistant. Choisissez un bandeau dans Réglages généraux → Notifications lumineuses.')):x.state==='linked'?(x.rooms.length?(x.rooms.length>1?t('{n} pièces : {names}',{n:x.rooms.length,names:x.rooms.join(', ')}):t('1 pièce : {names}',{names:x.rooms.join(', ')})):''):x.state==='found'?(step?t('Trouvé dans Home Assistant. Dans une pièce : Modifier → {step}.',{step:step==='chauffage'?t('Chauffage'):t('Ouvertures')}):t('Trouvée dans Home Assistant.')):x.without;
-  return nkExtensionCard({icon:extIcon[x.key]??'settings',name:x.name,use:x.use,pill:{text:word,level:cls==='ok'?'ok':cls==='act'?'todo':'none'},detail:detail&&x.key!=='hestia_weather'?detail:'',action:act,todo:x.state==='found',
-   switches:!x.official&&x.state!=='missing'?[{label:t('Utiliser {name} dans les conseils',{name:x.name}),checked:!off,disabled:this.busy,onChange:on=>void this.useExtension(x.key,on)}]:[],body});}
+  return light;}
  /** A third-party integration used or not, for every room; saved at once, without touching the other settings. */
  private async useExtension(key:string,enabled:boolean){this.busy=true;
   try{this.snapshot=await this.ws<Snapshot>({type:'hestia_comfort/set_extension',key,enabled});this.revision=this.snapshot.revision;await this.loadHealth();}
@@ -845,7 +728,7 @@ export class ComfortSetup extends LitElement {
   // Inside the shared « Hestia » panel, its header and tabs replace this one.
   const header=this.hasAttribute('embedded')?nothing:html`<header><button aria-label=${t('Ouvrir le menu Home Assistant')} @click=${()=>this.menu()}><span class="menu-icon"></span></button><strong>${t('Hestia Confort')}</strong></header>`;
   return html`${header}<main class=${(this.page==='health'||this.page==='review')&&!editing&&!this.preview&&this.snapshot?.rooms.length?'wide':''}>${this.confirmDiscard?html`<section class="notice" role="alertdialog" aria-label=${t('Abandonner le brouillon')}><h2>${t('Quitter sans enregistrer ?')}</h2><p>${t('Vos choix de cette page seront perdus.')}</p><div class="actions"><button @click=${()=>this.confirmDiscard=false}>${t('Continuer la configuration')}</button><button @click=${()=>this.discard()}>${t('Quitter sans enregistrer')}</button></div></section>`:nothing}
-   ${!editing?html`${this.errorBlock()}${this.error&&!this.snapshot?html`<button @click=${()=>this.load()}>${t('Réessayer')}</button>`:nothing}`:nothing}${this.saved?html`<p class="notice success" role="status">${this.saved}</p>`:nothing}${this.busy&&!this.snapshot?html`<p class="loading" role="status">${t('Chargement de votre logement…')}</p>`:nothing}
-   ${this.snapshot?(this.exteriorDraft?this.exterior():this.draft?this.wizard():this.preview?this.previewScreen():this.opening?html`<p class="muted" role="status">${t('Chargement…')}</p>`:this.page==='settings'?this.settingsPage():this.page==='foyer'?this.foyerScreen():this.page==='review'?html`<hestia-comfort-review .hass=${this.hass} .room=${this.reviewRoom} @review-navigate=${(e:CustomEvent<string>)=>this.path(e.detail)}></hestia-comfort-review>`:this.page==='health'&&this.snapshot.rooms.length?this.healthScreen():this.home()):nothing}${this.busy&&this.snapshot?html`<p class="busy" role="status">${t('Un instant…')}</p>`:nothing}</main>`;
+   ${!editing?html`${this.errorBlock()}${this.error&&!this.snapshot?html`<button @click=${()=>this.load()}>${t('Réessayer')}</button>`:nothing}`:nothing}${this.saved&&this.saved!==t('Enregistré')?html`<p class="notice success" role="status">${this.saved}</p>`:nothing}${this.busy&&!this.snapshot?html`<p class="loading" role="status">${t('Chargement de votre logement…')}</p>`:nothing}
+   ${this.snapshot?(this.exteriorDraft?this.exterior():this.draft?this.wizard():this.preview?this.previewScreen():this.opening?html`<p class="muted" role="status">${t('Chargement…')}</p>`:this.page==='settings'||this.page==='foyer'?this.settingsPage():this.page==='pieces'?this.roomsPage():this.page==='learning'?this.learningPage():this.page==='about'?this.aboutScreen():this.page==='review'?html`<hestia-comfort-review .hass=${this.hass} .room=${this.reviewRoom} @review-navigate=${(e:CustomEvent<string>)=>this.path(e.detail)}></hestia-comfort-review>`:this.page==='health'&&this.snapshot.rooms.length?this.healthScreen():this.home()):nothing}${this.busy&&this.snapshot?html`<p class="busy" role="status">${t('Un instant…')}</p>`:nothing}</main>`;
  }
 }

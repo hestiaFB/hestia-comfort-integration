@@ -22,6 +22,8 @@ NUMBERS = {
     "depassement_min": (10, 120, 5),       # …for this long
 }
 TOLERANCES = (0.5, 0.75, 1, 1.5, 2)
+# The house itself, for the ressenti (engine/feel.py): how well its walls are insulated, which glazing it has.
+CHOICES = {"isolation": ("bien", "moyenne", "peu"), "vitrage": ("simple", "double", "triple")}
 # What a room may set apart from the house (« Différent du foyer pour cette pièce »).
 ROOM_KEYS = ("sommeil", "ouvrir_la_nuit", "tolerance")
 SHORTEST_NIGHT, LONGEST_NIGHT = 4 * 60, 14 * 60
@@ -53,7 +55,7 @@ def clean_foyer(value, *, room=False):
         return {}
     if not isinstance(value, dict):
         raise ValueError(t("Réglages du foyer invalides."))
-    allowed = ROOM_KEYS if room else ("sommeil", "ouvrir_la_nuit", "tolerance", *NUMBERS)
+    allowed = ROOM_KEYS if room else ("sommeil", "ouvrir_la_nuit", "tolerance", *NUMBERS, *CHOICES)
     if set(value) - set(allowed):
         raise ValueError(t("Réglages du foyer invalides."))
     cleaned = {}
@@ -67,6 +69,11 @@ def clean_foyer(value, *, room=False):
         if value["tolerance"] not in TOLERANCES or isinstance(value["tolerance"], bool):
             raise ValueError(t("« Combien de conseils » invalide."))
         cleaned["tolerance"] = value["tolerance"]
+    for key, values in CHOICES.items():
+        if key in value:
+            if value[key] not in values:
+                raise ValueError(t("Valeur hors des bornes : {name}", name=key))
+            cleaned[key] = value[key]
     for key, (low, high, step) in NUMBERS.items():
         if key not in value:
             continue

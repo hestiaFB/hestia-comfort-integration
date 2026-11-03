@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import {build} from 'esbuild';
 const root=new URL('../',import.meta.url),temp=await mkdtemp(join(tmpdir(),'hestia-comfort-card-'));
-await build({entryPoints:['src/types.ts','src/view.ts','src/live.ts','src/views/room.ts','src/views/horizon.ts','src/editor.ts','src/hass-change.ts'].map(p=>fileURLToPath(new URL(p,root))),outdir:temp,
+await build({entryPoints:['src/types.ts','src/view.ts','src/live.ts','src/views/room.ts','src/views/horizon.ts','src/ui/scene.ts','src/editor.ts','src/hass-change.ts'].map(p=>fileURLToPath(new URL(p,root))),outdir:temp,
   bundle:true,platform:'node',format:'esm',outExtension:{'.js':'.mjs'},logLevel:'silent'});
 const {cleanConfig,cleanHomeConfig,homeAction,cleanReviewConfig,kindOf,KINDS}=await import(pathToFileURL(join(temp,'types.mjs')));
 const {isView,numeric,summary,readingStatus,coverageText,windFrom,evolutionLines,co2Metric,solarMetric}=await import(pathToFileURL(join(temp,'view.mjs')));
@@ -212,7 +212,7 @@ test('the drying advice speaks of what this room really gains, how long, and whe
   a=advice(v);assert.match(a.title,/^Aérez vers /);assert.match(plain(a.line),/environ 62 % après 35 min/);
   v.assessment={...v.assessment,reason:'ventilation_possible',level:'action',features:{...v.assessment.features,drying:{...drying,after:74,gain:2},air:{...(v.assessment.features?.air??{}),ventilation:{on:false,boost:false}}}};
   // Never the losing remedy's numbers under « Lancez la VMC » (20 Oct.: « 85 → 85 % seulement »).
-  a=advice(v);assert.equal(a.title,'Lancez la VMC');assert.match(plain(a.line),/la fenêtre la baisse à peine/);assert.doesNotMatch(plain(a.line),/→/);
+  a=advice(v);assert.equal(a.title,'Lancez la VMC');assert.match(plain(a.line),/la fenêtre la baisse à peine/);assert.doesNotMatch(plain(a.line),/→| de [0-9]+ à [0-9]+ %/);
   // Chambre P, 27 Oct.: 78 % under « Lancez la VMC » keeps its degree in « À savoir », not a bare « Humidité ».
   v.assessment.features.humidity={...(v.assessment.features.humidity??{}),status:'high',degree:3,lasting:true};
   const humid=facts(v).find(f=>/au-dessus de votre plage/.test(plain(f.text)));
@@ -519,7 +519,7 @@ test('the sun that helps is said, and each learned measure gets its optimised ad
   // « Refermez », learned: the open window's cost in the banner, « Conseil optimisé » in the pill.
   const p=fresh();p.assessment={...p.assessment,reason:'exchange_harmful',action:'fermer',level:'action',needs:['dry'],
     features:{...p.assessment.features,learned:{now:18.3,after:17.6,minutes:30,measure:'temperature',openings:7,days:10,precision:{temperature:0.17,humidity:1.9},closing:true}}};
-  const ad=advice(p);assert.equal(ad.pill,'Conseil optimisé');assert.match(plain(ad.line),/18,3 → 17,6 °C en 30 min/);
+  const ad=advice(p);assert.equal(ad.pill,'Conseil optimisé');assert.match(plain(ad.line),/de 18,3 à 17,6 °C en 30 min/);
   // Not learned yet: the line names the measure that lacks, not the whole room.
   const m=fresh();m.twin={status:'ready',days:10,samples:480,next_hour:null,precision:{hours:24,temperature:0.24,humidity:1.3},
     progress:{percent:68,complete:false,parts:{windows:0},seen:{days:10,airings:0,open:0},ready:{humidity:false,temperature:false,air:[]}}};
@@ -731,4 +731,29 @@ test('one air: the banner says the leading room’s advice, with what it learned
   const card=flat(roomCard(salon,{type:'custom:hestia-comfort-card',format:'full',modules:['air']},st,'full',[lead]));
   // The « i » says it: the advice comes from what the leading room learned.
   assert.match(card,/conseil optimisé, d’après 6 aérations/);
+});
+test('the banner draws each gesture as its scene: the window and which way the air goes, the VMC, the radiator (2 November)',async()=>{
+  const {sceneFor,hourOf}=await import(pathToFileURL(join(temp,'ui/scene.mjs')));
+  const room=(reason,o={})=>{const v=fresh();v.assessment={...v.assessment,reason,needs:o.needs??[],openings:o.open?[{name:'Fenêtre',open:true,flags:[]}]:[],sun:{elevation:o.sun??30,azimuth:180},temperature_delta:o.delta??null};return v;};
+  const s=(title,disk,level='action')=>({title,disk,level});
+  assert.deepEqual(sceneFor(s('Refermez','shut'),room('exchange_harmful',{open:true,delta:-6})),{k:'win',m:'open',flow:'in-cold',hour:'day'});
+  assert.equal(sceneFor(s('Refermez','shut'),room('exchange_harmful',{open:true,delta:4})).flow,'in-heat');
+  assert.equal(sceneFor(s('Refermez','shut'),room('voc_outdoor',{open:true})).flow,'in-dust');
+  assert.equal(sceneFor(s('Refermez','shut'),room('rehumidification_risk',{open:true})).flow,'in-humid');
+  assert.equal(sceneFor(s('Fermez, il pleut','rain'),room('rain_open_windows',{open:true})).flow,'in-rain');
+  assert.equal(sceneFor(s('Refermez avant la pluie','rain'),room('rain_soon',{open:true})).sky,'storm');
+  // Airing under way: what leaves is what the room needed to lose.
+  assert.equal(sceneFor(s('Aération en cours','open','benefit'),room('short_air_change',{open:true,needs:['air']})).flow,'out-stale');
+  assert.equal(sceneFor(s('Encore 4 min d’aération','open','benefit'),room('drying_possible',{open:true,needs:['dry']})).flow,'out-humid');
+  assert.equal(sceneFor(s('Laissez ouvert cette nuit','moon','benefit'),room('precool_possible',{open:true})).flow,'out-heat');
+  // Asked to open, nothing open yet: the sash nudges, no air drawn.
+  assert.deepEqual(sceneFor(s('Aérez 10 min','open','benefit'),room('drying_possible',{needs:['dry']})),{k:'win',m:'invite',hour:'day'});
+  assert.equal(sceneFor(s('Aérez vers 15 h','clock','benefit'),room('drying_later')).clock,'15 h');
+  assert.equal(sceneFor(s('Lancez la VMC','vmc'),room('drying_slow')).k,'vmc');
+  assert.equal(sceneFor(s('Rallumez le chauffage','heat'),room('heat_needed')).k,'rad');
+  assert.equal(sceneFor(s('Adaptez les volets','window'),room('shutter_protection')).shutter,true);
+  // States that are not gestures keep their pictogram.
+  assert.equal(sceneFor(s('Mesures en chargement','clock','neutral'),room('incomplete_data')),null);
+  assert.equal(sceneFor(s('Mesures absentes','mute','neutral'),room('incomplete_data')),null);
+  assert.equal(hourOf(-10),'night');assert.equal(hourOf(25),'day');assert.equal(hourOf(2,new Date('2026-11-02T08:00:00')),'dawn');assert.equal(hourOf(2,new Date('2026-11-02T17:30:00')),'dusk');
 });

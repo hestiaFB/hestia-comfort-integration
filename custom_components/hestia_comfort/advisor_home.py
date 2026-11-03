@@ -22,6 +22,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from . import weather_link
+from .advisor import VERSION as ADVISOR_VERSION
 from .advisor.decide import Thermostat
 from .advisor.nightly import learn_room
 from .advisor.observe import Series
@@ -111,7 +112,7 @@ def outside(hass):
     now = dt_util.utcnow()
     start = home.forecast.get(now.replace(minute=0, second=0, microsecond=0))
     outdoor = home.outdoor[0]
-    return {"source": home.forecast_source, "station": outdoor, "prevision": start[0] if start else None,
+    return {"moteur": home.version, "source": home.forecast_source, "station": outdoor, "prevision": start[0] if start else None,
             "ecart": round(outdoor - start[0], 1) if start and start[0] is not None and outdoor is not None else None,
             "soleil": home.sun, "ombre_cases": len(home.station_shade),
             "nuages_manques": None if home.sun_missed is None else round(home.sun_missed, 2)}
@@ -120,7 +121,8 @@ def outside(hass):
 class AdvisorHome:
     def __init__(self, hass):
         self.hass = hass
-        self.version = VERSION
+        # The engine's version, apart from the integration's: in the snapshots, the journal and the nightly report.
+        self.version, self.integration = ADVISOR_VERSION, VERSION
         self.store = Store(hass, 1, f"{DOMAIN}.advisor_home")
         self.files = AdvisorFiles(hass.config.path())
         self.rooms = {}             # entry_id of the room advising → RoomAdvisor
@@ -548,7 +550,7 @@ class AdvisorHome:
             except Exception:  # noqa: BLE001 - the shade learned before is kept
                 _LOGGER.exception("Hestia Comfort: station shade")
             await self._save()
-            await self.hass.async_add_executor_job(self.files.learned, {"heure": now.isoformat(), "pieces": reports})
+            await self.hass.async_add_executor_job(self.files.learned, {"heure": now.isoformat(), "moteur": self.version, "pieces": reports})
             await self.hass.async_add_executor_job(self.files.prune, now)
         finally:
             self.learning = False

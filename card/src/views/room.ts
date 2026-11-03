@@ -4,6 +4,10 @@ import {property,state} from 'lit/decorators.js';
 import {SCALE_MARKS,CHIPS,TILE_BLOCKS,DETAIL_ROWS,INSIGHT_TOPICS,PIECES,type Piece,type Config,type View,type Level,type Format,type BannerBlock,type Chip,type HorizonSubject,type Horizon} from '../types';
 import {numeric,number,heatingLabels,coverageText,windFrom,sourceLabel,needs as needLabels,constraintLabels,shortWhy} from '../view';
 import {icon} from '../ui/icons';
+import {echelle,echellePos} from '../ui/hestia-echelle';
+import {lecture} from '../ui/hestia-lecture';
+import {scene,sceneFor,type Scene} from '../ui/scene';
+import {feelPanel} from './feel';
 import {horizonBox,horizonChart,horizonHead,horizonResult,horizonLegend,horizonShown} from './horizon';
 import {t,t as tr,tx,tl} from '../i18n';
 
@@ -30,7 +34,8 @@ const deg=(v:number|null)=>v===null?'—':number(v)+' °C';
 
 export interface Advice {title:string;line:TemplateResult|string;disk:string;cap?:string;
   /** Learned on this room by its twin: the basis, said under the gesture (« d'après 31 aérations »). */ learned?:string;
-  /** A state that is not advice (sensors loading or silent) brings its own words and colour. */ pill?:string;level?:Level}
+  /** A state that is not advice (sensors loading or silent) brings its own words and colour. */ pill?:string;level?:Level;
+  /** The banner's scene (window, VMC, radiator) in place of the pictogram; none keeps the pictogram. */ scene?:Scene|null}
 /** Reasons that only say « keep closed »: the engine lowers them to calm when nothing is open and no reflex is at stake. */
 const QUIET=['drying_unavailable','drying_slow','drying_night','drying_alone','opening_blocked','cooling_unavailable','precool_later'];
 /** The banner: the gesture in a few words, then why in one line. The full explanation stays behind « i ». */
@@ -224,13 +229,13 @@ function withLearning(v:View,out:Advice):Advice {
   const l=v.assessment.features?.learned;
   // « Refermez », learned: what the open window takes from the room in half an hour.
   if(l?.closing&&v.assessment.action==='fermer')
-    return {...out,line:html`Ouverte, ${b(number(l.now)+' → '+number(l.after)+' °C')} en ${l.minutes} min`,learned:'appris dans cette pièce',pill:'Conseil optimisé'};
+    return {...out,line:html`Ouverte, de ${b(number(l.now))} à ${b(number(l.after)+' °C')} en ${l.minutes} min`,learned:'appris dans cette pièce',pill:'Conseil optimisé'};
   if(!l||!['ouvrir','ok'].includes(v.assessment.action))return out;
   const unit=l.measure==='temperature'?' °C':l.measure==='co2'?' ppm':l.measure==='voc'?'':' %',fmt=(x:number)=>l.measure==='temperature'?number(x):number(Math.round(x));
   const label=l.measure==='co2'?'CO₂ ':l.measure==='voc'?'COV ':'';
   // The learned duration replaces the general span: the title and the promise say the same minutes.
   const title=v.assessment.action==='ouvrir'&&/^(Aérez|Ouvrez) /.test(out.title)?`${out.title.split(' ')[0]} ${l.minutes} min`:out.title;
-  return {...out,title,line:html`${label}${b(fmt(l.now)+' → '+fmt(l.after)+unit)} en ${l.minutes} min`,learned:`d’après ${l.openings} aérations`,pill:'Conseil optimisé'};
+  return {...out,title,line:html`${label}de ${b(fmt(l.now))} à ${b(fmt(l.after)+unit)} en ${l.minutes} min`,learned:`d’après ${l.openings} aérations`,pill:'Conseil optimisé'};
 }
 /** Where the twin stands, when the advice is only estimated: said in « À savoir », never in the banner. */
 function learning(v:View):Fact|null {
@@ -382,7 +387,7 @@ export function facts(v:View):Fact[] {
   const last=v.feedback?.last;
   if(last){const f=(x:number)=>last.measure==='temperature'?number(x):number(Math.round(x)),u=last.measure==='temperature'?' °C':last.measure==='co2'?' ppm':last.measure==='voc'?'':' %';
     const what=last.measure==='humidity'?'humidité ':last.measure==='temperature'?'température ':last.measure==='co2'?'CO₂ ':'COV ';
-    out.push({ic:'open',title:'Dernière aération',text:`${what}${f(last.before)} → ${f(last.after)}${u}${last.predicted!=null?` (prévu ${f(last.predicted)}${u})`:''}`});}
+    out.push({ic:'open',title:'Dernière aération',text:`${what}de ${f(last.before)} à ${f(last.after)}${u}${last.predicted!=null?` (prévu ${f(last.predicted)}${u})`:''}`});}
   const l=learning(v);if(l)out.push({...l,topic:l.topic??'learning'});
   // By priority: the sort is stable, lines of one rank keep the order they are said in.
     // Damp walls under « Rien à faire », nothing at work: a tip rather than a fatality.
@@ -537,48 +542,31 @@ export function slides(v:View,blocks:readonly BannerBlock[]=['remedies','later']
 
 export interface ScaleInput {band?:[number,number]|null;day?:{min:number;max:number}|null;now?:number|null;out?:number|null;
   rooms?:{name:string;short:string;value:number;level:Level;entity?:string}[];unit?:string;nowEntity?:string;outEntity?:string}
-/** The charter's scale (as Hestia Weather's « Ressenti »): a thin track, your range, a ring with its value; labels never overlap. */
+/** The scale is built by the charter (hestia-echelle, the same as Hestia Weather's « Ressenti »): « trop frais », « votre plage »,
+ *  « trop chaud » around the range, the last 24 hours, outside, the rooms. Only the room's data here. */
 export function scale(s:ScaleInput):TemplateResult {
-  const values=[s.band?.[0],s.band?.[1],s.day?.min,s.day?.max,s.now,s.out,...(s.rooms??[]).map(r=>r.value)].filter((x):x is number=>typeof x==='number'&&Number.isFinite(x));
+  const finite=(x:unknown):x is number=>typeof x==='number'&&Number.isFinite(x);
+  const core=[s.band?.[0],s.band?.[1],s.day?.min,s.day?.max,s.now,...(s.rooms??[]).map(r=>r.value)].filter(finite);
+  const values=core.length?core:[s.out].filter(finite);
   if(!values.length)return html``;
   let lo=Math.floor(Math.min(...values)-1.5),hi=Math.ceil(Math.max(...values)+1.5);
   if(hi-lo<8){const pad=(8-(hi-lo))/2;lo=Math.floor(lo-pad);hi=Math.ceil(hi+pad);}
-  const pos=(x:number)=>(Math.min(hi,Math.max(lo,x))-lo)/(hi-lo)*100,pct=(x:number)=>pos(x).toFixed(2)+'%';
   const fmt=(x:number)=>number(Math.round(x*10)/10),unit=s.unit??'°C';
-  const labels:{x:number;text:TemplateResult|string;len:number;row:'up'|'down';strong:boolean}[]=[];
-  if(s.band)labels.push({x:pos(s.band[0]),text:fmt(s.band[0])+' '+unit,len:7,row:'down',strong:false},{x:pos(s.band[1]),text:fmt(s.band[1])+' '+unit,len:7,row:'down',strong:false});
-  if(s.out!=null)labels.push({x:pos(s.out),text:t('dehors {value}',{value:fmt(s.out)+' '+unit}),len:14,row:'down',strong:true});
-  if(s.rooms){
-    // Rooms a few tenths apart share one label (« S·C »): every room stays named.
-    const sorted=[...s.rooms].sort((x,y)=>x.value-y.value),groups:typeof sorted[]=[];
-    for(const r of sorted){const g=groups[groups.length-1];if(g&&pos(r.value)-pos(g[g.length-1].value)<4.5)g.push(r);else groups.push([r]);}
-    groups.forEach((g,i)=>{const t=g.map(r=>r.short).join('·');labels.push({x:g.reduce((sum,r)=>sum+pos(r.value),0)/g.length,text:html`<b>${t}</b>`,len:t.length,row:i%2?'down':'up',strong:true});});
-  }
-  const taken:[number,number,string][]=s.now!=null?[[pos(s.now)-10,pos(s.now)+10,'up']]:[];
-  const placed=labels.sort((x,y)=>Number(y.strong)-Number(x.strong)).flatMap(l=>{
-    const half=l.len*6.6/320*100/2+1.5,free=(row:string)=>taken.every(([a,z,r])=>r!==row||l.x+half<a||l.x-half>z);
-    const row=free(l.row)?l.row:l.strong&&free(l.row==='up'?'down':'up')?(l.row==='up'?'down':'up'):null;
-    if(!row)return [];taken.push([l.x-half,l.x+half,row]);
-    const style=l.x<8?'left:0;transform:none':l.x>92?'right:0;left:auto;transform:none':`left:${l.x.toFixed(2)}%`;
-    return [html`<span class=${'nc-lb'+(row==='up'?' up':'')} style=${style}>${l.text}</span>`];
-  });
-  // The bubble stays inside the frame when the value sits near an end of the scale.
-  const bubble=(x:number)=>x<12?'left:0;transform:none':x>88?'right:0;left:auto;transform:none':'left:'+x.toFixed(2)+'%';
-  // Temperature only: the track says too cool (blue) and too warm (orange) around the range; the last 24 hours are a
-  // thin whisker over it, so the range always shows through.
-  const zones=unit==='°C';
+  // Temperature: too cool and too warm around the range; another measure: only the range, the rest grey.
+  const zones=unit==='°C',grey='color-mix(in srgb,var(--nw-fg) 22%,var(--nw-bg))',pos=(v:number)=>echellePos({lo,hi},v);
+  const parts=s.band?[{from:lo,to:s.band[0],word:zones?t('trop frais'):'',tone:zones?'var(--nw-cold)':grey},{from:s.band[0],to:s.band[1],word:t('votre plage'),tone:'var(--nw-calm)'},
+    {from:s.band[1],to:hi,word:zones?t('trop chaud'):'',tone:zones?'var(--nw-level2)':grey}].filter(p=>pos(p.to)-pos(p.from)>.5):[{from:lo,to:hi,tone:grey}];
+  // Rooms a few tenths apart share one label (« S·C »): every room stays named.
+  const sorted=[...(s.rooms??[])].sort((p,q)=>p.value-q.value),groups:typeof sorted[]=[];
+  for(const r of sorted){const g=groups[groups.length-1];if(g&&pos(r.value)-pos(g[g.length-1].value)<4.5)g.push(r);else groups.push([r]);}
+  const marks=groups.map(g=>{const w=g.map(r=>r.short).join('·');return {value:g.reduce((sum,r)=>sum+r.value,0)/g.length,text:html`<b>${w}</b>`,row:'up' as const,strong:true,chars:w.length};});
+  const dots=(s.rooms??[]).map(r=>r.entity?html`<button type="button" class="nc-mk room nc-hit" data-level=${r.level} style=${`left:${pos(r.value).toFixed(2)}%`} title=${r.name+' '+fmt(r.value)+' '+unit} aria-label=${t('Détails : {label}',{label:r.name})} @click=${(e:Event)=>moreInfo(e,r.entity!)}></button>`
+    :html`<span class="nc-mk room" data-level=${r.level} style=${`left:${pos(r.value).toFixed(2)}%`} title=${r.name+' '+fmt(r.value)+' '+unit}></span>`);
   const said=[s.now!=null?t('Maintenant {value}',{value:`${fmt(s.now)} ${unit}`}):'',s.band?t('plage {low} à {high}',{low:fmt(s.band[0]),high:`${fmt(s.band[1])} ${unit}`}):'',s.out!=null?t('dehors {value}',{value:`${fmt(s.out)} ${unit}`}):''].filter(Boolean).join(', ');
-  return html`<div class="nc-scale" role="img" aria-label=${said}>
-    <div class="nc-track"></div>
-    ${s.band&&zones?html`<div class="nc-zone cold" style=${`left:0;width:${pct(s.band[0])}`}></div><div class="nc-zone warm" style=${`left:${pct(s.band[1])};right:0`}></div>`:nothing}
-    ${s.band?html`<div class=${'nc-band'+(zones?' zoned':'')} style=${`left:${pct(s.band[0])};width:${(pos(s.band[1])-pos(s.band[0])).toFixed(2)}%`}></div>`:nothing}
-    ${s.day?html`<div class="nc-day" style=${`left:${pct(s.day.min)};width:${(pos(s.day.max)-pos(s.day.min)).toFixed(2)}%`}></div>`:nothing}
-    ${s.out!=null?(s.outEntity?html`<button type="button" class="nc-mk out nc-hit" style=${'left:'+pct(s.out)} title=${t('Détails : dehors')} aria-label=${t('Détails de la température dehors')} @click=${(e:Event)=>moreInfo(e,s.outEntity!)}></button>`:html`<span class="nc-mk out" style=${'left:'+pct(s.out)}></span>`):nothing}
-    ${(s.rooms??[]).map(r=>r.entity?html`<button type="button" class="nc-mk room nc-hit" data-level=${r.level} style=${'left:'+pct(r.value)} title=${r.name+' '+fmt(r.value)+' '+unit} aria-label=${t('Détails : {label}',{label:r.name})} @click=${(e:Event)=>moreInfo(e,r.entity!)}></button>`:html`<span class="nc-mk room" data-level=${r.level} style=${'left:'+pct(r.value)} title=${r.name+' '+fmt(r.value)+' '+unit}></span>`)}
-    ${s.now!=null?html`<span class="nc-ring" style=${'left:'+pct(s.now)}></span>${s.nowEntity?html`<button type="button" class="nw-pill nc-now nc-hit" style=${bubble(pos(s.now))} title=${t('Détails de la température')} @click=${(e:Event)=>moreInfo(e,s.nowEntity!)}>${fmt(s.now)} ${unit}</button>`:html`<span class="nw-pill nc-now" style=${bubble(pos(s.now))}>${fmt(s.now)} ${unit}</span>`}`:nothing}
-    ${placed}
-  </div>
-  <div class="nw-legend nc-legend">${s.band&&zones?html`<span><i class="k-zone cold"></i>${t('trop frais')}</span>`:nothing}${s.band?html`<span><i class=${'k-band'+(zones?' zoned':'')}></i>${t('votre plage')}</span>`:nothing}${s.band&&zones?html`<span><i class="k-zone warm"></i>${t('trop chaud')}</span>`:nothing}${s.day?html`<span><i class="k-day"></i>${t('min–max 24 h')}</span>`:nothing}${s.rooms?html`<span><i class="k-room"></i>${t('pièces')}</span>`:nothing}${s.out!=null?html`<span><i class="k-out"></i>${t('dehors')}</span>`:nothing}</div>`;
+  return html`${echelle({lo,hi,parts,label:said,degree:v=>fmt(v)+'°',marks,dots,span:s.day?[s.day.min,s.day.max]:undefined,
+    value:s.now??undefined,valueText:s.now!=null?`${fmt(s.now)} ${unit}`:undefined,valueTitle:t('Détails de la température'),onValue:s.nowEntity?(e:Event)=>moreInfo(e,s.nowEntity!):undefined,
+    outside:s.out!=null?{value:s.out,label:`${t('dehors')} ${fmt(s.out)}°`,title:t('Détails de la température dehors'),onTap:s.outEntity?(e:Event)=>moreInfo(e,s.outEntity!):undefined}:undefined})}
+  ${s.day||s.rooms||s.out!=null?html`<div class="nw-legend nc-legend">${s.day?html`<span><i class="k-day"></i>${t('min–max 24 h')}</span>`:nothing}${s.rooms?html`<span><i class="k-room"></i>${t('pièces')}</span>`:nothing}${s.out!=null?html`<span><i class="k-out"></i>${t('dehors')}</span>`:nothing}</div>`:nothing}`;
 }
 
 /** `watch` (soft yellow): the measure leaves your range, without a gesture asked; orange stays for gestures. */
@@ -619,8 +607,10 @@ function curvePath(pts:[number,number][]):string {
 }
 const WAYS={up:'en hausse',down:'en baisse',stable:'stable'} as const;
 /** The arrow beside the value: it moves the way the measure goes. */
-const trendArrow=(r:Trend)=>html`<span class="nc-way" data-way=${r.way} data-tone=${r.tone} title=${tx(WAYS[r.way])} aria-label=${tx(WAYS[r.way])}>${icon('arrow')}</span>`;
-/** The last half hour, drawn smooth with a soft fill under it; no line for your range: « dans votre plage » says it. */
+/** The charter's arrow (.nw-trend): only when the measure really moves; « stable » keeps its place and shows nothing (3 November). */
+const trendArrow=(r:Trend)=>html`<span class="nw-trend nc-way" data-way=${r.way} data-tone=${r.tone} title=${r.way==='stable'?nothing:tx(WAYS[r.way])} aria-label=${r.way==='stable'?nothing:tx(WAYS[r.way])} aria-hidden=${r.way==='stable'?'true':nothing}></span>`;
+/** The last half hour, drawn smooth with a soft fill under it, over your range as a pale band when it is in view
+ *  (the « Trait » rules for every curve: rounded line, soft fill, the dot of now, the range behind). */
 let sparkIds=0;
 function sparkline(r:Trend):TemplateResult {
   // Your range's nearest edge stays in view; too far, it is left out.
@@ -635,6 +625,7 @@ function sparkline(r:Trend):TemplateResult {
   const line=curvePath(pts),id='nc-sp'+(++sparkIds);
   return html`<div class="nc-spark" data-tone=${r.tone} data-key=${r.key} aria-hidden="true"><svg viewBox="0 0 100 24" preserveAspectRatio="none">
     <defs><linearGradient id=${id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="nc-spark-fill0"></stop><stop offset="1" class="nc-spark-fill1"></stop></linearGradient></defs>
+    ${band?svg`<rect class="nc-spark-band" x="0" width="100" y=${Math.max(0,y(band[1])).toFixed(1)} height=${Math.max(0,Math.min(24,y(band[0]))-Math.max(0,y(band[1]))).toFixed(1)} rx="2"></rect>`:nothing}
     <path class="nc-spark-area" d=${`${line} L${last[0].toFixed(1)} 24 L${pts[0][0].toFixed(1)} 24 Z`} fill=${`url(#${id})`}></path>
     <path class="nc-spark-line" d=${line}></path></svg>
     <span class="nc-spark-dot" style=${`left:${last[0]}%;top:${last[1]/24*100}%`}></span></div>${SPARK_CAPTION[r.key]?html`<span class="nc-spark-cap">${t(SPARK_CAPTION[r.key])}</span>`:nothing}`;
@@ -785,7 +776,7 @@ export function hero(o:{name:string;level:Level;slides:Slide[];scaleLabel:string
   const many=o.slides.length>1;
   const pill=html`<span class="nw-chip nc-level">${many?t('{n} conseils',{n:o.slides.length}):pillMark(o.slides[0]?.pill??pills[o.level],o.slides[0]?.level??o.level,!!o.slides[0]?.learned)}</span>`;
   return html`<div class=${'nc-hero'+(o.small?' nc-compact':'')+(o.now!==undefined?' nc-weatherlike':'')+(o.bubble?' nc-folded':'')} data-mood=${mood(o.slides[0],o.level)}>
-    <div class="nc-top"><div class="nc-name"><h2>${o.name}</h2><button class="nw-info" aria-label=${t('Pourquoi ce conseil ?')} aria-expanded=${o.st.why} aria-controls=${o.st.uid+'-why'} @click=${()=>o.st.toggle('why')}>${icon('info')}</button>${o.sub?html`<span class="nc-sub">${o.sub}</span>`:nothing}</div>
+    <div class="nc-top"><div class="nc-name"><h2>${o.name}</h2><button class="nw-info" aria-label=${t('Pourquoi ce conseil ?')} aria-expanded=${o.st.why} aria-controls=${o.st.uid+'-why'} @click=${()=>o.st.toggle('why')}></button>${o.sub?html`<span class="nc-sub">${o.sub}</span>`:nothing}</div>
       ${o.now!==undefined?html`<div class="nc-moment">${pill}${o.now}</div>`:pill}</div>
     <div class=${o.bubble?'nc-bubble':''}><hestia-advice-ticker .slides=${o.slides} .still=${!!o.still}></hestia-advice-ticker></div>
     <div class="nc-why" id=${o.st.uid+'-why'} ?hidden=${!o.st.why}>${o.why}</div>
@@ -801,18 +792,18 @@ export function banner(o:{name:string;sub?:string;level:Level;slides:Slide[];st:
   const pill=html`<span class="nw-chip nc-level">${pillMark(statePill(first,o.level),first?.level??o.level)}</span>`;
   return html`<div class=${'nc-b'+(o.compact?' compact':'')} data-mood=${mood(o.slides[0],o.level)}>
     <div class="nc-b-light" aria-hidden="true"></div>
-    <div class="nc-b-top"><div class="nc-b-id"><div class="nc-b-name"><h2>${o.name}</h2>${pill}<button class="nw-info" aria-label=${t('Pourquoi ce conseil ?')} aria-expanded=${o.st.why} aria-controls=${o.st.uid+'-why'} @click=${(e:Event)=>{e.stopPropagation();o.st.toggle('why');}}>${icon('info')}</button></div>${o.sub?html`<span class="nc-b-sub">${o.sub}</span>`:nothing}</div>
+    <div class="nc-b-top"><div class="nc-b-id"><div class="nc-b-name"><h2 class="nw-title">${o.name}</h2><button class="nw-info" aria-label=${t('Pourquoi ce conseil ?')} aria-expanded=${o.st.why} aria-controls=${o.st.uid+'-why'} @click=${(e:Event)=>{e.stopPropagation();o.st.toggle('why');}}></button>${pill}</div>${o.sub?html`<span class="nc-b-sub">${o.sub}</span>`:nothing}</div>
       ${o.now&&o.now!==nothing?html`<div class="nc-b-now">${o.now}</div>`:nothing}</div>
     <div class="nc-why nc-b-why nw-glass" id=${o.st.uid+'-why'} ?hidden=${!o.st.why}>${o.why}</div>
-    <div class="nc-b-main"><hestia-advice-ticker layout="banner" .slides=${o.slides.slice(0,1)} .still=${!!o.still}></hestia-advice-ticker></div>
+    <div class="nc-b-main nw-glass"><hestia-advice-ticker layout="banner" .slides=${o.slides.slice(0,1)} .still=${!!o.still}></hestia-advice-ticker></div>
     ${o.after??nothing}
   </div>`;
 }
 /** A section of the full card, always open: its title and what it counts, then its content. */
-const part=(label:string,summary:TemplateResult|string,body:TemplateResult)=>html`<section class="nc-part"><h3 class="nc-part-h"><span class="nw-label">${label}</span>${summary?html`<span class="nw-sum">${summary}</span>`:nothing}</h3>${body}</section>`;
+const part=(label:string,summary:TemplateResult|string,body:TemplateResult)=>html`<section class="nc-part"><header class="nc-part-h nw-section-head"><h2>${label}</h2>${summary?html`<span class="nw-sum">${summary}</span>`:nothing}</header>${body}</section>`;
 /** A folding section with the charter's round chevron; out-of-range tiles stay visible when folded. */
 export function fold(o:{label:string;summary:TemplateResult|string;open:boolean;onToggle:()=>void;id:string;body:TemplateResult;keep?:TemplateResult[]}):TemplateResult {
-  return html`<div class=${'nc-fold'+(o.open?' open':'')}><button class="nw-fold-head" aria-expanded=${o.open} aria-controls=${o.id} @click=${o.onToggle}><span class="nw-label">${o.label}</span><span class="nw-sum">${o.summary}</span><span class="nw-chevron">${icon('chevron')}</span></button>
+  return html`<div class=${'nc-fold'+(o.open?' open':'')}><button class="nw-fold-head" aria-expanded=${o.open} aria-controls=${o.id} @click=${o.onToggle}><span class="nw-label">${o.label}</span><span class="nw-sum">${o.summary}</span><span class="nw-chevron"><i class="nw-chev"></i></span></button>
     <div id=${o.id}>${o.open?o.body:o.keep?.length?html`<div class="nc-tiles">${o.keep}</div>`:nothing}</div></div>`;
 }
 /** « 4 mesures · 1 à surveiller · 2 muettes »: a silent measure is never counted as fine. */
@@ -838,9 +829,11 @@ export const asking=(v:View)=>['action','urgent'].includes(slides(v)[0]?.level??
 interface Stat {label:string;value:string;entity?:string;note?:string}
 /** One module of « Maintenant », as Hestia Weather's Pluie or Vent: a title and its room, the measure with its way and its
  * half hour, then a few figures. A shared air shows each room in it (rows). */
-interface Module {key:Piece;ic:string;title:string;src?:string;main?:Tile;rows?:{room:string;tile:Tile}[];sub?:string;extra?:TemplateResult|typeof nothing;stats:Stat[];level:string;
-  /** A curve other than the main measure's: the sun outside for the openings. */
+interface Module {key:Piece;ic:string;title:string;src?:string;main?:Tile;/** The temperature as its « Ressenti » (views/feel.ts), drawn instead. */ feel?:TemplateResult|null;rows?:{room:string;tile:Tile}[];sub?:string;extra?:TemplateResult|typeof nothing;stats:Stat[];level:string;
+  /** A curve other than the main measure's (the heating's power). */
   curve?:Trend;
+  /** The windows open now, one line each: its name, what it is doing, its sensor a tap away. */
+  list?:{label:string;value:string;entity:string;bad:boolean}[];
   /** Several measures shown one after the other, each the same way (the air: CO₂, VOC, particles; one air's rooms'
    * humidity): its name, the room it is measured in, the measure. */
   slides?:{label:string;room?:string;tile:Tile}[]}
@@ -858,7 +851,8 @@ export function modules(v:View,config:Config,partners:View[]=[],o:{scale?:Templa
       const stats:Stat[]=[...partners.flatMap(p=>roomTemperature(p).map(t=>stat(t,p.title))),
         ...(te!==null?[{label:t('Dehors'),value:number(te)+' °C',entity:v.observations.outdoor_temperature?.source??undefined}]:[]),
         ...(slope!=null&&!d?[{label:t('Tendance'),value:(slope>0?'+':'')+number(slope)+' °C/h'}]:[])];
-      out.push({key:'temperature',ic:'temp',title:PIECE_LOOK.temperature[1],src:many?v.title:undefined,main,sub:tx(main.note),extra:o.scale??nothing,stats:stats.slice(0,4),level:level(main)});}}
+      out.push({key:'temperature',ic:'temp',title:PIECE_LOOK.temperature[1],src:many?v.title:undefined,main,sub:tx(main.note),extra:o.scale??nothing,stats:stats.slice(0,4),level:level(main),
+        feel:feelPanel(v,partners,{gauge:!!o.scale,src:many?v.title:undefined})});}}
   const hum=find(['Humidité']);
   if(hum.length){const h=f?.humidity,lead=hum.find(x=>x.tile.out)??hum[0],ho=numeric(v.observations.outdoor_humidity);
     // One air's rooms one after the other, the most humid first, each drawn the same way as the air's measures.
@@ -884,10 +878,13 @@ export function modules(v:View,config:Config,partners:View[]=[],o:{scale?:Templa
   // The windows and the sun are the shared air's: said once, by the first room (as the tiles did).
   const open=find(['Fenêtres','Soleil','Volet']).filter((x,i,all)=>x.tile.label==='Volet'||all.findIndex(y=>y.tile.label===x.tile.label)===i);
   if(open.length){const lead=open.find(x=>x.tile.label==='Fenêtres')??open[0];
-    const sun=open.find(x=>x.tile.label==='Soleil');
-    out.push({key:'openings',ic:lead.tile.ic,title:PIECE_LOOK.openings[1],main:lead.tile,sub:tx(lead.tile.note),
+    // The sun's curve said little (3 November): the windows open now say more, one line each, those to close first.
+    const seen=new Set<string>(),list=rooms.flatMap(r=>Object.entries(r.observations).filter(([k,x])=>k.startsWith('window:')&&x.quality==='valid'&&x.value===true).map(([k])=>k.slice(7))
+      .filter(id=>!seen.has(id)&&!!seen.add(id)).map(id=>{const bad=rooms.some(q=>(q.assessment.openings??[]).some(x=>x.entity_id===id&&x.flags.length>0));
+        return {label:r.names?.[id]??v.names?.[id]??id,value:bad?'à refermer':'ouverte',entity:id,bad};}));
+    out.push({key:'openings',ic:lead.tile.ic,title:PIECE_LOOK.openings[1],main:lead.tile,sub:tx(lead.tile.note),list:mods.has('windows')?[...list.filter(x=>x.bad),...list.filter(x=>!x.bad)]:undefined,
       stats:open.filter(x=>x!==lead).map(x=>x.tile.label==='Soleil'&&x.tile.note&&/W\/m²/.test(x.tile.note)?{...stat(x.tile),value:`${tx(x.tile.value)} · ${x.tile.note.split(' · ')[0]}`}:stat(x.tile)),
-      curve:lead.tile.label==='Soleil'?undefined:sun?.tile.trend,level:level(lead.tile)});}
+      level:level(lead.tile)});}
   const heat=find(['Chauffage']);
   if(heat.length){const lead=heat[0];
     // The set point, how far the room is from it, and how long it heated over the last day.
@@ -902,17 +899,19 @@ export function modules(v:View,config:Config,partners:View[]=[],o:{scale?:Templa
 const statBody=(x:Stat)=>html`<span>${x.label}</span><b>${x.value}</b>`;
 /** A module, drawn as Hestia Weather's: header, the measure, its half hour, its figures; each value opens its sensor. */
 export function moduleCard(m:Module,soft=true):TemplateResult {
+  if(m.feel)return m.feel;
   const value=(t:Tile)=>html`${tx(t.value)}${t.unit&&t.value!=='—'?html`<small>${t.unit}</small>`:nothing}${t.trend?trendArrow(t.trend):nothing}`;
   const hit=(t:Tile,body:TemplateResult,cls:string)=>t.entity?html`<button type="button" class=${cls+' nc-hit'} title=${tr('Détails : {label}',{label:tx(t.label)})} @click=${(e:Event)=>moreInfo(e,t.entity!)}>${body}</button>`:html`<div class=${cls}>${body}</div>`;
   const main=m.rows?html`<div class="nc-mod-rows">${m.rows.map(r=>hit(r.tile,html`<span>${r.room}</span><b>${value(r.tile)}</b>`,'nc-mod-row'+(r.tile.out?' out':'')))}</div>`
-    :m.main?hit(m.main,html`<b>${value(m.main)}</b>`,'nc-mod-v'):nothing;
+    :m.main?hit(m.main,html`<b>${value(m.main)}</b>`,'nc-mod-v nw-value'):nothing;
   // The temperature moves by tenths in half an hour: its scale, its day and its arrow say it better than a flat curve.
-  const curve=m.curve??(m.key==='temperature'?undefined:m.rows?(m.rows.find(r=>r.tile.out)??m.rows[0]).tile.trend:m.main?.trend);
+  const curve=m.curve??(m.key==='temperature'||m.key==='openings'?undefined:m.rows?(m.rows.find(r=>r.tile.out)??m.rows[0]).tile.trend:m.main?.trend);
   const turning=m.slides&&m.slides.length>1?modSlides(m.slides,value,hit):null;
-  return html`<div class=${'nc-mod'+(m.level!=='calm'?' out'+(soft?' soft':''):'')} data-piece=${m.key} data-level=${m.level}>
-    <div class="nc-mod-h"><span class="nc-ic">${icon(m.ic)}</span><b>${tx(m.title)}</b>${m.main?.flame?html`<span class="nc-flame" title=${t('mode chauffage')}>${icon('flame')}</span>`:nothing}${m.src?html`<span class="nw-chip nc-src">${m.src}</span>`:nothing}</div>
+  return html`<div class=${'nc-mod nw-panel'+(m.level!=='calm'?' out'+(soft?' soft':''):'')} data-piece=${m.key} data-level=${m.level}>
+    <div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon(m.ic)}</span><h3>${tx(m.title)}</h3>${m.main?.flame?html`<span class="nc-flame" title=${t('mode chauffage')}>${icon('flame')}</span>`:nothing}${m.src?html`<span class="aside nc-src">${m.src}</span>`:nothing}</div>
     ${turning?html`${turning}${m.sub?html`<p class="nc-mod-sub nc-mrows-sub">${m.sub}</p>`:nothing}`:html`<div class="nc-mod-line">${main}${m.sub?html`<p class="nc-mod-sub">${m.sub}</p>`:nothing}</div>${m.extra??nothing}${curve?sparkline(curve):nothing}`}
-    ${m.stats.length?html`<div class="nc-mod-stats" style=${`--n:${Math.min(m.stats.length,4)}`}>${m.stats.map(x=>x.entity?html`<button type="button" class="nc-hit" title=${x.note?tx(x.note):tr('Détails : {label}',{label:x.label})} @click=${(e:Event)=>moreInfo(e,x.entity!)}>${statBody(x)}</button>`:html`<div title=${x.note?tx(x.note):nothing}>${statBody(x)}</div>`)}</div>`:nothing}
+    ${m.list?.length?html`<div class="nc-mrows nc-open-list">${m.list.map(x=>html`<button type="button" class=${'nc-mrow'+(x.bad?' bad':'')} title=${tr('Détails : {label}',{label:x.label})} @click=${(e:Event)=>moreInfo(e,x.entity)}><i class="nc-mrow-dot" aria-hidden="true"></i><span class="nc-mrow-n">${x.label}</span><b class="nc-mrow-v">${tx(x.value)}</b></button>`)}</div>`:nothing}
+    ${m.stats.length?html`<div class="nc-mod-stats nw-stats" style=${`--n:${Math.min(m.stats.length,4)}`}>${m.stats.map(x=>x.entity?html`<button type="button" class="nc-hit" title=${x.note?tx(x.note):tr('Détails : {label}',{label:x.label})} @click=${(e:Event)=>moreInfo(e,x.entity!)}>${statBody(x)}</button>`:html`<div title=${x.note?tx(x.note):nothing}>${statBody(x)}</div>`)}</div>`:nothing}
   </div>`;
 }
 /** The air's measures one after the other: each its name, its value and way, its note, its half hour. */
@@ -932,12 +931,12 @@ export function moduleCompact(m:Module):TemplateResult {
   const t0=m.rows?(m.rows.find(r=>r.tile.out)??m.rows[0]).tile:m.main;
   const value=(t:Tile)=>html`${tx(t.value)}${t.unit&&t.value!=='—'?html`<small>${t.unit}</small>`:nothing}${t.trend?trendArrow(t.trend):nothing}`;
   const main=m.rows?html`<div class="nc-mod-rows">${m.rows.map(r=>html`<div class=${'nc-mod-row'+(r.tile.out?' out':'')}><span>${r.room}</span><b>${value(r.tile)}</b></div>`)}</div>`
-    :m.main?html`<div class="nc-mod-v"><b>${value(m.main)}</b></div>`:nothing;
-  if(m.slides&&m.slides.length>1)return html`<div class=${'nc-mod nc-mod-compact'+(m.level!=='calm'?' out soft':'')} data-piece=${m.key} data-level=${m.level}>
-    <div class="nc-mod-h"><span class="nc-ic">${icon(m.ic)}</span><b>${tx(m.title)}</b>${m.src?html`<span class="nw-chip nc-src">${m.src}</span>`:nothing}</div>
+    :m.main?html`<div class="nc-mod-v nw-value"><b>${value(m.main)}</b></div>`:nothing;
+  if(m.slides&&m.slides.length>1)return html`<div class=${'nc-mod nw-panel nc-mod-compact'+(m.level!=='calm'?' out soft':'')} data-piece=${m.key} data-level=${m.level}>
+    <div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon(m.ic)}</span><h3>${tx(m.title)}</h3>${m.src?html`<span class="aside nc-src">${m.src}</span>`:nothing}</div>
     ${modSlides(m.slides,value,(_t,body,cls)=>html`<div class=${cls}>${body}</div>`)}</div>`;
-  return html`<div class=${'nc-mod nc-mod-compact'+(m.level!=='calm'?' out soft':'')} data-piece=${m.key} data-level=${m.level}>
-    <div class="nc-mod-h"><span class="nc-ic">${icon(m.ic)}</span><b>${tx(m.title)}</b>${m.main?.flame?html`<span class="nc-flame" title=${t('mode chauffage')}>${icon('flame')}</span>`:nothing}${m.src?html`<span class="nw-chip nc-src">${m.src}</span>`:nothing}</div>
+  return html`<div class=${'nc-mod nw-panel nc-mod-compact'+(m.level!=='calm'?' out soft':'')} data-piece=${m.key} data-level=${m.level}>
+    <div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon(m.ic)}</span><h3>${tx(m.title)}</h3>${m.main?.flame?html`<span class="nc-flame" title=${t('mode chauffage')}>${icon('flame')}</span>`:nothing}${m.src?html`<span class="aside nc-src">${m.src}</span>`:nothing}</div>
     ${main}${m.sub?html`<p class="nc-mod-sub">${m.sub}</p>`:nothing}${(m.curve??t0?.trend)?sparkline((m.curve??t0?.trend)!):nothing}
   </div>`;
 }
@@ -951,17 +950,17 @@ function upcoming(v:View,config:Config,plage:(s:HorizonSubject)=>[number,number]
   // Only what says something: a gesture compared with doing nothing, or a forecast that leaves your range.
   const leaves=(h:Horizon)=>{const p=plage(h.subject),all=[...h.base,...(h.gesture??[])];return !!p&&all.length>0&&(Math.min(...all)<p[0]||Math.max(...all)>p[1]);};
   const shown=horizonShown(f?.horizon??[],'always',config.horizon_subjects).filter(h=>h.kind!=='trend'||leaves(h));
-  const mods:TemplateResult[]=shown.map(h=>html`<div class="nc-mod nc-mod-h24 nc-mod-wide" data-piece=${h.subject}>
-      <div class="nc-mod-h"><span class="nc-ic">${icon(h.subject==='humidity'?'drop':'temp')}</span><b>${h.subject==='humidity'?t('Humidité'):t('Température')}</b><span class="nc-mod-h24-what">${horizonHead(h)}</span></div>
+  const mods:TemplateResult[]=shown.map(h=>html`<div class="nc-mod nw-panel nc-mod-h24 nc-mod-wide" data-piece=${h.subject}>
+      <div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon(h.subject==='humidity'?'drop':'temp')}</span><h3>${h.subject==='humidity'?t('Humidité'):t('Température')}</h3><span class="nc-mod-h24-what">${horizonHead(h)}</span></div>
       <p class="nc-mod-sub nc-mod-h24-result">${horizonResult(h)}</p>
       <div class="nc-horizon">${horizonChart(h,plage(h.subject))}</div>${horizonLegend(h)}</div>`);
   // The next gesture, when there is one: what « plus tard » would have said in the banner.
   const later=slides(v,['later']).slice(1)[0];
-  if(later)mods.push(html`<div class="nc-mod" data-piece="next"><div class="nc-mod-h"><span class="nc-ic">${icon(later.disk??'clock')}</span><b>${t('Prochain geste')}</b></div>
-    <div class="nc-mod-v"><b class="nc-mod-text">${tx(later.title)}</b></div>${later.line?html`<p class="nc-mod-sub">${tl(later.line)}</p>`:nothing}</div>`);
+  if(later)mods.push(html`<div class="nc-mod nw-panel" data-piece="next"><div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon(later.disk??'clock')}</span><h3>${t('Prochain geste')}</h3></div>
+    <div class="nc-mod-v nw-value"><b class="nc-mod-text">${tx(later.title)}</b></div>${later.line?html`<p class="nc-mod-sub">${tl(later.line)}</p>`:nothing}</div>`);
   // Outside, only when rain is on its way.
-  if(a.constraints.includes('rain_soon')||a.rain_soon_minutes!=null)mods.push(html`<div class="nc-mod" data-piece="outside"><div class="nc-mod-h"><span class="nc-ic">${icon('rain')}</span><b>${t('Dehors')}</b></div>
-    <div class="nc-mod-v"><b class="nc-mod-text">${t('Pluie {when}',{when:tx(rainWhen(a))})}</b></div></div>`);
+  if(a.constraints.includes('rain_soon')||a.rain_soon_minutes!=null)mods.push(html`<div class="nc-mod nw-panel" data-piece="outside"><div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon('rain')}</span><h3>${t('Dehors')}</h3></div>
+    <div class="nc-mod-v nw-value"><b class="nc-mod-text">${t('Pluie {when}',{when:tx(rainWhen(a))})}</b></div></div>`);
   return mods.length?html`<div class="nc-mods nc-upcoming"><div class="nc-mod-grid">${mods}</div></div>`:nothing;
 }
 /** « En ce moment », on the right of the banner as in Hestia Weather: the temperature, then its day (or the room beside it). */
@@ -970,9 +969,10 @@ function nowBlock(v:View,partners:View[]):TemplateResult|typeof nothing {
   if(ti===null)return nothing;
   const other=partners.map(p=>({p,t:numeric(p.observations.indoor_temperature)})).find(x=>x.t!==null);
   const src=v.observations.indoor_temperature?.source;
-  const temp=html`<b class="nc-moment-t">${number(ti)}<small>°C</small></b>`;
-  return html`${src?html`<button type="button" class="nc-hit nc-moment-v" title=${t('Détails de la température')} @click=${(e:Event)=>moreInfo(e,src)}>${temp}</button>`:temp}
-    <span class="nc-moment-d">${d?html`↓ ${number(d.min)}° ↑ ${number(d.max)}°`:other?`${other.p.title} ${number(other.t!)}°`:nothing}</span>`;
+  // The charter's reading (hestia-lecture), the same as Hestia Weather's « En ce moment »; without its day, the room beside it.
+  return html`${lecture({value:number(ti),unit:'°C',low:d?number(d.min):undefined,high:d?number(d.max):undefined,rangeTitle:d?t('min–max 24 h'):undefined,
+      tapTitle:t('Détails de la température'),onTap:src?(e:Event)=>moreInfo(e,src):undefined})}
+    ${!d&&other?html`<span class="nw-range">${other.p.title} ${number(other.t!)}°</span>`:nothing}`;
 }
 /** The room card in each format; null when the alert format has nothing to say. */
 export function roomCard(v:View,config:Config,st:CardState,format:Format='full',partners:View[]=[]):TemplateResult|null {
@@ -987,7 +987,7 @@ export function roomCard(v:View,config:Config,st:CardState,format:Format='full',
     ?scale({band,day:marks.includes('day')?f?.day_range??null:null,now:ti,out:marks.includes('out')?te:null,nowEntity:v.observations.indoor_temperature?.source??undefined,outEntity:v.observations.outdoor_temperature?.source??undefined}):null;
   // One air whose gesture comes from the other room: the banner says that room's advice, its reason and what it learned.
   const leader=a.reason==='shared_volume'?partners.find(p=>p.title===a.features?.volume?.lead&&p.assessment.reason!=='shared_volume'):undefined;
-  const all=slides(v.advisor?v:leader??v,config.banner_blocks),top=all[0]?.level??a.level,name=config.title||(partners.length?v.volume_name:null)||v.title;
+  const said=v.advisor?v:leader??v,all=slides(said,config.banner_blocks).map(s=>({...s,scene:sceneFor(s,said)})),top=all[0]?.level??a.level,name=config.title||(partners.length?v.volume_name:null)||v.title;
   const still=config.animations===false||config.rotate===false;
   // A measure out of range is framed in orange only when the room asks for a gesture.
   const soft=!['action','urgent'].includes(top);
@@ -1020,7 +1020,7 @@ export function roomCard(v:View,config:Config,st:CardState,format:Format='full',
     return html`<ha-card class="nc-c nc-measures-card" data-level="neutral"><div class="nc-mhead"><h2>${name}</h2><span class="nw-sum">${summary}</span></div><div class="nc-mbody">${moduleGrid(modules(v,config,partners,{scale:config.show_scale===true||config.scale_marks?.length?sc:null}),true)}</div></ha-card>`;
   // One card per piece of the room: the full card's module alone, or its « Prochaines heures ».
   if(format==='horizon')
-    return html`<ha-card class="nc-c nc-piece-card" data-level="neutral"><div class="nc-mod" data-piece="horizon"><div class="nc-mod-h"><span class="nc-ic">${icon('clock')}</span><b>${t('Prochaines heures')}</b><span class="nw-chip nc-src">${name}</span></div>${horizonBox(f?.horizon??[],{subjects:config.horizon_subjects,mode:config.horizon_mode??'always',uid:st.uid,second:!!st.horizonAlt,onTab:()=>st.toggle('horizonAlt'),
+    return html`<ha-card class="nc-c nc-piece-card" data-level="neutral"><div class="nc-mod nw-panel" data-piece="horizon"><div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon('clock')}</span><h3>${t('Prochaines heures')}</h3><span class="aside nc-src">${name}</span></div>${horizonBox(f?.horizon??[],{subjects:config.horizon_subjects,mode:config.horizon_mode??'always',uid:st.uid,second:!!st.horizonAlt,onTab:()=>st.toggle('horizonAlt'),
       plage:x=>x==='humidity'?(hum?.minimum!=null&&hum?.maximum!=null?[hum.minimum,hum.maximum]:null):(season?[season.minimum,season.maximum]:null)})}</div></ha-card>`;
   if((PIECES as readonly string[]).includes(format)){
     const m=mods.find(x=>x.key===format);
@@ -1041,7 +1041,8 @@ export function roomCard(v:View,config:Config,st:CardState,format:Format='full',
   const coming=config.show_horizon===false?nothing:upcoming(v,config,plage);
   // Always « Maintenant », then « À venir », then « Détails », whatever order the settings list them in.
   const sections=(blocks:readonly string[])=>{const parts=['measures','horizon','details'].filter(b=>blocks.includes(b)).map(b=>
-      b==='measures'&&measures?part(t('Maintenant'),summary,moduleGrid(mods,soft))
+      // « Maintenant » is titled only when « À venir » follows it: alone, the title says nothing (3 November).
+      b==='measures'&&measures?(blocks.includes('horizon')&&config.show_horizon!==false&&coming!==nothing?part(t('Maintenant'),summary,moduleGrid(mods,soft)):html`<section class="nc-part">${moduleGrid(mods,soft)}</section>`)
       :b==='horizon'&&config.show_horizon!==false&&coming!==nothing?part(t('À venir'),t('Prochaines 24 h'),coming as TemplateResult)
       :b==='details'&&config.show_details!==false?fold({label:t('Détails'),summary:'',open:st.detailsOpen,onToggle:()=>st.toggle('detailsOpen'),id:st.uid+'-details',body:detailList}):null).filter(x=>x!==null);
     return parts.length?html`<div class="nc-body nc-sections">${parts}</div>`:nothing;};
@@ -1118,7 +1119,8 @@ export class HestiaAdviceTicker extends LitElement {
           ${when(s)||s.learned?html`<div class="nc-tk-head">${when(s)?html`<span class="nc-bt-kicker">${when(s)}</span>`:nothing}${s.learned?html`<span class="nc-bt-learned" title=${tx(s.learned)}>${icon('flask')}${t('Optimisé par l’apprentissage')}</span>`:nothing}</div>`:nothing}
           <p class="nc-advice">${title(s)}</p>${s.line?html`<p class="nc-line">${tl(s.line)}</p>`:nothing}</div>`)}</div>
       </div>
-      <div class="nc-bt-icons nc-stack" aria-hidden="true">${list.map((s,k)=>html`<div class=${'nc-slide nc-orb'+(k===i?' on':k===this.previous?' out':'')} data-level=${s.level} data-mood=${mood(s,s.level)}><span class="nc-orb-ring"></span>${icon(s.disk)}${s.learned?html`<span class="nc-orb-learned">${icon('flask')}</span>`:nothing}</div>`)}</div>
+      <div class="nc-bt-icons nc-stack" aria-hidden="true">${list.map((s,k)=>s.scene?html`<div class=${'nc-slide nc-scene'+(k===i?' on':k===this.previous?' out':'')} data-level=${s.level}>${scene(s.scene)}</div>`
+        :html`<div class=${'nc-slide nc-orb'+(k===i?' on':k===this.previous?' out':'')} data-level=${s.level} data-mood=${mood(s,s.level)}><span class="nc-orb-ring"></span>${icon(s.disk)}${s.learned?html`<span class="nc-orb-learned">${icon('flask')}</span>`:nothing}</div>`)}</div>
     </div>`;
   }
 }

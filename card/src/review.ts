@@ -232,7 +232,7 @@ export class ComfortReview extends LitElement {
   const chips=(['warmth','humidity','air'] as const).map(k=>th[k]?.score!=null?html`<span class=${'chip '+(good(th[k]!.letter)?'good':'bad')}>${names[k]} ${th[k]!.letter} · ${th[k]!.score}</span>`
    :html`<span class="chip none">${names[k]} · ${th[k]?t('pas encore assez de mesures'):k==='warmth'?t('non notée'):t('pas de capteur')}</span>`);
   const best=this.data!.rooms.filter(x=>x.score!=null).sort((a,b)=>b.score!-a.score!)[0];
-  return html`<div class="sheet"><button class="back" @click=${()=>this.go()}>← ${t('Votre maison')}</button>
+  return html`<div class="sheet"><button class="back" @click=${()=>this.go()}><i class="nw-chev" style="--r:180deg"></i> ${t('Votre maison')}</button>
    <div class="top"><div><h1>${r.title}</h1><p class="muted">${r.score==null?t('Pas encore assez de mesures pour une note'):t('Confort : {score} / 100',{score:r.score})+(best?.entry_id===r.entry_id&&this.data!.rooms.length>1?' · '+t('la plus confortable de la maison'):'')}</p></div>${this.letter(r.letter,true)}</div>
    <div class="chips">${chips}</div>
    ${th.warmth?this.warmthSection(th.warmth,this.tips(r,'warmth')):nothing}${th.humidity?this.humiditySection(th.humidity,this.tips(r,'humidity')):nothing}${th.air?this.airSection(th.air,this.tips(r,'air')):nothing}</div>`;

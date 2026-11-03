@@ -89,7 +89,7 @@ export function roomsChart(o:{floors:ChartFloor[];data:PeriodData|undefined;peri
     <div class="nh-row nh-axis"><span></span><span class="nh-track">${ticks.map(t=>html`<em class=${same&&t>=same[0]&&t<=same[1]?'in':''} style=${`left:${at(t)}`}>${t}°</em>`)}</span><span></span></div>
     ${o.floors.map(f=>{const rows=lines.slice(i,i+=f.rooms.length);
       return html`${o.floors.length>1?html`<div class="nh-floor"><span class="nw-label">${f.name}</span><span>${f.mean!=null?number(f.mean)+'°':''}</span></div>`:nothing}${rows.map(row)}`;})}
-    ${outValue!=null?html`<div class="nh-row nh-out"><span class="nh-name">${t('Dehors')}</span><span class="nh-out-text">${out?html`${number(out.min)} → ${number(out.max)} °C`:nothing}</span><span class="nh-val">${number(Math.round(outValue*10)/10)}°</span></div>`:nothing}
+    ${outValue!=null?html`<div class="nh-row nh-out"><span class="nh-name">${t('Dehors')}</span><span class="nh-out-text">${out?html`${number(out.min)} – ${number(out.max)} °C`:nothing}</span><span class="nh-val">${number(Math.round(outValue*10)/10)}°</span></div>`:nothing}
   </div>`;
 }
 

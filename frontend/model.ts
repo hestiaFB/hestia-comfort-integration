@@ -1,3 +1,4 @@
+import type {Advisor3Room,Outside3} from './learning3';
 import {t,fr,currentLocale} from './socle/i18n';
 /** A map of French texts read in the user's language: each value is translated when it is read. */
 export function words<T extends Record<string,string>>(map:T):T{return new Proxy(map,{get:(o,k)=>{const v=Reflect.get(o,k);return typeof v==='string'?t(v):v;}});}
@@ -40,11 +41,12 @@ export interface Question {key:string;text:string;hint:string}
 /** How much of a room is learned (engine/twin.py progress): each part 0 to 1, 100 % only once everything it has is seen. */
 export interface Progress {percent:number;complete:boolean;parts:Partial<Record<'days'|'precision'|'sun'|'windows'|'heating'|'air',number>>;seen:{days:number;airings:number;open:number;sun:number;heated:number};
  /** What the advice can already promise, measure by measure, before the room is learned at 100 %. */ ready?:{humidity:boolean;temperature:boolean;air:string[]}}
-export interface Twins {version:1;rooms:{entry_id:string;title:string;twin:Twin;week?:Week;questions?:Question[];air?:string[];progress?:Progress|null;
+export interface Twins {version:1;/** How reliable the outside is, for the 3.0 advisor (learning3.ts). */ outside?:Outside3|null;rooms:{entry_id:string;title:string;twin:Twin;week?:Week;questions?:Question[];air?:string[];progress?:Progress|null;
+ /** What the 3.0 advisor knows of this room's air, shown in place of the 2.1 learning (learning3.ts). */ advisor?:Advisor3Room|null;
  /** Where the station's sun sensor is shaded, learned (engine/sunlight.py): azimuths by 10°. */ sun_shade?:{scale:number;shaded:number[];sunny_days:number}|null}[]}
 export interface HealthLine {level:Level;text:string;why:string;target?:Target|null}
 export interface Health {level:'ok'|'action';summary:string;tips_summary:string;rooms_summary:string;todo:HealthLine[];tips:HealthLine[];
- sources:{label:string;level:Level;text:string}[];version?:string;column_keys?:string[];sensors?:{answering:number;total:number};extensions?:Extension[];others?:{key:string;name:string;use:string}[];socle?:string;columns:string[];rooms:{entry_id:string;title:string;cells:{level:Level;text:string}[]}[];versions:HealthLine[]}
+ sources:{label:string;level:Level;text:string}[];version?:string;/** The advice engine's own version (advisor/__init__.py). */ advisor?:string;column_keys?:string[];sensors?:{answering:number;total:number};extensions?:Extension[];others?:{key:string;name:string;use:string}[];socle?:string;columns:string[];rooms:{entry_id:string;title:string;cells:{level:Level;text:string}[]}[];versions:HealthLine[]}
 export interface Hass {callWS<T>(msg:Record<string,unknown>):Promise<T>;callService?(domain:string,service:string,data:Record<string,unknown>):Promise<unknown>;entities?:Record<string,{platform?:string;device_id?:string|null}>;devices?:Record<string,{name?:string|null;name_by_user?:string|null}>;language?:string;user?:{is_admin:boolean};themes?:{darkMode?:boolean};connection?:unknown;states?:Record<string,{state:string;attributes?:Record<string,unknown>}>}
 export const warningText:Record<string,string>=words({
  alias:fr('Cette entité recopie une autre mesure. Vérifiez sa provenance ci-dessous.'),

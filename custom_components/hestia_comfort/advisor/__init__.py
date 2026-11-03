@@ -3,3 +3,9 @@
 Nothing here imports Home Assistant: the time is an input, and the same inputs always give the same decision, so that
 any decision can be replayed on the bench.
 """
+
+# The engine's own version, apart from the integration's (docs/dev/MOTEUR-VERSIONS.md): written in every snapshot, in the
+# journal and in each night's report, so that advice before and after a change can be told apart and replayed.
+# Major: a new generation of the engine, its twins relearned; minor: a gesture, a rule or a decision that changes;
+# fix: a correction that changes no advice but the wrong one.
+VERSION = "3.0.0"

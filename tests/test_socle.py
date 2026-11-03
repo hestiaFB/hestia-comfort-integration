@@ -72,6 +72,79 @@ class SocleTests(unittest.IsolatedAsyncioTestCase):
         await socle.async_register_brick(self.hass, brick(domain="hestia_weather", slug="meteo", legacy_path=None), "/old/hestia-socle.js")
         self.assertEqual(self.module(), "/new/hestia-socle.js")
 
+    async def test_of_two_copies_of_one_version_the_later_build_shows_the_panel(self):
+        await socle.async_register_brick(self.hass, brick(domain="hestia_weather", slug="meteo", legacy_path=None), "/w/hestia-socle.js")
+        self.hass.data[socle.KEY]["panel"]["build"] = "20260101.0000"  # the same version, copied earlier
+        await socle.async_register_brick(self.hass, brick(), "/c/hestia-socle.js")
+        self.assertEqual(self.module(), "/c/hestia-socle.js")
+        # The earlier build, registering again, leaves it; a copy before 1.22 has no build and loses too.
+        self.hass.data[socle.KEY]["panel"]["build"] = "20991231.2359"
+        await socle.async_register_brick(self.hass, brick(domain="hestia_weather", slug="meteo", legacy_path=None), "/w/hestia-socle.js")
+        self.assertEqual(self.module(), "/c/hestia-socle.js")
+        self.assertLess(socle._rank({"socle": socle.SOCLE_VERSION}), (socle.SOCLE_VERSION, socle.SOCLE_BUILD))
+
+    async def test_the_hub_script_has_an_address_of_its_own_build(self):
+        # A cache holding an older script under the brick's address would define another element: an empty page.
+        served = []
+        async def register(paths):
+            served.extend(paths)
+        self.hass.http = SimpleNamespace(async_register_static_paths=register)
+        await socle.async_register_brick(self.hass, brick(module_url="/hestia_comfort-assets/panel.js?v=2.1.0"),
+                                         "/hestia_comfort-assets/hestia-socle.js?v=2.1.0")
+        await socle.async_register_brick(self.hass, brick(domain="hestia_weather", slug="meteo", legacy_path=None), "/w/hestia-socle.js")
+        major, minor = socle.SOCLE_VERSION
+        folder = Path(socle.__file__).parent / "frontend"
+        base = f"/hestia-socle/{folder.parent.name}/{major}.{minor}.{socle.SOCLE_BUILD}-{socle._content(folder)}"
+        self.assertEqual(self.module(), f"{base}/hestia-socle.js")
+        # The tab beside it, at the same address: a new hub never meets an old tab kept in a cache.
+        self.assertEqual(self.hass.data[socle.KEY]["bricks"]["hestia_comfort"]["module_url"], f"{base}/panel.js")
+        self.assertEqual([p.url_path for p in served], [base])  # served once, from this brick's frontend folder
+        self.assertEqual(Path(served[0].path), folder)
+        # Any script of the folder changes the address.
+        with tempfile.TemporaryDirectory() as other:
+            (Path(other) / "panel.js").write_text("a")
+            first = socle._content(Path(other))
+            (Path(other) / "panel.js").write_text("b")
+            self.assertNotEqual(first, socle._content(Path(other)))
+
+    async def test_a_copy_whose_script_lacks_its_element_leaves_the_panel_to_another(self):
+        # Issue #48: a file of another version under the brick's address; the panel's element is never defined.
+        from unittest.mock import patch
+        with patch.object(socle, "_defines_element", lambda url: "/bad/" not in url):
+            await socle.async_register_brick(self.hass, brick(domain="hestia_weather", slug="meteo", legacy_path=None), "/bad/hestia-socle.js")
+            self.assertNotIn("hestia", self.hass.data.get(DATA_PANELS, {}))
+            await socle.async_register_brick(self.hass, brick(), "/good/hestia-socle.js")
+        self.assertEqual(self.module(), "/good/hestia-socle.js")
+        self.assertEqual(set(self.hass.data[socle.KEY]["bricks"]), {"hestia_weather", "hestia_comfort"})  # both listed
+        # The real check reads this brick's built script, which defines its element.
+        self.assertTrue(socle._defines_element("/hestia_comfort-assets/hestia-socle.js?v=2.1.0"))
+
+    async def test_an_older_copy_under_the_former_name_finds_the_panel_taken(self):
+        # Socle 1.14 (Confort 1.7.x, Weather 2.9.x) registers under legacy.SOCLE_KEY and leaves a panel whose socle is >= its own.
+        await socle.async_register_brick(self.hass, brick(), "/c/hestia-socle.js")
+        held = self.hass.data[legacy.SOCLE_KEY]["panel"]
+        self.assertGreaterEqual(tuple(held["socle"]), (1, 14))
+        self.assertEqual(held["shell_url"], "/c/hestia-socle.js")
+
+    async def test_a_brick_under_its_former_name_is_listed_once(self):
+        async def ok(hass, language=None):
+            return {"level": "ok", "summary": "Rien à régler.", "details": [], "links": []}
+        former = {"domain": "niak_weather", "name": "Hestia Weather", "slug": "meteo", "tab": "Météo", "version": "2.9.8",
+                  "icon": "mdi:weather-partly-cloudy", "module_url": "/niak_weather-assets/panel.js?v=2.9.8",
+                  "element": "niak-weather-setup", "navigation": 3, "status": ok, "socle": (1, 14)}
+        self.hass.data.setdefault(legacy.SOCLE_KEY, {"bricks": {}, "panel": None})["bricks"]["niak_weather"] = former
+        await socle.async_register_brick(self.hass, brick(), "/c/hestia-socle.js")
+        overview = await socle.async_overview(self.hass)
+        self.assertEqual([b["slug"] for b in overview["bricks"]], ["meteo", "confort"])  # the catalogue's order
+        self.assertEqual(overview["bricks"][0]["element"], "niak-weather-setup")
+        self.assertEqual(overview["bricks"][0]["status"]["level"], "ok")
+        self.assertNotIn("hestia_weather", [o["domain"] for o in overview["others"]])  # not proposed as « À découvrir »
+        # Moved to its new name (both loaded for a moment): listed once, under the new one.
+        await socle.async_register_brick(self.hass, brick(domain="hestia_weather", name="Hestia Weather", slug="meteo", legacy_path=None),
+                                         "/w/hestia-socle.js")
+        overview = await socle.async_overview(self.hass)
+        self.assertEqual([b["domain"] for b in overview["bricks"]], ["hestia_weather", "hestia_comfort"])
+
     async def test_home_page_lists_bricks_and_published_ones_not_yet_in_the_panel(self):
         await socle.async_register_brick(self.hass, brick(), "/a/hestia-socle.js")
         self.hass.config.components.add("hestia_weather")
