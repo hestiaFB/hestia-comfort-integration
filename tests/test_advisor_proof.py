@@ -92,6 +92,16 @@ class GoodToKnow(unittest.TestCase):
         later = self.NOW.replace(hour=15, minute=40)
         self.assertEqual(tip_text(tip, now=later), "Grand soleil sur la fenêtre ouest jusqu'à 16 h 35")
 
+    def test_one_line_for_the_room_and_only_when_the_sun_counts(self):
+        # Frank, 3 November: three windows, three sun lines; the sun is said once, and only when it warms the room.
+        windows = [Window("binary_sensor.fenetre_c_contact", 90), Window("binary_sensor.porte_fenetre_sd_contact", 180),
+                   Window("binary_sensor.fenetre_ouest_contact", 270)]
+        morning = self.NOW.replace(hour=9)
+        [tip] = sun_on_windows(RoomView(morning, *HOME, windows=windows, sun_gain=0.8))
+        self.assertEqual(tip_text(tip, now=morning),
+                         "Soleil sur les fenêtres est, sud et ouest jusqu'à 17 h : +0,8 °C dans la pièce")
+        self.assertEqual(sun_on_windows(RoomView(morning, *HOME, windows=windows, sun_gain=0.3)), [])
+
     def test_same_facade_windows_are_said_once_and_the_past_sun_is_not_said(self):
         windows = [Window("binary_sensor.porte_fenetre_sd_contact", 180), Window("binary_sensor.porte_fenetre_sg_contact", 180),
                    Window("binary_sensor.fenetre_c_contact", 90)]

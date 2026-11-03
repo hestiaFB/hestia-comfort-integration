@@ -11,6 +11,9 @@ from .physics.sunlight import bearing_name, sun_hours
 from .physics.surface import misted
 from .proof import LIVE_MINUTES, LIVE_SHARE, PROVEN, REINFORCED, SUPPOSED
 
+# The sun is said only when it warms the room by this much over the coming hours (°C): the days it changes nothing, its
+# line goes (Frank, 3 November: a room with three windows had three sun lines).
+SUN_COUNTS = 0.5
 # Strong sun: this much horizontal sun forecast on average over the hours the sun is on the window (W/m²); a clear
 # autumn noon gives about 450, an overcast sky under 150.
 STRONG_SUN = 200.0
@@ -64,11 +67,16 @@ class RoomView:
     end_hour: int | None = None
     # The stove at its lowest in a room already warm enough (advisor/decide.py `stove_idle`).
     stove_idle: dict | None = None
+    # °C the sun adds to the room over the coming hours (advisor/decide.py `sun_gain`); None when not known.
+    sun_gain: float | None = None
 
 
 def sun_on_windows(view: RoomView) -> list[Tip]:
-    """When the sun is on the room's windows today, still to come or going on: supposed by their orientation, reinforced
-    by a strong sun forecast. Adaptive Cover Pro's hours, when it drives the window, come before the computed ones."""
+    """When the sun is on the room's windows today, still to come or going on, in one line for the whole room, and only
+    when it warms the room by SUN_COUNTS at least: supposed by their orientation, reinforced by a strong sun forecast.
+    Adaptive Cover Pro's hours, when it drives the window, come before the computed ones."""
+    if view.sun_gain is not None and view.sun_gain < SUN_COUNTS:
+        return []
     midnight = view.now.replace(hour=0, minute=0, second=0, microsecond=0)
     spans = {}
     for w in view.windows:
@@ -82,13 +90,18 @@ def sun_on_windows(view: RoomView) -> list[Tip]:
             if end > view.now:
                 direction = bearing_name(w.bearing) if w.bearing is not None else None
                 spans.setdefault((direction, start, end), []).append(w.entity_id)
-    tips = []
-    for (direction, start, end), entities in sorted(spans.items(), key=lambda item: item[0][1]):
+    if not spans:
+        return []
+    ordered = sorted(spans.items(), key=lambda item: item[0][1])
+    strong = False
+    for (direction, start, end), entities in ordered:
         hours = [v for h, v in view.sun_forecast.items() if v is not None and start.replace(minute=0) <= h < end]
-        strong = bool(hours) and sum(hours) / len(hours) >= STRONG_SUN
-        tips.append(Tip("sun", {"direction": direction, "windows": len(entities), "start": start, "end": end},
-                        "light", 1, end, REINFORCED if strong else SUPPOSED))
-    return tips
+        strong = strong or (bool(hours) and sum(hours) / len(hours) >= STRONG_SUN)
+    # The sides in the order the sun reaches them: « les fenêtres est, sud et ouest ».
+    directions = list(dict.fromkeys(direction for (direction, _, _), _ in ordered if direction is not None))
+    start, end = min(s for (_, s, _), _ in ordered), max(e for (_, _, e), _ in ordered)
+    return [Tip("sun", {"directions": directions, "windows": sum(len(e) for _, e in ordered), "start": start, "end": end,
+                        "gain": view.sun_gain}, "light", 1, end, REINFORCED if strong else SUPPOSED)]
 
 
 def gesture_seen(view: RoomView) -> list[Tip]:

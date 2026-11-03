@@ -115,6 +115,19 @@ def stove_idle(twins: "Twins", now: "Now", coming, minimum: float, hold_hours: f
     return None
 
 
+def sun_gain(twins: "Twins", now: "Now", coming) -> float:
+    """°C the sun adds to the room over the coming steps, at most: the room left as it is, with and without the sun
+    (« Bon à savoir » speaks of the sun only when it counts, Frank, 3 November)."""
+    if not coming:
+        return 0.0
+    lit = simulate(twins, now, coming, Gesture("nothing"))
+    dark = simulate(twins, now, [(replace(u, sun=0.0, facade=0.0 if u.facade is not None else None,
+                                          facade_shut=0.0 if u.facade_shut is not None else None,
+                                          facade_all=0.0 if u.facade_all is not None else None), w) for u, w in coming],
+                    Gesture("nothing"))
+    return max((a - b for a, b in zip(lit.air, dark.air)), default=0.0)
+
+
 def heating_back(twins: "Twins", idle: "Path", now: "Now", minimum: float, coming=(),
                  step_minutes: float = STEP / 60) -> dict | None:
     """What the heating does for a room under its range, left as it is: {"minutes"} until it is back to its minimum, or,

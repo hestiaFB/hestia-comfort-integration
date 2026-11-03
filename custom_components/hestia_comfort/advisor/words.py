@@ -33,7 +33,7 @@ TEXTS = {
         "safety_vigilance": "vigilance météo", "safety_away": "la maison est en mode absence", "safety_frost": "le gel est annoncé",
         "sun": "Soleil sur {window} de {start} à {end}", "sun_strong": "Grand soleil prévu sur {window} de {start} à {end}",
         "sun_now": "Soleil sur {window} jusqu'à {end}", "sun_now_strong": "Grand soleil sur {window} jusqu'à {end}",
-        "window": "la fenêtre {direction}", "windows": "les fenêtres {direction}", "window_plain": "les fenêtres",
+        "window": "la fenêtre {direction}", "windows": "les fenêtres {direction}", "window_plain": "les fenêtres", "and": " et ", "sun_gain": "{line} : +{gain} °C dans la pièce",
         "heat_on": "Rallumez le chauffage", "heat_to": "Remettez le chauffage à {target} °C",
         "heated": "Chauffage rallumé", "heated_to": "Chauffage à {target} °C",
         "shutter_close": "Baissez le volet", "shutter_open": "Ouvrez le volet", "shuttered": "Volet baissé", "unshuttered": "Volet ouvert",
@@ -85,7 +85,7 @@ TEXTS = {
         "safety_vigilance": "weather warning", "safety_away": "the home is set to away", "safety_frost": "frost is forecast",
         "sun": "Sun on {window} from {start} to {end}", "sun_strong": "Bright sun expected on {window} from {start} to {end}",
         "sun_now": "Sun on {window} until {end}", "sun_now_strong": "Bright sun on {window} until {end}",
-        "window": "the {direction} window", "windows": "the {direction} windows", "window_plain": "the windows",
+        "window": "the {direction} window", "windows": "the {direction} windows", "window_plain": "the windows", "and": " and ", "sun_gain": "{line}: +{gain} °C in the room",
         "heat_on": "Turn the heating back on", "heat_to": "Set the heating back to {target} °C",
         "heated": "Heating on", "heated_to": "Heating at {target} °C",
         "shutter_close": "Lower the shutter", "shutter_open": "Open the shutter", "shuttered": "Shutter down", "unshuttered": "Shutter open",
@@ -137,7 +137,7 @@ TEXTS = {
         "safety_vigilance": "Unwetterwarnung", "safety_away": "das Haus ist auf Abwesenheit gestellt", "safety_frost": "Frost ist angesagt",
         "sun": "Sonne auf {window} von {start} bis {end}", "sun_strong": "Viel Sonne erwartet auf {window} von {start} bis {end}",
         "sun_now": "Sonne auf {window} bis {end}", "sun_now_strong": "Viel Sonne auf {window} bis {end}",
-        "window": "dem Fenster nach {direction}", "windows": "den Fenstern nach {direction}", "window_plain": "den Fenstern",
+        "window": "dem Fenster nach {direction}", "windows": "den Fenstern nach {direction}", "window_plain": "den Fenstern", "and": " und ", "sun_gain": "{line}: +{gain} °C im Raum",
         "heat_on": "Heizung wieder einschalten", "heat_to": "Heizung wieder auf {target} °C stellen",
         "heated": "Heizung an", "heated_to": "Heizung auf {target} °C",
         "shutter_close": "Rollladen herunterlassen", "shutter_open": "Rollladen öffnen", "shuttered": "Rollladen unten", "unshuttered": "Rollladen offen",
@@ -345,13 +345,17 @@ def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
     words = TEXTS[language]
     v = tip.values
     if tip.kind == "sun":
-        if v["direction"] is None:
+        sides = [words[d] for d in v.get("directions") or ([v["direction"]] if v.get("direction") else [])]
+        if not sides:
             window = words["window_plain"]
         else:
-            window = words["windows" if v["windows"] > 1 else "window"].format(direction=words[v["direction"]])
+            listed = sides[0] if len(sides) == 1 else ", ".join(sides[:-1]) + words["and"] + sides[-1]
+            window = words["windows" if v["windows"] > 1 else "window"].format(direction=listed)
         going = now is not None and v["start"] <= now
         key = ("sun_now" if going else "sun") + ("_strong" if tip.level == REINFORCED else "")
-        return words[key].format(window=window, start=_time(v["start"], words), end=_time(v["end"], words))
+        line = words[key].format(window=window, start=_time(v["start"], words), end=_time(v["end"], words))
+        # What it does to the room, when known: the reason the line is there.
+        return words["sun_gain"].format(line=line, gain=_number(v["gain"], language)) if v.get("gain") is not None else line
     if tip.kind == "mist":
         return words["mist"].format(outdoor=_number(v["outdoor"], language))
     if tip.kind == "heating_rising":
