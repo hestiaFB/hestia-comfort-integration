@@ -14,6 +14,13 @@ Chaque changement du moteur monte son numéro et ajoute une ligne ci-dessous, la
 
 ## Historique
 
+### 3.0.1 — 3 novembre 2026
+
+- Un « plus tard » annoncé ne recule plus à chaque calcul : « Aérez 5 min vers 17 h 15 » reste 17 h 15 tant qu'aucun autre moment ne fait nettement mieux. Avant, le moment annoncé n'était jamais comparé (les moments comparés sont espacés d'un quart d'heure à partir de maintenant), et le Salon · Cuisine a dit « dans une heure » de 15 h à 18 h.
+- Un « même air » a le volume de toutes ses pièces : les surfaces déclarées du Salon et de la Cuisine s'additionnent. Avant, seule la pièce qui conseille comptait.
+- Une surface déclarée après coup refait les jumeaux à la bonne taille (les effets observés sont gardés, la nuit réapprend le reste). Avant, ils gardaient pour toujours les 40 m³ d'une pièce ordinaire : au labo, le CO₂ du Salon · Cuisine montait presque trois fois trop vite.
+- « À propos » le dit « 3.0.1 bêta » tant que la génération 3.0 n'a pas fait ses bêtas dans de vraies maisons (`BETA` dans `advisor/__init__.py`). Le numéro écrit dans les instantanés et le journal reste nu.
+
 ### 3.0.0 — 3 novembre 2026
 
 Le moteur entre dans l'intégration (étape C de `PASSAGE-CONFORT-3.md`). Il reprend tout ce qui a été mis au point au labo depuis le 31 octobre :

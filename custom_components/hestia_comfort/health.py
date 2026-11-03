@@ -9,7 +9,7 @@ from homeassistant.util import dt as dt_util
 
 from . import cover_link, weather_link
 from .socle import SOCLE_VERSION
-from .advisor import VERSION as ADVISOR_VERSION
+from .advisor import BETA as ADVISOR_BETA, VERSION as ADVISOR_VERSION
 from .engine import people, thermostat as thermostats
 from .engine.i18n import N_, language, t
 from .configuration import get_configuration
@@ -207,7 +207,7 @@ def report(f):
             "summary": _count(len(todo), "{n} point à régler", "{n} points à régler") if todo else t("Tout est suivi"),
             "tips_summary": _count(len(tips), "{n} réglage à améliorer", "{n} réglages à améliorer") if tips else "",
             "rooms_summary": _count(len(f.rooms), "{n} pièce suivie", "{n} pièces suivies"),
-            "todo": todo, "tips": tips, "sources": sources, "extensions": extensions, "others": others, "socle": ".".join(map(str, SOCLE_VERSION)), "advisor": ADVISOR_VERSION,
+            "todo": todo, "tips": tips, "sources": sources, "extensions": extensions, "others": others, "socle": ".".join(map(str, SOCLE_VERSION)), "advisor": t("{version} bêta", version=ADVISOR_VERSION) if ADVISOR_BETA else ADVISOR_VERSION,
             # The columns by key for the panel, by name for people: a translated name is never compared.
             "column_keys": [key for key, _ in COLUMNS], "columns": [t(label) for _, label in COLUMNS], "rooms": rooms, "versions": versions, "version": f.version}
 

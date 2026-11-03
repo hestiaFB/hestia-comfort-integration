@@ -61,7 +61,7 @@ EN: dict[str, str] = {
     "non suivi": "not followed", "non mesurés": "not measured", "{n} sur {total} ne répondent pas": "{n} of {total} not answering",
     "{n} contact": "{n} contact", "{n} contacts": "{n} contacts", "répond": "answering",
     "relié · {place}": "linked · {place}", "{n} pièce": "{n} room", "{n} pièces": "{n} rooms", "désactivée": "turned off",
-    "Intégration {version}": "Integration {version}", "avec sa carte": "with its card",
+    "Intégration {version}": "Integration {version}", "{version} bêta": "{version} beta", "avec sa carte": "with its card",
     "Relié à Hestia Weather · {place}": "Linked to Hestia Weather · {place}",
     "l’extérieur vient de sa station et de ses prévisions": "the outside comes from its station and its forecasts",
     "Pas relié à Hestia Weather": "Not linked to Hestia Weather", "installé : il peut remplir l’extérieur": "installed: it can fill in the outside",

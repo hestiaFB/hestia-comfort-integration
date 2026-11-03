@@ -635,7 +635,13 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # While the household sleeps, nobody gets up to open a window, unless it says it would (Frank, 31 October: « en plein
     # hiver, il y a très peu de chance que je laisse ouvert, même 20 min pour aérer en pleine nuit »): the night keeps
     # closing what was left open and the devices; a window for the night is said in the evening (`tonight`).
-    gestures = [g for g in candidates(now, twins, habits, comfort) if g.kind not in forbidden
+    pool = candidates(now, twins, habits, comfort)
+    # The moment said before, counted down (`aged`), is weighed as it stands: the moments compared are a quarter of an
+    # hour apart from now, so « vers 17 h 30 » was never among them and the best moment slid an hour ahead at every step,
+    # never to come (Salon · Cuisine, 3 November, 15 h to 18 h).
+    if previous is not None and previous.after and previous not in pool:
+        pool.append(previous)
+    gestures = [g for g in pool if g.kind not in forbidden
                 and not (g.kind == "open" and g.minutes is None and "open_long" in forbidden)
                 and not (g.kind in ("open", "open_more") and now.night and not habits.open_at_night)
                 and not (g.kind == "open_more" and "open" in forbidden)

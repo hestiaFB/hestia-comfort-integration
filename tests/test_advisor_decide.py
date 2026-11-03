@@ -101,6 +101,16 @@ class Gestures(unittest.TestCase):
         again = decide(TWINS, replace(now, co2=1590.0), day(outdoor=17.0), previous=first.gesture)
         self.assertEqual(again.gesture, first.gesture)
 
+    def test_a_moment_said_does_not_slide_an_hour_ahead(self):
+        # Salon · Cuisine, 3 November: « Aérez 5 min vers 16 h 10 » at 15 h 12, « … vers 18 h 15 » at 17 h 31, five
+        # minutes further at every step. The moment shown 5 minutes ago (in 55 min) was never weighed, only 45 and 60.
+        from advisor.snapshot import load, replay
+        snap = load(Path(__file__).parent / "fixtures" / "salon-cuisine-3-novembre-16h22.json")
+        decision, words = replay(snap)
+        self.assertEqual(decision.gesture, Gesture("open", 5, after=55))
+        self.assertEqual(decision.rule, "kept")
+        self.assertEqual(words["title"], "Aérez 5 min vers 17 h 15")
+
 
 class Steady(unittest.TestCase):
     """At most one change per half hour (CAHIER-MOTEUR.md § 18.3): 2 November, « Aérez 30 → 20 → 25 min » in twelve

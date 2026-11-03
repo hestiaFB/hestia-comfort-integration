@@ -78,6 +78,34 @@ class TheRoomFromConfortsSettings(unittest.TestCase):
         self.assertEqual((room["voc"], room["comfort"]["voc"]), ("sensor.cov", 150))
         self.assertEqual((room["comfort"]["minimum"], room["comfort"]["humidity"]), (19, 60))
 
+    def test_one_air_one_volume(self):
+        # Lab, 3 November: nothing declared, 40 m³ taken for the Salon · Cuisine; its CO₂ rose three times too fast.
+        self.assertIsNone(spec(salon(), {})["volume"])
+        SALON["room"], CUISINE["room"] = {"surface": 30.0}, {"surface": 12.0, "height": 2.4}
+        try:
+            self.assertAlmostEqual(spec(salon(), {})["volume"], 30.0 * 2.5 + 12.0 * 2.4)
+            del CUISINE["room"]
+            self.assertAlmostEqual(spec(salon(), {})["volume"], 75.0)
+        finally:
+            SALON.pop("room", None)
+            CUISINE.pop("room", None)
+
+    def test_twins_made_again_when_the_size_is_declared_later(self):
+        from custom_components.hestia_comfort.room.advice import _resized
+        coordinator = salon()
+        before = first_twins(spec(coordinator, {}), coordinator.hass, {})
+        self.assertEqual((before["volume"], before["air"]["volume"]), (40.0, 40.0))
+        self.assertFalse(_resized(before, spec(coordinator, {})))
+        SALON["room"] = {"surface": 44.03}
+        try:
+            room = spec(coordinator, {})
+            self.assertTrue(_resized(before, room))
+            # Twins kept from before the marker: their air's volume says what they were made for.
+            self.assertTrue(_resized({k: v for k, v in before.items() if k != "volume"}, room))
+            self.assertFalse(_resized(first_twins(room, coordinator.hass, {}), room))
+        finally:
+            SALON.pop("room", None)
+
     def test_a_voc_sensor_in_ppb_is_not_read_as_an_index(self):
         room = spec(salon({"sensor.cov": state("300", unit_of_measurement="ppb")}), {})
         self.assertIsNone(room["voc"])
@@ -87,7 +115,7 @@ class TheRoomFromConfortsSettings(unittest.TestCase):
         coordinator = salon()
         room = spec(coordinator, {"climate.poele": 8500.0})
         twins = first_twins(room, coordinator.hass, {"climate.poele": 8500.0})
-        self.assertEqual(set(twins) - {"heat", "gestures"}, {"water", "water_flow", "air", "air_flow", "voc", "voc_flow"})
+        self.assertEqual(set(twins) - {"heat", "gestures", "volume"}, {"water", "water_flow", "air", "air_flow", "voc", "voc_flow"})
         self.assertEqual(twins["heat"]["share"], 0.2)
         self.assertEqual(room_spec(room).windows, room["windows"])
 

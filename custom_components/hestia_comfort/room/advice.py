@@ -22,7 +22,7 @@ from ..advisor.decide import (SIGNIFICANT, Gesture, Now, Twins, aged, decide, fo
                               heating_off, main_subject, recent_sources, shutter_tonight, stove_idle, sun_gain, tonight)
 from ..advisor.feedback import declined, follow, pause_until
 from ..advisor.household import Habits
-from ..advisor.house import Opening as Declared, Room
+from ..advisor.house import ORDINARY_VOLUME, Opening as Declared, Room
 from ..advisor.knowing import RoomView, Window, tips
 from ..advisor.nightly import RoomSpec
 from ..advisor.physics.air import AirParams, ParticleParams
@@ -207,7 +207,9 @@ def spec(coordinator, houses: dict) -> dict:
             "boost": devices.get("ventilation_boost"), "purifier": devices.get("purifier"),
             "thermostat": thermostat, "thermostat_plage": plage, "thermostat_reference": own.get("thermostat_reference", True) is not False,
             "comfort": comfort, "foyer": own.get("foyer") or {},
-            "volume": built["surface"] * built.get("height", 2.5) if built.get("surface") else None,
+            # One air, one volume: the rooms sharing it add up what they declare (« Salon · Cuisine »).
+            "volume": sum(b["surface"] * b.get("height", 2.5) for b in (c.get("room") or {} for c in configs) if b.get("surface"))
+            or None,
             "walls": {"heavy": "heavy", "wood": "light"}.get(built.get("wall_material"))}
 
 
@@ -220,12 +222,21 @@ def first_twins(room: dict, hass, houses: dict) -> dict:
     heat = ordinary(declared)
     if houses:
         heat = replace(heat, share=HOUSE_SHARE)
-    entry = {"heat": asdict(heat), "gestures": {}}
+    # The volume they were made for: a size declared later on makes them again (`_resized`).
+    entry = {"heat": asdict(heat), "gestures": {}, "volume": declared.air}
     sensors = {"water": room["humidity"], "air": room["co2"], "particles": room["particles"], "voc": room["voc"]}
     for key, kind, _ in TWINS:
         if sensors[key]:
             entry[key], entry[f"{key}_flow"] = values(kind, first(kind), declared.air)
     return entry
+
+
+def _resized(learned: dict, room: dict) -> bool:
+    """The room's size declared, or changed, since its twins were made (lab, 3 November: 40 m³ kept for a 110 m³ air)."""
+    made = learned.get("volume") or next((learned[k]["volume"] for k, _, _ in TWINS if isinstance(learned.get(k), dict)
+                                          and learned[k].get("volume")), None)
+    wanted = room["volume"] or ORDINARY_VOLUME
+    return made is not None and abs(made - wanted) > 0.02 * wanted
 
 
 def room_spec(room: dict) -> RoomSpec:
@@ -272,6 +283,10 @@ class RoomAdvisor:
         kept = await self.store.async_load() or {}
         self.learned = kept.get("twins") or first_twins(self.room, self.hass, self.home.houses)
         self.learned_at, self.earlier, self.report = kept.get("learned_at"), kept.get("earlier") or [], kept.get("report")
+        if _resized(self.learned, self.room):
+            # Made again from the size declared, the effects seen kept; the night relearns the rest from the recorder.
+            self.learned = {**first_twins(self.room, self.hass, self.home.houses), "gestures": self.learned.get("gestures") or {}}
+            self.learned_at = None
         state = kept.get("state") or {}
         at = dt_util.parse_datetime(state["at"]) if state.get("at") else None
         now = dt_util.utcnow()
