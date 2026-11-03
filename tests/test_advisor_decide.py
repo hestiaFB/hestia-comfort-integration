@@ -118,7 +118,8 @@ class Gestures(unittest.TestCase):
         decision, words = replay(load(Path(__file__).parent / "fixtures" / "chambre-p-3-novembre-19h19.json"))
         self.assertEqual(decision.gesture, Gesture("close", after=10))
         self.assertEqual(words["subject"], "humidity")
-        self.assertIn("humidité", words["line"])
+        # What the card will show and when, not a difference to work out (« 13,6 points en moins »).
+        self.assertEqual(words["line"], "Vers 19 h 35 : 56 % d'humidité au lieu de 67 %, sans doute")
 
     def test_a_later_airing_for_the_cool_of_the_evening_is_for_the_outside(self):
         # The room at 26 °C, 27 °C outside now, 14 °C within the hour: twenty minutes in half an hour cool it better, and

@@ -57,7 +57,10 @@ const beyond=(a:Record<string,unknown>)=>/aucun geste ne ferait vraiment mieux|^
 export function slides3(x:Advisor3):Slide3[]{
   const a=x.attributes,gesture=str(a.geste)||'nothing',{level,pill}=level3(x);
   const proof=gesture!=='nothing'&&!['safety','overheat'].includes(str(a.regle))?PROOF[str(a.preuve)]:undefined;
-  return [{title:countdown(a)??x.title,line:str(a.phrase),disk:str(a.regle)==='safety'?'rain':str(a.regle)==='waiting'?'clock':DISKS[gesture]??'check',level,pill,learned:proof}];
+  // « Optimisé par l'apprentissage » only for an effect this room has shown: a probable one is said « sans doute » in the line
+  // (Chambre P, 3 November: the flask over a window it had never seen open).
+  return [{title:countdown(a)??x.title,line:str(a.phrase),disk:str(a.regle)==='safety'?'rain':str(a.regle)==='waiting'?'clock':DISKS[gesture]??'check',level,pill,
+    learned:str(a.preuve)==='proven'?proof:undefined}];
 }
 
 /** « À savoir » from the 3.0 decision: what to try and the night first, then what is worth watching, then the passive advice. */

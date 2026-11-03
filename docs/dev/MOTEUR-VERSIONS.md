@@ -14,6 +14,11 @@ Chaque changement du moteur monte son numéro et ajoute une ligne ci-dessous, la
 
 ## Historique
 
+### 3.0.3 — 3 novembre 2026
+
+- L'humidité se dit en valeur, à l'heure où le geste fait le plus : « Vers 19 h 35 : 56 % d'humidité au lieu de 67 % ». Avant : « 13,6 points d'humidité en moins », une différence à recalculer soi-même (Frank : « c'est vraiment difficile à comprendre »).
+- La carte n'affiche « Optimisé par l'apprentissage » que pour un effet avéré dans la pièce. Avant, elle l'affichait aussi pour un effet seulement probable : la Chambre P le portait pour une fenêtre jamais vue ouverte.
+
 ### 3.0.2 — 3 novembre 2026
 
 - « Plus tard » seulement pour ce que le dehors apporte (plus frais, plus sec, le soleil parti). Le moment tardif est rejoué avec le dehors figé : si la pièce seule explique qu'il batte la même aération maintenant, il est écarté. Avant, le CO₂ qui remonte d'ici la fin de la prévision (3 h) faisait paraître tout moment tardif meilleur, et le moment reculait sans jamais venir (Salon · Cuisine, 15 h à 18 h). « Aérez » vient quand aérer maintenant en vaut la peine.
