@@ -25,7 +25,7 @@ from ..advisor.household import Habits
 from ..advisor.house import ORDINARY_VOLUME, Opening as Declared, Room
 from ..advisor.knowing import RoomView, Window, tips
 from ..advisor.nightly import RoomSpec
-from ..advisor.opening import Opened, scaled, seen_share
+from ..advisor.opening import Opened, closed_cases, scaled, seen_share
 from ..advisor.physics.air import AirParams, ParticleParams
 from ..advisor.physics.airfit import TWINS, first, values
 from ..advisor.physics.fit import HOUR
@@ -407,6 +407,12 @@ class RoomAdvisor:
     def _opening(self, now, opened, air, humidity):
         """(since, air, humidity) of the opening under way, as this step first saw it; None when shut or not seen."""
         if not opened:
+            if self.opened_seen is not None:
+                # The airing just ended, kept as a gesture seen: the next one is judged on it (advisor/proof.py `belied`).
+                gestures = self.learned.setdefault("gestures", {})
+                for subject, (forecast, measured) in closed_cases(self.opened_seen, now, air, humidity).items():
+                    gestures.setdefault(subject, []).append([self.opened_seen.since.isoformat(), round(forecast, 3),
+                                                             round(measured, 3)])
             self.opening = self.opened_seen = None
             return None
         if self.opening is None:

@@ -73,6 +73,14 @@ class Nightly(unittest.TestCase):
         merged = _merge(kept, found, now - timedelta(days=2), now, now)
         self.assertEqual(merged, found)     # October is older than 60 days; the 30th was seen again
 
+    def test_an_airing_the_night_cannot_read_again_is_kept(self):
+        # Noted as it ended (advisor/opening.py), then a gap in the recorder: the night does not find it, it stays.
+        now = datetime(2026, 11, 4, 3, 30, tzinfo=timezone.utc)
+        noted = [["2026-11-03T18:19:00+00:00", -2.0, 0.25]]
+        self.assertEqual(_merge(noted, [], now - timedelta(days=3), now, now), noted)
+        found = [["2026-11-03T18:15:00+00:00", -1.9, 0.2]]
+        self.assertEqual(_merge(noted, found, now - timedelta(days=3), now, now), found)
+
 
 if __name__ == "__main__":
     unittest.main()

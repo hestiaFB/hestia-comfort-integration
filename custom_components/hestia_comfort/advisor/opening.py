@@ -60,3 +60,24 @@ def scaled(twins, share: float):
         return (pair[0], pair[1] * share)
     return replace(twins, heat=replace(twins.heat, window=twins.heat.window * share), water_flow=flow(twins.water_flow),
                    air_flow=flow(twins.air_flow), particles_flow=flow(twins.particles_flow), voc_flow=flow(twins.voc_flow))
+
+
+def closed_cases(opened: Opened, now: datetime, air: float, humidity: float | None) -> dict[str, tuple[float, float]]:
+    """The airing just ended, as a gesture seen: {subject: (forecast change, measured change)} of the air (°C) and of its
+    water (g/m³), the nightly learning's own measures (advisor/nightly.py). Kept at once, so that the next airing is judged
+    on it without waiting for the night (Frank, 3 November: « il vient d'apprendre tout seul que cette action n'a rien
+    amené ? »). Too short an airing, or a forecast too small to be read, says nothing."""
+    minutes = (now - opened.since).total_seconds() / 60
+    k = min(int(round(minutes * 60 / STEP)) - 1, len(opened.forecast_air) - 1)
+    if minutes < OBSERVE_MINUTES or k < 0:
+        return {}
+    out = {}
+    told = opened.forecast_air[k] - opened.air
+    if abs(told) >= HEAT_READ:
+        out["heat"] = (told, air - opened.air)
+    if humidity is not None and opened.humidity is not None and len(opened.forecast_humidity) > k:
+        then = absolute(opened.air, opened.humidity)
+        told = absolute(opened.forecast_air[k], opened.forecast_humidity[k]) - then
+        if abs(told) >= WATER_READ:
+            out["humidity"] = (told, absolute(air, humidity) - then)
+    return out

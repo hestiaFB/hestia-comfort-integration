@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components" / "hestia_comfort"))
 from advisor.decide import Gesture, decide
 from advisor.knowing import RoomView, window_weak
-from advisor.opening import OBSERVE_MINUTES, Opened, scaled, seen_share
+from advisor.opening import OBSERVE_MINUTES, Opened, closed_cases, scaled, seen_share
 from advisor.snapshot import load, replay, restore
 from advisor.words import tip_text
 
@@ -44,6 +44,19 @@ class SeenAtWork(unittest.TestCase):
         k = 2   # fifteen minutes on
         share = seen_share(opened, OPENED + timedelta(minutes=15), opened.forecast_air[k], opened.forecast_humidity[k])
         self.assertAlmostEqual(share, 1.0, places=2)
+
+    def test_the_airing_ended_is_kept_as_a_gesture_that_belies_the_twin(self):
+        # Shut at 19 h 36, seventeen minutes on: the air barely cooled, its water went up instead of down.
+        from advisor.proof import SUPPOSED, level
+        _, opened = chambre_p()
+        cases = closed_cases(opened, OPENED + timedelta(minutes=17), 18.1, 69.0)
+        forecast, measured = cases["humidity"]
+        self.assertLess(forecast, -1.0)
+        self.assertGreater(measured, 0.0)
+        self.assertLess(cases["heat"][1] / cases["heat"][0], 0.5)
+        # With the evening's second airing (40 min, a quarter of the forecast), the next one is no longer put forward.
+        self.assertEqual(level([cases["humidity"], (-2.4, -0.6)], reinforced=True), SUPPOSED)
+        self.assertEqual(closed_cases(opened, OPENED + timedelta(minutes=5), 18.1, 69.0), {})
 
     def test_said_in_good_to_know(self):
         view = RoomView(OPENED + timedelta(minutes=15), 43.4, 5.5, air=18.1, humidity=69.0, opened_at=OPENED,

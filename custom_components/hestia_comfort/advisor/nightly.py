@@ -98,9 +98,17 @@ def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zo
     return rows
 
 
+# A gesture kept is the same as one found again within this much: the airing noted as it ended (advisor/opening.py), and the
+# night's own reading of it.
+SAME_GESTURE = timedelta(minutes=30)
+
+
 def _merge(kept, found, start, end, now):
-    """The gestures remembered: those seen again between `start` and `end` replace the old ones there."""
-    out = [g for g in kept or () if g[0] and not start.isoformat() <= g[0] <= end.isoformat()]
+    """The gestures remembered: those seen again between `start` and `end` replace the old ones there; one the night cannot
+    read again (a gap in the recorder) is kept as it was noted."""
+    again = [datetime.fromisoformat(g[0]) for g in found]
+    out = [g for g in kept or () if g[0] and (not start.isoformat() <= g[0] <= end.isoformat()
+                                              or not any(abs(datetime.fromisoformat(g[0]) - t) < SAME_GESTURE for t in again))]
     out += found
     limit = (now - KEEP).isoformat()
     return sorted((g for g in out if g[0] >= limit), key=lambda g: g[0])

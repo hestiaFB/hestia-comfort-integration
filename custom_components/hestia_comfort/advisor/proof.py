@@ -30,6 +30,23 @@ def learned(cases) -> bool:
     return forecast != 0 and LOW <= measured / forecast <= HIGH
 
 
+# Belied: at least this many gestures whose measured effect, on average, came under LOW of the one forecast — or went the
+# other way. The window then promises less than the moment says (Chambre P, 3 November: two airings, the humidity back
+# where it was ten minutes after shutting): the effect goes back to supposed, a passive « À essayer », whatever the
+# moment backs, until the gestures say otherwise.
+BELIED = 2
+
+
+def belied(cases) -> bool:
+    """Whether past gestures belie the effect the twin gives: measured far under the forecast, or the other way."""
+    cases = [(f, m) for f, m in cases if f is not None and m is not None]
+    if len(cases) < BELIED:
+        return False
+    forecast = sum(f for f, _ in cases) / len(cases)
+    measured = sum(m for _, m in cases) / len(cases)
+    return forecast != 0 and measured / forecast < LOW
+
+
 def live(change: float | None, direction: float, significant: float, minutes: float | None) -> bool:
     """Whether the gesture under way shows its effect now: `change`, the measure since it began; `direction`, the sign
     the twin forecasts for it; `significant`, the subject's significant gap."""
@@ -53,7 +70,10 @@ def window_reinforced(subject: str, air: float, outdoor: float, water: float | N
 
 
 def level(cases=(), reinforced: bool = False, seen: bool = False) -> str:
-    """The effect's level: proven when learned or seen now, reinforced when the moment backs it, supposed otherwise."""
+    """The effect's level: proven when learned or seen now, supposed when the gestures belie it, reinforced when the moment
+    backs it, supposed otherwise."""
     if seen or learned(cases):
         return PROVEN
+    if belied(cases):
+        return SUPPOSED
     return REINFORCED if reinforced else SUPPOSED

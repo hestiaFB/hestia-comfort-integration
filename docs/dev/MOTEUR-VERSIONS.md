@@ -14,6 +14,12 @@ Chaque changement du moteur monte son numéro et ajoute une ligne ci-dessous, la
 
 ## Historique
 
+### 3.0.6 — 3 novembre 2026
+
+- L'humidité se dit une heure après la fermeture de la fenêtre, et non au plus bas de l'aération : les murs et la literie rechargent l'air en quelques minutes (Chambre P, 3 novembre : 66 % fenêtre ouverte, 69 % dix minutes après l'avoir refermée). Si rien ne reste, la carte dit « l'humidité baisse pendant l'aération, puis revient ».
+- Un effet démenti par les gestes redescend à « supposé » : deux aérations au moins dont l'effet mesuré fait moins de la moitié du prévu, ou va dans l'autre sens (`proof.belied`). Le geste passe en « À essayer » au lieu du bandeau, même si l'air de dehors est plus sec. Avant, une preuve ne pouvait que monter.
+- L'aération qui se termine est notée tout de suite comme geste vu (prévu, mesuré), sans attendre la nuit (`opening.closed_cases`). La nuit ne l'efface plus si un trou de l'historique l'empêche de la relire.
+
 ### 3.0.5 — 3 novembre 2026
 
 - La fenêtre ouverte est regardée au travail (`advisor/opening.py`). Au premier pas où elle est vue ouverte, le moteur garde ce que le jumeau lui prête. Dix minutes plus tard, il compare à la mesure : la température d'abord, l'eau de l'air si la température bouge trop peu. Le reste de l'aération est jugé avec la part réellement faite (0 à 1,5 fois la prévision). Chambre P, 3 novembre, un battant entrouvert : 12 % de la prévision. « Laissez ouvert encore 10 min · 13,6 points d'humidité en moins » devient « Rien à faire », avec en « Bon à savoir » : « Ouverte depuis 19 h 19 : 18,2 → 18,1 °C, 67 → 69 % : elle renouvelle peu l'air ». La part est notée dans le journal (`part_fenetre`).

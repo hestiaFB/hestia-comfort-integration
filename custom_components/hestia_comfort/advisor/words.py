@@ -18,7 +18,7 @@ TEXTS = {
         "nothing": "Rien à faire", "close": "Refermez", "open": "Aérez {minutes} min", "open_long": "Ouvrez",
         "close_later": "Refermez vers {at}", "open_later": "Aérez {minutes} min vers {at}", "close_soon": "Laissez ouvert encore {after} min", "open_more": "Ouvrez aussi {which} {minutes} min", "open_more_plain": "les autres fenêtres", "opened_more": "Ouvertes des deux côtés {minutes} min", "instead": "{line} au lieu de {minutes}",
         "heat": "vous gardez {value} °C d'ici {hour} h", "heat_open": "{value} °C de mieux d'ici {hour} h",
-        "humidity": "{chosen} % d'humidité au lieu de {idle} %", "humidity_at": "Vers {at} : {chosen} % d'humidité au lieu de {idle} %", "co2": "l'air redevient sain en {minutes} min",
+        "humidity": "{chosen} % d'humidité au lieu de {idle} %", "humidity_at": "Vers {at} : {chosen} % d'humidité au lieu de {idle} %", "humidity_brief": "l'humidité baisse pendant l'aération, puis revient", "co2": "l'air redevient sain en {minutes} min",
         "particles": "les particules retombent en {minutes} min", "voc": "le COV retombe en {minutes} min", "energy": "{value} kWh de chauffage économisés",
         "mould": "moins de risque de moisissure sur les murs froids",
         "sure": "{line}", "unsure": "{line}, sans doute",
@@ -75,7 +75,7 @@ TEXTS = {
         "nothing": "Nothing to do", "close": "Close", "open": "Air for {minutes} min", "open_long": "Open",
         "close_later": "Close around {at}", "open_later": "Air {minutes} min around {at}", "close_soon": "Leave it open {after} more min", "open_more": "Open {which} too for {minutes} min", "open_more_plain": "the other windows", "opened_more": "Open on both sides {minutes} min", "instead": "{line} instead of {minutes}",
         "heat": "you keep {value} °C until {hour}:00", "heat_open": "{value} °C better by {hour}:00",
-        "humidity": "{chosen}% humidity instead of {idle}%", "humidity_at": "Around {at}: {chosen}% humidity instead of {idle}%", "co2": "the air is fresh again in {minutes} min",
+        "humidity": "{chosen}% humidity instead of {idle}%", "humidity_at": "Around {at}: {chosen}% humidity instead of {idle}%", "humidity_brief": "the humidity drops while airing, then comes back", "co2": "the air is fresh again in {minutes} min",
         "particles": "the particles settle in {minutes} min", "voc": "the VOC falls back in {minutes} min", "energy": "{value} kWh of heating saved",
         "mould": "less risk of mould on the cold walls",
         "sure": "{line}", "unsure": "{line}, most likely",
@@ -132,7 +132,7 @@ TEXTS = {
         "nothing": "Nichts zu tun", "close": "Schließen", "open": "{minutes} Min. lüften", "open_long": "Öffnen",
         "close_later": "Gegen {at} schließen", "open_later": "Gegen {at} {minutes} Min. lüften", "close_soon": "Noch {after} Min. offen lassen", "open_more": "Auch {which} {minutes} Min. öffnen", "open_more_plain": "die anderen Fenster", "opened_more": "Auf beiden Seiten offen {minutes} Min.", "instead": "{line} statt in {minutes}",
         "heat": "Sie behalten {value} °C bis {hour} Uhr", "heat_open": "{value} °C besser bis {hour} Uhr",
-        "humidity": "{chosen} % Feuchte statt {idle} %", "humidity_at": "Gegen {at}: {chosen} % Feuchte statt {idle} %", "co2": "die Luft ist in {minutes} Min. wieder frisch",
+        "humidity": "{chosen} % Feuchte statt {idle} %", "humidity_at": "Gegen {at}: {chosen} % Feuchte statt {idle} %", "humidity_brief": "die Feuchte sinkt beim Lüften und steigt danach wieder", "co2": "die Luft ist in {minutes} Min. wieder frisch",
         "particles": "die Partikel setzen sich in {minutes} Min.", "voc": "die VOC sinken in {minutes} Min.", "energy": "{value} kWh Heizenergie gespart",
         "mould": "weniger Schimmelgefahr an kalten Wänden",
         "sure": "{line}", "unsure": "{line}, voraussichtlich",
@@ -186,6 +186,17 @@ TEXTS = {
 STEP_MINUTES = 5
 # A window shut within this many minutes is « Laissez ouvert encore 10 min »; later, « Refermez vers 16 h ».
 SOON = 60
+
+
+def _lasting(gesture: Gesture, steps: int) -> int:
+    """The step an hour after the gesture ends (the window shut again), within the forecast."""
+    if gesture.kind == "close":
+        end = gesture.after or 0
+    elif gesture.minutes:
+        end = (gesture.after or 0) + gesture.minutes
+    else:
+        return steps - 1
+    return max(0, min(steps - 1, (end + 60) // STEP_MINUTES - 1))
 
 
 def subject_of(decision: Decision) -> str | None:
@@ -287,11 +298,14 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             gain = chosen.air[-1] - idle.air[-1]
             line = words["heat" if gesture.kind in ("close", "shutter_close") else "heat_open"].format(value=_number(abs(gain), language), hour=end_hour)
         elif subject == "humidity" and chosen.humidity and idle.humidity:
-            # What the card will show, at the moment the gesture makes the most difference: « 13,6 points en moins » left
-            # one to work out what from (Frank, 3 November: « c'est vraiment difficile à comprendre »).
-            k = max(range(min(len(idle.humidity), len(chosen.humidity))), key=lambda j: idle.humidity[j] - chosen.humidity[j])
+            # What the card will show an hour after the window is shut again: what stays, not the airing's own low, which
+            # the walls and the bedding fill back within minutes (Chambre P, 3 November: 66 % open, 69 % ten minutes
+            # after shutting), nor a difference to work out (« 13,6 points en moins »).
+            k = _lasting(gesture, min(len(idle.humidity), len(chosen.humidity)))
             values = {"chosen": round(chosen.humidity[k]), "idle": round(idle.humidity[k])}
-            if hour is not None:
+            if values["idle"] - values["chosen"] < 1:
+                line = words["humidity_brief"]
+            elif hour is not None:
                 at = round((hour * 60 + (k + 1) * STEP_MINUTES) / 5) * 5 % (24 * 60)
                 line = words["humidity_at"].format(at=_time(time(at // 60, at % 60), words), **values)
             else:

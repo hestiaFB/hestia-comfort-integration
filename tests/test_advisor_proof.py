@@ -154,3 +154,17 @@ class OutsideWater(unittest.TestCase):
         self.assertEqual(wetter.kind, "outside_wetter")
         [same] = outside_water(replace(view, outdoor=15.0, outdoor_humidity=80.0))
         self.assertEqual(same.kind, "outside_same")
+
+
+class Belied(unittest.TestCase):
+    def test_airings_that_did_not_dry_bring_the_effect_back_to_supposed(self):
+        # Chambre P, 3 November: two airings forecast to take 2 g/m³ of water from the air; an hour on, 0.2 and +0.1.
+        from advisor.proof import belied
+        cases = [(-2.0, -0.2), (-2.1, 0.1)]
+        self.assertTrue(belied(cases))
+        self.assertEqual(level(cases, reinforced=True), SUPPOSED)
+        # One airing is not enough to belie it; airings that did as forecast prove it.
+        self.assertEqual(level(cases[:1], reinforced=True), REINFORCED)
+        self.assertEqual(level([(-2.0, -1.8)] * 3, reinforced=True), PROVEN)
+        # Seen working now, it is proven for this airing, whatever the past ones did.
+        self.assertEqual(level(cases, reinforced=True, seen=True), PROVEN)
