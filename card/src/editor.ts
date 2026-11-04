@@ -2,14 +2,14 @@ import {LitElement,html,css,nothing} from 'lit';
 import {property,state} from 'lit/decorators.js';
 import {SECTIONS,SECTION_LABELS,SHOWN_SECTIONS,FOLDED_SECTIONS} from './views/homeboard';
 import {t,th,fr,setLanguage} from './i18n';
-import {cleanConfig,cleanHomeConfig,KINDS,kindOf,type Kind,type Format,MODULES,moduleLabels,SCALE_MARKS,CHIPS,TILE_BLOCKS,HORIZON_SUBJECTS,INSIGHT_TOPICS,DETAIL_ROWS,homeAction,type Config,type HomeConfig,type HomeAssistant,type Entry} from './types';
+import {cleanConfig,cleanHomeConfig,KINDS,kindOf,type Kind,type Format,MODULES,SCALE_MARKS,CHIPS,TILE_BLOCKS,HORIZON_SUBJECTS,INSIGHT_GROUPS,DETAIL_ROWS,homeAction,type Config,type HomeConfig,type HomeAssistant,type Entry} from './types';
 
 /* The editors are built like Hestia Weather's: the room (or title) and the format on top, then folding groups that
    change with the format. The theme follows Home Assistant: it is no longer offered. */
 type Item={name:string;title?:string};
 const toggle=(name:string)=>({name,selector:{boolean:{}}});
 const group=(title:string,icon:string,schema:unknown[],expanded=false)=>({type:'expandable',name:'',title:t(title),icon,flatten:true,expanded,schema});
-const choices=(name:string,options:[string,string][])=>({name,selector:{select:{multiple:true,reorder:true,mode:'list',options:options.map(([value,label])=>({value,label:t(label)}))}}});
+const choices=(name:string,options:[string,string][],reorder=true)=>({name,selector:{select:{multiple:true,reorder,mode:'list',options:options.map(([value,label])=>({value,label:t(label)}))}}});
 const dropdown=(name:string,options:[string,string][])=>({name,required:true,selector:{select:{mode:'dropdown',options:options.map(([value,label])=>({value,label:t(label)}))}}});
 const look=(expanded=true)=>group(fr('Apparence'),'mdi:palette-outline',[toggle('animations'),toggle('glass_effect')],expanded);
 /** On a full card, the full card in a window would show itself again: only a page, or nothing. */
@@ -17,17 +17,25 @@ const hold=(action:string,full=false)=>group(fr('Appui long'),'mdi:gesture-tap-h
   dropdown('hold_action',full?[['none',fr('Rien')],['page',fr('Ouvrir une page')]]:[['popup',fr('Ouvrir la carte complète en fenêtre')],['page',fr('Ouvrir une page')],['none',fr('Rien')]]),
   ...(action==='page'?[{name:'hold_path',selector:{text:{}}}]:[])]);
 const chipOptions:[string,string][]=[['temperature',fr('Température')],['humidity',fr('Humidité')],['co2','CO₂']];
-const topicOptions:[string,string][]=[['humidity',fr('Humidité')],['heating',fr('Chauffage')],['sun',fr('Soleil')],['windows',fr('Fenêtres et aération')],['equipment',fr('Équipements (purificateur, VMC)')],
-  ['household',fr('Personnes et alarme')],['forecast',fr('Prévisions (cette nuit)')],['learning',fr('Apprentissage (dernière aération)')]];
 const detailOptions:[string,string][]=[['range',fr('Plage de confort')],['slot',fr('Créneau conseillé')],['windows',fr('Fenêtres')],['shutters',fr('Volets')],['people',fr('Présence, personnes, alarme')],
   ['drying',fr('Séchage et buée')],['trend',fr('Tendance')],['sensors',fr('Capteurs et sources')]];
-/** The four sections of the card, in its order: the same number in the editor and on the card. */
-// The advice itself is the card: it is never switched off. The scale and the graph are shown or not, nothing more.
-const scaleToggle={name:'show_scale',title:fr('Échelle de température'),selector:{boolean:{}}};
+/* The five sections of the full card, in its order and with its words (4 November): the banner, « À savoir », « Maintenant »,
+   « À venir », « Détails ». Only what changes the card is offered; the advice itself is never switched off. */
+const scaleToggle={name:'show_scale',selector:{boolean:{}}};
 const horizonMode=dropdown('horizon_mode',[['needed',fr('Seulement quand il aide le conseil')],['always',fr('Toujours (la tendance sans conseil)')]]);
-const banner=(expanded=true)=>group(fr('1 · Bandeau conseil'),'mdi:numeric-1-circle',[toggle('rotate'),scaleToggle,toggle('show_horizon'),horizonMode],expanded);
-const insights=()=>group(fr('2 · À savoir'),'mdi:numeric-2-circle',[toggle('show_insights'),choices('insight_topics',topicOptions),{name:'insight_max',selector:{number:{min:1,max:8,mode:'slider'}}}]);
-const details=()=>group(fr('4 · Détails techniques'),'mdi:numeric-4-circle',[toggle('show_details'),choices('detail_rows',detailOptions),toggle('details_open')]);
+const subjects=choices('horizon_subjects',[['temperature',fr('Température')],['humidity',fr('Humidité')]],false);
+/** The cases of « Maintenant », as the card names them; the temperature's is always there. */
+const caseOptions:[string,string][]=[['humidity',fr('Humidité')],['air',fr('Air : CO₂, COV, particules, purificateur, VMC')],['windows',fr('Ouvertures : les fenêtres')],
+  ['shutters',fr('Ouvertures : soleil et volets')],['coordination',fr('Chauffage')]];
+const cases=choices('modules',caseOptions,false);
+const sectionsOf=(tile:boolean)=>[
+  group(fr('1 · Bandeau'),'mdi:numeric-1-circle',[{name:'title',selector:{text:{}}}],!tile),
+  group(fr('2 · À savoir'),'mdi:numeric-2-circle',[toggle('show_insights'),choices('insight_groups',[['gesture',fr('Pour le geste')],['watch',fr('À surveiller')],['know',fr('Bon à savoir')]],false),
+    {name:'insight_max',selector:{number:{min:1,max:8,mode:'slider'}}}]),
+  // On the tile, « Contenu de la tuile dépliée » says which sections unfold: no second switch here.
+  group(fr('3 · Maintenant'),'mdi:numeric-3-circle',[...(tile?[]:[toggle('show_measures')]),cases,scaleToggle]),
+  group(fr('4 · À venir'),'mdi:numeric-4-circle',[...(tile?[]:[toggle('show_horizon')]),subjects]),
+  group(fr('5 · Détails'),'mdi:numeric-5-circle',[...(tile?[]:[toggle('show_details')]),choices('detail_rows',detailOptions),toggle('details_open')])];
 /** One choice per air: rooms open onto each other are offered once, as « Salon · Cuisine ». A card already set on one of
     them keeps its room as the value, so that nothing moves. */
 export function roomChoices(entries:Entry[],current?:string):{value:string;label:string}[] {
@@ -43,29 +51,33 @@ export function roomChoices(entries:Entry[],current?:string):{value:string;label
   return out.sort((a,b)=>a.label.localeCompare(b.label));
 }
 const labels:Record<string,string>={entry_id:fr('Pièce'),piece_style:fr('Version'),title:fr('Titre facultatif'),format:fr('Format'),animations:fr('Animations'),glass_effect:fr('Effet verre dépoli'),
-  rotate:fr('Faire défiler les conseils'),banner_blocks:fr('Contenu du bandeau'),scale_marks:fr('Repères de l’échelle'),modules:fr('Rubriques'),measures_open:fr('Mesures dépliées au départ'),
+  rotate:fr('Faire défiler les conseils'),banner_blocks:fr('Contenu du bandeau'),scale_marks:fr('Repères de l’échelle'),modules:fr('Cases'),measures_open:fr('Mesures dépliées au départ'),
   show_details:fr('Afficher la section'),details_open:fr('Dépliés au départ'),show_measures:fr('Afficher la section'),show_insights:fr('Afficher la section'),
-  show_horizon:fr('Graphique « Prochaines heures »'),horizon_mode:fr('Quand l’afficher'),horizon_subjects:fr('Sujets du graphique'),insight_topics:fr('Sujets'),insight_max:fr('Lignes au plus'),detail_rows:fr('Lignes'),tile_chips:fr('Pastilles de la tuile repliée'),tile_blocks:fr('Contenu de la tuile dépliée'),
-  mini_values:fr('Valeurs de la ligne'),hold_action:fr('Appui long'),hold_path:fr('Page à ouvrir'),show_scale:fr('Échelle des pièces'),show_rooms:fr('Section Pièces'),sections:fr('Sections affichées'),folded:fr('Dans « Plus de détails »'),more_open:fr('« Plus de détails » déplié au départ'),period:fr('Période au départ'),rooms_open:fr('Pièces dépliées au départ'),
+  show_horizon:fr('Afficher la section'),horizon_mode:fr('Quand l’afficher'),horizon_subjects:fr('Sujets'),insight_groups:fr('Rubriques'),insight_max:fr('Lignes au plus'),detail_rows:fr('Lignes'),tile_chips:fr('Pastilles de la tuile repliée'),tile_blocks:fr('Contenu de la tuile dépliée'),
+  mini_values:fr('Valeurs de la ligne'),hold_action:fr('Appui long'),hold_path:fr('Page à ouvrir'),show_scale:fr('Échelle dans la case Température'),show_rooms:fr('Section Pièces'),sections:fr('Sections affichées'),folded:fr('Dans « Plus de détails »'),more_open:fr('« Plus de détails » déplié au départ'),period:fr('Période au départ'),rooms_open:fr('Pièces dépliées au départ'),
   list_order:fr('Ordre des pièces')};
 const helpers:Record<string,string>={
   animations:fr('Coupées, la lumière et l’anneau restent fixes et les conseils ne défilent plus seuls.'),
   glass_effect:fr('Le flou demande beaucoup de ressources : à couper sur un appareil lent. Coupé, le verre devient plus opaque.'),
   rotate:fr('Toutes les 4,5 s ; décoché, ils changent d’un appui.'),
-  show_horizon:fr('Sous l’échelle : la pièce sans le geste et avec, et quand le faire.'),
+  title:fr('En tête du bandeau ; vide, le nom de la pièce.'),
+  show_horizon:fr('Une case par sujet quand la prévision sort de votre plage ou qu’un geste la change, puis le prochain geste et la pluie annoncée.'),
   horizon_mode:fr('« Seulement quand il aide » : la carte change de taille en douceur. « Toujours » : sans geste à montrer, la température prévue sans rien faire.'),
-  horizon_subjects:fr('Deux sujets : un onglet chacun, celui du conseil d’abord.'),insight_topics:fr('Ce qui explique le conseil, sous le bandeau. Faites glisser pour l’ordre de préférence.'),
+  horizon_subjects:fr('Ceux à prévoir dans les prochaines 24 h.'),
+  insight_groups:fr('Pour le geste : à essayer, cette nuit, mis de côté. À surveiller : une mesure qui semble fausse. Bon à savoir : le reste.'),
+  insight_max:fr('Dans l’ordre des rubriques ; 8 les montre toutes.'),
+  show_scale:fr('Trop frais, votre plage, trop chaud, sous le ressenti.'),
   detail_rows:fr('Pour comprendre et vérifier. Tout décocher vide la section.'),
   banner_blocks:fr('Le conseil du moment reste toujours. Cochez ce qui défile après lui, dans l’ordre.'),
-  scale_marks:fr('Tout décocher retire l’échelle.'),modules:fr('Tout décocher retire la section ; faites glisser pour l’ordre.'),
+  scale_marks:fr('Tout décocher retire l’échelle.'),modules:fr('La température reste toujours ; tout décocher ne garde qu’elle.'),
   measures_open:fr('Repliées, les mesures à surveiller restent visibles.'),
-  tile_chips:fr('Sous le conseil ; une mesure à surveiller passe en ambre.'),tile_blocks:fr('Ce qui s’ouvre d’un appui, dans l’ordre.'),
+  tile_chips:fr('Sous le conseil ; une mesure à surveiller passe en ambre. La température est déjà à droite du bandeau.'),tile_blocks:fr('Ce qui s’ouvre d’un appui, sous « À savoir ».'),
   mini_values:fr('À droite du conseil.'),hold_action:fr('La carte complète par-dessus la page, une page de votre tableau de bord, ou rien.'),
   hold_path:fr('Le chemin de la page, par exemple /confort ou /lovelace/confort.'),rooms_open:fr('Repliées, les pièces qui demandent un geste restent visibles.'),
   folded:fr('Les sections cochées ici passent dans la partie dépliable, sous les autres.')};
 /** Each format: its icon, its name and what it shows. */
 const FORMAT_INFO:Record<Format,[string,string,string]>={
-  full:['mdi:page-layout-body',fr('Complète'),fr('toute la pièce, ouverte : conseil, maintenant, prochaines heures, détails')],
+  full:['mdi:page-layout-body',fr('Complète'),fr('toute la pièce, ouverte : bandeau, à savoir, maintenant, à venir, détails')],
   intermediate:['mdi:dock-bottom',fr('Intermédiaire'),fr('la tuile, dépliée au départ')],
   tile:['mdi:dock-window',fr('Tuile dépliable'),fr('le conseil et quelques valeurs ; un appui la déplie')],
   temperature:['mdi:thermometer',fr('Température'),fr('valeur, tendance, échelle et plage')],
@@ -141,22 +153,21 @@ export class ComfortEditor extends LitElement {
       {value:'large',label:t('Grandes cartes : la complète et la tuile dépliable')},
       {value:'piece',label:t('À la carte : température, humidité, air, ouvertures, chauffage, prochaines heures')},
       {value:'small',label:t('Petites cartes : une ligne ou une alerte')}]}}};
-    const head=[...rooms,{name:'title',selector:{text:{}}},kinds];
+    // The big cards name themselves in their banner's section; the others right here.
+    const head=[...rooms,...(kindOf(f)==='large'?[]:[{name:'title',selector:{text:{}}}]),kinds];
     const pieceStyle={name:'piece_style',selector:{select:{mode:'list',options:[{value:'detailed',label:t('Détaillée : le module de la carte complète, avec ses chiffres')},{value:'compact',label:t('Compacte : la mesure, sa tendance et sa courbe')}]}}};
-    const rubriques=choices('modules',MODULES.filter(m=>m!=='temperature').map(m=>[m,moduleLabels[m]]));
     if(f==='mini')return [...head,look(),group(fr('Contenu de la ligne'),'mdi:view-list-outline',[choices('mini_values',chipOptions)],true),hold(action)];
-    if(f==='alert')return [...head,look(),group(fr('Bandeau'),'mdi:view-day-outline',[toggle('rotate')],true),hold(action)];
-    if(f==='measures')return [...head,look(),group(fr('Contenu'),'mdi:view-grid-outline',[rubriques,scaleToggle],true),hold(action)];
+    if(f==='alert')return [...head,look(),hold(action)];
+    if(f==='measures')return [...head,look(),group(fr('Contenu'),'mdi:view-grid-outline',[cases,scaleToggle],true),hold(action)];
     if(f==='temperature')return [...head,pieceStyle,look(),group(fr('Contenu'),'mdi:view-grid-outline',[scaleToggle],true),hold(action)];
-    if(f==='horizon')return [...head,look(),group(fr('Contenu'),'mdi:view-grid-outline',[horizonMode,choices('horizon_subjects',[['temperature',fr('Température')],['humidity',fr('Humidité')]])],true),hold(action)];
+    if(f==='horizon')return [...head,look(),group(fr('Contenu'),'mdi:view-grid-outline',[horizonMode,subjects],true),hold(action)];
     if(kindOf(f)==='piece')return [...head,pieceStyle,look(),hold(action)];
-    // The tile keeps its spirit: the advice and its chips, then what unfolds; each section keeps its own settings.
+    // The tile: folded, the banner and its chips; a tap unfolds « À savoir » and the sections ticked here.
     if(f==='tile'||f==='intermediate')return [...head,
-      group(fr('Tuile : bandeau et partie dépliable'),'mdi:view-day-outline',[choices('tile_chips',chipOptions),choices('tile_blocks',[['scale',fr('Échelle de température')],['horizon',fr('Graphique « Prochaines heures »')],['measures',fr('Mesures')],['details',fr('Détails techniques')]])],true),
-      banner(false),insights(),group(fr('3 · Mesures'),'mdi:numeric-3-circle',[rubriques]),details(),look(false),hold(action)];
-    return [...head,banner(),insights(),
-      group(fr('3 · Mesures'),'mdi:numeric-3-circle',[toggle('show_measures'),rubriques,toggle('measures_open')]),
-      details(),look(false)];
+      group(fr('Tuile'),'mdi:view-day-outline',[choices('tile_chips',chipOptions.filter(([k])=>k!=='temperature'),false),
+        choices('tile_blocks',[['measures',fr('Maintenant')],['horizon',fr('À venir')],['details',fr('Détails')]],false)],true),
+      ...sectionsOf(true),look(false),hold(action)];
+    return [...head,...sectionsOf(false),look(false)];
   }
   private changed(e:CustomEvent<{value:Record<string,unknown>}>){
     e.stopPropagation();if(!this.config)return;
@@ -169,7 +180,7 @@ export class ComfortEditor extends LitElement {
   }
   private defaults(c:Config):Record<string,unknown>{
     return {piece_style:'detailed',animations:true,glass_effect:true,rotate:true,show_details:true,details_open:false,measures_open:false,show_measures:true,
-      show_horizon:true,horizon_mode:'needed',horizon_subjects:[...HORIZON_SUBJECTS],show_insights:true,insight_topics:[...INSIGHT_TOPICS],insight_max:4,detail_rows:[...DETAIL_ROWS],
+      show_horizon:true,horizon_mode:'needed',horizon_subjects:[...HORIZON_SUBJECTS],show_insights:true,insight_groups:[...INSIGHT_GROUPS],insight_max:8,detail_rows:[...DETAIL_ROWS],
       banner_blocks:['remedies','later'],tile_chips:[...CHIPS],tile_blocks:[...TILE_BLOCKS],mini_values:['temperature'],hold_action:c.hold_path?'page':'popup',
       scale_marks:c.show_scale===false||c.format==='measures'?[]:[...SCALE_MARKS]};
   }
@@ -177,7 +188,9 @@ export class ComfortEditor extends LitElement {
     if(!this.config||!this.hass)return nothing;
     const c=this.config;
     const data={...this.defaults(c),hold_action:c.hold_action??(c.hold_path?'page':'popup'),
-      ...c,kind:kindOf(c.format),show_scale:scaleShown(c),modules:(c.modules??MODULES).filter(m=>m!=='temperature')};
+      ...c,kind:kindOf(c.format),show_scale:scaleShown(c),modules:(c.modules??MODULES).filter(m=>m!=='temperature'),
+      // The tile draws neither the temperature chip (« En ce moment » says it) nor the scale block (inside its case).
+      tile_chips:(c.tile_chips??CHIPS).filter(x=>x!=='temperature'),tile_blocks:(c.tile_blocks??TILE_BLOCKS).filter(x=>x!=='scale')};
     const s=this.schema(),cut=s.findIndex(x=>x.name==='kind')+1;
     const form=(schema:typeof s)=>html`<ha-form .hass=${this.hass} .data=${data} .schema=${schema} .computeLabel=${labelFor(c.format)} .computeHelper=${helperFor} @value-changed=${this.changed}></ha-form>`;
     const one=this.entries?.length===1?this.entries[0]:this.entries?.find(e=>e.entry_id===c.entry_id);

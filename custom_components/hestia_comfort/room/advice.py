@@ -481,7 +481,7 @@ class RoomAdvisor:
 
     def _good_to_know(self, now, air, opening, comfort, humidity=None, coldest=None, bedtime=None, asleep=False,
                       shutter_night=None, wake=None, back=None, off=None, end_hour=None, stove=None, sun_warms=None,
-                      outdoor=None, outdoor_rh=None, water=False, share=None):
+                      outdoor=None, outdoor_rh=None, water=False, share=None, planned=None):
         """« Bon à savoir »: the sun on the windows (Adaptive Cover Pro's hours first), a gesture seen to work."""
         local = dt_util.as_local(now)
         acp = {}
@@ -499,7 +499,7 @@ class RoomAdvisor:
                         bedtime=bedtime, asleep=asleep, shutter_night=shutter_night, wake=wake, heating_back=back,
                         heating_off=off, end_hour=end_hour, stove_idle=stove, sun_gain=sun_warms,
                         outdoor=outdoor, outdoor_humidity=outdoor_rh, water_matters=water, window_share=share,
-                        humidity_at_opening=opening[2] if opening else None)
+                        humidity_at_opening=opening[2] if opening else None, heating_planned=planned)
         return tips(view)
 
     def _tonight(self, twins, current, local, bedtime, wake, coming, comfort, proof, marks, taken, habits):
@@ -701,9 +701,13 @@ class RoomAdvisor:
         water = bool(current.opened) or (current.humidity is not None and current.humidity > comfort.humidity) \
             or words.get("subject") == "humidity" \
             or (decision.passive is not None and main_subject(decision.scenarios, decision.passive) == "humidity")
+        # The set point the room's schedule raises next (ha-chauffage): « Chauffage prévu à 17 h ».
+        stat = twins.thermostat or twins.idle_thermostat
+        planned = ({"at": local + timedelta(minutes=stat.at), "temperature": stat.then}
+                   if stat and stat.at is not None and stat.then is not None and stat.then > stat.target else None)
         good = self._good_to_know(now, air, opening, comfort, current.humidity, coldest, bedtime, night, shutter_night, wake,
                                   back, off, end_hour, stove, sun_gain(twins, current, coming), outdoor, outdoor_rh, water,
-                                  share)
+                                  share, planned)
         good_words = [tip_text(t, now=local) for t in good]
         night_text = None
         if night_coming and not night and local >= bedtime - timedelta(hours=habits.tonight_before):

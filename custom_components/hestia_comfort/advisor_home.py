@@ -21,7 +21,7 @@ from homeassistant.helpers.event import (async_call_later, async_track_state_cha
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from . import weather_link
+from . import schedule_link, weather_link
 from .advisor import VERSION as ADVISOR_VERSION
 from .advisor.decide import Thermostat
 from .advisor.nightly import learn_room
@@ -33,6 +33,7 @@ from .advisor.physics.water import absolute
 from .advisor.safety import minutes
 from .advisor_store import AdvisorFiles
 from .const import DOMAIN, VERSION
+from .engine import schedule
 from .room.advice import RoomAdvisor, house_heaters, leads, room_spec
 
 _LOGGER = logging.getLogger(__name__)
@@ -293,8 +294,15 @@ class AdvisorHome:
         window = (state.attributes.get("window_manager") or {}).get("window_action")
         if not isinstance(target, (int, float)):
             return None
+        # Its schedule's next set point (ha-chauffage, Scheduler): eco now, comfort at 17 h, followed in every scenario.
+        then = at = None
+        configuration = getattr(self._anchor(), "home_configuration", None)
+        change = schedule_link.next_change(self.hass, entity_id, (configuration.home.get("disabled") if configuration else None) or ())
+        if change and change.get("temperature") is not None:
+            then = change["temperature"]
+            at = (dt_util.parse_datetime(change["at"]) - dt_util.now()).total_seconds() / 60
         return Thermostat(float(target), tpi.get("tpi_coef_int") or 0.6, tpi.get("tpi_coef_ext") or 0.01,
-                          by_window or window == "window_turn_off")
+                          by_window or window == "window_turn_off", then, at)
 
     async def mean_air(self, entity_id, start, end):
         """The mean of a sensor over the recorder's states: where the walls start after a long stop."""

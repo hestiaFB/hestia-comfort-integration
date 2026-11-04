@@ -283,6 +283,9 @@ def assess(readings: Mapping[str, Reading], settings: Settings = Settings(),
     context = context or {}
     # A Versatile Thermostat (engine/thermostat.py): its comfort temperature can stand as the room's minimum.
     thermostat = context.get("thermostat") if isinstance(context.get("thermostat"), Mapping) else None
+    # ha-chauffage's next change (engine/schedule.py) comes with it, alone for a heating other than Versatile Thermostat.
+    planned = (thermostat or {}).get("next")
+    thermostat = thermostat if thermostat and set(thermostat) - {"next"} else None
     comfort = thermostats.reference(thermostat, settings.maximum) if context.get("thermostat_reference") else None
     if comfort is not None:
         try:
@@ -610,6 +613,8 @@ def assess(readings: Mapping[str, Reading], settings: Settings = Settings(),
         warmth["thermostat"] = {"name": thermostat.get("name"), "preset": thermostat.get("preset"), "target": thermostat.get("target"),
                                 "off_reason": thermostat.get("off_reason"), "lowered": thermostats.lowered(thermostat),
                                 "reference": comfort}
+    if planned:
+        warmth["next"] = planned
     heating = (value("heating") or "unknown") if "heating" in readings else "not_configured"
     flows = context.get("flows") or {}
     first = tuple(open_first(details, flows)) if action == "ouvrir" else ()
@@ -695,7 +700,8 @@ def assess(readings: Mapping[str, Reading], settings: Settings = Settings(),
         "sleeping": bool(alarm and alarm.get("night")),
         "alarm": {"name": alarm.get("name"), "state": alarm.get("state"), "armed": alarm.get("armed")} if alarm else None}
     extended["thermostat"] = ({"name": thermostat.get("name"), "window": thermostat.get("window") is True and not opened,
-                               "preset": thermostat.get("preset"), "target": thermostat.get("target"), "reference": comfort}
+                               "preset": thermostat.get("preset"), "target": thermostat.get("target"), "reference": comfort,
+                               "next": planned}
                               if thermostat else None)
     if isinstance(extended.get("humidity"), dict):
         saturated = absolute_humidity(ti, 100) if ti is not None else None

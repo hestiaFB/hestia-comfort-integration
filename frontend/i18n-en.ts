@@ -426,6 +426,8 @@ export const PANEL_EN:Record<string,string>={
  "Pas installée":"Not installed",
  "Pas utilisée":"Not used",
  "Trouvée, pas encore liée":"Found, not linked yet",
+ "bêta":"beta",
+ "Lecture nouvelle : vos retours sur GitHub la font progresser.":"New reading: your feedback on GitHub helps it grow.",
  "D’où vient le dehors, et les intégrations que Confort lit.":"Where the outside comes from, and the integrations Confort reads.",
  "D’où vient le dehors":"Where the outside comes from",
  "Hestia Weather donne tout le dehors : mesures, prévisions, alertes et air.":"Hestia Weather gives the whole outside: measures, forecasts, alerts and air.",

@@ -50,7 +50,7 @@ class HealthTests(unittest.TestCase):
         r = report(Facts(rooms=[room(thermostat=True)], weather="Gardanne", weather_installed=True,
                          installed=frozenset({"versatile_thermostat", "adaptive_cover_pro", "better_thermostat"})))
         ext = {e["key"]: e for e in r["extensions"]}
-        self.assertEqual([e["key"] for e in r["extensions"]], ["hestia_weather", "versatile_thermostat", "adaptive_cover_pro", "cover_automatic", "cover_extender", "wled", "alarmo"])
+        self.assertEqual([e["key"] for e in r["extensions"]], ["hestia_weather", "versatile_thermostat", "chauffage", "scheduler", "adaptive_cover_pro", "cover_automatic", "cover_extender", "wled", "alarmo"])
         self.assertEqual((ext["hestia_weather"]["state"], ext["hestia_weather"]["official"]), ("linked", True))
         self.assertEqual((ext["versatile_thermostat"]["state"], ext["versatile_thermostat"]["rooms"]), ("linked", ["Salon"]))
         self.assertEqual((ext["adaptive_cover_pro"]["state"], ext["adaptive_cover_pro"]["level"]), ("found", "none"))
@@ -58,6 +58,13 @@ class HealthTests(unittest.TestCase):
         self.assertTrue(all(e["use"] and e["without"] and e["url"].startswith("https://github.com/") for e in r["extensions"]))
         self.assertEqual([o["name"] for o in r["others"]], ["Better Thermostat"])
         self.assertRegex(r["socle"], r"^1\.\d+$")
+
+    def test_ha_chauffage_is_a_first_beta_linked_where_it_schedules_the_heating(self):
+        r = report(Facts(rooms=[room(planners=frozenset({"chauffage"}))], installed=frozenset({"chauffage", "scheduler"})))
+        ext = {e["key"]: e for e in r["extensions"]}
+        self.assertEqual((ext["chauffage"]["state"], ext["chauffage"]["rooms"], ext["chauffage"]["beta"]), ("linked", ["Salon"], True))
+        self.assertEqual((ext["scheduler"]["state"], ext["scheduler"]["beta"]), ("found", True))
+        self.assertFalse(ext["versatile_thermostat"]["beta"])
 
     def test_an_extension_turned_off_says_so(self):
         r = report(Facts(rooms=[room()], installed=frozenset({"adaptive_cover_pro", "alarmo"}), disabled=frozenset({"adaptive_cover_pro", "alarmo"})))

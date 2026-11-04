@@ -4,6 +4,15 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.2.0 — 4 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Nouveautés
+
+- Avec ha-chauffage ou Scheduler (en bêta), Hestia connaît l'heure du prochain changement de chauffage : « Chauffage prévu à 17 h : 20 °C visés ».
+- Les prévisions de la pièce suivent le planning : passé 17 h, le chauffage remonte à 20 °C dans les calculs, comme dans la maison.
+
 ## 3.1.1 — 4 novembre 2026
 
 Pas encore dans une version de Confort.

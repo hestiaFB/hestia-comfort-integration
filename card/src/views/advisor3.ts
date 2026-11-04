@@ -1,5 +1,5 @@
 import {html,nothing,type TemplateResult} from 'lit';
-import type {Level} from '../types';
+import {INSIGHT_GROUPS,type Level,type InsightGroup} from '../types';
 import {icon} from '../ui/icons';
 
 /** The 3.0 advisor's decision for the room, as the HA de test publishes it (`sensor.conseil_3_<pièce>`), read by the card
@@ -63,16 +63,19 @@ export function slides3(x:Advisor3):Slide3[]{
     learned:str(a.preuve)==='proven'?proof:undefined}];
 }
 
-/** « À savoir » from the 3.0 decision: what to try and the night first, then what is worth watching, then the passive advice. */
-export function factBox3(x:Advisor3):TemplateResult|typeof nothing{
-  const a=x.attributes,doubts=typeof a.douteuses==='string'?[a.douteuses]:[];
+/** « À savoir » from the 3.0 decision: what to try and the night first, then what is worth watching, then the passive advice.
+ *  The card keeps the headings its settings tick, and so many lines at most, the first headings first. */
+export function factBox3(x:Advisor3,o:{show?:boolean;groups?:readonly InsightGroup[];max?:number}={}):TemplateResult|typeof nothing{
+  if(o.show===false)return nothing;
+  const a=x.attributes,doubts=typeof a.douteuses==='string'?[a.douteuses]:[],kept=new Set<string>(o.groups??INSIGHT_GROUPS);
   const aside=a.pas_maintenant&&typeof a.pas_maintenant==='object'?Object.entries(a.pas_maintenant as Record<string,string>):[];
+  let left=o.max??8;
   const groups=[
     {id:'gesture',ic:'hand',title:'Pour le geste',lines:[str(a.a_essayer),str(a.cette_nuit),...aside.map(([what,until])=>`Mis de côté jusqu’à ${until} : ${what}`)].filter(Boolean)},
     {id:'watch',ic:'eye',title:'À surveiller',lines:doubts},
     // « Cette nuit, pensez à… » is a gesture: said once, under « Pour le geste ».
     {id:'know',ic:'info',title:'Bon à savoir',lines:list(a.bon_a_savoir).filter(l=>l!==str(a.cette_nuit))},
-  ].filter(g=>g.lines.length);
+  ].filter(g=>kept.has(g.id)).map(g=>{const lines=g.lines.slice(0,Math.max(0,left));left-=lines.length;return {...g,lines};}).filter(g=>g.lines.length);
   return groups.length?html`<div class="nc-facts"><div class="nw-label">À savoir</div><div class="nc-facts-box nw-glass">${groups.map(g=>html`<section class="nc-facts-g" data-group=${g.id}>
     <h4>${icon(g.ic)}${g.title}</h4><ul>${g.lines.map(l=>html`<li>${icon(g.ic)}<span>${l}</span></li>`)}</ul></section>`)}</div></div>`:nothing;
 }

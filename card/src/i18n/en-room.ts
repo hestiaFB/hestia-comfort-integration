@@ -105,7 +105,10 @@ export const EN_ROOM:Record<string,string>={"Puissance de chauffe, dernière dem
  '{value} W/m² · estimé, station à l’ombre':'{value} W/m² · estimated, station in the shade','à la main jusqu’à {time}':'manual until {time}','repris à la main':'taken over by hand','à fermer avant {time}':'to close before {time}',
  'à fermer':'to close','à ouvrir':'to open','automatique · soleil devant':'automatic · sun in front','automatique':'automatic','ACP désactivé':'ACP disabled','suivi du soleil coupé':'sun tracking off',
  'automatisme coupé':'automation off','rien à faire':'nothing to do','Fermé':'Closed','Ouvert':'Open','En marche':'Running','Arrêté':'Stopped','Arrêtée':'Stopped','Rapide':'Fast','filtre à {n} %':'filtering at {n}%',
- 'filtre l’air':'filtering the air','à l’arrêt':'stopped','grande vitesse':'high speed','renouvelle l’air':'renewing the air','Chauffe':'Heating','mode {mode}':'{mode} mode','observé, jamais commandé':'observed, never controlled',
+ 'filtre l’air':'filtering the air','à l’arrêt':'stopped','grande vitesse':'high speed','renouvelle l’air':'renewing the air','Chauffe':'Heating','mode {mode}':'{mode} mode',
+ // ha-chauffage's next change (views/room.ts nextChange).
+ '{name} à {time} ({temp})':'{name} at {time} ({temp})','{name} demain à {time} ({temp})':'{name} tomorrow at {time} ({temp})','{name} à {time}':'{name} at {time}','{name} demain à {time}':'{name} tomorrow at {time}',
+ 'fin de la dérogation à {time}':'override ends at {time}','fin de la dérogation demain à {time}':'override ends tomorrow at {time}','observé, jamais commandé':'observed, never controlled',
  '{note} · {room}':'{note} · {room}','Inconnu':'Unknown','{n} ppm':'{n} ppm','{n} % {state}':'{n}% {state}','{n} ppm de CO₂':'{n} ppm of CO₂','CO₂ élevé':'high CO₂','{n} particules élevées':'{n} high particles',
  '{n} COV élevés':'{n} high VOC','COV élevés':'high VOC','fenêtre à refermer':'window to close','hors gel':'frost guard','éco':'eco','confort':'comfort','boost':'boost','absence':'away','nuit':'night',
  'présence':'presence','activité':'activity','éteint':'off','chauffage':'heating','programmé':'scheduled','automatique ':'automatic',

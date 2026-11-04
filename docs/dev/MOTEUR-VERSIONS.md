@@ -16,6 +16,12 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.2.0 — 4 novembre 2026
+
+- Planning du chauffage lu dans ha-chauffage (issue #42, `engine/schedule.py`, `schedule_link.py`) : « Prochain changement » (`…_next_change`, armellarcier/ha-chauffage#82) s'il existe, sinon « Préréglage prévu » (`next_start`, `next_preset`, `temperatures`), et la fin de la dérogation quand elle est en cours (le créneau annoncé peut alors ne jamais venir). À défaut, Scheduler (issue #46) : les plannings en marche qui pilotent le thermostat (`entities`), l'action du prochain créneau qui change quelque chose (`actions`, `next_slot`, `next_trigger`), la température du préréglage lue dans le Versatile Thermostat ; le plus proche de plusieurs plannings. Ses conditions (jour ouvré, présence) ne sont pas prévues.
+- `Thermostat.then` / `Thermostat.at` : la consigne du créneau suivant et dans combien de minutes ; `scheduled(minutes)` la donne à chaque pas de chaque scénario, aussi pour « Rallumez » et « Remettez le chauffage à … » (la consigne donnée à la main ne tient que jusqu'au créneau suivant). `heating_back` en tient compte de lui-même.
+- Note « Chauffage prévu à {at} : {temperature} °C visés » (`knowing.heating_planned`) quand le créneau suivant relève la consigne dans les 6 h, jamais pendant le sommeil ; un plan, donc prouvé.
+
 ### 3.1.1 — 4 novembre 2026
 
 - « À essayer » tient comme le bandeau : l'essai affiché reste tant qu'il est presque aussi bon que le meilleur (même marge), et il traverse une rafale qui l'interdit un instant. Chambre AL, 4 novembre, rejeu de 14 h 18 à 16 h 53 : 6 changements de geste au lieu de 12 (30 changements de texte depuis 21 h la veille).

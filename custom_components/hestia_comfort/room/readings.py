@@ -5,7 +5,8 @@ from homeassistant.helpers import entity_registry as er
 
 from ..const import OPEN_DEBOUNCE_SECONDS
 from ..discovery import voc_device_class
-from ..engine import thermostat as thermostats
+from .. import schedule_link
+from ..engine import schedule, thermostat as thermostats
 from ..engine.sources import Reading, indicator_state, normalize
 from .constants import STATE_KINDS
 
@@ -72,10 +73,13 @@ class ReadingsMixin:
                 and (now - since).total_seconds() < OPEN_DEBOUNCE_SECONDS)
 
     def _thermostat(self):
-        """What the room's Versatile Thermostat says (engine/thermostat.py); None for any other heating."""
+        """What the room's Versatile Thermostat says (engine/thermostat.py), with its schedule's next change; for any
+        other heating, that next change alone; None without either."""
         entity_id = self.sources.get("heating")
         entry = er.async_get(self.hass).async_get(entity_id) if entity_id else None
         state = self.hass.states.get(entity_id) if entity_id else None
+        # The schedule's next change (ha-chauffage, Scheduler: engine/schedule.py), for any thermostat they plan.
+        change = schedule_link.next_change(self.hass, entity_id, {k for k in schedule.PLANNERS if not self._uses(k)})
         if not self._uses(thermostats.PLATFORM) or not entry or entry.platform != thermostats.PLATFORM or not state or state.state in ("unknown", "unavailable"):
-            return None
-        return thermostats.read(state.state, dict(state.attributes))
+            return {"next": change} if change else None
+        return {**thermostats.read(state.state, dict(state.attributes)), "next": change}

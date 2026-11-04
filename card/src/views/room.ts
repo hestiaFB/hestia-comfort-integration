@@ -1,7 +1,7 @@
 import {factBox3,slides3,why3} from './advisor3';
 import {html,svg,nothing,LitElement,type TemplateResult} from 'lit';
 import {property,state} from 'lit/decorators.js';
-import {SCALE_MARKS,CHIPS,TILE_BLOCKS,DETAIL_ROWS,INSIGHT_TOPICS,PIECES,type Piece,type Config,type View,type Level,type Format,type BannerBlock,type Chip,type HorizonSubject,type Horizon} from '../types';
+import {SCALE_MARKS,CHIPS,TILE_BLOCKS,DETAIL_ROWS,INSIGHT_TOPICS,INSIGHT_GROUPS,PIECES,type Piece,type Config,type View,type Level,type Format,type BannerBlock,type Chip,type HorizonSubject,type Horizon,type NextChange} from '../types';
 import {numeric,number,heatingLabels,coverageText,windFrom,sourceLabel,needs as needLabels,constraintLabels,shortWhy} from '../view';
 import {icon} from '../ui/icons';
 import {echelle,echellePos} from '../ui/hestia-echelle';
@@ -324,7 +324,7 @@ export function facts(v:View):Fact[] {
       // A cold the heating, an empty home or a chosen preset takes care of counts less than a problem left alone.
       rank:coldSettled(a)?3:2,text:w?.outdoor_warms?'l’air du dehors, plus chaud, la réchauffe : vous pouvez laisser ouvert'
       :w?.occupied===false?(f?.people?.away?.length?`${f.people.away.join(' et ')} ${f.people.away.length>1?'absents':'absent'} : pas besoin de chauffer`:'maison vide : pas besoin de chauffer')
-      :w?.thermostat?.lowered?`thermostat en ${presetWord(w.thermostat.preset)}${w.thermostat.target!=null?` : ${deg(w.thermostat.target)} visés`:''}`
+      :w?.thermostat?.lowered?`thermostat en ${presetWord(w.thermostat.preset)}${w.thermostat.target!=null?` : ${deg(w.thermostat.target)} visés`:''}${nextChange(w.next)?` · ${nextChange(w.next)}`:''}`
       :w?.thermostat?.off_reason&&w.thermostat.off_reason!=='manual'?`chauffage arrêté par le thermostat (${offWords[w.thermostat.off_reason]??'automatique'}), il repartira seul`
       :w?.heating==='on'?'le chauffage s’en charge':w?.warming?`${deg(ti)}, elle se réchauffe d’elle-même`
       :w?.heating==='off'?`${deg(ti)}, ${w.slight?'un peu ':''}sous votre plage · chauffage coupé`:`${deg(ti)}, sous votre plage`});
@@ -483,13 +483,14 @@ const FACT_GROUPS=[{id:'gesture',ic:'hand',title:'Pour le geste',ranks:[0]},{id:
 /** Said elsewhere (30 October, evening): the devices at work in the Air module, what was learned in the « i ». */
 const ELSEWHERE=new Set(['Purificateur','VMC','Dernière aération','Apprentissage']);
 export function factBox(v:View,partners:View[]=[],config:Config={type:'custom:hestia-comfort-card'},list=factList(v,partners,config)):TemplateResult|typeof nothing {
-  if(v.advisor)return factBox3(v.advisor);
+  if(v.advisor)return factBox3(v.advisor,{show:config.show_insights,groups:config.insight_groups,max:config.insight_max});
   // The first line is what counts most: set apart, and a risk in the « to watch » colour.
   // Three headings, each said only when it has lines: where to act for the gesture, what to keep an eye on, what was learned.
   const line=(f:Fact)=>html`<li class=${rank(f)===1?'risk':''}>${icon(f.ic)}<span><b>${tx(f.title)}</b> · ${partners.length&&f.key==='humidity'&&f.room?`${f.room}, `:''}${tl(f.text)}</span></li>`;
   // Under « Rien à faire » there is no gesture: its lines join what is worth watching, never on orange.
   const calm=advice(v).title==='Rien à faire',of=(f:Fact)=>calm&&rank(f)===0?1:rank(f);
-  const groups=FACT_GROUPS.map(g=>({...g,lines:list.filter(f=>g.ranks.includes(of(f)))})).filter(g=>g.lines.length);
+  const kept=new Set<string>(config.insight_groups??INSIGHT_GROUPS);
+  const groups=FACT_GROUPS.filter(g=>kept.has(g.id)).map(g=>({...g,lines:list.filter(f=>g.ranks.includes(of(f)))})).filter(g=>g.lines.length);
   return list.length?html`<div class="nc-facts"><div class="nw-label">${t('À savoir')}</div><div class="nc-facts-box nw-glass">${groups.map(g=>html`<section class="nc-facts-g" data-group=${g.id}>
     <h4>${icon(g.ic)}${tx(g.title)}</h4><ul>${g.lines.map(line)}</ul></section>`)}</div></div>`:nothing;
 }
@@ -648,6 +649,13 @@ const modeLabels:Record<string,string>={frost:'hors gel',eco:'éco',comfort:'con
 const gone=(r?:{quality:string})=>r?.quality==='stale'?'pas de nouvelle mesure':'indisponible';
 /** « 13 h 50 », in the person's own clock. */
 const clock=(x?:string|null)=>{const d=x?new Date(x):null;return d&&!isNaN(+d)?d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}).replace(':',' h '):null;};
+/** ha-chauffage's next change (engine/schedule.py), today or tomorrow only: « confort à 17 h 00 », « fin de la dérogation demain à 6 h 00 ». */
+const nextChange=(n?:NextChange|null)=>{const at=n?new Date(n.at):null;if(!n||!at||isNaN(+at))return null;
+  const today=new Date(),tomorrow=new Date(today.getFullYear(),today.getMonth(),today.getDate()+1);
+  const day=at.toDateString()===today.toDateString()?'':at.toDateString()===tomorrow.toDateString()?'demain ':null;
+  if(day===null)return null;const when=`${day}à ${clock(n.at)}`;
+  const name=n.preset&&modeLabels[n.preset]?modeLabels[n.preset]:(n.name??'').toLowerCase();
+  return n.override&&!n.name?`fin de la dérogation ${when}`:`${name} ${when}${n.temperature!=null?` (${deg(n.temperature)})`:''}`;};
 /** The source behind a tile, to know whether it is read from the room sharing this air. */
 const tileKeys:Record<string,string>={'CO₂':'co2',Particules:'pm25',COV:'voc',Purificateur:'purifier',Ventilation:'ventilation',Chauffage:'heating'};
 /** A room's tiles without those it reads from another room: on a card shared by both, each measure shows once. */
@@ -684,7 +692,7 @@ export function tiles(v:View,config:Config):Tile[] {
   if(mods.has('coordination')&&o.heating){const label=heatingLabels[a.heating_action]??'Inconnu',running=a.heating_action==='heating';
     const raw=o.heating_mode?.quality==='valid'&&typeof o.heating_mode.value==='string'?o.heating_mode.value:null,mode=raw?modeLabels[raw]??raw:null;
     const power=o.heating_power?.quality==='valid'&&typeof o.heating_power.value==='number'?o.heating_power.value:null,percent=power!==null&&power>0&&power<100;
-    list.push({ic:'heat',label:'Chauffage',value:running?'Chauffe':label,unit:running&&percent?`${number(Math.round(power!))} %`:undefined,note:raw==='heat'?'':mode?`mode ${mode}`:running?'chauffe la pièce':'observé, jamais commandé',level:'neutral',out:false,
+    list.push({ic:'heat',label:'Chauffage',value:running?'Chauffe':label,unit:running&&percent?`${number(Math.round(power!))} %`:undefined,note:[raw==='heat'?'':mode?`mode ${mode}`:running?'chauffe la pièce':'observé, jamais commandé',nextChange(a.features?.warmth?.next)].filter(Boolean).join(' · '),level:'neutral',out:false,
       curve:power===null||!(a.features?.trends?.curves?.heating?.points??[]).some(p=>p[1]>0)?undefined:trendOf(v,'heating',null),flame:raw==='heat'});}
   for(const t of list)t.entity??=tileEntity(v,t.label);
   // A measure read from the room sharing this air says where it is measured.

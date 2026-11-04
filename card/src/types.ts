@@ -32,6 +32,9 @@ export type TileBlock = typeof TILE_BLOCKS[number];
 /** Topics of « À savoir », and lines of « Détails techniques »: the card shows those kept, in its own order. */
 export const INSIGHT_TOPICS = ['humidity','heating','sun','windows','equipment','household','forecast','learning'] as const;
 export type InsightTopic = typeof INSIGHT_TOPICS[number];
+/** The headings of « À savoir » as the 3.0 advisor writes it: for the gesture, worth watching, good to know. */
+export const INSIGHT_GROUPS = ['gesture','watch','know'] as const;
+export type InsightGroup = typeof INSIGHT_GROUPS[number];
 export const DETAIL_ROWS = ['range','slot','windows','shutters','people','drying','trend','sensors'] as const;
 export type DetailRow = typeof DETAIL_ROWS[number];
 /** Subjects of the « Prochaines heures » graph. */
@@ -57,7 +60,7 @@ export interface Config {
   /** The « Prochaines heures » graph in the banner, and its subjects. */
   show_horizon?: boolean; horizon_mode?: HorizonMode; horizon_subjects?: HorizonSubject[];
   /** « À savoir » and « Détails techniques »: shown or not, which topics and lines, how many lines. */
-  show_insights?: boolean; insight_topics?: InsightTopic[]; insight_max?: number; detail_rows?: DetailRow[];
+  show_insights?: boolean; insight_topics?: InsightTopic[]; insight_groups?: InsightGroup[]; insight_max?: number; detail_rows?: DetailRow[];
   /** « À la carte »: the full card's module as it is, or compact (the measure, its way, its half hour). */
   piece_style?: 'detailed'|'compact';
 }
@@ -93,7 +96,9 @@ export interface Features {
  learned?:{now:number;after:number;minutes:number;measure:'humidity'|'temperature'|'co2'|'voc';openings:number;days:number;precision:{temperature:number;humidity:number};closing?:boolean}|null;
  /** What the sun on the windows does for the room now (engine/assessment.py, _benefits). */ benefits?:{kind:'sun_warms'|'sun_heats';openings:string[];watts:number;keep_shut?:boolean}[];
  volume?:{lead:string;reason:string;action:string;assessment?:Partial<Assessment>&{reason:string};observations?:Record<string,Reading>};
- warmth?:{occupied:boolean|null;heating:'on'|'off'|null;chilly_since?:string|null;tolerance?:number;warming?:boolean;outdoor_warms?:boolean;slight?:boolean;thermostat?:{name:string;preset:string|null;target:number|null;off_reason:string|null;lowered:boolean;reference:number|null}}|null;
+ warmth?:{occupied:boolean|null;heating:'on'|'off'|null;chilly_since?:string|null;tolerance?:number;warming?:boolean;outdoor_warms?:boolean;slight?:boolean;thermostat?:{name:string;preset:string|null;target:number|null;off_reason:string|null;lowered:boolean;reference:number|null};
+  /** ha-chauffage's next change (engine/schedule.py): when, to which preset (null when not known), at which temperature. */
+  next?:NextChange|null}|null;
  thermostat?:{name:string;window:boolean;preset:string|null;target:number|null;reference:number|null}|null;
  people?:{home:string[];away:string[]}|null;
  household?:{away_open:boolean;empty_room:boolean;sleeping:boolean;alarm:{name:string;state:string;armed:boolean}|null}|null;
@@ -174,7 +179,7 @@ export function cleanConfig(input:Config):Config {
   hold(input);
   const lists={banner_blocks:list(input.banner_blocks,BANNER_BLOCKS,'bandeau'),scale_marks:list(input.scale_marks,SCALE_MARKS,'échelle'),
     tile_chips:list(input.tile_chips,CHIPS,'pastilles'),tile_blocks:list(input.tile_blocks,TILE_BLOCKS,'tuile dépliée'),mini_values:list(input.mini_values,CHIPS,'ligne'),
-    horizon_subjects:list(input.horizon_subjects,HORIZON_SUBJECTS,'sujets du graphique'),insight_topics:list(input.insight_topics,INSIGHT_TOPICS,'sujets À savoir'),
+    horizon_subjects:list(input.horizon_subjects,HORIZON_SUBJECTS,'sujets du graphique'),insight_topics:list(input.insight_topics,INSIGHT_TOPICS,'sujets À savoir'),insight_groups:list(input.insight_groups,INSIGHT_GROUPS,'rubriques À savoir'),
     detail_rows:list(input.detail_rows,DETAIL_ROWS,'lignes des détails')};
   if(input.insight_max!==undefined&&!(Number.isInteger(input.insight_max)&&input.insight_max>=1&&input.insight_max<=8))throw new Error(t('Réglage « lignes À savoir » invalide : de 1 à 8.'));
   return {...input,...Object.fromEntries(Object.entries(lists).filter(([,v])=>v!==undefined)), format:input.format??'tile', modules:[...new Set(input.modules??MODULES)]};
@@ -219,3 +224,5 @@ export function cleanReviewConfig(input:ReviewConfig):ReviewConfig {
   if(typeof input.title==='string'&&input.title.trim())config.title=input.title.trim();
   return config;
 }
+/** When the heating changes next, as ha-chauffage plans it; `override`: the end of a change made by hand. */
+export interface NextChange {at:string;preset:string|null;name:string|null;temperature:number|null;override:boolean}

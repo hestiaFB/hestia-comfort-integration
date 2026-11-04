@@ -40,6 +40,7 @@ TEXTS = {
         "shutter_night": "Baissez le volet ce soir : environ {change} °C de plus au réveil",
         "shutter_night_energy": "Baissez le volet ce soir : environ {energy} kWh de chauffage en moins",
         "heating_back": "Le chauffage ramène la pièce à {minimum} °C vers {at}",
+        "heating_planned": "Chauffage prévu à {at} : {temperature} °C visés",
         "heating_off": "Chauffage éteint : le rallumer donnerait {gain} °C de plus d'ici {hour} h",
         "heating_rising": "Le chauffage réchauffe la pièce : {air} °C prévus à {hour} h ({minimum} °C visés)",
         "heat_stop": "Coupez le poêle",
@@ -97,6 +98,7 @@ TEXTS = {
         "shutter_night": "Lower the shutter tonight: about {change} °C more at waking up",
         "shutter_night_energy": "Lower the shutter tonight: about {energy} kWh of heating saved",
         "heating_back": "The heating brings the room back to {minimum} °C around {at}",
+        "heating_planned": "Heating planned at {at}: {temperature} °C aimed at",
         "heating_off": "Heating off: turning it back on would give {gain} °C more by {hour}:00",
         "heating_rising": "The heating is warming the room: {air} °C expected at {hour}:00 ({minimum} °C aimed at)",
         "heat_stop": "Turn the stove off",
@@ -154,6 +156,7 @@ TEXTS = {
         "shutter_night": "Heute Abend Rollladen herunterlassen: etwa {change} °C mehr beim Aufstehen",
         "shutter_night_energy": "Heute Abend Rollladen herunterlassen: etwa {energy} kWh Heizenergie gespart",
         "heating_back": "Die Heizung bringt den Raum gegen {at} wieder auf {minimum} °C",
+        "heating_planned": "Heizung geplant um {at}: {temperature} °C angestrebt",
         "heating_off": "Heizung aus: wieder eingeschaltet brächte sie bis {hour} Uhr {gain} °C mehr",
         "heating_rising": "Die Heizung wärmt den Raum: {air} °C erwartet um {hour} Uhr ({minimum} °C angestrebt)",
         "heat_stop": "Ofen ausschalten",
@@ -418,6 +421,8 @@ def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
         return words["stove_hold_long"].format(minimum=_degrees(v["minimum"], language), hour=v["hour"])
     if tip.kind == "heating_off":
         return words["heating_off"].format(gain=_number(v["gain"], language), hour=v["hour"])
+    if tip.kind == "heating_planned":
+        return words["heating_planned"].format(at=_time(v["at"], words), temperature=_degrees(v["temperature"], language))
     if tip.kind == "heating_back":
         return words["heating_back"].format(minimum=_degrees(v["minimum"], language), at=_time(v["at"], words))
     if tip.kind == "shutter_night":

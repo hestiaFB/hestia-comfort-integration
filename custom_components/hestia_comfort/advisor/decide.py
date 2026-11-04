@@ -167,6 +167,16 @@ class Thermostat:
     inside: float = 0.6             # `tpi_coef_int`
     outside: float = 0.01           # `tpi_coef_ext`
     window_off: bool = True         # `window_manager.window_action` is « window_turn_off »
+    # The set point its schedule (ha-chauffage, engine/schedule.py) gives it next, and in how many minutes: eco until
+    # 17 h, then comfort. None: nothing planned, the target holds over the whole horizon.
+    then: float | None = None
+    at: float | None = None
+
+    def scheduled(self, minutes: float) -> "Thermostat":
+        """The thermostat as it runs `minutes` from now: its next slot's set point once that slot has come."""
+        if self.then is None or self.at is None or minutes < self.at:
+            return self
+        return replace(self, target=self.then, then=None, at=None)
 
     def power(self, air: float, outdoor: float, windows) -> float:
         """Share of the full power over the next cycle, 0 to 1."""
@@ -326,12 +336,14 @@ HEAT_STEP = 0.25
 
 
 def _thermostat(gesture: Gesture, twins: Twins, k: int) -> Thermostat | None:
-    """The thermostat that runs at step `k` of the scenario: turned on again, set back, or as it is."""
-    if gesture.kind == "heat_on" and twins.idle_thermostat is not None and k * STEP / 60 >= (gesture.after or 0):
-        return twins.idle_thermostat
+    """The thermostat that runs at step `k` of the scenario: turned on again, set back, or as it is — each following its
+    schedule: a set point given by hand holds only until the next slot, which the schedule sends anyway."""
+    minutes = k * STEP / 60
+    if gesture.kind == "heat_on" and twins.idle_thermostat is not None and minutes >= (gesture.after or 0):
+        return twins.idle_thermostat.scheduled(minutes)
     if gesture.kind == "heat_to" and twins.thermostat is not None:
-        return replace(twins.thermostat, target=gesture.target)
-    return twins.thermostat
+        return replace(twins.thermostat, target=gesture.target).scheduled(minutes)
+    return twins.thermostat.scheduled(minutes) if twins.thermostat is not None else None
 
 
 # A shutter under this position is shut, above that one open (0 to 1); shut, it still lets a little light through.

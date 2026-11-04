@@ -76,7 +76,9 @@ export function feelPanel(v:View,partners:View[]=[],o:{gauge?:boolean;src?:strin
       <p>${t('C’est une estimation : les murs sont calculés depuis l’écart avec dehors et votre réglage (murs {walls}).',{walls})}</p>
       <p class="ex">${t('En ce moment : {air} °C d’air se ressentent comme {feels} °C.',{air:nf(f.air),feels:nf(f.feels)})}</p></div>
     <div class="nw-feel-row"><div class="nw-value"><b>${nf(f.feels)}</b><span>°C</span></div><span class="nw-feel-word">${word}</span><span class="nw-feel-say">${say}</span></div>
-    ${o.gauge===false?nothing:html`${echelle({lo,hi,parts,value:f.feels,valueText:`${nf(f.feels)} °C`,label:t('Ressenti {t} °C',{t:nf(f.feels)}),degree:v=>`${v<0?'−':''}${Math.abs(v)}°`})}
+    ${o.gauge===false?nothing:html`${echelle({lo,hi,parts,value:f.feels,valueText:`${nf(f.feels)} °C`,label:t('Ressenti {t} °C',{t:nf(f.feels)}),degree:v=>`${v<0?'−':''}${Math.abs(v)}°`,
+      // The thermometer's air, a fine line without a label, as in Hestia Weather: the gap with the feel reads at a glance (3 November).
+      outside:{value:f.air}})}
       <div class="nw-feel-ends" style="justify-content:center">${plage}</div>`}
     <div class="nw-feel-factors" style="--nw-ff-cols:3">${tiles.map(x=>html`<div>
       <span class="nw-ff-head"><span class="nw-ff-t">${x.ic}${x.title}</span><span class="nw-ff-eff" style=${`--c:var(--nw-${x.theme})`}>${t(x.effect)}</span></span>

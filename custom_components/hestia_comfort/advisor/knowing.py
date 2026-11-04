@@ -66,6 +66,8 @@ class RoomView:
     # °C the room would gain by the end of the horizon with its thermostat on again, and that hour (`heating_off`).
     heating_off: float | None = None
     end_hour: int | None = None
+    # The set point the room's schedule raises next (ha-chauffage, engine/schedule.py): {"at", "temperature"}.
+    heating_planned: dict | None = None
     # The stove at its lowest in a room already warm enough (advisor/decide.py `stove_idle`).
     stove_idle: dict | None = None
     # °C the sun adds to the room over the coming hours (advisor/decide.py `sun_gain`); None when not known.
@@ -188,6 +190,19 @@ def heating_is_off(view: RoomView) -> list[Tip]:
     return [Tip("heating_off", {"gain": view.heating_off, "hour": view.end_hour}, "heat", 2, None, REINFORCED)]
 
 
+# How far ahead the schedule's next warmer slot is said (h): the coming afternoon, not tomorrow's morning at noon.
+PLANNED_HOURS = 6
+
+
+def heating_planned(view: RoomView) -> list[Tip]:
+    """« Chauffage prévu à 17 h : 20 °C visés » (issue #42): the room's schedule (ha-chauffage) raises its set point
+    soon — kept lower on purpose until then, and the household knows when it warms again. A plan, not a forecast."""
+    found = view.heating_planned
+    if found is None or view.asleep or not view.now <= found["at"] <= view.now + timedelta(hours=PLANNED_HOURS):
+        return []
+    return [Tip("heating_planned", {"at": found["at"], "temperature": found["temperature"]}, "heat", 2, found["at"], PROVEN)]
+
+
 def stove_at_its_lowest(view: RoomView) -> list[Tip]:
     """« Le poêle tourne au minimum : sans lui, la pièce reste au-dessus de 20 °C jusqu'à 18 h », or « … et la pièce
     monte encore » (Frank, 1 November): the stove does not stop by itself. Passive until its share is proven; past the
@@ -227,7 +242,7 @@ def window_weak(view: RoomView) -> list[Tip]:
     return [Tip("open_weak", values, "heat", 4, None, PROVEN)]
 
 
-PROVIDERS = [window_weak, outside_water, gesture_seen, mist_tonight, heating_catches_up, heating_is_off, stove_at_its_lowest, shutter_at_night,
+PROVIDERS = [window_weak, outside_water, gesture_seen, mist_tonight, heating_catches_up, heating_planned, heating_is_off, stove_at_its_lowest, shutter_at_night,
              sun_on_windows]
 
 

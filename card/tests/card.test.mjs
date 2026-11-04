@@ -565,6 +565,19 @@ test('the four sections are settings of their own: À savoir topics and count, d
   assert.ok(text(details(v,cleanConfig({type:'custom:hestia-comfort-card',detail_rows:['range']}))).includes('Votre plage de confort'));
 });
 
+test('« À savoir » of the 3.0 advisor follows the card’s settings: shown or not, its headings, its lines (4 November)',async()=>{
+  const {factBox}=await import(pathToFileURL(join(temp,'views/room.mjs')));
+  const v={...fresh(),advisor:{title:'Rien à faire',attributes:{regle:'nothing',geste:'nothing',a_essayer:'Ouvrez 5 min à 14 h',douteuses:'COV',bon_a_savoir:['Il fera doux demain','La VMC tourne']}}};
+  const text=r=>JSON.stringify(r),box=o=>text(factBox(v,[],cleanConfig({type:'custom:hestia-comfort-card',...o})));
+  assert.match(box({}),/Pour le geste.*À surveiller.*Bon à savoir/);
+  assert.equal(factBox(v,[],cleanConfig({type:'custom:hestia-comfort-card',show_insights:false})).strings,undefined);
+  assert.doesNotMatch(box({insight_groups:['know']}),/Pour le geste|À surveiller/);
+  assert.match(box({insight_groups:['know']}),/La VMC tourne/);
+  // So many lines at most, the first headings first.
+  assert.doesNotMatch(box({insight_max:2}),/Bon à savoir/);
+  assert.throws(()=>cleanConfig({type:'custom:hestia-comfort-card',insight_groups:['météo']}),/À savoir/);
+});
+
 test('the scale switch turns the scale off and on, even though the form sends back its hidden list of marks',async()=>{
   const {nextConfig,scaleShown}=await import(pathToFileURL(join(temp,'editor.mjs')));
   const base=cleanConfig({type:'custom:hestia-comfort-card',format:'full'});

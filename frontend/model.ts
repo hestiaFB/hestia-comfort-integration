@@ -140,7 +140,7 @@ export function changedAdvanced(settings:Record<string,number>):number{return Ob
 // One source in a list chosen by integration: its name, what it gives, and how to install it when missing.
 export interface Choice {value:string;label:string;hint:string;available:boolean;missing?:string;url?:string;badge?:string}
 /** An integration Confort reads (health.py EXTENSIONS): linked, installed but not used, or missing. */
-export interface Extension {key:string;name:string;official:boolean;state:'linked'|'found'|'missing'|'off';level:Level;role:string;use:string;without:string;url:string;text:string;rooms:string[]}
+export interface Extension {key:string;name:string;official:boolean;beta?:boolean;state:'linked'|'found'|'missing'|'off';level:Level;role:string;use:string;without:string;url:string;text:string;rooms:string[]}
 export const links={atmofrance:'https://github.com/sebcaps/atmofrance',hestia_weather:'https://github.com/hestiaFB/hestia-weather-integration'};
 // The integration behind an outdoor air quality source.
 export function airSource(spec?:Spec):string{return !spec?'none':spec.adapter==='atmo_daily'?'atmo':spec.adapter==='hestia_index'?'hestia':'other';}

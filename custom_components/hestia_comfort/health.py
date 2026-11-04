@@ -7,10 +7,10 @@ from dataclasses import dataclass, field
 
 from homeassistant.util import dt as dt_util
 
-from . import cover_link, weather_link
+from . import cover_link, schedule_link, weather_link
 from .socle import SOCLE_VERSION
 from .advisor import BETA as ADVISOR_BETA, VERSION as ADVISOR_VERSION
-from .engine import people, thermostat as thermostats
+from .engine import people, schedule, thermostat as thermostats
 from .engine.i18n import N_, language, t
 from .configuration import get_configuration
 from homeassistant.helpers import entity_registry as er
@@ -52,6 +52,8 @@ class Room:
     """Sources read from the room it shares its air with: key → that room's name."""
     thermostat: bool = False
     """Its heating is a Versatile Thermostat (engine/thermostat.py)."""
+    planners: frozenset = frozenset()
+    """The integrations that schedule its heating: « chauffage », « scheduler » (engine/schedule.py)."""
     driven_covers: int = 0
     """Its covers driven with the sun (cover_link.py)."""
     drivers: frozenset = frozenset()
@@ -185,7 +187,8 @@ def report(f):
     # Extensions: Hestia's own bricks, then other integrations Hestia reads by itself, each making the advice better where it is used.
     vt = [r.title for r in f.rooms if r.thermostat]
     linked = {"hestia_weather": [f.weather] if f.weather else [], thermostats.PLATFORM: vt, people.PLATFORM: [f.alarm] if f.alarm else [],
-              **{key: [r.title for r in f.rooms if key in r.drivers] for key in cover_link.ADAPTERS}, "wled": f.wled}
+              **{key: [r.title for r in f.rooms if key in r.drivers] for key in cover_link.ADAPTERS}, "wled": f.wled,
+              **{key: [r.title for r in f.rooms if key in r.planners] for key in schedule.PLANNERS}}
     installed = {"hestia_weather": f.weather_installed}
     extensions = []
     for ext in EXTENSIONS:
@@ -193,8 +196,8 @@ def report(f):
         state = "off" if ext["key"] in f.disabled else "linked" if found else "found" if installed.get(ext["key"], ext["key"] in f.installed) else "missing"
         text = (t("relié · {place}", place=f.weather) if ext["key"] == "hestia_weather" else f.alarm if ext["key"] == people.PLATFORM
                 else _count(len(found), "{n} pièce", "{n} pièces") + " · " + ", ".join(found)) if found and state != "off" else t("désactivée") if state == "off" else t(ext[state])
-        extensions.append({**{k: ext[k] for k in ("key", "name", "official", "url")}, **{k: t(ext[k]) for k in ("role", "use", "without")},
-                           "state": state, "level": "ok" if found else "none", "text": text, "rooms": found if ext["key"] in (thermostats.PLATFORM, "wled") or ext["key"] in cover_link.ADAPTERS else []})
+        extensions.append({**{k: ext[k] for k in ("key", "name", "official", "url")}, "beta": ext.get("beta", False), **{k: t(ext[k]) for k in ("role", "use", "without")},
+                           "state": state, "level": "ok" if found else "none", "text": text, "rooms": found if ext["key"] in (thermostats.PLATFORM, *schedule.PLANNERS, "wled") or ext["key"] in cover_link.ADAPTERS else []})
     # Installed integrations Confort does not read yet: shown so that the person can ask for them.
     others = [{**o, "use": t(o["use"])} for o in OTHERS if o["key"] in f.installed]
     versions = [{"level": "ok", "text": t("Intégration {version}", version=f.version), "why": t("avec sa carte")},
@@ -223,6 +226,17 @@ EXTENSIONS = (
      "use": N_("Consigne de confort, raison d’un arrêt (fenêtre, absence), préréglage et pente de chauffe : plus de conseil de chauffer quand le thermostat s’en charge."),
      "without": N_("Sans lui : le chauffage est lu sur le thermostat de Home Assistant seulement."),
      "found": N_("installé, aucun chauffage choisi dans une pièce"), "missing": N_("non installé")},
+    # In beta: read from its entities as ha-chauffage 0.8 gives them, its « Prochain changement » first once it has it.
+    {"key": schedule.PLATFORM, "name": schedule.NAME, "official": False, "beta": True, "url": "https://github.com/armellarcier/ha-chauffage",
+     "role": N_("Planning du chauffage, prochain changement"),
+     "use": N_("Planning de chaque thermostat : Confort sait quand le chauffage repasse en confort, le dit dans la pièce et en tient compte dans ses prévisions."),
+     "without": N_("Sans lui : la consigne du thermostat est supposée la même pour les heures qui viennent."),
+     "found": N_("installé, aucun thermostat programmé dans une pièce suivie"), "missing": N_("non installé")},
+    {"key": schedule.SCHEDULER, "name": schedule.SCHEDULER_NAME, "official": False, "beta": True, "url": "https://github.com/nielsfaber/scheduler-component",
+     "role": N_("Plannings des thermostats, prochain créneau"),
+     "use": N_("Plannings qui pilotent les thermostats : Confort sait à quelle heure le chauffage change, le dit dans la pièce et en tient compte dans ses prévisions."),
+     "without": N_("Sans lui : la consigne du thermostat est supposée la même pour les heures qui viennent."),
+     "found": N_("installé, aucun planning ne pilote le thermostat d’une pièce suivie"), "missing": N_("non installé")},
     {"key": "adaptive_cover_pro", "name": cover_link.NAME, "official": False, "url": "https://github.com/jrhubott/adaptive-cover-pro",
      "role": N_("Volets pilotés avec le soleil"),
      "use": N_("Volets pilotés avec le soleil : Confort sait quand ils se ferment et nomme les volets à fermer avant la chaleur."),
@@ -253,7 +267,6 @@ EXTENSIONS = (
 OTHERS = (
     {"key": "better_thermostat", "name": "Better Thermostat", "use": N_("Pourrait donner la consigne et l’arrêt fenêtre ouverte.")},
     {"key": "smartir", "name": "SmartIR", "use": N_("Pourrait dire si la climatisation tourne, et dans quel mode.")},
-    {"key": "scheduler", "name": "Scheduler", "use": N_("Pourrait dire quand le chauffage va reprendre.")},
 )
 DOMAINS = frozenset(e["key"] for e in EXTENSIONS + OTHERS) | set(cover_link.PLATFORMS)
 
@@ -306,6 +319,7 @@ async def facts(hass, version):
         room.shared = coordinator.inherited() if hasattr(coordinator, "inherited") else {}
         heating = er.async_get(hass).async_get(sources["heating"]) if sources.get("heating") else None
         room.thermostat = bool(heating and heating.platform == thermostats.PLATFORM and thermostats.PLATFORM not in disabled)
+        room.planners = frozenset(schedule_link.planners(hass, sources.get("heating")) - disabled)
         driven = {w: r for w, r in (getattr(coordinator, "drivers", None) or {}).items() if w in windows}
         room.driven_covers = len(driven)
         room.drivers = frozenset(r.get("driver", "adaptive_cover_pro") for r in driven.values())
