@@ -41,7 +41,7 @@ def async_setup_websocket(hass):
     websocket_api.async_register_command(hass, ws_periods)
     for command in (ws_configuration, ws_discover, ws_overview, ws_weather, ws_validate, ws_save, ws_remove):
         websocket_api.async_register_command(hass, command)
-    for command in (ws_advice_opinion, ws_atelier, ws_trace):
+    for command in (ws_advice_opinion, ws_atelier, ws_trace, ws_relearn):
         websocket_api.async_register_command(hass, command)
 
 
@@ -367,3 +367,18 @@ async def ws_trace(hass, connection, msg):
         connection.send_error(msg["id"], "not_found", "Instantané introuvable")
     else:
         connection.send_result(msg["id"], found)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/relearn"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_relearn(hass, connection, msg):
+    """The nightly learning now, for the Atelier and the lab (advisor_home.py `learn`): started in the background, its
+    report written to apprentissage.jsonl as each night's."""
+    from .advisor_home import DATA
+    home = hass.data.get(DATA)
+    if home is None or home.learning:
+        connection.send_result(msg["id"], {"lance": False})
+        return
+    hass.async_create_background_task(home.learn(), "hestia_comfort relearn")
+    connection.send_result(msg["id"], {"lance": True})

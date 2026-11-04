@@ -19,13 +19,15 @@ from homeassistant.util import dt as dt_util
 
 from ..advisor.checks import GOOD, KINDS, Checker
 from ..advisor.decide import (SIGNIFICANT, Gesture, Now, Twins, aged, decide, for_season, from_thermostat, heating_back,
-                              heating_off, main_subject, recent_sources, shutter_tonight, stove_idle, sun_gain, tonight)
+                              heating_off, main_subject, recent_sources, shutter_tonight, simulate, stove_idle, sun_gain,
+                              tonight)
 from ..advisor.feedback import declined, follow, pause_until
 from ..advisor.household import Habits
 from ..advisor.house import ORDINARY_VOLUME, Opening as Declared, Room
 from ..advisor.knowing import RoomView, Window, tips
 from ..advisor.nightly import RoomSpec
-from ..advisor.opening import Opened, closed_cases, scaled, seen_share
+from ..advisor.notes import grades, prune
+from ..advisor.opening import Opened, closed_cases, disturbed, scaled, seen_share, settling
 from ..advisor.physics.air import AirParams, ParticleParams
 from ..advisor.physics.airfit import TWINS, first, values
 from ..advisor.physics.fit import HOUR
@@ -42,8 +44,8 @@ _LOGGER = logging.getLogger(__name__)
 
 # The facade's bearing from the exposure chosen in Confort.
 EXPOSURES = {"N": 0, "NE": 45, "E": 90, "SE": 135, "S": 180, "SO": 225, "SW": 225, "O": 270, "W": 270, "NO": 315, "NW": 315}
-# m³/h when the person does not know the flow (« Pour aller plus loin »): the fast speed's real share is learned
-# (advisor/nightly.py `boost_scale`).
+# m³/h when the person does not know the flow (« Pour aller plus loin »): the real shares are learned from the devices'
+# notes (advisor/notes.py, advisor/nightly.py `boost_scale`, `purifier_scale`).
 FLOWS = {"ventilation_boost": 60.0, "purifier": 150.0}
 # The share of a house heater (a stove) a room receives before anything is learned: most of it in the room it stands in,
 # little elsewhere (lab, 3 November: learned 0.74 in the Salon · Cuisine, 0 to 0.27 in the other rooms; the Chambre M,
@@ -245,7 +247,8 @@ def _resized(learned: dict, room: dict) -> bool:
 def _remade(learned: dict, learned_at, fresh: dict) -> dict:
     """Twins made again from the size declared: the warmth already learned and the effects seen are kept (a volume
     changes the air's twins), the night relearns the rest from the recorder."""
-    return {**fresh, "heat": learned["heat"] if learned_at else fresh["heat"], "gestures": learned.get("gestures") or {}}
+    return {**fresh, "heat": learned["heat"] if learned_at else fresh["heat"], "gestures": learned.get("gestures") or {},
+            "ecartes": learned.get("ecartes") or []}
 
 
 def room_spec(room: dict) -> RoomSpec:
@@ -272,8 +275,13 @@ class RoomAdvisor:
         self.opening = None
         # The same opening with the twin's forecast for it, to see how much of it the window really does (advisor/opening.py).
         self.opened_seen = None
+        # What that forecast was made from (twins, the room, what acts on it), to forecast the airing as it was once shut;
+        # the airing shut, waiting an hour for the room to settle before it is judged (advisor/opening.py Closed).
+        self.opened_from = self.closed = None
         # The gesture shown last: (gesture, when, since when it has been on the card).
         self.previous = None
+        # The gesture shown « À essayer »: (gesture, when).
+        self.tried = None
         # The gesture the card asks for, followed until done or replaced; the gestures put aside by « Pas maintenant ».
         self.asked, self.paused = None, {}
         self.checker, self.sensors = Checker(), {}
@@ -358,9 +366,11 @@ class RoomAdvisor:
                 missing = {"nuit": True}            # learned with the twin, at the first night with enough days
             else:
                 missing = {"ecart": True}           # enough gestures, the twin is not yet right on their size
+            # The last notes (« 0 0 − ») and what the night made of them (CAHIER-MOTEUR.md § 15.1).
             effects.append({"effet": effect, "niveau": found, "gestes": len(cases),
                             "prevu": None if forecast is None else round(forecast, 2),
-                            "mesure": None if measured is None else round(measured, 2), "manque": missing})
+                            "mesure": None if measured is None else round(measured, 2), "manque": missing,
+                            "notes": grades(cases), "correction": ((self.report or {}).get("notes") or {}).get(effect)})
         effects.sort(key=lambda e: (-ORDER.index(e["niveau"]) if e["niveau"] in ORDER else 0, e["effet"]))
         proven = sum(e["niveau"] == PROVEN for e in effects)
         report = self.report or {}
@@ -407,17 +417,38 @@ class RoomAdvisor:
     def _opening(self, now, opened, air, humidity):
         """(since, air, humidity) of the opening under way, as this step first saw it; None when shut or not seen."""
         if not opened:
-            if self.opened_seen is not None:
-                # The airing just ended, kept as a gesture seen: the next one is judged on it (advisor/proof.py `belied`).
-                gestures = self.learned.setdefault("gestures", {})
-                for subject, (forecast, measured) in closed_cases(self.opened_seen, now, air, humidity).items():
-                    gestures.setdefault(subject, []).append([self.opened_seen.since.isoformat(), round(forecast, 3),
-                                                             round(measured, 3)])
-            self.opening = self.opened_seen = None
+            if self.opened_seen is not None and self.opened_from is not None:
+                # The airing just shut: the twin's forecast for it as it was, open that long then shut, judged in an hour.
+                twins, start, coming = self.opened_from
+                minutes = int((now - self.opened_seen.since).total_seconds() // 60)
+                path = simulate(twins, start, coming, Gesture("close", after=minutes))
+                # And without it: shut from the opening on (advisor/notes.py, the effect against « without »).
+                shut = simulate(twins, start, coming, Gesture("close"))
+                self.closed = settling(self.opened_seen, now, path.air, path.humidity or (), shut.air, shut.humidity or (),
+                                       (start.boosting, start.purifying))
+            self.opening = self.opened_seen = self.opened_from = None
             return None
         if self.opening is None:
             self.opening = (now, air, humidity)
         return self.opening
+
+    def _settled(self, now, current):
+        """The airing shut an hour ago, the room settled: kept as a gesture seen, the next one is judged on it
+        (advisor/proof.py `belied`). Anything else that acted meanwhile leaves it to the night."""
+        closed = self.closed
+        if closed is None:
+            return
+        if disturbed(closed, current.opened, (current.boosting, current.purifying), current.sources):
+            # Put aside: nothing noted, and the night leaves it out too (advisor/notes.py).
+            self.closed = None
+            self.learned["ecartes"] = [*prune(self.learned.get("ecartes"), now), closed.since.isoformat()]
+            return
+        if not closed.due(now):
+            return
+        self.closed = None
+        gestures = self.learned.setdefault("gestures", {})
+        for subject, (forecast, measured) in closed_cases(closed, now, current.air, current.humidity).items():
+            gestures.setdefault(subject, []).append([closed.since.isoformat(), round(forecast, 3), round(measured, 3)])
 
     def _proof(self, current, outdoor, outdoor_water):
         """The level of the windows' effect on each subject: learned from the gestures seen, reinforced by the measures of
@@ -532,8 +563,9 @@ class RoomAdvisor:
             particles_flow=tuple(learned.get("particles_flow", (1, 1))),
             voc=ParticleParams(**learned["voc"]) if "voc" in learned and room["voc"] else None,
             voc_flow=tuple(learned.get("voc_flow", (1, 1))),
-            # The fast speed at the share of its declared flow the room showed (advisor/nightly.py `boost_scale`).
-            boost=(room["boost"] or (None, 0.0))[1] * learned.get("boost_scale", 1.0), purifier=(room["purifier"] or (None, 0.0))[1],
+            # The fast speed and the purifier at the shares of their declared flows the room showed (advisor/nightly.py).
+            boost=(room["boost"] or (None, 0.0))[1] * learned.get("boost_scale", 1.0),
+            purifier=(room["purifier"] or (None, 0.0))[1] * learned.get("purifier_scale", 1.0),
             thermostat=home.thermostat(room["thermostat"]), shutter_area=glass,
             idle_thermostat=home.thermostat(room["thermostat"], "off"),
             # The side each window faces, for the air crossing the room (« Ouvrez aussi la porte-fenêtre »).
@@ -604,30 +636,41 @@ class RoomAdvisor:
                 found = {}
             if found:
                 current = replace(current, sources=found)
+        self._settled(now, current)
         # The gesture shown last, counted down to now (« encore 10 min » five minutes on is « encore 5 min »).
         shown_before, shown_at, shown_since = self.previous or (None, now, now)
         previous = aged(shown_before, (now - shown_at).total_seconds() / 60)
         # How long it has been on the card: held half an hour while it still helps (advisor/decide.py HOLD_MINUTES).
         held = (now - shown_since).total_seconds() / 60
+        # The gesture shown « À essayer », counted down too: it holds while it is about as good.
+        tried_before, tried_at = self.tried or (None, now)
+        tried = aged(tried_before, (now - tried_at).total_seconds() / 60)
         decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                          holidays=away, habits=habits, held=held)
+                          holidays=away, habits=habits, held=held, tried=tried)
         if decision.rule == "unproven" and opened and opening:
             # The gesture under way may show its effect now (CAHIER-MOTEUR.md § 4.1).
             subject = main_subject(decision.scenarios, decision.passive)
             if self._seen(subject, decision, opening, now, air, current.humidity):
                 proof[subject] = PROVEN
                 decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                                  holidays=away, habits=habits, held=held)
-        if opened and opening and self.opened_seen is None:
-            # What the twin gives the windows left open, from the moment they are first seen open.
-            path = decision.paths[Gesture("nothing")]
+                                  holidays=away, habits=habits, held=held, tried=tried)
+        # What the twin gives the windows left open, from the moment they are first seen open; a safety rule that shuts
+        # them weighs no scenario (Salon · Cuisine, 4 November at 6 h 26: the advice failed on it), the next step will.
+        path = decision.paths.get(Gesture("nothing"))
+        if opened and opening and self.opened_seen is None and path is not None:
             self.opened_seen = Opened(opening[0], opening[1], opening[2], tuple(path.air), tuple(path.humidity or ()))
+            self.opened_from = (twins, current, coming)
         snap = capture(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
                        holidays=away, habits=habits, reason=reason, held=held, end_hour=end_hour, hour=local.hour + local.minute / 60,
                        room=name, when=now.isoformat(), version=home.version)
         snap["pas_maintenant"] = sorted(aside)
         same = shown_before is not None and (shown_before.kind, shown_before.after is None) == (decision.gesture.kind, decision.gesture.after is None)
         self.previous = (decision.gesture, now, shown_since if same else now)
+        # Kept through a step where a safety rule takes the gesture away (a gust): it comes back as it was, not anew.
+        if decision.passive is not None:
+            self.tried = (decision.passive, now)
+        elif decision.gesture.kind != "nothing" or not taken:
+            self.tried = None
         if stepping:
             # The walls follow the measured air, five minutes at a time.
             self.trail.append((now, air, walls, acting))

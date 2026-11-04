@@ -306,7 +306,12 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             if values["idle"] - values["chosen"] < 1:
                 line = words["humidity_brief"]
             elif hour is not None:
-                at = round((hour * 60 + (k + 1) * STEP_MINUTES) / 5) * 5 % (24 * 60)
+                # Said to the quarter of an hour, or at the forecast's end for a window left open: a time that moved five
+                # minutes at every step changed the line each time (Chambre AL, 4 November).
+                if gesture.kind in ("open", "open_more") and not gesture.minutes:
+                    at = end_hour * 60 % (24 * 60)
+                else:
+                    at = round((hour * 60 + (k + 1) * STEP_MINUTES) / 15) * 15 % (24 * 60)
                 line = words["humidity_at"].format(at=_time(time(at // 60, at % 60), words), **values)
             else:
                 line = words["humidity"].format(**values)

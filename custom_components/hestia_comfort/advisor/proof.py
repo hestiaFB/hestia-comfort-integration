@@ -9,9 +9,10 @@ one only speaks in « Bon à savoir ».
 SUPPOSED, REINFORCED, PROVEN = "supposed", "reinforced", "proven"
 ORDER = (SUPPOSED, REINFORCED, PROVEN)
 
-# Learned: at least this many gestures, the twin right on the direction and on the order of magnitude — the effect
-# measured between half and twice the one forecast, on average.
-CASES = 3
+# Learned: at least this many gestures, the twin right on the direction and on the order of magnitude — the middle of
+# the last RECENT notes (advisor/notes.py) between half and twice the effect announced. A gesture's case: its effect
+# announced and its effect measured, both against the twin without it, an hour after it ended.
+CASES, RECENT = 3, 10
 LOW, HIGH = 0.5, 2.0
 # Seen now: the gesture lasts since this long at least, and the measure moved the forecast way by this share of the
 # significant gap (decide.SIGNIFICANT) at least.
@@ -20,31 +21,31 @@ LIVE_MINUTES, LIVE_SHARE = 15, 0.5
 HEAT_GAP, WATER_GAP = 3.0, 1.0
 
 
+def _ratios(cases) -> list[float]:
+    return [m / f for f, m in cases if f and m is not None]
+
+
 def learned(cases) -> bool:
-    """Whether past gestures prove an effect: `cases`, (forecast, measured) changes of each gesture."""
-    cases = [(f, m) for f, m in cases if f is not None and m is not None]
-    if len(cases) < CASES:
+    """Whether past gestures prove an effect: `cases`, (announced, measured) effects of each gesture, oldest first."""
+    ratios = sorted(_ratios(cases)[-RECENT:])
+    if len(ratios) < CASES:
         return False
-    forecast = sum(f for f, _ in cases) / len(cases)
-    measured = sum(m for _, m in cases) / len(cases)
-    return forecast != 0 and LOW <= measured / forecast <= HIGH
+    half = len(ratios) // 2
+    middle = ratios[half] if len(ratios) % 2 else (ratios[half - 1] + ratios[half]) / 2
+    return LOW <= middle <= HIGH
 
 
-# Belied: at least this many gestures whose measured effect, on average, came under LOW of the one forecast — or went the
-# other way. The window then promises less than the moment says (Chambre P, 3 November: two airings, the humidity back
+# Belied: the last this many gestures in a row each did under LOW of the effect announced — or the other way (notes « 0 »
+# or « − », Frank, 3 November). The window then promises less than the moment says (Chambre P, 3 November: two airings, the humidity back
 # where it was ten minutes after shutting): the effect goes back to supposed, a passive « À essayer », whatever the
 # moment backs, until the gestures say otherwise.
 BELIED = 2
 
 
 def belied(cases) -> bool:
-    """Whether past gestures belie the effect the twin gives: measured far under the forecast, or the other way."""
-    cases = [(f, m) for f, m in cases if f is not None and m is not None]
-    if len(cases) < BELIED:
-        return False
-    forecast = sum(f for f, _ in cases) / len(cases)
-    measured = sum(m for _, m in cases) / len(cases)
-    return forecast != 0 and measured / forecast < LOW
+    """Whether the last gestures belie the effect the twin gives: each did far under it, or the other way."""
+    ratios = _ratios(cases)
+    return len(ratios) >= BELIED and all(r < LOW for r in ratios[-BELIED:])
 
 
 def live(change: float | None, direction: float, significant: float, minutes: float | None) -> bool:
@@ -70,10 +71,12 @@ def window_reinforced(subject: str, air: float, outdoor: float, water: float | N
 
 
 def level(cases=(), reinforced: bool = False, seen: bool = False) -> str:
-    """The effect's level: proven when learned or seen now, supposed when the gestures belie it, reinforced when the moment
-    backs it, supposed otherwise."""
-    if seen or learned(cases):
+    """The effect's level: proven when seen now; supposed when the last gestures belie it, whatever came before; proven
+    when learned; reinforced when the moment backs it, supposed otherwise."""
+    if seen:
         return PROVEN
     if belied(cases):
         return SUPPOSED
+    if learned(cases):
+        return PROVEN
     return REINFORCED if reinforced else SUPPOSED

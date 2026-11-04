@@ -655,10 +655,11 @@ def _for_the_outside(later: Gesture, twins: Twins, now: Now, coming, comfort: Co
 def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
            previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
            proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits(),
-           held: float | None = None) -> Decision:
+           held: float | None = None, tried: Gesture | None = None) -> Decision:
     """The gesture to advise. `forbidden`: kinds a safety rule takes away (« open » under the rain, in gusts…).
     `proof`: the level of the windows' effect on each subject (advisor/proof.py); None, all taken as proven.
-    `held`: minutes `previous` has been on the card (HOLD_MINUTES)."""
+    `held`: minutes `previous` has been on the card (HOLD_MINUTES); `tried`: the gesture shown « À essayer », as it
+    stands now (`aged`)."""
     if "open" in forbidden and now.opened:
         # The rain or the gusts: what is open is shut, whatever it costs.
         return Decision(Gesture("close"), 0.0, "safety", {})
@@ -674,6 +675,8 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # never to come (Salon · Cuisine, 3 November, 15 h to 18 h).
     if previous is not None and previous.after and previous not in pool:
         pool.append(previous)
+    if tried is not None and tried.after and tried not in pool:
+        pool.append(tried)
     gestures = [g for g in pool if g.kind not in forbidden
                 and not (g.kind == "open" and g.minutes is None and "open_long" in forbidden)
                 and not (g.kind in ("open", "open_more") and now.night and not habits.open_at_night)
@@ -745,6 +748,11 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         return Decision(best, gain, rule, costs, paths, level=found)
     if hold and best == previous:
         return Decision(best, gain, "kept", costs, paths, level=found)
+    # « À essayer » holds like the banner: the gesture shown stays while it is about as good (MARGIN). It changed at every
+    # step, « Ouvrez », « Aérez 25 min », « Aérez 30 min » (Chambre AL, 4 November: thirty times since 21 h).
+    if (tried is not None and tried != best and tried in worth
+            and costs[tried]["total"] - costs[best]["total"] < MARGIN * max(costs[tried]["total"], GAIN)):
+        best, gain = tried, nothing - costs[tried]["total"]
     return Decision(Gesture("nothing"), gain, "unproven", costs, paths, level=found, passive=best)
 
 

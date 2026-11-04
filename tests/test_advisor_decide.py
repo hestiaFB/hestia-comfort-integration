@@ -245,3 +245,14 @@ class Sleeping(unittest.TestCase):
         # A window left open is still to be closed.
         left = decide(TWINS, replace(now, opened=(FRENCH.size,)), night(start=3.0, hours=4))
         self.assertEqual(left.gesture, Gesture("close"))
+
+
+class TriedHolds(unittest.TestCase):
+    def test_the_gesture_to_try_holds_while_about_as_good(self):
+        # Chambre AL, 4 November at 15 h 13: « Aérez 30 min » five minutes earlier, « Aérez 25 min » now — thirty changes
+        # of « À essayer » since 21 h. The one shown stays while it is about as good; a clearly worse one does not.
+        from advisor.snapshot import load, restore
+        args = restore(load(Path(__file__).parent / "fixtures" / "chambre-al-4-novembre-15h13.json"))
+        self.assertEqual(decide(**args).passive, Gesture("open", 25))
+        self.assertEqual(decide(**args, tried=Gesture("open", 30)).passive, Gesture("open", 30))
+        self.assertEqual(decide(**args, tried=Gesture("open", 5)).passive, Gesture("open", 25))

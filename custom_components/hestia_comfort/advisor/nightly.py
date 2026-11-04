@@ -6,11 +6,13 @@ the integration fetches the history and keeps the twins, this module only learns
 """
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timedelta
+import math
 
 from .bench.history import attribute, contacts, numbers
 from .decide import CROSS, sides_apart
-from .physics.airfit import MOVES, TWINS, _run, score as air_score, values, vector
-from .physics.fit import Sample, _nelder_mead, fit, fit_windows, gestures, score
+from .notes import prune, settle
+from .physics.airfit import MOVES, TWINS, notes as air_notes, score as air_score, values, vector
+from .physics.fit import Sample, _nelder_mead, fit, fit_windows, notes as heat_notes, score
 from .physics.sunlight import sun_position, through_windows
 from .physics.thermal import STEP, Inputs, Params, shutter_insulation
 from .physics.water import absolute
@@ -18,15 +20,12 @@ from .proof import level
 
 # A twin is relearned only from this many recorded days; with fewer, only the gestures are counted.
 MIN_DAYS = 3
-# The share of its declared flow the VMC's fast speed really gives the room, tried on the humidity it took away: the
-# flow is seldom known (Frank, 2 November: « je ne connais pas son débit »), and 60 m³/h foresaw −9 points in an hour
-# where Chambre P lost 2 in four. Kept only with at least BOOST_MINUTES of fast speed seen, and when it forecasts better.
-BOOST_SCALES = (0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.7, 1.0, 1.3)
-BOOST_MINUTES = 60
 # The last day is kept out of the search, to judge it: the new twin is kept only if it forecasts that day better.
 HELD_OUT = timedelta(hours=24)
 # Gestures are remembered this long.
 KEEP = timedelta(days=60)
+# A correction from the gestures' notes (advisor/notes.py) is kept when the last day is forecast no worse than this.
+NOTES_TOLERANCE = 1.05
 # The searches start from the twin as it is (the heat's pulled back toward it, advisor/physics/fit.py); the water's and
 # the air's with moves this much smaller than from scratch: a night nudges, it does not start over.
 WARM = 0.3
@@ -130,23 +129,24 @@ def _air_rows(key, history, spec, data, outdoor, outdoor_humidity):
     return [(s, v if (v := series.at(s.when)) is not None and ok(v) else None, outside) for s in data]
 
 
-def _boosted(rows, scale: float):
-    """The rows with the VMC's fast speed at this share of its declared flow."""
-    if scale == 1.0:
+def _scaled(rows, boost: float = 1.0, purifier: float = 1.0):
+    """The rows with the VMC's fast speed and the purifier at these shares of their declared flows: the flows are seldom
+    known (Frank, 2 November: « je ne connais pas son débit »), and 60 m³/h foresaw −9 points in an hour where Chambre P
+    lost 2 in four. The shares are learned from their notes (advisor/notes.py)."""
+    if boost == 1.0 and purifier == 1.0:
         return rows
-    return [(replace(r[0], inputs=replace(r[0].inputs, vent=r[0].inputs.vent * scale)) if r[0].inputs and r[0].inputs.vent
-             else r[0], *r[1:]) for r in rows]
+    def scaled(u):
+        return replace(u, vent=u.vent * boost, purifier=u.purifier * purifier) if u and (u.vent or u.purifier) else u
+    return [(replace(r[0], inputs=scaled(r[0].inputs)), *r[1:]) for r in rows]
 
 
-def _boost_scale(kind, x, volume, rows, start, now, kept: float) -> dict | None:
-    """The share of the declared fast speed that forecasts the room's humidity best, when the fast speed ran long enough."""
-    running = sum(1 for r in rows if r[0].inputs and r[0].inputs.vent) * STEP / 60
-    if running < BOOST_MINUTES:
-        return None
-    scores = {k: air_score(kind, x, volume, _boosted(rows, k), start, now) for k in BOOST_SCALES}
-    best = min(scores, key=scores.get)
-    keep = best if scores[best] < scores.get(kept, scores[1.0]) else kept
-    return {"minutes": round(running), "essais": {str(k): round(v, 3) for k, v in scores.items()}, "garde": keep}
+def _corrected(fit_notes, value, keep_if, now) -> tuple[float, dict]:
+    """A category's parameter corrected from its notes (advisor/notes.py `settle`), kept only if `keep_if(value)`."""
+    found, _, report = settle(fit_notes, value, now)
+    if found == value:
+        return value, report
+    report["garde"] = keep_if(found)
+    return (found if report["garde"] else value), report
 
 
 def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor: str, outdoor_humidity: str,
@@ -157,8 +157,10 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
     if start is None:
         start = max(first).replace(minute=0, second=0, microsecond=0) + timedelta(hours=1) if len(first) == 2 else now
     days = max(0.0, (now - start).total_seconds() / 86400)
-    entry = {**entry, "gestures": dict(entry.get("gestures") or {})}
-    report = {"piece": spec.name, "jours": round(days, 1), "appris": days >= MIN_DAYS}
+    # The gestures put aside during the day (something else acted while the room settled): the night leaves them out too.
+    skipped = prune(entry.get("ecartes"), now)
+    entry = {**entry, "gestures": dict(entry.get("gestures") or {}), "ecartes": skipped}
+    report = {"piece": spec.name, "jours": round(days, 1), "appris": days >= MIN_DAYS, "notes": {}}
     if days <= 0:
         return entry, report
     data = samples(history, spec, outdoor, sun, start, now, location, zone, house_heaters)
@@ -180,23 +182,32 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
         if kept:
             heat = found
             entry["heat"] = asdict(found)
-        # Then the windows' effect, on the openings themselves; kept when the last day is forecast no worse than 5 % off.
-        tuned, windows = fit_windows(heat, searched, until=split)
+        # Then the windows' effect, from the openings' notes (CAHIER-MOTEUR.md § 15.1): the day-long fit hardly weighs a few
+        # minutes of opening. Kept when the last day is forecast no worse than 5 % off.
+        tuned, _, windows = fit_windows(heat, data, now, skipped)
         if tuned != heat:
             now_score, tuned_score = score(heat, searched, since=split), score(tuned, searched, since=split)
-            windows["garde"] = tuned_score.hour + tuned_score.three <= 1.05 * (now_score.hour + now_score.three)
+            windows["garde"] = tuned_score.hour + tuned_score.three <= NOTES_TOLERANCE * (now_score.hour + now_score.three)
             windows["fenetre"] = [round(heat.window, 3), round(tuned.window, 3)]
             if windows["garde"]:
                 heat = tuned
                 entry["heat"] = asdict(tuned)
-        report["fenetres"] = windows
-    seen = [[g["when"].isoformat(), g["forecast"], g["measured"]] for g in gestures(heat, data) if g["kind"] == "window"]
-    entry["gestures"]["heat"] = _merge(entry["gestures"].get("heat"), seen, start, now, now)
+        report["notes"]["heat"] = windows
+    # What became of each gesture: noted, or why it was left out (advisor/notes.py `left_out`), in the night's report.
+    why = report["notes"].setdefault("heat", {}).setdefault("gestes_vus", {})
+    entry["gestures"]["heat"] = _merge(entry["gestures"].get("heat"), heat_notes(heat, data, skipped, why), start, now, now)
 
     for key, kind, subject in TWINS:
         if key not in entry or not getattr(spec, "humidity" if key == "water" else SENSORS[key][0]):
             continue
-        rows = _air_rows(key, history, spec, data, outdoor, outdoor_humidity)
+        plain = _air_rows(key, history, spec, data, outdoor, outdoor_humidity)
+        shares = {"boost": entry.get("boost_scale", 1.0), "purify": entry.get("purifier_scale", 1.0)}
+
+        def rows_at(**changed):
+            both = {**shares, **changed}
+            return _scaled(plain, both["boost"], both["purify"])
+
+        rows = rows_at()
         last = [r for r in rows if r[0].when >= recent]
         volume = entry[key]["volume"]
         x = vector(kind, entry[key], entry[f"{key}_flow"])
@@ -210,18 +221,37 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
             if kept:
                 x = found
                 entry[key], entry[f"{key}_flow"] = values(kind, x, volume)
-        if key == "water" and days >= MIN_DAYS:
-            scale = _boost_scale(kind, x, volume, last, recent, now, entry.get("boost_scale", 1.0))
-            if scale is not None:
-                report["vmc_rapide"] = scale
-                entry["boost_scale"] = scale["garde"]
-        run = _run(kind, x, volume, _boosted(rows, entry.get("boost_scale", 1.0)), start, now)
-        seen = [[when.isoformat(), forecast, measured] for measured, forecast, when in run["gestures"]]
-        entry["gestures"][subject] = _merge(entry["gestures"].get(subject), seen, start, now, now)
-        # Each device started: its effect on this subject (« boost:humidity », « purify:particles »).
-        for device in ("boost", "purify"):
-            found = [[when.isoformat(), forecast, measured] for measured, forecast, when, d in run["devices"] if d == device]
-            if found or f"{device}:{subject}" in entry["gestures"]:
+            # Then the windows' effect on this subject, from the openings' notes (CAHIER-MOTEUR.md § 15.1).
+            reference = air_score(kind, x, volume, last, split, now)
+
+            def with_window(w):
+                return [x[0], math.log(w), *x[2:]]
+            window, report["notes"][subject] = _corrected(
+                lambda w: air_notes(kind, subject, with_window(w), volume, rows, "window", skipped), math.exp(x[1]),
+                lambda w: air_score(kind, with_window(w), volume, last, split, now) <= NOTES_TOLERANCE * reference, now)
+            if window != math.exp(x[1]):
+                x = with_window(window)
+                entry[key], entry[f"{key}_flow"] = values(kind, x, volume)
+            # The share of its declared flow the VMC gives the room, from its runs on the humidity; the purifier's, on the
+            # particles.
+            for device, own, key_scale, present in (("boost", "water", "boost_scale", spec.boost),
+                                                     ("purify", "particles", "purifier_scale", spec.purifier)):
+                if not present or key != own:
+                    continue
+                share, report["notes"][f"{device}:{subject}"] = _corrected(
+                    lambda v: air_notes(kind, subject, x, volume, rows_at(**{device: v}), device, skipped), shares[device],
+                    lambda v: air_score(kind, x, volume, [r for r in rows_at(**{device: v}) if r[0].when >= recent], split,
+                                        now) <= NOTES_TOLERANCE * reference, now)
+                shares[device] = entry[key_scale] = share
+            rows = rows_at()
+        why = report["notes"].setdefault(subject, {}).setdefault("gestes_vus", {})
+        entry["gestures"][subject] = _merge(entry["gestures"].get(subject),
+                                            air_notes(kind, subject, x, volume, rows, "window", skipped, why), start, now, now)
+        # Each device's runs: their effect on this subject (« boost:humidity », « purify:particles »).
+        for device, present in (("boost", spec.boost), ("purify", spec.purifier)):
+            if present or f"{device}:{subject}" in entry["gestures"]:
+                why = report["notes"].setdefault(f"{device}:{subject}", {}).setdefault("gestes_vus", {})
+                found = air_notes(kind, subject, x, volume, rows, device, skipped, why) if present else []
                 entry["gestures"][f"{device}:{subject}"] = _merge(entry["gestures"].get(f"{device}:{subject}"), found,
                                                                    start, now, now)
 

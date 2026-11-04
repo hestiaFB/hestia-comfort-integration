@@ -61,10 +61,12 @@ class Nightly(unittest.TestCase):
         entry, report = learn(history, now, {"heat": asdict(TRUTH)})
         self.assertFalse(report["appris"])
         self.assertEqual(entry["heat"], asdict(TRUTH))
-        self.assertEqual(report["gestes"]["heat"], MIN_DAYS - 1)     # one airing a morning
-        when, forecast, measured = entry["gestures"]["heat"][0]
+        # One airing a morning, judged an hour after it was shut against the twin without it (advisor/notes.py): the
+        # second morning's, in a room already cool, left 0.2 °C an hour on — too little to be read.
+        self.assertEqual(report["gestes"]["heat"], 1)
+        when, announced, measured = entry["gestures"]["heat"][0]
         self.assertLess(measured, 0)
-        self.assertAlmostEqual(forecast, measured, delta=0.1)       # the true twin forecasts it right
+        self.assertAlmostEqual(announced, measured, delta=0.1)      # the true twin forecasts it right
 
     def test_gestures_seen_again_replace_the_old_ones_and_old_ones_fade(self):
         now = datetime(2026, 12, 31, tzinfo=timezone.utc)

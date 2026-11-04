@@ -12,7 +12,23 @@ Il est écrit dans chaque instantané, dans le journal des conseils, dans les av
 
 Chaque changement du moteur monte son numéro et ajoute une ligne ci-dessous, la plus récente en haut.
 
+Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../../CHANGELOG-MOTEUR.md), le changelog du moteur publié avec Confort (règle dans [RELEASES.md](../../RELEASES.md)). Ici, le détail technique ; là-bas, ce que la famille voit changer.
+
 ## Historique
+
+### 3.1.1 — 4 novembre 2026
+
+- « À essayer » tient comme le bandeau : l'essai affiché reste tant qu'il est presque aussi bon que le meilleur (même marge), et il traverse une rafale qui l'interdit un instant. Chambre AL, 4 novembre, rejeu de 14 h 18 à 16 h 53 : 6 changements de geste au lieu de 12 (30 changements de texte depuis 21 h la veille).
+- L'heure annoncée pour l'humidité est arrondie au quart d'heure. Pour une fenêtre laissée ouverte, c'est l'heure de fin de la prévision (« 58 % d'humidité à 18 h au lieu de 70 % ») : elle n'avance plus de 5 minutes à chaque calcul.
+- Une règle de sécurité qui fait refermer (pluie, rafales) ne fait plus échouer le conseil d'une pièce dont la fenêtre vient d'être vue ouverte (Salon · Cuisine, 4 novembre à 6 h 26).
+
+### 3.1.0 — 4 novembre 2026
+
+- Une note pour chaque geste (CAHIER-MOTEUR.md § 15.1, proposé par Frank, `advisor/notes.py`). Une aération, une marche de la VMC rapide ou du purificateur est jugée **1 h après sa fin**, contre le jumeau **sans le geste** : effet annoncé (avec − sans) et effet mesuré (mesuré − sans). Note + (de la moitié au double, ou plus), 0 (moins de la moitié), − (l'inverse).
+- Rien n'est noté si autre chose a agi pendant le geste ou l'heure qui suit : fenêtre rouverte, VMC ou purificateur qui change, source d'humidité (douche, cuisine). Un geste écarté le jour (`ecartes`) l'est aussi la nuit.
+- La nuit corrige chaque catégorie (pièce × geste × sujet) vers la médiane de ses notes récentes (poids divisé par 2 en 15 jours, 3 notes au moins), au plus ×2 ou ÷2 par nuit, gardée si la dernière journée n'est pas prévue plus de 5 % moins bien. Pour la chaleur, elle remplace l'ancienne correction des fenêtres ; pour l'humidité, le CO₂, les COV et les particules, elle est nouvelle ; la part du débit de la VMC (`boost_scale`) et du purificateur (`purifier_scale`, nouveau) en viennent aussi.
+- Preuves : « appris » si la médiane des 10 dernières notes est entre la moitié et le double ; « démenti » dès que les 2 dernières sont à 0 ou −, quoi qu'il y ait eu avant.
+- « Ce que Hestia sait » reçoit pour chaque effet ses dernières notes (« 0 0 − ») et la correction de la nuit.
 
 ### 3.0.6 — 3 novembre 2026
 

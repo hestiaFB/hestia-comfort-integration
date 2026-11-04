@@ -6,8 +6,9 @@ points). After a few minutes the measures say how much of the forecast the windo
 is judged with that share (CAHIER-MOTEUR.md § 4.1, the gesture under way).
 """
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, timedelta
 
+from .notes import SETTLE_STEPS, case
 from .physics.thermal import STEP
 from .physics.water import absolute
 
@@ -62,22 +63,65 @@ def scaled(twins, share: float):
                    air_flow=flow(twins.air_flow), particles_flow=flow(twins.particles_flow), voc_flow=flow(twins.voc_flow))
 
 
-def closed_cases(opened: Opened, now: datetime, air: float, humidity: float | None) -> dict[str, tuple[float, float]]:
-    """The airing just ended, as a gesture seen: {subject: (forecast change, measured change)} of the air (°C) and of its
-    water (g/m³), the nightly learning's own measures (advisor/nightly.py). Kept at once, so that the next airing is judged
-    on it without waiting for the night (Frank, 3 November: « il vient d'apprendre tout seul que cette action n'a rien
-    amené ? »). Too short an airing, or a forecast too small to be read, says nothing."""
-    minutes = (now - opened.since).total_seconds() / 60
-    k = min(int(round(minutes * 60 / STEP)) - 1, len(opened.forecast_air) - 1)
-    if minutes < OBSERVE_MINUTES or k < 0:
+@dataclass(frozen=True)
+class Closed:
+    """The airing ended, waiting for the room to settle: when it opened and when it was shut, and the twin's forecasts
+    from the opening, every step: for the airing as it was — open that long, then shut — and without it."""
+    since: datetime
+    shut: datetime
+    forecast_air: tuple[float, ...]
+    forecast_humidity: tuple[float, ...] = ()
+    without_air: tuple[float, ...] = ()
+    without_humidity: tuple[float, ...] = ()
+    devices: tuple[bool, bool] = (False, False)     # the VMC's fast speed, the purifier, as the forecasts have them
+
+    def due(self, now: datetime) -> bool:
+        return now >= self.shut + SETTLE
+
+
+# An airing is judged this long after it was shut, once the room settled: the walls and the furnishings give back the
+# water and the heat the window took from the air (Chambre P, 3 November: the humidity back where it was, or higher,
+# after shutting; Frank: « met le à 1 h, je pense que c'est mieux pour l'inertie »). As the night does (advisor/notes.py).
+SETTLE = timedelta(minutes=5 * SETTLE_STEPS)
+
+
+def settling(opened: Opened, shut: datetime, forecast_air, forecast_humidity=(), without_air=(), without_humidity=(),
+             devices=(False, False)) -> Closed | None:
+    """The airing just shut, kept until it is judged; None when it was too short to say anything, or when the forecasts
+    do not reach the moment it is judged (the night's horizon ends at the waking)."""
+    if (shut - opened.since).total_seconds() / 60 < OBSERVE_MINUTES:
+        return None
+    if _step(opened.since, shut + SETTLE) >= min(len(forecast_air), len(without_air)):
+        return None
+    return Closed(opened.since, shut, tuple(forecast_air), tuple(forecast_humidity), tuple(without_air),
+                  tuple(without_humidity), tuple(devices))
+
+
+def disturbed(closed: Closed, opened, devices, sources) -> bool:
+    """Whether something else acted on the room while it settled — a window opened again, the VMC or the purifier
+    switched, a shower or a cooking (a humidity source, advisor/decide.py `recent_sources`): the forecasts no longer say
+    what the airing did. Nothing is noted, and the night leaves it out too (advisor/notes.py, « ecartes »)."""
+    return bool(opened) or tuple(devices) != closed.devices or "humidity" in (sources or {})
+
+
+def _step(since: datetime, now: datetime) -> int:
+    return int(round((now - since).total_seconds() / STEP)) - 1
+
+
+def closed_cases(closed: Closed, now: datetime, air: float, humidity: float | None) -> dict[str, tuple[float, float]]:
+    """The airing judged, the room settled: {subject: (effect announced, effect measured)} of the air (°C) and of its
+    water (g/m³), both against the twin without it (advisor/notes.py) — the night's own measures. Kept without waiting
+    for the night, so that the next airing is judged on it (Frank, 3 November: « il vient d'apprendre tout seul que
+    cette action n'a rien amené ? »). An effect too small to be read says nothing."""
+    k = _step(closed.since, now)
+    if k < 0 or k >= min(len(closed.forecast_air), len(closed.without_air)):
         return {}
     out = {}
-    told = opened.forecast_air[k] - opened.air
-    if abs(told) >= HEAT_READ:
-        out["heat"] = (told, air - opened.air)
-    if humidity is not None and opened.humidity is not None and len(opened.forecast_humidity) > k:
-        then = absolute(opened.air, opened.humidity)
-        told = absolute(opened.forecast_air[k], opened.forecast_humidity[k]) - then
-        if abs(told) >= WATER_READ:
-            out["humidity"] = (told, absolute(air, humidity) - then)
+    if (noted := case("heat", closed.since, closed.forecast_air[k], closed.without_air[k], air)):
+        out["heat"] = tuple(noted[1:])
+    if humidity is not None and k < min(len(closed.forecast_humidity), len(closed.without_humidity)):
+        with_it = absolute(closed.forecast_air[k], closed.forecast_humidity[k])
+        without = absolute(closed.without_air[k], closed.without_humidity[k])
+        if (noted := case("humidity", closed.since, with_it, without, absolute(air, humidity))):
+            out["humidity"] = tuple(noted[1:])
     return out

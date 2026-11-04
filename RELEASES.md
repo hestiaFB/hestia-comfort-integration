@@ -41,6 +41,14 @@ Les mêmes règles pour toutes les briques (Hestia Weather 3.x.x, Hestia Confort
 - Phrases courtes, en mots simples, une idée par ligne ; pas de détails techniques ni de nombre de tests.
 - La release GitHub reprend le texte du CHANGELOG. Titre : « Hestia Weather 3.1.0 — … ». Tag : `v3.1.0`.
 
+## Le changelog du moteur de conseil
+
+- Le moteur a son propre numéro (`VERSION` dans `advisor/__init__.py`) et son propre changelog : [CHANGELOG-MOTEUR.md](CHANGELOG-MOTEUR.md).
+- À chaque changement du moteur : son numéro monte (règle dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md)), une version datée est ajoutée en haut de CHANGELOG-MOTEUR.md, en mots simples, classée Nouveautés / Améliorations / Corrections. Le détail technique va dans MOTEUR-VERSIONS.md.
+- Une version du moteur pas encore publiée porte « Pas encore dans une version de Confort. » ; à la publication, la ligne devient « Dans Confort 3.0.0b1 ».
+- La note de chaque version de Confort se termine par une section à part, **« Moteur de conseil 3.1.0 »** : le numéro du moteur qu'elle contient, puis le résumé des versions du moteur depuis la précédente version de Confort. Rien du moteur dans les autres sections.
+- Si le moteur n'a pas changé : « Moteur de conseil 3.1.0 — inchangé ».
+
 ## Ce qui protège les utilisateurs
 
 - Les identifiants uniques des entités et des appareils ne changent jamais, sauf dans un majeur avec migration.

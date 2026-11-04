@@ -5,8 +5,10 @@ Shared by the bench (advisor/bench/air_check.py, with SciPy's search) and the ni
 the twin's own search, advisor/physics/fit.py): Home Assistant has no SciPy. A twin is a vector `x`: the logarithms of
 its learned leaks and window multipliers, then its own values (`vector`, `values`).
 """
+from dataclasses import replace
 import math
 
+from ..notes import SETTLE_STEPS, SHORTEST_STEPS, case, episodes, left_out, put_aside
 from .air import AirParams, ParticleParams, air_step, particles_step
 from .vents import leak_flow, window_flow
 from .water import WaterParams, water_step
@@ -34,13 +36,12 @@ def _flow(x, volume, sample):
     return leaks + windows + u.vent
 
 
-def _run(kind, x, volume, rows, since, until):
-    """Forecasts of one and three hours from every half hour in [since, until), with the last hour's error added (as the
-    heat's twin does); and each window opening. rows: (sample, measured value, outdoor value) every five minutes."""
-    out = {"hour": [], "three": [], "still_hour": [], "still_three": [], "gestures": [], "devices": []}
-
-    def model(value, hidden, i):
+def _stepper(kind, x, volume, rows):
+    """The twin's five-minute step at row `i`: (value, hidden) → (value, hidden) five minutes on; `sample` stands for the
+    row's own (what acted on the room), to forecast without a gesture."""
+    def model(value, hidden, i, sample=None):
         s, _, outdoor = rows[i]
+        s = sample or s
         flow = _flow(x, volume, s)
         if kind == "water":
             p = WaterParams(volume, _e(x[2]), _e(x[3]), x[4], x[5], x[6])
@@ -50,10 +51,22 @@ def _run(kind, x, volume, rows, since, until):
             return particles_step(p, value, flow, s.inputs.hour, purifier=s.inputs.purifier), hidden
         p = AirParams(volume, x[2], x[3], x[4])
         return air_step(p, value, flow, s.inputs.hour), hidden
+    return model
 
+
+def _ok(rows):
     def ok(i):
         return 0 <= i < len(rows) and rows[i][0].inputs is not None and rows[i][0].measured is not None \
             and rows[i][1] is not None and rows[i][2] is not None
+    return ok
+
+
+def _run(kind, x, volume, rows, since, until):
+    """Forecasts of one and three hours from every half hour in [since, until), with the last hour's error added (as the
+    heat's twin does); and each window opening. rows: (sample, measured value, outdoor value) every five minutes."""
+    out = {"hour": [], "three": [], "still_hour": [], "still_three": [], "gestures": [], "devices": []}
+
+    model, ok = _stepper(kind, x, volume, rows), _ok(rows)
 
     # The one-hour forecast from each start, before its correction: it is what the start an hour later missed.
     hidden, track, raw = None, {}, {}
@@ -102,6 +115,58 @@ def _run(kind, x, volume, rows, since, until):
                 v, h = model(v, h, i + k)
             out["devices"].append((rows[i + HOUR][1] - value, v - value, s.when, started))
         _, hidden = model(value, hidden, i)
+    return out
+
+
+# What a gesture stops, to forecast the room without it: the windows, the VMC's fast speed, the purifier.
+WITHOUT = {"window": lambda u: replace(u, windows=(), cross=1.0), "boost": lambda u: replace(u, vent=0.0),
+           "purify": lambda u: replace(u, purifier=0.0)}
+RUNNING = {"window": lambda u: bool(u.windows), "boost": lambda u: u.vent > 0, "purify": lambda u: u.purifier > 0}
+
+
+def notes(kind, subject, x, volume, rows, gesture="window", skipped=(), why: dict | None = None) -> list[list]:
+    """Each gesture — a window opening, a run of the VMC's fast speed or of the purifier — judged an hour after it ended
+    against the twin without it (advisor/notes.py). Left out when anything else that the gesture's own forecast holds
+    still moved while it ran or while the room settled: the windows, the VMC, the purifier; and those put aside during
+    the day (`skipped`). rows: (sample, measured value, outdoor value) every five minutes; `why` counts the gestures left
+    out, by reason (advisor/notes.py `left_out`)."""
+    model, ok = _stepper(kind, x, volume, rows), _ok(rows)
+    hidden_at, hidden = {}, None
+    for i, (s, value, _) in enumerate(rows):
+        if not ok(i):
+            hidden = None
+            continue
+        hidden = value if hidden is None else hidden
+        hidden_at[i] = hidden
+        _, hidden = model(value, hidden, i)
+    running, without = RUNNING[gesture], WITHOUT[gesture]
+    others = [g for g in RUNNING if g != gesture]
+    flags = [running(s.inputs) if ok(i) else None for i, (s, _, _) in enumerate(rows)]
+    out = []
+    for i, j in episodes(flags):
+        end = j + SETTLE_STEPS
+        reason = ("trop_court" if j - i < SHORTEST_STEPS
+                  else "pas_encore" if end >= len(rows)
+                  else "ecarte_le_jour" if put_aside(skipped, rows[i][0].when)
+                  else "trou" if i not in hidden_at or not all(ok(k) for k in range(i - 1, end + 1))
+                  else "rouverte" if any(flags[k] for k in range(j, end + 1))
+                  else "appareil" if any(RUNNING[g](rows[k][0].inputs) != RUNNING[g](rows[i - 1][0].inputs)
+                                         for g in others for k in range(i, end + 1))
+                  else None)
+        if reason:
+            left_out(why, reason)
+            continue
+        start = rows[i][1]
+        v, h = start, hidden_at[i]
+        w, hw = start, hidden_at[i]
+        for k in range(i, end):
+            v, h = model(v, h, k)
+            s = rows[k][0]
+            w, hw = model(w, hw, k, replace(s, inputs=without(s.inputs)) if k < j else None)
+        noted = case(subject, rows[i][0].when, v, w, rows[end][1])
+        if noted:
+            out.append(noted)
+        left_out(why, None if noted else "illisible")
     return out
 
 

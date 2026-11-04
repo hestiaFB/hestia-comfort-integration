@@ -13,6 +13,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 import math
 
+from ..notes import SETTLE_STEPS, SHORTEST_STEPS, case, episodes, left_out, put_aside, settle
 from .thermal import Inputs, Params, step
 
 # What is fitted: (name, as a logarithm of its ordinary value, first move of the search).
@@ -164,44 +165,54 @@ def gestures(p: Params, samples: list[Sample], since=None, until=None, steps: in
     return out
 
 
-# The windows' effect recalibrated on the openings themselves (CAHIER-MOTEUR.md § 18.3, the main indicator): an
-# opening must have changed the air by this much in the twin's forecast to count (°C), a night moves the effect by this
-# factor at most, and a few rounds settle it (the effect is not exactly proportional to the window's parameter).
-WINDOW_EFFECT, WINDOW_MOVE, WINDOW_ROUNDS = 0.1, 2.0, 3
+def notes(p: Params, samples: list[Sample], skipped=(), why: dict | None = None) -> list[list]:
+    """Each window opening, judged an hour after it was shut against the twin without it (advisor/notes.py): the day-long
+    fit hardly weighs a few minutes of opening (Chambre AL, 1 November: 3 hours open, twice the twin's cooling). Left
+    out: a window opened again, the VMC or the purifier switched while the room settled, an opening put aside during
+    the day (`skipped`), and one whose effect the room's own drift hides (Salon, 1 November: −3.7 °C foreseen without
+    the window, the stove pausing). `why` counts the openings left out, by reason (advisor/notes.py `left_out`)."""
+    walls_at, walls = {}, None
+    for i, s in enumerate(samples):
+        if s.inputs is None or s.measured is None:
+            walls = None
+            continue
+        walls = s.measured if walls is None else walls
+        walls_at[i] = walls
+        _, walls = step(p, s.measured, walls, s.inputs)
+    flags = [None if s.inputs is None else bool(s.inputs.windows) for s in samples]
+    out = []
+    for i, j in episodes(flags):
+        end = j + SETTLE_STEPS
+        span = samples[i:end + 1]
+        before = samples[i - 1].inputs
+        reason = ("trop_court" if j - i < SHORTEST_STEPS
+                  else "pas_encore" if end >= len(samples)
+                  else "ecarte_le_jour" if put_aside(skipped, samples[i].when)
+                  else "trou" if i not in walls_at or any(s.inputs is None or s.measured is None for s in span)
+                  else "rouverte" if any(s.inputs.windows for s in samples[j:end + 1])
+                  else "appareil" if any((s.inputs.vent, s.inputs.purifier) != (before.vent, before.purifier) for s in span)
+                  else None)
+        noted = None
+        if reason is None:
+            start = samples[i].measured
+            with_it = _simulate(p, samples, i, start, walls_at[i], end - i)
+            shut = samples[:i] + [replace(s, inputs=replace(s.inputs, windows=(), cross=1.0)) for s in samples[i:j]] + samples[j:]
+            without = _simulate(p, shut, i, start, walls_at[i], end - i)
+            if abs(without - start) > abs(with_it - without):
+                reason = "derive"
+            elif not (noted := case("heat", samples[i].when, with_it, without, samples[end].measured)):
+                reason = "illisible"
+        if noted:
+            out.append(noted)
+        left_out(why, reason)
+    return out
 
 
-def window_ratio(p: Params, samples: list[Sample], until=None) -> tuple[float | None, int]:
-    """How much more the openings changed the air than the twin gives them: the change the window must have made, given
-    what the twin foresaw without it, against the change it foresaw from the window; and how many openings count."""
-    # Only openings whose own effect stands out from what the twin foresaw without them: elsewhere the room's own drift
-    # (the stove pausing, the sun) hides what the window did (Salon, 1 November: −3.7 °C foreseen without the window).
-    cases = [g for g in gestures(p, samples, until=until) if g["kind"] == "window"
-             and abs(g["forecast"] - g["without"]) >= WINDOW_EFFECT and abs(g["without"]) <= abs(g["forecast"] - g["without"])]
-    ratios = sorted(r for g in cases if (r := (g["measured"] - g["without"]) / (g["forecast"] - g["without"])) > 0)
-    if not ratios:
-        return None, 0
-    # The middle one: one odd opening does not move it.
-    middle = len(ratios) // 2
-    return (ratios[middle] if len(ratios) % 2 else (ratios[middle - 1] + ratios[middle]) / 2), len(ratios)
-
-
-def fit_windows(p: Params, samples: list[Sample], until=None, least: int = 2) -> tuple[Params, dict]:
-    """The window's parameter set so the openings change the air as much in the twin as they did in the room: the
-    day-long fit hardly weighs a few hours of opening (Chambre AL, 1 November: 3 hours open, twice the twin's cooling,
-    and the night lowered its window). At least `least` openings; at most WINDOW_MOVE either way in a night."""
-    start = p
-    ratio, n = window_ratio(p, samples, until)
-    report = {"ouvertures": n, "ecart": None if ratio is None else round(ratio, 2)}
-    if ratio is None or n < least:
-        return p, report
-    for _ in range(WINDOW_ROUNDS):
-        if ratio is None or abs(math.log(ratio)) < 0.05:
-            break
-        moved = min(WINDOW_MOVE, max(1 / WINDOW_MOVE, p.window * ratio / start.window))
-        p = replace(p, window=start.window * moved)
-        ratio, _ = window_ratio(p, samples, until)
-    report["apres"] = None if ratio is None else round(ratio, 2)
-    return p, report
+def fit_windows(p: Params, samples: list[Sample], now: datetime, skipped=()) -> tuple[Params, list, dict]:
+    """The window's parameter set from the openings' notes, a night at a time (advisor/notes.py `settle`): the twin as
+    corrected, the notes with it, the report."""
+    window, found, report = settle(lambda w: notes(replace(p, window=w), samples, skipped), p.window, now)
+    return replace(p, window=window), found, report
 
 
 def params_of(base: Params, x) -> Params:
