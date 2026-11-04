@@ -10,7 +10,7 @@ from typing import Mapping
 from .sources import Reading
 from .wind import DRIVEN_RAIN_GUST, GUSTY, crossing as wind_crossing, open_first, plan as airflow_plan, side as wind_side
 from .outlook import IMMINENT, rain_timing, slot as next_slot
-from . import learning, shower as showers, thermostat as thermostats
+from . import learning, schedule, shower as showers, thermostat as thermostats
 
 # Points above the humidity threshold beyond which a useful drying gesture can be proposed.
 HUMIDITY_GRACE = 3
@@ -607,6 +607,9 @@ def assess(readings: Mapping[str, Reading], settings: Settings = Settings(),
         # No presence sensor of its own: the presence or motion the thermostat follows.
         occupied = thermostat.get("occupied")
     heating_state = value("heating") if "heating" in readings else None
+    # A schedule keeps sending presets to a heating switched off for the summer: nothing comes of it, nothing is said.
+    off = (thermostat or {}).get("mode") == "off" if thermostat else heating_state == "off"
+    planned = schedule.heard(planned, heated, off, (thermostat or {}).get("off_reason"))
     warmth = {"occupied": occupied if isinstance(occupied, bool) else None,
               "heating": None if "heating" not in readings else "off" if heating_state == "off" else "on" if heating_state in ("heating", "idle") else None}
     if thermostat:
@@ -688,6 +691,8 @@ def assess(readings: Mapping[str, Reading], settings: Settings = Settings(),
     # Within the heating tolerance a room is « a little cool », not « too cool »: the card says it gently.
     warmth["slight"] = ti is not None and ti >= settings.minimum - settings.heating_tolerance
     extended["warmth"] = warmth if cold else None
+    # The schedule's next change, cold or not: the card puts it in « À venir ».
+    extended["planned"] = planned
     # The window a Versatile Thermostat saw open, worth saying when no contact of the room says it.
     # Who the room is for and what the alarm says, for the card's « À savoir » (engine/people.py).
     found = context.get("people") if isinstance(context.get("people"), Mapping) else None

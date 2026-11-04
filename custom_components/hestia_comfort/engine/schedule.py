@@ -23,6 +23,7 @@ each (`preset_temperatures`). Its conditions (a workday, someone home) may skip 
 
 Hestia reads them and commands nothing. Nothing here is guessed: a change whose time is unknown or past is none.
 """
+from collections.abc import Mapping
 from datetime import datetime
 
 PLATFORM = "chauffage"
@@ -36,6 +37,10 @@ PLANNERS = (PLATFORM, SCHEDULER)
 # The end of each entity's unique id (`{entry_id}_{climate}_{key}`), by role.
 KEYS = {"planned": "schedule", "override": "override", "next_change": "next_change"}
 GONE = ("unknown", "unavailable", "", None)
+# The modes a change may switch the heating back on with (Scheduler's climate.set_hvac_mode).
+TURNS_ON = ("heat", "auto", "heat_cool")
+# The stops a Versatile Thermostat lifts by itself (engine/thermostat.py): the schedule still holds behind them.
+PAUSES = ("window", "auto_start_stop", "sleep", "safety", "inhibition")
 
 
 def _moment(value):
@@ -105,6 +110,13 @@ def _clock(slot):
     return hours, minutes
 
 
+def is_schedule(attrs):
+    """A switch shaped like one of Scheduler's schedules, wherever it comes from: what it drives, its actions, its slots."""
+    return (isinstance(attrs, Mapping) and isinstance(attrs.get("entities"), (list, tuple))
+            and isinstance(attrs.get("actions"), list) and isinstance(attrs.get("timeslots"), list)
+            and "next_trigger" in attrs)
+
+
 def scheduler_change(state, attrs, temperatures=None, now=None):
     """The next change one Scheduler schedule brings its thermostats, or None. A slot sending what the running one sends
     changes nothing: the first slot that differs is said, later the same day; beyond, nothing is known."""
@@ -130,6 +142,16 @@ def scheduler_change(state, attrs, temperatures=None, now=None):
     if preset is None and temperature is None:
         return None
     return _change(at, preset, None, temperature, now)
+
+
+def heard(change, heated=True, off=False, reason=None):
+    """The change, when it does something: none in a room declared unheated, none while the heating is switched off
+    (the summer) unless it switches it back on; a pause the thermostat lifts by itself (an open window) keeps it."""
+    if not change or not heated:
+        return None
+    if off and reason not in PAUSES and change.get("preset") not in TURNS_ON:
+        return None
+    return change
 
 
 def earliest(changes):

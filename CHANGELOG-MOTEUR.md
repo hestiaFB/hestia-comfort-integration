@@ -12,6 +12,9 @@ Pas encore dans une version de Confort.
 
 - Avec ha-chauffage ou Scheduler (en bêta), Hestia connaît l'heure du prochain changement de chauffage : « Chauffage prévu à 17 h : 20 °C visés ».
 - Les prévisions de la pièce suivent le planning : passé 17 h, le chauffage remonte à 20 °C dans les calculs, comme dans la maison.
+- Le prochain changement est donné même quand la pièce n'a pas froid : la carte le place dans « À venir ».
+- Un chauffage éteint pour l'été n'annonce plus les changements de son planning, sauf celui qui le rallume ; une pause du thermostat (fenêtre ouverte) ne l'efface pas.
+- Les plannings Scheduler sont reconnus à leur contenu, même recopiés d'un autre Home Assistant.
 
 ## 3.1.1 — 4 novembre 2026
 

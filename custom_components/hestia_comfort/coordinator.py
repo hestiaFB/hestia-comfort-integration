@@ -501,6 +501,8 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
         view = {"version": VIEW_VERSION, "entry_id": self.entry_id,
                 "area_id": self.config.get("area_id"), "title": self.config.get("name"),
                 "comfort_minimum": self.settings.minimum, "comfort_maximum": self.settings.maximum,
+                # The air's marks as set, for the card's rings: CO₂ correct / to renew / urgent, particles to treat.
+                "air_marks": {"co2": [self.settings.co2_potential, self.settings.co2_action, self.settings.co2_urgent], "pm25": self.settings.pm25_action},
                 "computed_at": now.isoformat(), "assessment": assessment,
                 "volume": [{"entry_id": p["entry_id"], "title": p["title"]} for p in self.partners], "volume_name": self.volume_name,
                 # Measures read from the room sharing this air: the card shows them once, under the room that has them.

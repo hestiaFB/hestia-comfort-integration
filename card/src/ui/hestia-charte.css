@@ -177,6 +177,13 @@ button.nw-scale-mk::before { content:''; position:absolute; inset:-6px -10px; }
 .nw-scale-lb { position:absolute; top:66px; translate:-50% 0; font-size:var(--nw-fs-label); line-height:16px; color:var(--nw-fg2); white-space:nowrap; font-variant-numeric:tabular-nums; }
 .nw-scale-lb.up { top:22px; } .nw-scale-lb.first { translate:0 0; } .nw-scale-lb.last { translate:-100% 0; } .nw-scale-lb b { color:var(--nw-fg); font-weight:650; }
 @media (prefers-reduced-motion:reduce) { .nw-scale-part, .nw-scale-pin, .nw-dot::after { animation:none; } }
+/* La frise compacte (4 novembre, maquettes/planche-ressenti-condense.html, variante D) : la même piste et ses mots, une bulle plus petite,
+   sans ligne de repères ; la plage et le dehors se disent ailleurs. Le Ressenti de la carte complète de Confort. */
+.nw-scale.compact { height:46px; margin:0 2px; }
+.nw-scale.compact .nw-scale-lane { top:26px; height:16px; }
+.nw-scale.compact .nw-scale-pin { top:0; padding:0 7px; font-size:var(--nw-fs-label); line-height:16px; transform:translateX(var(--tx)); box-shadow:0 0 0 1px var(--nw-line); }
+.nw-scale.compact .nw-scale-stem { top:16px; height:10px; }
+.nw-scale.compact .nw-dot { top:30px; }
 
 /* ---------- Flèches et chevrons (3 novembre, maquettes/planche-fleches.html) : un seul dessin au trait, posé par la charte. ----------
    La tendance (.nw-trend) ne s'affiche que si la mesure monte ou baisse vraiment ; « stable » garde sa place sans rien montrer.

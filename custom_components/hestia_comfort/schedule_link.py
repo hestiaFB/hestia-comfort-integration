@@ -33,15 +33,14 @@ def _chauffage(hass, climate):
 
 
 def _schedules(hass, climate):
-    """Scheduler's schedules that drive this thermostat, as states."""
+    """Scheduler's schedules that drive this thermostat, as states: the switches of Scheduler installed here, and those
+    carrying a schedule's own attributes, copied from another Home Assistant (Remote Home-Assistant)."""
     registry = er.async_get(hass)
-    out = []
-    for entry in _loaded(hass, schedule.SCHEDULER):
-        for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
-            state = hass.states.get(entity.entity_id) if entity.domain == "switch" else None
-            if state is not None and climate in (state.attributes.get("entities") or ()):
-                out.append(state)
-    return out
+    ids = {entity.entity_id for entry in _loaded(hass, schedule.SCHEDULER)
+           for entity in er.async_entries_for_config_entry(registry, entry.entry_id) if entity.domain == "switch"}
+    return [state for state in hass.states.async_all("switch")
+            if (state.entity_id in ids or schedule.is_schedule(state.attributes))
+            and climate in (state.attributes.get("entities") or ())]
 
 
 def _scheduler(hass, climate):

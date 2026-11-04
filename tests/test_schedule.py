@@ -107,6 +107,13 @@ class SchedulerRead(unittest.TestCase):
         soon = schedule.scheduler_change("on", PARENTS, THERMOSTAT_P, EVENING)
         self.assertEqual(schedule.earliest([late, None, soon])["at"], "2026-11-04T20:30:00+01:00")
 
+    def test_a_schedule_is_known_by_its_attributes(self):
+        # Copied from another Home Assistant, it keeps the attributes, not the integration.
+        self.assertTrue(schedule.is_schedule(PARENTS))
+        self.assertFalse(schedule.is_schedule({"entities": ["climate.thermostat_p"]}))
+        self.assertFalse(schedule.is_schedule({**PARENTS, "timeslots": None}))
+        self.assertFalse(schedule.is_schedule(None))
+
 
 class Said(unittest.TestCase):
     def run_room(self, thermostat):
@@ -125,6 +132,32 @@ class Said(unittest.TestCase):
         warmth = self.run_room({"next": change})
         self.assertEqual(warmth["next"]["name"], "Confort")
         self.assertNotIn("thermostat", warmth)
+
+    def test_the_change_is_said_when_the_room_is_warm(self):
+        change = schedule.next_change(PLANNED, NO_OVERRIDE, None, NOW)
+        readings = {"indoor_temperature": Reading(21.0, "valid", "sensor.t"), "heating": Reading("idle", "valid", "climate.salon")}
+        features = assess(readings, Settings(minimum=19, maximum=24), None, {}, None, {}, NOW,
+                          context={"heated": True, "thermostat": {"next": change}}).features
+        self.assertIsNone(features["warmth"])
+        self.assertEqual(features["planned"]["preset"], "comfort")
+
+    def run_warm(self, thermostat, heating="idle", heated=True):
+        readings = {"indoor_temperature": Reading(21.0, "valid", "sensor.t"), "heating": Reading(heating, "valid", "climate.salon")}
+        return assess(readings, Settings(minimum=19, maximum=24), None, {}, None, {}, NOW,
+                      context={"heated": heated, "thermostat": thermostat}).features["planned"]
+
+    def test_a_heating_switched_off_for_the_summer_says_nothing(self):
+        change = schedule.next_change(PLANNED, NO_OVERRIDE, None, NOW)
+        self.assertIsNone(self.run_warm({"name": "Versatile Thermostat", "mode": "off", "off_reason": "manual", "next": change}, "off"))
+        self.assertIsNone(self.run_warm({"next": change}, "off"))
+        self.assertIsNone(self.run_warm({"next": change}, heated=False))
+
+    def test_a_pause_or_a_change_that_switches_it_on_is_still_said(self):
+        change = schedule.next_change(PLANNED, NO_OVERRIDE, None, NOW)
+        window = self.run_warm({"name": "Versatile Thermostat", "mode": "off", "off_reason": "window", "next": change}, "off")
+        self.assertEqual(window["preset"], "comfort")
+        on = self.run_warm({"next": {**change, "preset": "heat"}}, "off")
+        self.assertEqual(on["preset"], "heat")
 
 
 class Followed(unittest.TestCase):

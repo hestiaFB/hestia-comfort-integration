@@ -131,4 +131,17 @@ export const EN_ROOM:Record<string,string>={"Puissance de chauffe, dernière dem
  '{n} mesure':'{n} measure','{n} mesures':'{n} measures','Aucune mesure':'No measure','{n} pièce':'{n} room','{n} pièces':'{n} rooms','Aucune pièce':'No room','{n} à surveiller':'{n} to watch',
  '{n} en attente':'{n} waiting','{n} muette':'{n} silent','{n} muettes':'{n} silent','rien à signaler':'nothing to report','Détails':'Details','Configurer cette pièce':'Set up this room',
  'Mesures et détails':'Measures and details','Mesures':'Measures',
+ // The full card below its banner (views/full.ts, 4 November)
+ 'En ce moment':'Right now','ce qui va changer':'what will change','Appareils':'Devices','À essayer':'Worth a try','{n} capteurs':'{n} sensors','{n} à vérifier':'{n} to check',
+ 'jusqu’à {time}':'until {time}','{what} mis de côté':'{what} set aside','vous avez dit « Pas maintenant »':'you said “Not now”',
+ 'Air lourd':'Heavy air','Correcte':'Fine','{room} {value} %':'{room} {value} %','Humidité · {room}':'Humidity · {room}','Humidité {n} %':'Humidity {n} %',
+ 'Sec':'Dry','Humide':'Humid','Très':'Very','{gap} °C par rapport au thermomètre.':'{gap} °C compared with the thermometer.',
+ 'Votre plage : {low} à {high} °C · humidité {hlow} à {hhigh} %.':'Your range: {low} to {high} °C · humidity {hlow} to {hhigh} %.',
+ 'Renfermé':'Stuffy','Très renfermé':'Very stuffy','Propre':'Clean','Chargé':'Loaded','Très chargé':'Very loaded','Normal':'Normal','Élevé':'High','Très élevé':'Very high',
+ 'Air frais':'Fresh air','Air : {word}':'Air: {word}','à vérifier · {why}':'to check · {why}','Pluie':'Rain',
+ 'dans {n} min · les ouvrants exposés se ferment':'in {n} min · exposed openings close',
+ 'la pièce perd {drop} °C, retrouvés vers {time}':'the room loses {drop} °C, back around {time}','la pièce perd {drop} °C':'the room loses {drop} °C',
+ '{with} % d’humidité au lieu de {without} %':'{with} % humidity instead of {without} %','Le soleil réchauffe la pièce':'The sun warms the room','{gain} °C vers {time}':'{gain} °C around {time}','Ouvrez la nuit':'Open at night','Revient dans votre plage':'Back in your range',
+ 'Passe sous {n} °C':'Drops below {n} °C','Dépasse {n} °C':'Goes above {n} °C','{n} fenêtres fermées':'{n} windows closed','Fenêtre fermée':'Window closed',
+ '{n} à refermer':'{n} to close','Volet {state}':'Shutter {state}',
 };

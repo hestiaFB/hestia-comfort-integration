@@ -23,6 +23,9 @@ export interface Echelle {
   outside?: { value: number; label?: string; onTap?: (e: Event) => void; title?: string };
   /** More markers on the track (the rooms of the home card). */
   dots?: unknown;
+  /** The compact scale (4 November, maquettes/planche-ressenti-condense.html, variant D): the same track, its words and a
+   *  smaller bubble, without the thresholds' row or labels; the range and outside are said elsewhere. */
+  compact?: boolean;
 }
 
 /** The share of the track for a value, clamped to the ends. */
@@ -46,7 +49,7 @@ export function echelle(e: Echelle): TemplateResult {
   const out = e.outside;
   const labels = [...(out?.label ? [{ value: out.value, text: html`<b>${out.label}</b>`, row: 'down' as const, strong: true, chars: 12 }] : []), ...thresholds, ...(e.marks ?? [])];
   const taken: Array<[number, number, string]> = x === undefined ? [] : [[x - 10, x + 10, 'up']];
-  const placed = labels.map(l => ({ ...l, x: pos(l.value) })).sort((a, b) => Number(b.strong ?? true) - Number(a.strong ?? true)).flatMap(l => {
+  const placed = e.compact ? [] : labels.map(l => ({ ...l, x: pos(l.value) })).sort((a, b) => Number(b.strong ?? true) - Number(a.strong ?? true)).flatMap(l => {
     const chars = l.chars ?? (typeof l.text === 'string' ? l.text.length : 6), half = chars * 6.6 / 320 * 100 / 2 + 1.5;
     const free = (row: string) => taken.every(([a, z, r]) => r !== row || l.x + half < a || l.x - half > z);
     const want = l.row ?? 'up', other = want === 'up' ? 'down' : 'up';
@@ -62,7 +65,7 @@ export function echelle(e: Echelle): TemplateResult {
   const ring = !out ? nothing : out.onTap
     ? html`<button type="button" class="nw-scale-mk" style=${`left:${pos(out.value).toFixed(2)}%`} title=${out.title ?? out.label ?? ''} aria-label=${out.title ?? out.label ?? ''} @click=${out.onTap}></button>`
     : html`<span class="nw-scale-mk" style=${`left:${pos(out.value).toFixed(2)}%`}></span>`;
-  return html`<div class="nw-scale" role="img" aria-label=${e.label}>
+  return html`<div class=${e.compact ? 'nw-scale compact' : 'nw-scale'} role="img" aria-label=${e.label}>
     <div class="nw-scale-lane">${lane}</div>
     ${e.span ? html`<div class="nw-scale-span" style=${`left:${pos(e.span[0]).toFixed(2)}%;width:${(pos(e.span[1]) - pos(e.span[0])).toFixed(2)}%`}></div>` : nothing}
     ${ring}

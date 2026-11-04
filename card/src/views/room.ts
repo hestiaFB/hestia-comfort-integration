@@ -1,4 +1,5 @@
 import {factBox3,slides3,why3} from './advisor3';
+import {fullBody} from './full';
 import {html,svg,nothing,LitElement,type TemplateResult} from 'lit';
 import {property,state} from 'lit/decorators.js';
 import {SCALE_MARKS,CHIPS,TILE_BLOCKS,DETAIL_ROWS,INSIGHT_TOPICS,INSIGHT_GROUPS,PIECES,type Piece,type Config,type View,type Level,type Format,type BannerBlock,type Chip,type HorizonSubject,type Horizon,type NextChange} from '../types';
@@ -650,7 +651,7 @@ const gone=(r?:{quality:string})=>r?.quality==='stale'?'pas de nouvelle mesure':
 /** « 13 h 50 », in the person's own clock. */
 const clock=(x?:string|null)=>{const d=x?new Date(x):null;return d&&!isNaN(+d)?d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}).replace(':',' h '):null;};
 /** ha-chauffage's next change (engine/schedule.py), today or tomorrow only: « confort à 17 h 00 », « fin de la dérogation demain à 6 h 00 ». */
-const nextChange=(n?:NextChange|null)=>{const at=n?new Date(n.at):null;if(!n||!at||isNaN(+at))return null;
+export const nextChange=(n?:NextChange|null)=>{const at=n?new Date(n.at):null;if(!n||!at||isNaN(+at))return null;
   const today=new Date(),tomorrow=new Date(today.getFullYear(),today.getMonth(),today.getDate()+1);
   const day=at.toDateString()===today.toDateString()?'':at.toDateString()===tomorrow.toDateString()?'demain ':null;
   if(day===null)return null;const when=`${day}à ${clock(n.at)}`;
@@ -1066,8 +1067,7 @@ export function roomCard(v:View,config:Config,st:CardState,format:Format='full',
   }
   return html`<ha-card class="nc-c nc-full-card" data-level=${top} ?data-starting=${!!v.starting}>
     ${banner({name,level:top,slides:all,st,why:whyRoom(v,all[0]),still,now})}
-    ${box}
-    ${sections(['measures','horizon','details'])}
+    ${fullBody(v,config,st,partners)}
   </ha-card>`;
 }
 

@@ -107,6 +107,8 @@ export interface Features {
  warm_walls?:{degrees:number;target:number;surface:number;after:number}|null;
  /** An open window letting warmer air into a room under the middle of its range. */
  open_warms?:boolean;
+ /** The schedule's next change (ha-chauffage, Scheduler), cold or not. */
+ planned?:NextChange|null;
  drying?:{minutes:number;now:number;after:number;gain:number;tau:number;openings:number;morning?:number;alone?:number;net?:number;later:{minutes:number;now:number;after:number;gain:number;time:string}|null}|null;
  trends?:{indoor:number|null;outdoor:number|null;window_minutes:number;message:string;
    /** Each measure's last half hour, for its tile: speed per hour, way, and [minutes ago, value] points. */
@@ -134,7 +136,7 @@ export interface Opening {
   sun_share:number; sun_wm2:number|null; wind_side?:string|null; flags:string[];
 }
 export interface View {
-  version:1; entry_id:string; area_id:string|null; title:string; /** The 3.0 advisor's decision, when the card reads one (`Config.conseil`). */ advisor?:Advisor3; /** The integration's 3.0 advisor for this room's air (advisor_home.py): its decision, « waiting » just after a restart; absent without one. */ advice3?:Record<string,unknown>|null; computed_at:string; /** The room's comfort range from its settings. */ comfort_minimum?:number; comfort_maximum?:number;
+  version:1; entry_id:string; area_id:string|null; title:string; /** The 3.0 advisor's decision, when the card reads one (`Config.conseil`). */ advisor?:Advisor3; /** The integration's 3.0 advisor for this room's air (advisor_home.py): its decision, « waiting » just after a restart; absent without one. */ advice3?:Record<string,unknown>|null; computed_at:string; /** The room's comfort range from its settings. */ comfort_minimum?:number; comfort_maximum?:number; /** The air's marks as set: CO₂ [correct, to renew, urgent] in ppm, particles to treat in µg/m³. */ air_marks?:{co2:[number,number,number];pm25:number};
   assessment:Assessment; observations:Record<string,Reading>; names?:Record<string,string>; /** Rooms open onto this one: one air, shared openings. */ volume?:{entry_id:string;title:string}[]; /** Sources read from the room sharing this air, by key: {heating:'Salon'}. */ inherited?:Record<string,string>; /** « Salon · Cuisine », the best equipped first. */ volume_name?:string|null;
   /** The feedback loop: the last airing followed (within a day) and the week (engine/feedback.py). */
   feedback?:{last:{measure:'humidity'|'temperature'|'co2'|'voc';before:number;after:number;predicted:number|null;minutes:number}|null;week:{followed:number;ignored:number;evaluated:number;held:number;gains:Record<string,number>}};

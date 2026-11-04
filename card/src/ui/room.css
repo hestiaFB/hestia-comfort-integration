@@ -579,3 +579,72 @@ button.nc-mrow { cursor:pointer; }
 @container (min-width:740px) { .nc-mod-grid .nc-mrow { grid-template-columns:auto minmax(0,1fr) auto 20px 34px; gap:5px; } }
 /* Ouvertures (3 novembre) : une ligne par fenêtre ouverte, à la façon de la liste de l'Air — point, nom, état. */
 .nc-open-list .nc-mrow { grid-template-columns:auto minmax(0,1fr) auto; }
+/* ---------- La carte complète, sous le bandeau (4 novembre, maquettes/maquette-carte-complete.html) : views/full.ts. ----------
+   Les tailles sont celles de la charte (--nw-fs-*), les couleurs d'état celles de la charte ; le bandeau n'est pas ici. */
+.nc-full .nc-mods { margin-top:0; }
+.nc-try { margin:0; font-size:var(--nw-fs-small); color:var(--nw-fg2); }
+.nc-try b { font-weight:650; color:var(--nw-fg); }
+/* Le Ressenti : la chaleur puis l'humidité, chacune son mot, sa tendance, sa frise compacte, ce qui joue. */
+.nc-fx { display:grid; gap:14px; }
+.nc-fx-row { display:grid; gap:2px; min-width:0; }
+.nc-fx-top { display:flex; align-items:center; flex-wrap:wrap; gap:2px 10px; }
+.nc-fx-word { font-size:var(--nw-fs-case); font-weight:600; letter-spacing:-.015em; line-height:1.2; color:color-mix(in oklab, var(--c) 40%, var(--nw-fg)); }
+.nc-fx-trend { margin-left:auto; display:inline-flex; align-items:center; gap:5px; font-size:var(--nw-fs-small); font-weight:600; white-space:nowrap;
+  color:color-mix(in oklab, var(--t, var(--nw-fg2)) 55%, var(--nw-fg2)); }
+.nc-fx-trend svg { flex:none; overflow:visible; }
+.nc-fx-trend path { fill:none; stroke:var(--t, var(--nw-fg2)); stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.nc-fx-trend circle { fill:var(--t, var(--nw-fg2)); }
+.nc-fx-line { margin:4px 0 0; font-size:var(--nw-fs-small); color:var(--nw-fg2); }
+.nc-fx-line b, .nc-fx-foot b { font-weight:650; color:var(--nw-fg); }
+.nc-fx-foot { margin:0; padding-top:10px; border-top:1px solid var(--nw-line-soft); font-size:var(--nw-fs-small); color:var(--nw-fg2); }
+/* L'air en anneaux : un arc par mesure, le verdict au centre ; une seule mesure fait une jauge. */
+.nc-air { display:grid; gap:10px; }
+.nc-rings { display:grid; grid-template-columns:112px minmax(0,1fr); gap:14px; align-items:center; }
+.nc-ring { all:unset; position:relative; display:block; width:112px; height:112px; cursor:pointer; border-radius:50%; }
+.nc-ring:focus-visible { outline:2px solid var(--nw-accent); outline-offset:2px; }
+.nc-ring svg { width:112px; height:112px; display:block; }
+.nc-ring-track { fill:none; stroke:color-mix(in srgb, var(--nw-fg) 8%, transparent); stroke-linecap:round; }
+.nc-ring-fill { fill:none; stroke-linecap:round; stroke-dasharray:var(--len) 999; animation:nc-ring 1s var(--nw-ease) both; }
+@keyframes nc-ring { from { stroke-dasharray:0 999; } }
+.nc-ring-c { position:absolute; inset:0; display:grid; place-content:center; justify-items:center; text-align:center; padding:0 28px; }
+.nc-ring-c b { font-size:var(--nw-fs-small); font-weight:700; line-height:1.2; color:color-mix(in oklab, var(--c, var(--nw-fg)) 40%, var(--nw-fg)); }
+.nc-ring-c .nc-ring-v { font-size:var(--nw-fs-case); font-weight:600; letter-spacing:-.015em; line-height:1.1; color:var(--nw-fg); font-variant-numeric:tabular-nums; }
+.nc-ring-c small { font-size:var(--nw-fs-small); color:var(--nw-fg2); }
+.nc-ring-side { display:grid; gap:3px; justify-items:start; }
+.nc-ring-side .nc-fx-trend { margin-left:0; }
+.nc-ring-list { display:grid; gap:10px; min-width:0; }
+.nc-ring-row { all:unset; box-sizing:border-box; display:grid; grid-template-columns:auto minmax(0,1fr) auto; column-gap:7px; align-items:baseline; cursor:pointer; border-radius:8px; }
+.nc-ring-row:focus-visible { outline:2px solid var(--nw-accent); outline-offset:2px; }
+.nc-ring-dot { width:8px; height:8px; border-radius:50%; align-self:center; background:color-mix(in srgb, var(--nw-fg) 18%, transparent); }
+.nc-ring-n { font-size:var(--nw-fs-text); font-weight:600; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.nc-ring-n small, .nc-ring-row b small { font-size:var(--nw-fs-small); font-weight:500; color:var(--nw-fg2); }
+.nc-ring-row b { font-size:var(--nw-fs-text); font-weight:650; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.nc-ring-w { grid-column:2; font-size:var(--nw-fs-small); font-weight:650; color:color-mix(in oklab, var(--c) 40%, var(--nw-fg)); }
+.nc-ring-row .nc-fx-trend { grid-column:3; justify-self:end; }
+.nc-ring-row.mute .nc-ring-n, .nc-ring-w.mute { color:var(--nw-fg2); font-weight:500; }
+.nc-ring-w.mute { grid-column:2 / -1; }
+@container (max-width:460px) { .nc-rings:not(.one) { grid-template-columns:1fr; justify-items:center; } .nc-ring-list { width:100%; } }
+@container (min-width:461px) { .nc-rings { grid-template-columns:150px minmax(0,1fr); gap:24px; } .nc-ring, .nc-ring svg { width:150px; height:150px; }
+  .nc-ring-c { padding:0 42px; } .nc-ring-c b { font-size:var(--nw-fs-text); } .nc-ring-list { align-content:center; max-width:520px; }
+  .nc-ring-list { max-width:none; } }
+@container (min-width:760px) { .nc-ring-list.cols2 { grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px 28px; } }
+@media (prefers-reduced-motion:reduce) { .nc-ring-fill { animation:none; } }
+/* À venir : une frise dans l'ordre du temps — l'heure à gauche, un rail et le point de l'état, le titre court et son détail. */
+.nc-coming { list-style:none; margin:0; display:grid; gap:0; padding:14px 16px; }
+.nc-ev { position:relative; display:grid; grid-template-columns:80px 14px minmax(0,1fr); column-gap:10px; padding-bottom:14px; }
+/* Le rail : du point d'un événement au suivant. */
+.nc-ev:not(:last-child)::before { content:''; position:absolute; left:95px; top:18px; bottom:-2px; width:2px; border-radius:1px; background:var(--nw-line); }
+.nc-ev:last-child { padding-bottom:0; }
+.nc-ev-at { text-align:right; font-size:var(--nw-fs-small); font-weight:650; line-height:20px; color:var(--nw-fg2); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.nc-ev-dot { position:relative; justify-self:center; width:10px; height:10px; margin-top:5px; border-radius:50%; background:var(--c); box-shadow:0 0 0 3px color-mix(in oklab, var(--c) 22%, transparent); }
+.nc-ev-body { min-width:0; }
+.nc-ev-body b { display:flex; align-items:center; gap:6px; font-size:var(--nw-fs-text); font-weight:650; line-height:20px; }
+.nc-ev-ic { display:inline-grid; color:color-mix(in oklab, var(--c) 45%, var(--nw-fg2)); }
+.nc-ev-ic .icon, .nc-ev-ic svg { width:15px; height:15px; }
+.nc-ev-body small { display:block; margin-top:1px; font-size:var(--nw-fs-small); color:var(--nw-fg2); }
+.nc-ev-chart { margin-top:8px; }
+/* Appareils : une ligne ; gris quand rien ne se passe, vert quand un appareil aide, orange quand il faut y toucher. */
+.nc-fx-devices { display:grid; gap:8px; }
+.nc-fx-devices .nw-chip { font-family:inherit; cursor:pointer; }
+.nc-fx-devices .nw-chip .icon, .nc-fx-devices .nw-chip svg { width:14px; height:14px; flex:none; }
+.nc-fx-devices .nw-chip.nc-plain { background:color-mix(in srgb, var(--nw-fg) 6%, transparent); color:var(--nw-fg); font-weight:500; }

@@ -1,0 +1,263 @@
+import {html,svg,nothing,type TemplateResult} from 'lit';
+import type {Config,View,Horizon} from '../types';
+import {numeric,number} from '../view';
+import {icon} from '../ui/icons';
+import {echelle} from '../ui/hestia-echelle';
+import {t,tx,currentLocale} from '../i18n';
+import {tiles,trendOf,humidityLabel,moreInfo,fold,details,asking,nextChange,type Tile,type Trend,type CardState} from './room';
+import {horizonShown,horizonChart,horizonHead,horizonResult} from './horizon';
+
+/** The full card below its banner (4 November, maquettes/maquette-carte-complete.html): five questions, one place each.
+ *  « En ce moment »: the Ressenti (warmth and humidity, each on the charter's compact scale) and the Air (rings);
+ *  « À venir »: what will change, dated; « Appareils »: one line; « Détails »: folded. A section without a source is left out:
+ *  the card shows what the room's sensors allow, never a guess. The banner above is not this file's. */
+
+const nf=(v:number,digits=1)=>new Intl.NumberFormat(currentLocale(),{minimumFractionDigits:digits,maximumFractionDigits:digits}).format(v).replace('-','−');
+const signed=(v:number,digits=1)=>`${v>=0?'+':'−'}${nf(Math.abs(v),digits)}`;
+/** The charter's state colours: blue all is well, amber out of the range without a gesture, orange a gesture, green a benefit. */
+const C={ok:'var(--nw-ok)',watch:'var(--nw-watch)',act:'var(--nw-act)',benefit:'var(--nw-benefit)',none:'var(--nw-fg2)'};
+type Tone=keyof typeof C;
+const str=(x:unknown)=>typeof x==='string'?x:'';
+const list=(x:unknown)=>Array.isArray(x)?x.filter((i):i is string=>typeof i==='string'):[];
+
+/** The range the room keeps now: the season's when known, else its own settings. */
+const range=(v:View):[number,number]|null=>{const s=v.assessment.features?.season;
+  return s?.minimum!=null&&s?.maximum!=null?[s.minimum,s.maximum]:v.comfort_minimum!=null&&v.comfort_maximum!=null?[v.comfort_minimum,v.comfort_maximum]:null;};
+
+/** The arrow, its speed and the last half hour on the word's line; « stable » says only that. */
+function trendLine(tr:Trend|undefined,slope:number|null|undefined,unit:string,digits:number):TemplateResult|typeof nothing {
+  if(!tr)return nothing;
+  const moving=tr.way!=='stable'&&slope!=null&&Math.abs(slope)>=(digits?.05:.5);
+  const pts=tr.points,vals=pts.map(p=>p[1]),lo=Math.min(...vals),hi=Math.max(...vals),r=(hi-lo)||1,win=Math.max(...pts.map(p=>p[0]),1);
+  const X=(ago:number)=>(win-ago)/win*44,Y=(x:number)=>14-(x-lo)/r*12,last=pts[pts.length-1];
+  return html`<span class="nc-fx-trend" data-tone=${tr.tone}><span class="nw-trend nc-way" data-way=${moving?tr.way:'stable'} data-tone=${tr.tone}></span>${moving?`${signed(slope!,digits)} ${unit}/h`:t('stable')}
+    <svg viewBox="-2 -1 48 18" width="44" height="16" aria-hidden="true"><path d=${pts.map((p,i)=>`${i?'L':'M'}${X(p[0]).toFixed(1)} ${Y(p[1]).toFixed(1)}`).join(' ')}></path><circle cx=${X(last[0])} cy=${Y(last[1])} r="2.2"></circle></svg></span>`;
+}
+
+// ---------- « À savoir » spread out: each line where it answers (the engine does not yet say a line's subject or time). ----------
+interface Said {humidity:string[];air:string[];warmth:string[];coming:Coming[];rest:string[];doubts:string[];tryIt:string}
+interface Coming {when:number;at:string;ic:string;text:string;note?:string|TemplateResult;tone:Tone;chart?:TemplateResult}
+const TIME=/(jusqu[’']à |vers |à |dès |avant )?(demain )?(\d{1,2}) h(?: (\d{2}))?/;
+/** « 23 h », « demain 6 h 30 »: the moment it says, today unless said tomorrow or already past by an hour. */
+function when(m:RegExpMatchArray):number {const d=new Date();d.setHours(+m[3],m[4]?+m[4]:0,0,0);
+  if(m[2]||d.getTime()<Date.now()-3600e3)d.setDate(d.getDate()+1);return d.getTime();}
+const clockAt=(ms:number)=>{const d=new Date(ms),h=d.getHours(),m=d.getMinutes(),time=m?`${h} h ${String(m).padStart(2,'0')}`:`${h} h`;
+  return d.toDateString()===new Date().toDateString()?time:t('demain {time}',{time});};
+/** A line of the engine as an event: « Le poêle tourne au minimum » in bold, the rest under it, the time in its column. */
+function event(line:string,m:RegExpMatchArray,ic:string,tone:Tone):Coming {
+  const until=/^jusqu/.test(m[1]??''),rest=line.replace(m[0],'').replace(/\s+(au moins|environ)\s*$/,'').replace(/[\s,]+$/,'').replace(/\s{2,}/g,' ');
+  const [title,...more]=rest.split(' : ');
+  return {when:when(m),at:(until?t('jusqu’à {time}',{time:clockAt(when(m))}):clockAt(when(m))),ic,text:title.trim(),note:more.join(' : ').trim()||undefined,tone};
+}
+function spread(v:View):Said {
+  const out:Said={humidity:[],air:[],warmth:[],coming:[],rest:[],doubts:[],tryIt:''};
+  const a=v.advisor?.attributes;
+  if(!a)return out;
+  // The engine writes « À essayer — … »: the heading is the card's.
+  out.tryIt=str(a.a_essayer).replace(/^À essayer\s*[—:–-]\s*/,'');
+  const night=str(a.cette_nuit);
+  if(night){const d=new Date();d.setHours(22,30,0,0);out.coming.push({when:d.getTime(),at:t('Cette nuit'),ic:'moon',text:night,tone:'act'});}
+  const aside=a.pas_maintenant&&typeof a.pas_maintenant==='object'?Object.entries(a.pas_maintenant as Record<string,string>):[];
+  for(const [what,until] of aside){const m=String(until).match(TIME);
+    out.coming.push({when:m?when(m):Date.now(),at:t('jusqu’à {time}',{time:m?clockAt(when(m)):String(until)}),ic:'clock',text:t('{what} mis de côté',{what}),note:t('vous avez dit « Pas maintenant »'),tone:'none'});}
+  out.doubts=typeof a.douteuses==='string'?[a.douteuses]:list(a.douteuses);
+  for(const line of list(a.bon_a_savoir).filter(l=>l!==night)){
+    const m=line.match(TIME);
+    if(m)out.coming.push(event(line,m,/chauff|poêle/i.test(line)?'heat':/soleil/i.test(line)?'sun':'clock','none'));
+    else if(/humid|vapeur|eau|séch|sec\b| %/i.test(line))out.humidity.push(line);
+    else if(/CO₂|COV|particul|air\b|renferm/i.test(line))out.air.push(line);
+    else if(/mur|vitre|soleil|chauff|froid|chaud/i.test(line))out.warmth.push(line);
+    else out.rest.push(line);
+  }
+  return out;
+}
+
+// ---------- Ressenti : the warmth, then the humidity, each its word, its trend, the compact scale, what plays on it. ----------
+const HEATERS:Record<string,string>={stove:'Poêle',radiator:'Radiateur',floor:'Plancher chauffant',ac:'Climatisation'};
+function feelPanel(v:View,partners:View[],said:Said,uid:string):TemplateResult|typeof nothing {
+  const f=v.feel,a=v.assessment,band=range(v),ti=numeric(v.observations.indoor_temperature),value=f?.feels??ti;
+  const h=numeric(v.observations.indoor_humidity),hum=a.features?.humidity,curves=a.features?.trends?.curves;
+  if(value===null&&h===null)return nothing;
+  const ask=asking(v),needs=a.needs;
+  let warmth:TemplateResult|typeof nothing=nothing;
+  if(value!==null){
+    const [mn,mx]=band??[19,24],lo=Math.floor(Math.min(mn-3,value-1)),hi=Math.ceil(Math.max(mx+3,value+1));
+    const word=value<mn?t('Frais'):value<mx?t('Agréable'):t('Chaud'),out=value<mn?'low':value>=mx?'high':null;
+    const tone:Tone=!out?'ok':ask&&needs.some(n=>n==='heat'||n==='cool')?'act':'watch';
+    const causes=f?[
+      ...(Math.abs(f.factors.walls.delta)>=.05?[[t('Murs et vitres'),f.factors.walls.delta]]:[]),
+      ...(Math.abs(f.factors.sun.delta)>=.05?[[t('Soleil'),f.factors.sun.delta]]:[]),
+      ...(f.factors.heating&&Math.abs(f.factors.heating.delta)>=.05?[[t((f.factors.heating.kind&&HEATERS[f.factors.heating.kind])||'Chauffage'),f.factors.heating.delta]]:[]),
+      ...(Math.abs(f.factors.draught.delta)>=.05?[[t('Courant d’air'),f.factors.draught.delta]]:[]),
+      ...(f.factors.humidity&&f.factors.humidity.delta>=.05?[[t('Air lourd'),f.factors.humidity.delta]]:[])] as [string,number][]:[];
+    const line=[...causes.map(([k,d])=>html`<span>${k} <b>${signed(d)} °C</b></span>`),...said.warmth.map(x=>html`<span>${x}</span>`)];
+    warmth=html`<div class="nc-fx-row"><span class="nw-label">${t('Chaleur')}</span>
+      <div class="nc-fx-top"><b class="nc-fx-word" style=${`--c:${C[tone]}`}>${word}</b>${trendLine(trendOf(v,'temperature',out,band),curves?.temperature?.slope,'°C',1)}</div>
+      ${echelle({lo,hi,value,valueText:`${nf(value)} °C`,label:t('Ressenti {t} °C',{t:nf(value)}),degree:()=>'',compact:true,
+        parts:[{from:lo,to:mn,word:t('Frais'),tone:'color-mix(in oklab,var(--nw-cold) 45%,var(--nw-calm))'},{from:mn,to:mx,word:t('Agréable'),tone:'var(--nw-calm)'},{from:mx,to:hi,word:t('Chaud'),tone:'var(--nw-level2)'}]})}
+      ${line.length?html`<p class="nc-fx-line">${line.map((x,i)=>html`${i?' · ':''}${x}`)}</p>`:nothing}</div>`;
+  }
+  let humidity:TemplateResult|typeof nothing=nothing;
+  if(h!==null){
+    const hmin=hum?.minimum??40,hmax=hum?.maximum??60,very=Math.max(hmax+10,70);
+    const label=humidityLabel(v),word=!label||label==='Dans votre plage'?t('Correcte'):tx(label);
+    const out=hum?.status==='high'?'high':hum?.status==='low'?'low':null;
+    const tone:Tone=!out?'ok':ask&&needs.includes('dry')?'act':'watch';
+    const others=partners.map(p=>({room:p.title,h:numeric(p.observations.indoor_humidity)})).filter(x=>x.h!==null);
+    const note=[...others.map(x=>t('{room} {value} %',{room:x.room,value:Math.round(x.h!)})),...said.humidity];
+    humidity=html`<div class="nc-fx-row"><span class="nw-label">${partners.length?t('Humidité · {room}',{room:v.title}):t('Humidité')}</span>
+      <div class="nc-fx-top"><b class="nc-fx-word" style=${`--c:${C[tone]}`}>${word}</b>${trendLine(trendOf(v,'humidity',out,[hmin,hmax]),curves?.humidity?.slope,'%',0)}</div>
+      ${echelle({lo:20,hi:90,value:h,valueText:`${Math.round(h)} %`,label:t('Humidité {n} %',{n:Math.round(h)}),degree:()=>'',compact:true,
+        parts:[{from:20,to:hmin,word:t('Sec'),tone:'color-mix(in oklab,var(--nw-level1) 60%,var(--nw-calm))'},{from:hmin,to:hmax,word:t('Agréable'),tone:'var(--nw-calm)'},
+          {from:hmax,to:very,word:t('Humide'),tone:'color-mix(in oklab,var(--nw-rain) 55%,var(--nw-calm))'},{from:very,to:90,word:t('Très'),tone:'var(--nw-rain)'}]})}
+      ${note.length?html`<p class="nc-fx-line">${note.join(' · ')}</p>`:nothing}</div>`;
+  }
+  // At the foot, the rooms of the same air and outside: said once.
+  const te=f?.outdoor??numeric(v.observations.outdoor_temperature);
+  const foot=[...partners.filter(p=>p.feel).map(p=>html`${t('{room} · ressenti',{room:p.title})} <b>${nf(p.feel!.feels)} °C</b>`),...(te!==null?[html`${t('Dehors')} <b>${nf(te)} °C</b>`]:[])];
+  const toggle=(e:Event)=>{const b=e.currentTarget as HTMLElement,why=b.closest('section')?.querySelector<HTMLElement>('.nw-feel-why');
+    if(why){why.hidden=!why.hidden;b.setAttribute('aria-expanded',String(!why.hidden));}};
+  const gap=f?f.feels-f.air:0;
+  return html`<section class="nc-mod nw-panel nc-fx" data-piece="temperature" aria-label=${value!==null?t('Ressenti'):t('Humidité')}>
+    <div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon(value!==null?'temp':'drop')}</span><h3>${value!==null?t('Ressenti'):t('Humidité')}</h3>
+      ${f?html`<button type="button" class="nw-info" aria-label=${t('Qu’est-ce que le ressenti ?')} aria-controls=${uid+'-why'} aria-expanded="false" @click=${toggle}></button>`:nothing}</div>
+    ${f?html`<div class="nw-feel-why" id=${uid+'-why'} hidden><p>${t('C’est la température que le corps perçoit dans la pièce. Le thermomètre ne mesure que l’air : des murs et des vitres froids, un courant d’air la font baisser, le soleil et le chauffage qui rayonne la font monter.')}</p>
+      <p class="ex">${t('En ce moment : {air} °C d’air se ressentent comme {feels} °C.',{air:nf(f.air),feels:nf(f.feels)})} ${Math.abs(gap)<.1?'':t('{gap} °C par rapport au thermomètre.',{gap:signed(gap)})}</p>
+      ${band?html`<p>${t('Votre plage : {low} à {high} °C · humidité {hlow} à {hhigh} %.',{low:nf(band[0],band[0]%1?1:0),high:nf(band[1],band[1]%1?1:0),hlow:Math.round(hum?.minimum??40),hhigh:Math.round(hum?.maximum??60)})}</p>`:nothing}</div>`:nothing}
+    ${warmth}${humidity}
+    ${foot.length?html`<p class="nc-fx-foot">${foot.map((x,i)=>html`${i?' · ':''}${x}`)}</p>`:nothing}
+  </section>`;
+}
+
+// ---------- Air : a ring per measure around the verdict of the one most at stake; one measure is a gauge. ----------
+interface AirRow {key:'co2'|'pm25'|'voc';label:string;room?:string;value:number|null;unit:string;tile:Tile;slope?:number|null}
+const RANK:Record<Tone,number>={act:3,watch:2,none:1,ok:0,benefit:0};
+/** Each measure's parts, from the marks set for the room (engine/assessment.py Settings), words and tones of the charter. */
+function parts(v:View,r:AirRow):{lo:number;hi:number;steps:[number,number,string,string][]} {
+  const ok='var(--nw-calm)',mid='color-mix(in oklab,var(--nw-calm) 50%,var(--nw-level1))',l1='var(--nw-level1)',l2='var(--nw-level2)';
+  if(r.key==='co2'){const [p,a,u]=v.air_marks?.co2??[1000,1200,1600];
+    return {lo:400,hi:u+400,steps:[[400,p,t('Frais'),ok],[p,a,t('Correct'),mid],[a,u,t('Renfermé'),l1],[u,u+400,t('Très renfermé'),l2]]};}
+  if(r.key==='pm25'){const a=v.air_marks?.pm25??25;
+    return {lo:0,hi:a*2+10,steps:[[0,10,t('Propre'),ok],[10,a,t('Moyen'),mid],[a,a*2,t('Chargé'),l1],[a*2,a*2+10,t('Très chargé'),l2]]};}
+  // The VOC: an index (100 = the usual air).
+  return {lo:0,hi:400,steps:[[0,150,t('Normal'),ok],[150,250,t('Élevé'),l1],[250,400,t('Très élevé'),l2]]};
+}
+const MUTE=['indisponible','pas de nouvelle mesure','en attente'];
+function airRows(v:View,partners:View[],config:Config):AirRow[] {
+  const many=partners.length>0,keys:Record<string,AirRow['key']>={'CO₂':'co2',Particules:'pm25',COV:'voc'};
+  return [v,...partners].flatMap(r=>tiles(r,config).filter(x=>keys[x.label]&&!(many&&r.inherited?.[keys[x.label]]))
+    .map(x=>({key:keys[x.label],label:x.label,room:many?r.title:r.inherited?.[keys[x.label]]??undefined,value:numeric(r.observations[keys[x.label]]),unit:x.unit??'',tile:x,
+      slope:r.assessment.features?.trends?.curves?.[keys[x.label]]?.slope})))
+    // Always the same order: CO₂, particles, VOC.
+    .sort((a,b)=>['co2','pm25','voc'].indexOf(a.key)-['co2','pm25','voc'].indexOf(b.key));
+}
+const arc=(r:number,f:number)=>{const L=270,a0=135*Math.PI/180,a1=(135+L*f)*Math.PI/180;
+  return `M${(60+r*Math.cos(a0)).toFixed(1)} ${(60+r*Math.sin(a0)).toFixed(1)} A${r} ${r} 0 ${L*f>180?1:0} 1 ${(60+r*Math.cos(a1)).toFixed(1)} ${(60+r*Math.sin(a1)).toFixed(1)}`;};
+function airPanel(v:View,partners:View[],config:Config,said:Said):TemplateResult|typeof nothing {
+  const rows=airRows(v,partners,config);
+  // Without an air sensor, no panel: a ventilation or a purifier stays in « Appareils ».
+  if(!rows.length)return nothing;
+  const ask=asking(v)&&v.assessment.needs.includes('air');
+  const look=(r:AirRow)=>{const p=parts(v,r),x=r.value??p.lo,i=Math.max(0,p.steps.findIndex(([a,b])=>x>=a&&x<b)),step=x>=p.hi?p.steps[p.steps.length-1]:p.steps[i];
+    const muted=r.value===null||MUTE.includes(r.tile.note),tone:Tone=muted?'none':r.tile.out?(ask?'act':'watch'):'ok';
+    return {p,x,tier:x>=p.hi?p.steps.length-1:i,word:step[2],color:step[3],tone,muted};};
+  const live=rows.filter(r=>!look(r).muted),lead=[...live].sort((a,b)=>RANK[look(b).tone]-RANK[look(a).tone]||look(b).tier-look(a).tier)[0];
+  const center=!lead?'—':look(lead).tier===0&&look(lead).tone==='ok'?t('Air frais'):look(lead).word;
+  const fill=(r:AirRow,R:number,w:number)=>{const l=look(r),f=Math.max(.04,Math.min(.999,(l.x-l.p.lo)/(l.p.hi-l.p.lo)));
+    return svg`<path d=${arc(R,.999)} class="nc-ring-track" style=${`stroke-width:${w}`}></path><path d=${arc(R,f)} class="nc-ring-fill" style=${`stroke:${l.color};stroke-width:${w};--len:${(2*Math.PI*R*270/360*f).toFixed(1)}`}></path>`;};
+  const rate=(r:AirRow)=>{const tr=r.tile.trend,moving=!!tr&&tr.way!=='stable'&&r.slope!=null&&Math.abs(r.slope)>=1;
+    return html`<span class="nc-fx-trend" data-tone=${tr?.tone??'steady'}><span class="nw-trend nc-way" data-way=${moving?tr!.way:'stable'} data-tone=${tr?.tone??'steady'}></span>${moving?`${signed(r.slope!,0)} ${r.unit?r.unit+'/h':'/h'}`:t('stable')}</span>`;};
+  const name=(r:AirRow)=>html`<span class="nc-ring-n">${tx(r.label)}${r.room?html` <small>${r.room}</small>`:nothing}</span>`;
+  const open=(r:AirRow)=>(e:Event)=>{if(r.tile.entity)moreInfo(e,r.tile.entity);};
+  const notes=said.air.length?html`<p class="nc-fx-line">${said.air.join(' · ')}</p>`:nothing;
+  const head=html`<div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon('air')}</span><h3>${t('Air')}</h3></div>`;
+  // One measure: its value in the ring, its word, way and note beside it.
+  if(rows.length===1&&live.length===1){const r=live[0],l=look(r);
+    return html`<section class="nc-mod nw-panel nc-air" data-piece="air">${head}<div class="nc-rings one">
+      <button type="button" class="nc-ring" @click=${open(r)} title=${t('Détails : {label}',{label:tx(r.label)})}><svg viewBox="0 0 120 120" aria-hidden="true">${fill(r,50,10)}</svg>
+        <span class="nc-ring-c"><b class="nc-ring-v">${number(r.value!)}</b><small>${r.unit}</small></span></button>
+      <div class="nc-ring-side">${name(r)}<b class="nc-fx-word" style=${`--c:${C[l.tone]}`}>${l.word}</b>${rate(r)}</div></div>${notes}</section>`;}
+  // One ring per kind of measure (CO₂, particles, VOC), drawn for the room where it is most at stake; every room in the list.
+  const R=[50,38,26],W=8,kinds=(['co2','pm25','voc'] as const).map(k=>live.filter(r=>r.key===k).sort((a,b)=>RANK[look(b).tone]-RANK[look(a).tone]||look(b).x-look(a).x)[0]).filter((r):r is AirRow=>!!r);
+  return html`<section class="nc-mod nw-panel nc-air" data-piece="air">${head}<div class="nc-rings">
+    <div class="nc-ring"><svg viewBox="0 0 120 120" role="img" aria-label=${t('Air : {word}',{word:center})}>${kinds.map((r,i)=>fill(r,R[i],W))}</svg>
+      <span class="nc-ring-c"><b style=${`--c:${C[lead?look(lead).tone:'none']}`}>${center}</b></span></div>
+    <div class=${'nc-ring-list'+(rows.length>=3?' cols2':'')}>${rows.map(r=>{const l=look(r);
+      return html`<button type="button" class=${'nc-ring-row'+(l.muted?' mute':'')} @click=${open(r)} title=${t('Détails : {label}',{label:tx(r.label)})}>
+        <i class="nc-ring-dot" style=${l.muted?'':`background:${l.color}`}></i>${name(r)}<b>${l.muted?'—':html`${number(r.value!)}${r.unit?html`<small> ${r.unit}</small>`:nothing}`}</b>
+        ${l.muted?html`<span class="nc-ring-w mute">${t('à vérifier · {why}',{why:tx(r.tile.note)})}</span>`:html`<span class="nc-ring-w" style=${`--c:${C[l.tone]}`}>${l.word}</span>${rate(r)}`}</button>`;})}</div>
+  </div>${notes}</section>`;
+}
+
+// ---------- À venir : what will change, dated, each with its source; nothing to say, no section. ----------
+function coming(v:View,said:Said,plage:(s:'temperature'|'humidity')=>[number,number]|null):Coming[] {
+  const a=v.assessment,f=a.features,out:Coming[]=[...said.coming],ms=(iso:unknown)=>{const d=new Date(String(iso));return isNaN(+d)?null:d.getTime();};
+  // The heating's own schedule (ha-chauffage, Scheduler): its next change, cold or not.
+  const plan=f?.planned??f?.warmth?.next,next=nextChange(plan),nextAt=ms(plan?.at);
+  if(next&&nextAt)out.push({when:nextAt,at:clockAt(nextAt),ic:'heat',text:t('Chauffage'),note:next.replace(/\s*(?:demain )?à \d{1,2} h \d{2}/,''),tone:'none'});
+  if(a.rain_soon_minutes!=null){const at=Date.now()+a.rain_soon_minutes*60e3;
+    out.push({when:at,at:clockAt(at),ic:'rain',text:t('Pluie'),note:t('dans {n} min · les ouvrants exposés se ferment',{n:Math.round(a.rain_soon_minutes)}),tone:'none'});}
+  // The engine's next hours (engine/horizon.py): a gesture later compared with doing nothing, summer nights drawn.
+  for(const h of horizonShown(f?.horizon??[],'needed')){const r=h.result;
+    if(h.kind==='cool'){const at=ms(r.open_from)??Date.now();
+      out.push({when:at,at:`${clockAt(at)} → ${clockAt(ms(r.open_until)??at)}`,ic:'open',text:t('Ouvrez la nuit'),note:horizonResult(h),tone:'act',chart:horizonChart(h,plage('temperature'))});continue;}
+    const at=ms(r.at)??ms(h.bands[0]?.[0])??Date.now();
+    // The airing of now is the banner's: « À venir » says only what follows.
+    if((h.kind==='air'||h.kind==='dry')&&Math.abs(at-Date.now())<20*60e3)continue;
+    if(h.kind==='air')out.push({when:at,at:clockAt(at),ic:'air',text:t('Aérez {n} min',{n:Number(r.minutes)}),
+      note:r.back?t('la pièce perd {drop} °C, retrouvés vers {time}',{drop:nf(Number(r.drop)),time:clockAt(ms(r.back)!)}):t('la pièce perd {drop} °C',{drop:nf(Number(r.drop))}),tone:'act'});
+    else if(h.kind==='dry')out.push({when:at,at:clockAt(at),ic:'drop',text:t('Aérez {n} min',{n:Number(r.minutes)}),note:t('{with} % d’humidité au lieu de {without} %',{with:Number(r.with),without:Number(r.without)}),tone:'act'});
+    else out.push({when:at,at:clockAt(at),ic:'sun',text:t('Le soleil réchauffe la pièce'),note:r.gain!=null?t('{gain} °C vers {time}',{gain:signed(Number(r.gain)),time:clockAt(ms(r.gain_time)??at)}):undefined,tone:'benefit'});
+  }
+  // Without a gesture, the room doing nothing: only when it crosses its range, and when.
+  const trend=(f?.horizon??[]).find(x=>x.kind==='trend'),band=plage('temperature');
+  if(trend&&band&&!out.some(x=>x.chart)){const cross=crossing(trend,band);if(cross)out.push(cross);}
+  return out.sort((x,y)=>x.when-y.when);
+}
+/** The first half hour the forecast leaves the range by half a degree, or comes back into it. */
+function crossing(h:Horizon,[mn,mx]:[number,number]):Coming|null {
+  const t0=new Date(h.start).getTime(),step=h.step_minutes*60e3,s=h.base,inside=(x:number)=>x>=mn&&x<=mx;
+  if(!s.length)return null;
+  const i=!inside(s[0])?s.findIndex(inside):s.findIndex(x=>x<mn-.5||x>mx+.5);
+  if(i<=0)return null;
+  const at=t0+i*step;
+  return {when:at,at:clockAt(at),ic:'temp',text:!inside(s[0])?t('Revient dans votre plage'):s[i]<mn?t('Passe sous {n} °C',{n:nf(mn,mn%1?1:0)}):t('Dépasse {n} °C',{n:nf(mx,mx%1?1:0)}),note:t('sans rien faire'),tone:'none'};
+}
+
+// ---------- Appareils : one line, each device as it stands, a tap opens it. ----------
+function devices(v:View,partners:View[],config:Config):TemplateResult|typeof nothing {
+  const seen=new Set<string>(),chips:{ic:string;text:string;tone:Tone;entity?:string}[]=[];
+  for(const r of [v,...partners])for(const x of tiles(r,config)){
+    if(!['Fenêtres','Volet','Chauffage','Purificateur','Ventilation'].includes(x.label))continue;
+    const key=x.label==='Fenêtres'?x.label:x.label+(x.entity??r.title);
+    if(seen.has(key))continue;seen.add(key);
+    if(x.label==='Fenêtres'){const [open,all]=x.value.split('/').map(Number),flagged=x.note==='à refermer';
+      chips.push({ic:x.ic,text:!open?(all>1?t('{n} fenêtres fermées',{n:all}):t('Fenêtre fermée')):flagged?t('{n} à refermer',{n:open}):tx(x.note),tone:flagged?'act':open?'benefit':'none',entity:x.entity});}
+    else if(x.label==='Volet')chips.push({ic:x.ic,text:t('Volet {state}',{state:tx(x.value).toLowerCase()})+(x.out?` · ${tx(x.note)}`:''),tone:x.out?'act':'none',entity:x.entity});
+    else if(x.label==='Chauffage')chips.push({ic:x.ic,text:[t('Chauffage'),tx(x.value).toLowerCase()+(x.unit?` ${x.unit}`:''),x.note?tx(x.note):''].filter(Boolean).join(' · '),tone:'none',entity:x.entity});
+    else chips.push({ic:x.ic,text:`${x.label==='Ventilation'?t('VMC'):t('Purificateur')} ${tx(x.value).toLowerCase()}`,tone:x.out?'benefit':'none',entity:x.entity});
+  }
+  return chips.length?html`<section class="nc-fx-devices"><div class="nw-label">${t('Appareils')}</div><div class="nw-chips">${chips.map(c=>{
+    const body=html`${icon(c.ic)}${c.text}`,cls='nw-chip'+(c.tone==='none'?' nc-plain':'');
+    return c.entity?html`<button type="button" class=${cls} style=${`--c:${C[c.tone]}`} @click=${(e:Event)=>moreInfo(e,c.entity!)}>${body}</button>`:html`<span class=${cls} style=${`--c:${C[c.tone]}`}>${body}</span>`;})}</div></section>`:nothing;
+}
+
+/** Everything below the banner of the full card. */
+export function fullBody(v:View,config:Config,st:CardState,partners:View[]):TemplateResult {
+  const said=spread(v),hum=v.assessment.features?.humidity,season=v.assessment.features?.season;
+  const plage=(s:'temperature'|'humidity'):[number,number]|null=>s==='humidity'?(hum?.minimum!=null&&hum?.maximum!=null?[hum.minimum,hum.maximum]:null):(season?[season.minimum,season.maximum]:null);
+  const feel=config.show_measures===false?nothing:feelPanel(v,partners,said,st.uid),air=config.show_measures===false?nothing:airPanel(v,partners,config,said);
+  const next=config.show_horizon===false?[]:coming(v,said,plage);
+  const sensors=new Set([v,...partners].flatMap(r=>Object.values(r.observations).map(o=>o?.source).filter((x):x is string=>!!x))).size;
+  const rows=[...details(v,config),...said.rest.map(x=>html`<li><b>${t('Bon à savoir')}</b><span> · ${x}</span></li>`),...said.doubts.map(x=>html`<li><b>${t('À vérifier')}</b><span> · ${x}</span></li>`)];
+  return html`<div class="nc-body nc-sections nc-full">
+    ${said.tryIt?html`<p class="nc-try"><b>${t('À essayer')}</b> · ${said.tryIt}</p>`:nothing}
+    ${feel!==nothing||air!==nothing?html`<section class="nc-part"><header class="nc-part-h nw-section-head"><h2>${t('En ce moment')}</h2></header><div class="nc-mods">${feel}${air}</div></section>`:nothing}
+    ${next.length?html`<section class="nc-part"><header class="nc-part-h nw-section-head"><h2>${t('À venir')}</h2><span class="nw-sum">${t('ce qui va changer')}</span></header>
+      <ol class="nc-mod nw-panel nc-coming">${next.map(e=>html`<li class="nc-ev" style=${`--c:${C[e.tone]}`}><span class="nc-ev-at">${e.at}</span><span class="nc-ev-dot" aria-hidden="true"></span>
+        <div class="nc-ev-body"><b><span class="nc-ev-ic">${icon(e.ic)}</span>${e.text}</b>${e.note?html`<small>${e.note}</small>`:nothing}${e.chart?html`<div class="nc-ev-chart nc-horizon">${e.chart}</div>`:nothing}</div></li>`)}</ol></section>`:nothing}
+    ${devices(v,partners,config)}
+    ${config.show_details===false?nothing:fold({label:t('Détails'),summary:html`${t('{n} capteurs',{n:sensors})}${said.doubts.length?html` · <b>${t('{n} à vérifier',{n:said.doubts.length})}</b>`:nothing}`,open:st.detailsOpen,onToggle:()=>st.toggle('detailsOpen'),id:st.uid+'-details',
+      body:html`<ul class="nc-list">${rows}</ul>${st.configure?html`<button class="nw-badge nc-configure" @click=${st.configure}>${icon('settings')}${t('Configurer cette pièce')}</button>`:nothing}`})}
+  </div>`;
+}
