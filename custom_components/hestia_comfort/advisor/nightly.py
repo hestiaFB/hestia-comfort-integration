@@ -9,19 +9,26 @@ from datetime import datetime, timedelta
 import math
 
 from .bench.history import attribute, contacts, numbers
-from .decide import CROSS, sides_apart
+from .decide import CROSS, SHUT_SHADE, sides_apart
+from .observe import Series
+from .physics.thermal import glazing as glazing_of
 from .notes import prune, settle
 from .physics.airfit import MOVES, TWINS, notes as air_notes, score as air_score, values, vector
 from .physics.fit import Sample, _nelder_mead, fit, fit_windows, notes as heat_notes, score
-from .physics.sunlight import sun_position, through_windows
+from .physics.sunlight import facing, sun_position, through_windows
 from .physics.thermal import STEP, Inputs, Params, shutter_insulation
 from .physics.water import absolute
 from .proof import level
 
 # A twin is relearned only from this many recorded days; with fewer, only the gestures are counted.
 MIN_DAYS = 3
-# The last day is kept out of the search, to judge it: the new twin is kept only if it forecasts that day better.
+# The last day is kept out of the search, to judge it: the new twin is kept if it forecasts that day no worse than EVEN
+# times the twin as it was. One day is a noisy judge (lab, 5 November: the same twin missed its day by half or twice as
+# much from one day to the next) and 9 of the 15 twins refused that night were within 5 % of the old one: refused, a
+# twin froze on its first days instead of following the recent ones. The night's report says « meilleur », « egal » (kept
+# all the same) or « pire » (refused).
 HELD_OUT = timedelta(hours=24)
+EVEN = 1.05
 # Gestures are remembered this long.
 KEEP = timedelta(days=60)
 # A correction from the gestures' notes (advisor/notes.py) is kept when the last day is forecast no worse than this.
@@ -55,6 +62,26 @@ class RoomSpec:
     boost: tuple | None = None          # (the VMC's fast speed: a fan or switch, m³/h it adds)
     purifier: tuple | None = None       # (the purifier: a fan, m³/h of clean air it gives)
     declared: frozenset = frozenset({"heat"})            # parameters declared, held by the search (fit.HELD)
+    panes: dict = field(default_factory=dict)            # contact → its glazing, « simple », « double », « triple »
+    # The windows with a manual shutter, and when the household says it shuts them (HABITUDES-FOYER.md): its habits
+    # (advisor/household.py), the home's alarm read in the history for its absences, summer or not.
+    manual: frozenset = frozenset()
+    habits: object | None = None
+    alarm: str | None = None
+    summer: bool = False
+
+
+def _shut_windows(spec: RoomSpec, alarm: Series | None, when, local, location) -> set:
+    """The manual shutters shut at `when`, as the household said: away, at night, on summer's sunny side. A manual
+    shutter is otherwise taken as the learned average: no answer, no change (Salon, 5 November: shut while away, the sun
+    counted through them made the twin believe the sun warms the room less than it does)."""
+    if not spec.manual or spec.habits is None:
+        return set()
+    away = spec.habits.away(local, alarm.at(when) if alarm is not None else None, spec.alarm is not None)
+    position = sun_position(when, *location) if spec.summer else None
+    return {e for e in spec.manual
+            if spec.habits.shut(local, away, spec.summer,
+                                position is not None and facing((spec.orientations.get(e) or (None,))[0], *position))}
 
 
 def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zone, house_heaters=None) -> list[Sample]:
@@ -66,8 +93,11 @@ def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zo
     house = [(attribute(history, e, "power_percent", 0.01), w) for e, w in (house_heaters or {}).items()]
     devices = {name: (contacts(history, d[0]), d[1]) for name, d in (("vent", spec.boost), ("purifier", spec.purifier)) if d}
     windows = [(e, (w * h, h), contacts(history, e)) for e, (w, h) in spec.windows.items()]
-    glazing = [(w * h, *spec.orientations[e]) for e, (w, h) in spec.windows.items() if e in spec.orientations]
+    glazing = [(w * h, *spec.orientations[e], glazing_of(spec.panes.get(e))[0]) for e, (w, h) in spec.windows.items()
+               if e in spec.orientations]
     oriented = [i for i, (e, _, _) in enumerate(windows) if e in spec.orientations]
+    alarm = Series([(datetime.fromisoformat(x["last_changed"]), x["state"]) for x in history.get(spec.alarm, ())],
+                   keep_none=True) if spec.alarm else None
     # The connected shutter covers the room's windows: shut, it keeps their heat in (advisor/physics/thermal.py).
     glass = sum(size[0] for _, size, _ in windows)
     rows, when = [], start
@@ -76,10 +106,15 @@ def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zo
         inputs = None
         if te is not None:
             facade = None
+            shut = _shut_windows(spec, alarm, when, local, location)
             if glazing:
                 light = sun.at(when) or 0.0
                 opened = {k for k, i in enumerate(oriented) if windows[i][2].at(when) is True}
-                facade = through_windows(light, *sun_position(when, *location), glazing, opened)
+                # A manual shutter shut lets in what a connected one does shut (advisor/decide.py SHUT_SHADE).
+                seen = [(g[0] * SHUT_SHADE, *g[1:]) if windows[i][0] in shut else g for g, i in zip(glazing, oriented)] \
+                    if shut else glazing
+                facade = through_windows(light, *sun_position(when, *location), seen, opened)
+            shut_area = sum(size[0] for e, size, _ in windows if e in shut)
             open_now = [(e, size) for e, size, s in windows if s.at(when) is True]
             # Open on two sides, the air crosses the room: counted here as in the scenarios (advisor/decide.py).
             apart = len(open_now) > 1 and sides_apart([(spec.orientations.get(e) or (None,))[0] for e, _ in open_now])
@@ -87,9 +122,12 @@ def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zo
                             windows=tuple(size for _, size in open_now), cross=CROSS if apart else 1.0,
                             hour=local.hour + local.minute / 60,
                             house_heat=sum((s.at(when) or 0.0) * w for s, w in house),
-                            shade=1.0 if position is None or position.at(when) is None else max(0.05, position.at(when)),
-                            shutter=0.0 if position is None or position.at(when) is None
-                            else shutter_insulation(glass, 1 - position.at(when)),
+                            shade=(1.0 if position is None or position.at(when) is None else max(0.05, position.at(when)))
+                            # Without the windows' sides the sun is the room's whole: the shut share of its glass.
+                            * (1 - (1 - SHUT_SHADE) * shut_area / glass if glass and not glazing else 1.0),
+                            shutter=(0.0 if position is None or position.at(when) is None
+                                     else shutter_insulation(glass, 1 - position.at(when)))
+                            + (shutter_insulation(shut_area, 1.0) if shut_area else 0.0),
                             facade=facade,
                             **{name: flow if series.at(when) is True else 0.0 for name, (series, flow) in devices.items()})
         rows.append(Sample(when, indoor.at(when), inputs))
@@ -140,6 +178,21 @@ def _scaled(rows, boost: float = 1.0, purifier: float = 1.0):
     return [(replace(r[0], inputs=scaled(r[0].inputs)), *r[1:]) for r in rows]
 
 
+def judged(before: float, after: float) -> tuple[bool, str]:
+    """The new twin against the twin as it was, on the last day's error: (kept, « meilleur », « egal » or « pire »). A
+    twin that forecasts nothing (no sensor history: an infinite error) is never kept."""
+    if not math.isfinite(after):
+        return False, "pire"
+    if not math.isfinite(before) or after < before:
+        return True, "meilleur"
+    return (True, "egal") if after <= EVEN * before else (False, "pire")
+
+
+def _rounded(value: float) -> float | None:
+    """A night's error for its report: None when there was nothing to forecast (Infinity is not JSON)."""
+    return round(value, 3) if math.isfinite(value) else None
+
+
 def _corrected(fit_notes, value, keep_if, now) -> tuple[float, dict]:
     """A category's parameter corrected from its notes (advisor/notes.py `settle`), kept only if `keep_if(value)`."""
     found, _, report = settle(fit_notes, value, now)
@@ -176,9 +229,9 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
         before = score(heat, searched, since=split)
         found = fit(heat, searched, until=split, iterations=HEAT_SEARCH, held=spec.declared)
         after = score(found, searched, since=split)
-        kept = after.hour + after.three < before.hour + before.three
-        report["chaleur"] = {"avant": [round(before.hour, 3), round(before.three, 3)],
-                             "apres": [round(after.hour, 3), round(after.three, 3)], "garde": kept}
+        kept, verdict = judged(before.hour + before.three, after.hour + after.three)
+        report["chaleur"] = {"avant": [_rounded(before.hour), _rounded(before.three)],
+                             "apres": [_rounded(after.hour), _rounded(after.three)], "garde": kept, "verdict": verdict}
         if kept:
             heat = found
             entry["heat"] = asdict(found)
@@ -216,8 +269,8 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
             found = _nelder_mead(lambda y: air_score(kind, y, volume, last, recent, split), x,
                                  [m * WARM for m in MOVES[kind]], AIR_SEARCH)
             after = air_score(kind, found, volume, last, split, now)
-            kept = after < before
-            report[subject] = {"avant": round(before, 3), "apres": round(after, 3), "garde": kept}
+            kept, verdict = judged(before, after)
+            report[subject] = {"avant": _rounded(before), "apres": _rounded(after), "garde": kept, "verdict": verdict}
             if kept:
                 x = found
                 entry[key], entry[f"{key}_flow"] = values(kind, x, volume)

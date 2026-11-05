@@ -56,9 +56,9 @@ TEXTS = {
         "mist": "Buée probable sur les vitres cette nuit ({outdoor} °C dehors)",
         "open_weak": "Ouverte depuis {since} : {air_then} → {air} °C, {humidity_then} → {humidity} % : elle renouvelle peu l'air",
         "open_weak_air": "Ouverte depuis {since} : {air_then} → {air} °C : elle renouvelle peu l'air",
-        "outside_drier": "Dehors {rh} % à {outdoor} °C, mais moins d'eau qu'ici : {outside} g par m³ contre {inside}",
-        "outside_wetter": "Dehors, plus d'eau qu'ici : {outside} g par m³ contre {inside}, aérer fait monter l'humidité",
-        "outside_same": "Dehors, autant d'eau qu'ici ({outside} g par m³) : aérer ne fait pas baisser l'humidité",
+        "outside_drier": "Dehors, l'air est plus sec qu'ici : aérer assèche",
+        "outside_wetter": "Dehors, l'air est plus humide qu'ici : aérer ferait monter l'humidité",
+        "outside_same": "Dehors, l'air est aussi humide qu'ici : aérer n'assèche pas",
         "open_warms": "Laissez ouvert : la pièce a gagné {change} °C depuis {since}",
         "open_cools": "Laissez ouvert : la pièce a perdu {change} °C depuis {since}",
         "time": "{h} h {m:02d}", "time_hour": "{h} h",
@@ -114,9 +114,9 @@ TEXTS = {
         "mist": "Misted panes likely tonight ({outdoor} °C outside)",
         "open_weak": "Open since {since}: {air_then} → {air} °C, {humidity_then} → {humidity}%: it renews little air",
         "open_weak_air": "Open since {since}: {air_then} → {air} °C: it renews little air",
-        "outside_drier": "{rh}% outside at {outdoor} °C, but less water than in here: {outside} g per m³ against {inside}",
-        "outside_wetter": "More water outside than in here: {outside} g per m³ against {inside}, airing raises the humidity",
-        "outside_same": "As much water outside as in here ({outside} g per m³): airing does not lower the humidity",
+        "outside_drier": "The air outside is drier than in here: airing dries the room",
+        "outside_wetter": "The air outside is more humid than in here: airing would raise the humidity",
+        "outside_same": "The air outside is as humid as in here: airing does not dry the room",
         "open_warms": "Leave it open: the room gained {change} °C since {since}",
         "open_cools": "Leave it open: the room lost {change} °C since {since}",
         "time": "{h}:{m:02d}", "time_hour": "{h}:00",
@@ -172,9 +172,9 @@ TEXTS = {
         "mist": "Heute Nacht wahrscheinlich beschlagene Scheiben ({outdoor} °C draußen)",
         "open_weak": "Offen seit {since}: {air_then} → {air} °C, {humidity_then} → {humidity} %: es kommt wenig frische Luft",
         "open_weak_air": "Offen seit {since}: {air_then} → {air} °C: es kommt wenig frische Luft",
-        "outside_drier": "Draußen {rh} % bei {outdoor} °C, aber weniger Wasser als hier: {outside} g pro m³ gegen {inside}",
-        "outside_wetter": "Draußen mehr Wasser als hier: {outside} g pro m³ gegen {inside}, Lüften erhöht die Feuchte",
-        "outside_same": "Draußen so viel Wasser wie hier ({outside} g pro m³): Lüften senkt die Feuchte nicht",
+        "outside_drier": "Draußen ist die Luft trockener als hier: Lüften trocknet",
+        "outside_wetter": "Draußen ist die Luft feuchter als hier: Lüften würde die Feuchte erhöhen",
+        "outside_same": "Draußen ist die Luft so feucht wie hier: Lüften trocknet nicht",
         "open_warms": "Offen lassen: der Raum hat seit {since} {change} °C gewonnen",
         "open_cools": "Offen lassen: der Raum hat seit {since} {change} °C verloren",
         "time": "{h}:{m:02d} Uhr", "time_hour": "{h} Uhr",
@@ -258,7 +258,8 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     (advisor/safety.py)."""
     words = TEXTS[language]
     # A reinforced effect is said in the conditional (CAHIER-MOTEUR.md § 4.1).
-    sure = sure and decision.level != REINFORCED
+    # A supposed one too, when the card keeps it a while (an airing under way, advisor/decide.py `under_way`).
+    sure = sure and decision.level == PROVEN
     marks = {"minimum": 20.0, "maximum": 24.0, "humidity": 60.0, "co2": 1000.0, "particles": 15.0, "voc": 150.0, **(marks or {})}
     # Something is open when closing is one of the scenarios.
     opened = any(g.kind == "close" for g in decision.scenarios)

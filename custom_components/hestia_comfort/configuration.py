@@ -550,10 +550,16 @@ class Configuration:
         async with self.lock:
             self.home = {**self.home, "foyer": foyer}
             await self.store.async_save(self.home)
-            for entry in self.entries():
-                if entry.state.value == "loaded":
-                    await self.hass.config_entries.async_reload(entry.entry_id)
-            return self.snapshot()
+        # No room is reloaded: the advisor reads the household afresh at each step (room/advice.py `spec`, `Habits.of`) and
+        # the ressenti at each refresh. A reload re-registered the panel and the page started again a few seconds after
+        # each answer of « Vos habitudes » (Frank, 5 November).
+        from .advisor_home import DATA as ADVISOR
+        if (advisor := self.hass.data.get(ADVISOR)) is not None:
+            self.hass.async_create_task(advisor.tick(None))
+        for entry in self.entries():
+            if entry.state.value == "loaded" and hasattr(coordinator := getattr(entry, "runtime_data", None), "async_request_refresh"):
+                self.hass.async_create_task(coordinator.async_request_refresh())
+        return self.snapshot()
 
     async def set_lights(self, value):
         """The « Lumières » settings, saved at once; they change no advice, so no room is reloaded."""

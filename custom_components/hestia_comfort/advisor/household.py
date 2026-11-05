@@ -15,26 +15,41 @@ STEP_MINUTES, LATER_STEP = 5, 15
 class Sleep:
     start: time = time(22, 0)
     end: time = time(7, 0)
+    # Waking up on Saturdays and Sundays, when the household sleeps in (HABITUDES-FOYER.md, question 6); None: as in the week.
+    weekend_end: time | None = None
 
     @classmethod
     def of(cls, setting: dict | None) -> "Sleep":
-        """From a room's setting, {"debut": "22:30", "fin": "06:45"}; the defaults for what is not set."""
+        """From a room's setting, {"debut": "22:30", "fin": "06:45", "fin_weekend": "09:00"}; the defaults for what is
+        not set."""
         setting = setting or {}
-        start, end = setting.get("debut"), setting.get("fin")
-        return cls(time.fromisoformat(start) if start else cls.start, time.fromisoformat(end) if end else cls.end)
+        start, end, weekend = setting.get("debut"), setting.get("fin"), setting.get("fin_weekend")
+        return cls(time.fromisoformat(start) if start else cls.start, time.fromisoformat(end) if end else cls.end,
+                   time.fromisoformat(weekend) if weekend else None)
+
+    def end_on(self, day) -> time:
+        """The waking hour of that day: the week-end's on Saturdays and Sundays, when it is set."""
+        return self.weekend_end if self.weekend_end is not None and day.weekday() >= 5 else self.end
 
     def asleep(self, local: datetime, alarm: str | None = None) -> bool:
         if alarm == NIGHT_ALARM:
             return True
-        now = local.time()
-        return (self.start <= now or now < self.end) if self.start > self.end else self.start <= now < self.end
+        now, end = local.time(), self.end_on(local.date())
+        return (self.start <= now or now < end) if self.start > self.end else self.start <= now < end
 
     def _next(self, local: datetime, at: time) -> datetime:
         found = local.replace(hour=at.hour, minute=at.minute, second=0, microsecond=0)
         return found if found > local else found + timedelta(days=1)
 
     def wake(self, local: datetime) -> datetime:
-        """The next waking up."""
+        """The next waking up: the week-end's hour on Saturdays and Sundays, when it is set."""
+        today = local.replace(second=0, microsecond=0)
+        for days in (0, 1, 2):
+            day = today + timedelta(days=days)
+            at = self.end_on(day.date())
+            found = day.replace(hour=at.hour, minute=at.minute)
+            if found > local:
+                return found
         return self._next(local, self.end)
 
     def bedtime(self, local: datetime) -> datetime:
@@ -65,11 +80,23 @@ class Habits:
     stove_hold: float = 3.0                 # hours
     overheat: float = 1.0                   # °C
     overheat_minutes: int = 30              # minutes
+    # What the sensors do not see (niak-comfort/docs/HABITUDES-FOYER.md, validated by Frank on 5 November): the manual
+    # shutters, « fermes », « ouverts » or « variable » (the advisor then keeps what it learned on average), while the
+    # household is away, at night, and on summer's hot hours on the sunny side.
+    shutters_away: str = "variable"
+    shutters_night: str = "variable"
+    shutters_summer: str = "variable"
+    # The house empty on weekdays, (from, to), when no alarm says it; None: not said.
+    empty_day: tuple | None = None
+    # The rooms (Confort entries) where the laundry dries in winter; () : outside, or not said.
+    laundry: tuple = ()
 
     KEYS = {"ouvrir_la_nuit": "open_at_night", "aeration_max_min": "airing_max", "plus_tard_max_min": "later_max",
             "appareils_max_min": "devices_max", "cette_nuit_avant_h": "tonight_before", "buee_avant_h": "mist_before",
             "hors_gel": "frost_guard", "tolerance": "tolerance", "pas_maintenant_min": "not_now",
-            "poele_tient_h": "stove_hold", "depassement": "overheat", "depassement_min": "overheat_minutes"}
+            "poele_tient_h": "stove_hold", "depassement": "overheat", "depassement_min": "overheat_minutes",
+            "volets_absence": "shutters_away", "volets_nuit": "shutters_night", "volets_ete": "shutters_summer",
+            "linge_pieces": "laundry"}
 
     @property
     def airings(self) -> tuple[int, ...]:
@@ -94,10 +121,40 @@ class Habits:
             merged.update(setting or {})
         values = {name: (tuple(merged[key]) if isinstance(merged[key], list) else merged[key])
                   for key, name in cls.KEYS.items() if key in merged}
+        empty = merged.get("journee_vide")
+        if isinstance(empty, dict) and empty.get("de") and empty.get("a"):
+            values["empty_day"] = (time.fromisoformat(empty["de"]), time.fromisoformat(empty["a"]))
         return cls(sleep=Sleep.of(merged.get("sommeil")), **values)
 
     def setting(self) -> dict:
         """Back as a setting: what a snapshot keeps."""
         out = {key: (list(v) if isinstance(v := getattr(self, name), tuple) else v) for key, name in self.KEYS.items()}
         out["sommeil"] = {"debut": self.sleep.start.strftime("%H:%M"), "fin": self.sleep.end.strftime("%H:%M")}
+        if self.sleep.weekend_end is not None:
+            out["sommeil"]["fin_weekend"] = self.sleep.weekend_end.strftime("%H:%M")
+        out["journee_vide"] = ({"de": self.empty_day[0].strftime("%H:%M"), "a": self.empty_day[1].strftime("%H:%M")}
+                               if self.empty_day else None)
         return out
+
+    def empty(self, local: datetime) -> bool:
+        """The house said empty now: a weekday, within the hours set (« En semaine, dans la journée, la maison est vide »)."""
+        if not self.empty_day or local.weekday() >= 5:
+            return False
+        start, end = self.empty_day
+        return start <= local.time() < end
+
+    def away(self, local: datetime, alarm: str | None, has_alarm: bool) -> bool:
+        """Nobody at home: the alarm armed away or for the holidays; without an alarm, the empty hours set."""
+        if has_alarm:
+            return alarm in AWAY
+        return self.empty(local)
+
+    def shut(self, local: datetime, away: bool, summer: bool, sun_on: bool) -> bool:
+        """Whether the household's manual shutters are shut now, as it said: away, at night, or on the sunny side in
+        summer. « variable » never says shut: the advisor keeps what it learned on average."""
+        return ((self.shutters_night == "fermes" and self.sleep.asleep(local))
+                or (self.shutters_away == "fermes" and away)
+                or (self.shutters_summer == "fermes" and summer and sun_on))
+
+
+AWAY = ("armed_away", "armed_vacation")

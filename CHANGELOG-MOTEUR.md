@@ -4,6 +4,63 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.7.0 — 5 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Nouveautés
+
+- « Vos habitudes » : quelques questions sur ce que les capteurs ne voient pas.
+- Les volets à la main fermés quand vous partez, la nuit ou l'été au soleil : Hestia ne compte plus le soleil derrière eux.
+- La maison vide en semaine, quand il n'y a pas d'alarme : pas de conseil pendant ces heures.
+- Le lever du week-end : ni conseil ni lumière avant.
+
+### Améliorations
+
+- Le vitrage simple, double ou triple compte : la buée, le soleil qui entre, la chaleur perdue.
+- « Votre maison » : vitrage, volets, hauteur, murs et plage repris par chaque fenêtre et chaque pièce.
+
+## 3.6.0 — 5 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Améliorations
+
+- Une fenêtre sous une avancée ou un balcon reçoit le soleil selon la saison : en hiver, le soleil bas passe dessous et entre dans la pièce ; en été, le soleil haut reste au-dessus. Avant, Hestia comptait toujours un tiers du soleil.
+- La profondeur de l'avancée et son écart avec le haut de la fenêtre, réglés dans « Avancée au-dessus », sont pris en compte.
+
+## 3.5.0 — 5 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Améliorations
+
+- L'apprentissage de la nuit est environ quatre fois plus rapide : Hestia arrête de chercher dès qu'il n'apprend plus rien. Il reste aussi juste.
+- Ce qu'Hestia apprend la nuit est gardé quand il prévoit la veille aussi bien qu'avant, et plus seulement quand il fait mieux : il suit mieux les derniers jours au lieu de rester sur les premiers.
+
+## 3.4.0 — 5 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Améliorations
+
+- Une pluie annoncée « dans quelques minutes » qui ne tombe toujours pas au bout de 45 minutes n'empêche plus d'aérer, si votre station mesure la pluie. Elle compte de nouveau dès la première goutte.
+
+### Corrections
+
+- Quand vous ouvrez la fenêtre après « Aérez 5 min », la carte dit « Laissez ouvert encore 5 min » au lieu de « Rien à faire — Ouverte ou fermée ». Pareil pour une aération « À essayer ».
+- Un capteur d'air (CO₂, particules, COV) dont Hestia n'a encore rien appris ne fait plus apparaître de geste dans le bandeau : il est proposé « À essayer ».
+
+## 3.3.0 — 4 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Améliorations
+
+- L'ombre de la station (une maison, un arbre qui cache le soleil à son capteur) est maintenant apprise par Hestia Weather, sur les trois derniers mois de la station : elle est connue dès la première nuit, au lieu d'attendre des semaines de beau temps.
+- Les positions du soleil pas encore vues prennent la valeur de leurs voisines, ou l'ombre que vous avez indiquée dans Hestia Weather.
+- « Le dehors » montre où en est l'apprentissage : « 31 positions sur 161 ».
+
 ## 3.2.0 — 4 novembre 2026
 
 Pas encore dans une version de Confort.
@@ -15,6 +72,11 @@ Pas encore dans une version de Confort.
 - Le prochain changement est donné même quand la pièce n'a pas froid : la carte le place dans « À venir ».
 - Un chauffage éteint pour l'été n'annonce plus les changements de son planning, sauf celui qui le rallume ; une pause du thermostat (fenêtre ouverte) ne l'efface pas.
 - Les plannings Scheduler sont reconnus à leur contenu, même recopiés d'un autre Home Assistant.
+- L'humidité du dehors dite en une phrase simple : « Dehors, l'air est plus sec qu'ici : aérer assèche ».
+
+### Corrections
+
+- Une porte-fenêtre « abritée par une avancée ou un balcon » peut rester ouverte sous la pluie : plus de « Refermez, il pleut ». Seules des rafales qui poussent la pluie de son côté la font refermer.
 
 ## 3.1.1 — 4 novembre 2026
 

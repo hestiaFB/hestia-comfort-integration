@@ -184,6 +184,21 @@ def first(kind: str) -> list[float]:
     return [0.0, 0.0, math.log(0.5), math.log(5.0), 30.0, 0.0, 0.0] if kind == "water" else [0.0, 0.0, 0.036, 0.0, 0.0]
 
 
+def untrained(learned: dict) -> set[str]:
+    """The subjects whose twin of the air is still the one it started from: no night has fitted it to the room's measures
+    (no history of its sensor, or never better). Its forecast is ordinary values only, and backs no gesture (Salon ·
+    Cuisine, 4-5 November: « Aérez 5 min, le COV retombe en 5 min », the VOC twin never compared with a measure)."""
+    out = set()
+    for key, kind, subject in TWINS:
+        twin = learned.get(key)
+        if not isinstance(twin, dict):
+            continue
+        start, _ = values(kind, first(kind), twin.get("volume") or 1.0)
+        if all(k in twin and abs(twin[k] - v) <= 1e-9 * max(1.0, abs(v)) for k, v in start.items() if k != "volume"):
+            out.add(subject)
+    return out
+
+
 def vector(kind: str, values: dict, flow) -> list[float]:
     """A learned twin back as the search's vector: `values`, its parameters as kept; `flow`, its leaks and windows."""
     x = [math.log(flow[0]), math.log(flow[1])]

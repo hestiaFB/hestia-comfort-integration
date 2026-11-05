@@ -24,13 +24,14 @@ from homeassistant.util import dt as dt_util
 from . import schedule_link, weather_link
 from .advisor import VERSION as ADVISOR_VERSION
 from .advisor.decide import Thermostat
+from .advisor.household import Habits
 from .advisor.nightly import learn_room
 from .advisor.observe import Series
 from .advisor.physics.station_sun import cell, clouds_missed, corrected, learn_shade, share
 from .advisor.physics.sunlight import sun_position, through_windows
 from .advisor.physics.thermal import STEP, Inputs
 from .advisor.physics.water import absolute
-from .advisor.safety import minutes
+from .advisor.safety import minutes, rain_believed
 from .advisor_store import AdvisorFiles
 from .const import DOMAIN, VERSION
 from .engine import schedule
@@ -115,8 +116,19 @@ def outside(hass):
     outdoor = home.outdoor[0]
     return {"moteur": home.version, "source": home.forecast_source, "station": outdoor, "prevision": start[0] if start else None,
             "ecart": round(outdoor - start[0], 1) if start and start[0] is not None and outdoor is not None else None,
-            "soleil": home.sun, "ombre_cases": len(home.station_shade),
+            "soleil": home.sun, **_shade_counts(home),
             "nuages_manques": None if home.sun_missed is None else round(home.sun_missed, 2)}
+
+
+def _shade_counts(home):
+    """How much of the station's shade is known: learned positions of the sun out of those it crosses here, and by whom."""
+    shared = home._weather_shade()
+    if shared:
+        return {"ombre_cases": shared.get("learned", 0), "ombre_positions": shared.get("reachable"),
+                "ombre_connues": len(shared.get("cells") or {}), "ombre_declaree": shared.get("declared"),
+                "ombre_source": "Hestia Weather"}
+    return {"ombre_cases": len(home.station_shade), "ombre_positions": None, "ombre_connues": len(home.station_shade),
+            "ombre_declaree": None, "ombre_source": "Hestia Confort"}
 
 
 class AdvisorHome:
@@ -136,6 +148,8 @@ class AdvisorHome:
         self.boot = dt_util.utcnow()
         self.houses = {}
         self.outdoor = (None, None)
+        # Since when the rain has been said due without a drop at the station (advisor/safety.py `rain_believed`).
+        self.rain_soon_since = None
         self.learning = False
         self.forecast, self.forecast_at, self.forecast_source = {}, None, "Open-Meteo"
         # The station's own shade by the sun's position, and the clouds the forecast missed in the last two hours, read
@@ -249,8 +263,9 @@ class AdvisorHome:
         return sum((_number(self.hass, e, "power_percent") or 0.0) / 100 * w for e, w in self.houses.items())
 
     def safety(self):
-        """(rain mm/h, gusts km/h, minutes before the rain, vigilance): from the home's sources and Hestia Weather's interface,
-        never from an entity's name. A value not known forbids nothing (advisor/safety.py)."""
+        """(rain mm/h, gusts km/h, minutes before the rain, vigilance, where the wind comes from in degrees): from the home's
+        sources and Hestia Weather's interface, never from an entity's name. A value not known forbids nothing
+        (advisor/safety.py)."""
         sources = self._sources()
         rain = sources.get("rain") or {}
         state = self.hass.states.get(rain.get("entity_id") or "")
@@ -270,7 +285,9 @@ class AdvisorHome:
         rain_in = ahead.get("minutes") if isinstance(ahead.get("minutes"), (int, float)) else None
         if rain_in is None and outlook.get("rain_in_hours") is not None:
             rain_in = minutes(outlook["rain_in_hours"], "h")
-        return rate, gust, rain_in, outlook.get("vigilance")
+        rain_in, self.rain_soon_since = rain_believed(rain_in, rate, self.rain_soon_since, dt_util.utcnow().timestamp())
+        wind_from = _number(self.hass, (sources.get("wind_bearing") or {}).get("entity_id"))
+        return rate, gust, rain_in, outlook.get("vigilance"), wind_from
 
     def thermostat(self, entity_id, mode="heat"):
         """The room's Versatile Thermostat as it runs (`mode` « heat »), or as it would run once turned on again (« off »,
@@ -369,6 +386,19 @@ class AdvisorHome:
         station = (api.station(self._place()) if api else None) or {}
         return (station.get("sensors") or {}).get("solar_radiation")
 
+    def _weather_shade(self):
+        """The station's shade as Hestia Weather shares it (CAHIER-MOTEUR.md § 7.4): learned on 92 days of its statistics,
+        filled from the neighbours and the household's declaration. None from a Hestia Weather that does not share it yet:
+        the shade learned here is then used."""
+        api = weather_link.api(self.hass)
+        shared = getattr(api, "station_shade", None) if api else None
+        return shared(self._place()) if shared else None
+
+    def shade(self):
+        """The station's shade by the sun's position, {cell: share}: Hestia Weather's, else the one learned here."""
+        shared = self._weather_shade()
+        return shared["cells"] if shared else self.station_shade
+
     async def _hourly_means(self, entity_id, start, end, period):
         """The recorder's mean of a sensor for each hour from `start` to `end`: {start of the hour (UTC): W/m²}."""
         rows = (await get_instance(self.hass).async_add_executor_job(
@@ -386,17 +416,17 @@ class AdvisorHome:
         hour = now.replace(minute=0, second=0, microsecond=0)
         if self.sun_missed_hour == hour:
             return
-        entity = self._station_sun()
-        if entity is None or not self.station_shade:
+        entity, shade = self._station_sun(), self.shade()
+        if entity is None or not shade:
             self.sun_missed, self.sun_recent = None, []
             return
         means = await self._hourly_means(entity, hour - timedelta(hours=2), hour, "5minute")
         recent = [(start, (self.forecast.get(start) or (None, None, None))[2], means.get(start))
                   for start in (hour - timedelta(hours=2), hour - timedelta(hours=1))]
         latitude, longitude = self.hass.config.latitude, self.hass.config.longitude
-        self.sun_missed = clouds_missed(recent, self.station_shade, latitude, longitude)
+        self.sun_missed = clouds_missed(recent, shade, latitude, longitude)
         self.sun_recent = [{"heure": dt_util.as_local(start).strftime("%H h"), "prevu": forecast, "mesure": mean,
-                            "part_station": share(self.station_shade, cell(start, latitude, longitude)),
+                            "part_station": share(shade, cell(start, latitude, longitude)),
                             "soleil_bas": cell(start, latitude, longitude) is None}
                            for start, forecast, mean in recent]
         # Read again within the hour while the past hours are not all in the recorder yet.
@@ -523,10 +553,16 @@ class AdvisorHome:
             specs = {}
             wanted = {outdoor, outdoor_rh, *self.houses} - {None}
             for advisor in self.rooms.values():
-                spec = room_spec(advisor.refresh_spec())
+                # The household's habits say when its manual shutters are shut (HABITUDES-FOYER.md): the alarm's
+                # history gives its absences.
+                room = advisor.refresh_spec()
+                alarm = advisor.coordinator._alarm_entity()
+                spec = room_spec(room, Habits.of(self.foyer(), room["foyer"]), alarm,
+                                 advisor.coordinator.season_name == "summer")
                 if not spec.temperature:
                     continue
                 specs[advisor.entry_id] = spec
+                wanted |= {alarm} if alarm and spec.manual else set()
                 wanted |= {spec.temperature, *spec.windows} | {e for e in (spec.humidity, spec.thermostat, spec.cover, spec.co2,
                                                                          spec.particles, spec.voc) if e} \
                     | {d[0] for d in (spec.boost, spec.purifier) if d}
@@ -554,7 +590,9 @@ class AdvisorHome:
                 await advisor.learned_now(entry, now, report)
                 reports.append(report)
             try:
-                await self._learn_station_shade(now, (now - first).days + 1)
+                # Hestia Weather learns the shade on its long statistics when it shares it; here only for an older one.
+                if self._weather_shade() is None:
+                    await self._learn_station_shade(now, (now - first).days + 1)
             except Exception:  # noqa: BLE001 - the shade learned before is kept
                 _LOGGER.exception("Hestia Comfort: station shade")
             await self._save()

@@ -19,12 +19,20 @@ export function hourOf(elevation:number|null|undefined,at:Date=new Date()):Hour 
 /** The scene of an advice, from its gesture (the pictogram it had) and the room's reason; null keeps the pictogram
  *  (sensors loading or silent, « regardez dehors », the purifier). */
 export function sceneFor(s:{title:string;disk:string;level?:Level},v:View):Scene|null {
-  const a=v.assessment,reason=a.reason,hour=hourOf(a.sun?.elevation,new Date(v.computed_at||Date.now()));
+  const a=v.assessment,hour=hourOf(a.sun?.elevation,new Date(v.computed_at||Date.now()));
   const opened=(a.openings??[]).some(o=>o.open===true);
   const going=/^(Encore |Laissez ouvert|Aération en cours)/.test(s.title);
   // What leaves while the room airs: stale air, damp, or the day's heat.
   const leaving:Flow=a.needs.includes('air')?'out-stale':a.needs.includes('dry')?'out-humid':a.needs.includes('cool')?'out-heat':'out-stale';
   const at=/vers (\d{1,2} h(?: \d{2})?)/.exec(s.title)?.[1];
+  // Raining now, whatever the advice: the window's sky shows it (the rain sensor, else the engine's constraint).
+  const wet=v.observations?.rain?.value===true||a.constraints?.includes('rain');
+  const sc=pick(s,v,hour,opened,going,leaving,at);
+  return sc&&wet&&sc.k==='win'&&!sc.sky&&!sc.shutter?{...sc,sky:'rain'}:sc;
+}
+
+function pick(s:{title:string;disk:string;level?:Level},v:View,hour:Hour,opened:boolean,going:boolean,leaving:Flow,at:string|undefined):Scene|null {
+  const reason=v.assessment.reason,a=v.assessment;
   switch(s.disk){
     case 'rain':return /avant/.test(s.title)?{k:'win',m:'open',flow:'in-cold',sky:'storm',hour}:{k:'win',m:'open',flow:'in-rain',sky:'rain',hour};
     case 'shut':{
@@ -54,7 +62,7 @@ export function sceneFor(s:{title:string;disk:string;level?:Level},v:View):Scene
 const SKY:Record<string,{a:string;b:string;sun?:string;x?:number;y?:number}>={
   dawn:{a:'#f7d3b9',b:'#cbd3ee',sun:'#ffe0b0',x:24,y:62},day:{a:'#9ccff4',b:'#e6f3ff',sun:'#fff1bf',x:68,y:28},
   dusk:{a:'#f2a982',b:'#7a7db7',sun:'#ffcf9c',x:74,y:62},night:{a:'#15213e',b:'#33456d',sun:'#eef1ff',x:66,y:26},
-  rain:{a:'#66768c',b:'#aab6c6'},storm:{a:'#8d98a8',b:'#d7e6f5',sun:'#fff1bf',x:76,y:30}};
+  rain:{a:'#66768c',b:'#aab6c6'},rainNight:{a:'#141c2e',b:'#2c3850'},storm:{a:'#8d98a8',b:'#d7e6f5',sun:'#fff1bf',x:76,y:30}};
 // The colour of what the air carries, its outline, and which way it goes.
 const AIR:Record<Flow,[string,string,string]>={'in-cold':['#eaf6ff','rgba(30,80,140,.55)','in'],'in-rain':['#dcecfb','rgba(30,70,120,.75)','in rainy'],
   'in-humid':['#ffffff','rgba(70,80,92,.5)','in'],'in-heat':['var(--nw-heat)','rgba(110,50,15,.45)','in'],'in-dust':['#a8968a','rgba(60,40,25,.35)','in dust'],
@@ -62,7 +70,7 @@ const AIR:Record<Flow,[string,string,string]>={'in-cold':['#eaf6ff','rgba(30,80,
 let uid=0;
 
 function sky(sc:Scene):string {
-  const kind=sc.sky??sc.hour,k=SKY[kind],night=kind==='night';let body='';
+  const kind=sc.sky??sc.hour,k=SKY[kind==='rain'&&sc.hour==='night'?'rainNight':kind],night=kind==='night'||sc.hour==='night';let body='';
   if(kind==='rain')body=Array.from({length:11},(_,i)=>`<i class="nsc-drop" style="left:${(i*37+7)%96}%;animation-delay:-${(i*0.27).toFixed(2)}s;animation-duration:${(.6+(i%4)*.12).toFixed(2)}s"></i>`).join('');
   else if(kind==='storm')body=`<i class="nsc-sun" style="left:${k.x}%;top:${k.y}%"></i><i class="nsc-cloud dark" style="left:4%;top:24%"></i>`;
   else if(night)body=`<i class="nsc-moon" style="left:${k.x}%;top:${k.y}%"></i>`+[[18,20],[40,12],[30,46],[84,48],[56,40]].map(([x,y],i)=>`<i class="nsc-star" style="left:${x}%;top:${y}%;animation-delay:-${i*.7}s"></i>`).join('');

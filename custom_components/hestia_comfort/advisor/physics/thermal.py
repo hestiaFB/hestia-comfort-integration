@@ -25,6 +25,14 @@ FURNITURE = 5.0
 WALLS, GLAZING_U = 1.0, 2.8
 # Solar factor of a double glazing, and the vertical sun on a window against the horizontal sun on the station.
 G_VALUE, VERTICAL = 0.6, 0.5
+# Each glazing's solar factor and U (W/m²K): ordinary values of EN 410 and EN 673, the same U as the ressenti
+# (engine/feel.py). Norms, not settings; the glazing itself is declared (« Votre maison », or the window's own).
+GLAZINGS = {"simple": (0.85, 5.8), "double": (G_VALUE, GLAZING_U), "triple": (0.5, 1.0)}
+
+
+def glazing(kind: str | None) -> tuple[float, float]:
+    """Solar factor and U of a glazing; a double one when it is not declared."""
+    return GLAZINGS.get(kind or "double", GLAZINGS["double"])
 # Share of the losses through the opaque walls: the rest goes through the glazing, straight from the air.
 OPAQUE = 0.6
 SUN_TO_AIR = 0.3
@@ -100,10 +108,12 @@ def ordinary(room: Room) -> Params:
     """The room's parameters from its declarations, ordinary values for the rest."""
     surface = room.surface
     per_m2, exchange = MASS.get(room.walls, MASS[None])
-    glazing = sum(o.glazing for o in room.openings) or 1.2
-    return Params(h_env=WALLS * surface + GLAZING_U * glazing, cm=per_m2 * surface, ca=1.2 * 1005 * room.air * FURNITURE,
+    # Each window by its own glazing: a single pane loses twice a double one's heat and lets more sun in.
+    losses = sum(glazing(o.pane)[1] * o.glazing for o in room.openings) or GLAZING_U * 1.2
+    gained = sum(glazing(o.pane)[0] * o.glazing for o in room.openings) or G_VALUE * 1.2
+    return Params(h_env=WALLS * surface + losses, cm=per_m2 * surface, ca=1.2 * 1005 * room.air * FURNITURE,
                   h_am=H_MS * exchange * surface, heat=room.heating_power or HEATER * surface,
-                  sun=max(0.2, G_VALUE * VERTICAL * glazing), gains=ORDINARY_GAINS, window=1.0, leaks=leak_flow(room.air))
+                  sun=max(0.2, VERTICAL * gained), gains=ORDINARY_GAINS, window=1.0, leaks=leak_flow(room.air))
 
 
 def rhythm(p: Params, hour: float | None) -> float:

@@ -256,3 +256,26 @@ class TriedHolds(unittest.TestCase):
         self.assertEqual(decide(**args).passive, Gesture("open", 25))
         self.assertEqual(decide(**args, tried=Gesture("open", 30)).passive, Gesture("open", 30))
         self.assertEqual(decide(**args, tried=Gesture("open", 5)).passive, Gesture("open", 25))
+
+
+class AiringUnderWay(unittest.TestCase):
+    """Salon · Cuisine, 5 November at 7 h 26: « Aérez 5 min » at 7 h 18, the French window opened at 7 h 25, and the card
+    said « Rien à faire — Ouverte ou fermée »: the airing asked was no longer among an open room's scenarios."""
+
+    def setUp(self):
+        from advisor.snapshot import load, restore
+        self.args = restore(load(Path(__file__).parent / "fixtures" / "salon-cuisine-5-novembre-7h26.json"))
+        door = self.args["twins"].windows[1]
+        self.args["now"] = replace(self.args["now"], opened=(door,))
+
+    def test_the_airing_followed_counts_down(self):
+        args = {**self.args, "previous": Gesture("open", 5), "held": 8.0}
+        self.assertEqual(decide(**args).gesture, Gesture("close", after=5))
+
+    def test_the_airing_tried_and_followed_counts_down_too(self):
+        args = {**self.args, "previous": Gesture("nothing"), "held": 60.0, "tried": Gesture("open", 5)}
+        self.assertEqual(decide(**args).gesture, Gesture("close", after=5))
+
+    def test_without_an_airing_asked_nothing_changes(self):
+        args = {**self.args, "previous": Gesture("nothing"), "held": 60.0}
+        self.assertEqual(decide(**args).gesture, Gesture("nothing"))

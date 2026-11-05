@@ -13,6 +13,9 @@ from .water import absolute, relative
 # EN ISO 13788 temperature factors: an ordinary outer wall's corner, and a double-glazed pane (U 2.8 W/m²K, Rsi 0.13).
 WALL_FACTOR = 0.7
 GLASS_FACTOR = 0.64
+# The inside of each glazing, its temperature factor 1 − U·Rsi (Rsi 0.13, U of advisor/physics/thermal.py GLAZINGS): a
+# single pane is nearly at the outside's temperature and mists early, a triple one hardly ever.
+GLASS_FACTORS = {"simple": 0.25, "double": GLASS_FACTOR, "triple": 0.87}
 # Mould grows at a surface kept at this humidity or more (EN ISO 13788).
 MOULD = 80.0
 
@@ -44,6 +47,6 @@ def dew_point(air: float, humidity: float) -> float:
     return b * gamma / (a - gamma)
 
 
-def misted(air: float, humidity: float, outdoor: float) -> bool:
-    """Whether the inside of a window pane mists over."""
-    return dew_point(air, humidity) >= surface(air, outdoor, GLASS_FACTOR)
+def misted(air: float, humidity: float, outdoor: float, glazing: str | None = None) -> bool:
+    """Whether the inside of a window pane mists over; `glazing`: the room's coldest, « simple », « double », « triple »."""
+    return dew_point(air, humidity) >= surface(air, outdoor, GLASS_FACTORS.get(glazing or "double", GLASS_FACTOR))

@@ -21,6 +21,8 @@ class Opening:
     area: float | None = None       # m², declared
     height: float | None = None     # m, declared
     sheltered: bool = False
+    # Its glazing, « simple », « double » or « triple »: the window's own, else the house's (« Votre maison »); None: double.
+    pane: str | None = None
 
     @property
     def size(self) -> tuple[float, float]:

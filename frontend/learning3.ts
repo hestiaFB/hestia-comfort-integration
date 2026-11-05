@@ -7,7 +7,7 @@ export interface Effect3 {effet:string;niveau:'proven'|'reinforced'|'supposed';g
 export interface Advisor3Room {piece:string|null;effets:Effect3[];pourcent:number;ecart_1h:number|null;appris_le:string|null;jours:number|null}
 /** How reliable the outside is (advisor_home.py `outside`). */
 export interface Outside3 {source:string;station:number|null;prevision:number|null;ecart:number|null;
- soleil:{ecart?:number|null}|null;ombre_cases:number;nuages_manques:number|null}
+ soleil:{ecart?:number|null}|null;ombre_cases:number;ombre_positions?:number|null;ombre_declaree?:string|null;ombre_source?:string;nuages_manques:number|null}
 
 const num=(v:number,d=1)=>v.toLocaleString(currentLocale(),{maximumFractionDigits:d,minimumFractionDigits:0});
 const signed=(v:number,d=1)=>(v>0?'+':v<0?'−':'')+num(Math.abs(v),d);
@@ -61,6 +61,8 @@ export function outside3(o:Outside3|null|undefined):TemplateResult|typeof nothin
  return listSection(t('Le dehors'),[
   listRow({label:t('Prévision'),sub:o.ecart!=null?t('Écart avec la station maintenant : {v} °C',{v:signed(o.ecart,1)}):undefined,value:o.source}),
   listRow({label:t('Position du soleil'),value:sun==null?t('pas vérifiée'):sun<=1?t('juste'):t('écart de {v}° : vérifiez la position de la maison',{v:num(sun,1)})}),
-  ...(o.ombre_cases?[listRow({label:t('Ombre de la station'),sub:o.nuages_manques!=null?t('Nuages manqués par la prévision : {v} %',{v:num(o.nuages_manques*100,0)}):undefined,value:t('apprise')})]:[])],
+  // How much of the station's shade is known (CAHIER-MOTEUR.md § 7.4): learned by Hestia Weather on its statistics, out of the sun's positions here.
+  ...(o.ombre_cases||o.ombre_declaree?[listRow({label:t('Ombre de la station'),sub:o.nuages_manques!=null?t('Nuages manqués par la prévision : {v} %',{v:num(o.nuages_manques*100,0)}):o.ombre_cases?undefined:t('Déclarée dans Hestia Weather, en attendant d’être apprise'),
+   value:o.ombre_positions?t('{n} positions sur {total}',{n:o.ombre_cases,total:o.ombre_positions}):o.ombre_cases?t('apprise'):t('déclarée')})]:[])],
   {help:html`<p>${t('Le moteur compare la prévision à la station, et sa propre position du soleil à celle de Home Assistant : un écart dit qu’une source est à vérifier.')}</p>`});
 }

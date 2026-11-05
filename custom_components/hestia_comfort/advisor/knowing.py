@@ -55,6 +55,7 @@ class RoomView:
     air_at_opening: float | None = None
     humidity: float | None = None                       # %
     coldest_tonight: float | None = None                # °C, the lowest outside forecast before waking up
+    glazing: str | None = None                          # the room's coldest glazing (advisor/physics/surface.py), None: double
     bedtime: datetime | None = None                     # the room's next going to bed (advisor/household.py)
     asleep: bool = False
     # What the shutter closed at bedtime keeps by waking up (advisor/decide.py `shutter_tonight`), and the waking hour.
@@ -142,7 +143,7 @@ def mist_tonight(view: RoomView) -> list[Tip]:
     evening = view.asleep or (view.bedtime is not None and view.now >= view.bedtime - BEFORE_BED)
     if not evening or None in (view.air, view.humidity, view.coldest_tonight):
         return []
-    if not misted(view.air, view.humidity, view.coldest_tonight):
+    if not misted(view.air, view.humidity, view.coldest_tonight, view.glazing):
         return []
     return [Tip("mist", {"outdoor": view.coldest_tonight}, "humidity", 2, None, REINFORCED)]
 

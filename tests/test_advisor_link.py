@@ -11,6 +11,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from custom_components.hestia_comfort import advisor_home  # noqa: E402
 from custom_components.hestia_comfort.advisor_store import AdvisorFiles  # noqa: E402
+from custom_components.hestia_comfort.advisor.physics.sunlight import Overhang  # noqa: E402
 from custom_components.hestia_comfort.room.advice import (RoomAdvisor, banner_level, first_twins, house_heaters, leads,  # noqa: E402
                                                           room_spec, spec, verdict)
 
@@ -70,7 +71,8 @@ class TheRoomFromConfortsSettings(unittest.TestCase):
         self.assertEqual(room["windows"]["binary_sensor.ouest"], (1.18, 1.21))
         width, height = room["windows"]["binary_sensor.porte"]
         self.assertAlmostEqual(width * height, 1.8)
-        self.assertEqual(room["orientations"]["binary_sensor.porte"], (180.0, True))
+        # Sheltered, its overhang not measured: the ordinary one, at the French window's height, for the sun.
+        self.assertEqual(room["orientations"]["binary_sensor.porte"], (180.0, Overhang(0.6, 0.3, 2.1)))
         self.assertEqual(room["orientations"]["binary_sensor.cuisine"], (90.0, False))
         # Its own radiator, and the stove its range follows.
         self.assertEqual((room["thermostat"], room["thermostat_plage"]), ("climate.salon", "climate.poele"))

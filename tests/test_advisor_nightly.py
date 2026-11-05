@@ -2,6 +2,7 @@
 and counts the gestures it saw; with too few days it only counts them."""
 from dataclasses import asdict, replace
 from datetime import datetime, timedelta, timezone
+import json
 import math
 from pathlib import Path
 import sys
@@ -10,7 +11,8 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components" / "hestia_comfort"))
 from advisor.house import Opening, Room
-from advisor.nightly import MIN_DAYS, RoomSpec, _merge, learn_room
+from advisor.nightly import MIN_DAYS, RoomSpec, _merge, judged, learn_room
+from advisor.physics.fit import _nelder_mead
 from advisor.observe import Series
 from advisor.physics.thermal import STEP, Inputs, ordinary, step
 
@@ -86,6 +88,49 @@ class Nightly(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Judged(unittest.TestCase):
+    """Lab night of 5 November: the new twin is judged on one day only, a noisy judge."""
+
+    def test_a_twin_as_good_within_five_percent_is_kept_as_even(self):
+        self.assertEqual(judged(1.0, 0.9), (True, "meilleur"))
+        self.assertEqual(judged(1.0, 1.04), (True, "egal"))
+        self.assertEqual(judged(0.809, 1.063), (False, "pire"))      # Chambre P's humidity
+
+    def test_a_twin_that_forecasts_nothing_is_never_kept(self):
+        inf = float("inf")
+        self.assertEqual(judged(inf, inf), (False, "pire"))
+        self.assertEqual(judged(inf, 0.5), (True, "meilleur"))
+        self.assertEqual(judged(1.0, float("nan")), (False, "pire"))
+
+    def test_the_report_has_no_infinity(self):
+        history, now = recorded(MIN_DAYS + 1)
+        _, report = learn(history, now, {"heat": asdict(TRUTH)})
+        self.assertIn(report["chaleur"]["verdict"], ("meilleur", "egal", "pire"))
+        json.dumps(report, allow_nan=False)
+
+
+class Search(unittest.TestCase):
+    def test_the_search_stops_once_it_learns_nothing(self):
+        calls = []
+
+        def flat(x):
+            calls.append(x)
+            return 0.001
+        _nelder_mead(flat, [0.0] * 7, [0.7] * 7, 400)
+        # Lab, 5 November: a flat cost ran 3 328 evaluations, the shrinks multiplying them.
+        self.assertLess(len(calls), 20)
+
+    def test_it_still_finds_the_bottom(self):
+        best = _nelder_mead(lambda x: (x[0] - 1.0) ** 2 + (x[1] + 2.0) ** 2 + 1.0, [0.0, 0.0], [0.5, 0.5], 400)
+        self.assertAlmostEqual(best[0], 1.0, delta=0.05)
+        self.assertAlmostEqual(best[1], -2.0, delta=0.05)
+
+    def test_nothing_to_forecast_ends_at_once(self):
+        calls = []
+        _nelder_mead(lambda x: calls.append(x) or float("inf"), [0.0] * 5, [0.7] * 5, 400)
+        self.assertEqual(len(calls), 6)
 
 
 class Devices(unittest.TestCase):

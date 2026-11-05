@@ -6,6 +6,8 @@ frost, which only takes the long openings away (« open_long »): a short airing
 """
 RAIN = 0.2              # mm/h: it rains
 RAIN_SOON = 20          # minutes: the rain is due before an airing would end
+DRIVEN = 25.0           # km/h: from there, the rain is pushed under an overhang (engine/wind.py DRIVEN_RAIN_GUST)
+WINDWARD = 60           # degrees: a wind from within this of the side an opening faces blows into it
 GUSTS = 45.0            # km/h
 # Hestia Weather's vigilance levels, as the 2.1 engine reads them: yellow 1, orange 2, red 3.
 RED = 3
@@ -34,14 +36,51 @@ def _level(vigilance) -> int | None:
         return COLOURS.get(str(vigilance).strip().lower())
 
 
+def rained_on(sheltered: bool, facing: float | None, gust: float | None, wind_from: float | None) -> bool:
+    """Whether the rain reaches an opening: one not sheltered, or sheltered but facing a wind that pushes the rain in. The
+    side it faces or the wind's not known, gusts strong enough are taken as pushing it in."""
+    if not sheltered:
+        return True
+    if gust is None or gust < DRIVEN:
+        return False
+    if facing is None or wind_from is None:
+        return True
+    return abs((wind_from - facing + 540) % 360 - 180) < WINDWARD
+
+
+# « La pluie arrive » believed this long without a drop at the station; then no longer, until it rains or the forecast
+# moves away (Frank, 5 November: Météo-France's radar said it 20 min away from 20 h 16, the station saw the first drops at
+# 21 h 49 and the rain at 22 h 27 — the evening's airings were held back in five rooms).
+RAIN_SOON_WAIT = 45     # minutes
+RAIN_GONE = 60          # minutes: a forecast this far, or none, ends the wait
+
+
+def rain_believed(rain_in: float | None, rain_rate: float | None, since: float | None,
+                  now: float) -> tuple[float | None, float | None]:
+    """The rain forecast as believed, and since when (seconds) it has been said due without a drop measured. Without a
+    station measuring the rain, the forecast is always believed: nothing says it is wrong."""
+    if rain_rate is None:
+        return rain_in, None
+    if rain_rate > RAIN or rain_in is None or rain_in > RAIN_GONE:
+        return rain_in, None
+    if rain_in > RAIN_SOON:
+        return rain_in, since
+    since = now if since is None else since
+    return (None if now - since > RAIN_SOON_WAIT * 60 else rain_in), since
+
+
 def forbidden(rain_rate: float | None = None, gust: float | None = None, rain_in: float | None = None,
-              vigilance=None, alarm: str | None = None, coldest: float | None = None) -> tuple[frozenset[str], str | None]:
+              vigilance=None, alarm: str | None = None, coldest: float | None = None,
+              shelter: str | None = None) -> tuple[frozenset[str], str | None]:
     """What safety takes away now, and why (the reason the card says). A value not known forbids nothing. `rain_in`: in
-    minutes (`minutes`); `coldest`: the lowest outside temperature forecast over the coming hours."""
-    if rain_rate is not None and rain_rate > RAIN:
-        return frozenset({"open"}), "rain"
-    if rain_in is not None and 0 <= rain_in <= RAIN_SOON:
-        return frozenset({"open"}), "rain_soon"
+    minutes (`minutes`); `coldest`: the lowest outside temperature forecast over the coming hours; `shelter`: what the
+    rain spares (`rained_on`) — « all » every opening of the room, « opened » those open now."""
+    rain = ("rain" if rain_rate is not None and rain_rate > RAIN
+            else "rain_soon" if rain_in is not None and 0 <= rain_in <= RAIN_SOON else None)
+    if rain and shelter != "all":
+        # A sheltered French window open under the rain stays so (Salon · Cuisine, 4 November: « Refermez, il pleut »
+        # with its overhang ticked); opening the others more would let the rain in.
+        return frozenset({"open_more"} if shelter == "opened" else {"open"}), rain
     if gust is not None and gust > GUSTS:
         return frozenset({"open"}), "gusts"
     level = _level(vigilance)

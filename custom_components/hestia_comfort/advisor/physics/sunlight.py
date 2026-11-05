@@ -1,15 +1,42 @@
 """The sun through each window: its position, the share a facade faces, and the watts that reach the room.
 
 The same formulas as Hestia Comfort 2.1 (engine/twin.py `sun_position`, engine/assessment.py `facade_share`,
-`facade_irradiance`, `SHELTER_ATTENUATION`), copied so that the advisor stays free of the 2.1 engine: what already works
-is taken as it is (CAHIER-MOTEUR.md § 21). At home the position comes from Home Assistant's `sun.sun`; for the coming
-hours and on the bench it is computed here.
+`facade_irradiance`), copied so that the advisor stays free of the 2.1 engine: what already works is taken as it is
+(CAHIER-MOTEUR.md § 21). At home the position comes from Home Assistant's `sun.sun`; for the coming hours and on the
+bench it is computed here.
+
+An overhang above a window (eaves, a balcony, a canopy) is drawn by its shadow, not by a fixed share: in summer the high
+sun stays above the window, in winter the low sun passes under it (Frank, 5 November: the Salon's French windows, under
+a 1 m overhang, full of sun on a November noon — the former « a third of the sun » hid it).
 """
+from dataclasses import dataclass
 from datetime import timedelta
 import math
 
 EXPOSURES = {"N": 0, "NE": 45, "E": 90, "SE": 135, "S": 180, "SO": 225, "O": 270, "NO": 315}
-SHELTER_ATTENUATION = 3.0
+# Under an overhang, the window sees this share of the sky's diffuse light.
+SKY_UNDER = 0.7
+
+
+@dataclass(frozen=True)
+class Overhang:
+    """An overhang above a window (REGLAGES-3.md § 4.4), in metres: A its depth from the wall, B the gap from its underside
+    down to the window's top, and the window's height. Not declared, the ordinary ones of the panel's examples."""
+    depth: float = 0.6
+    gap: float = 0.3
+    height: float = 2.1
+
+
+def lit_share(overhang: Overhang, bearing: float | None, elevation: float, azimuth: float) -> float:
+    """Share of the window's height the direct sun reaches under its overhang: the shadow falls the depth × the tangent
+    of the sun's height seen square to the wall (its profile angle) down the wall, from the overhang's edge."""
+    if bearing is None or elevation <= 0:
+        return 0.0
+    square = math.cos(math.radians(((azimuth - bearing + 540) % 360) - 180))
+    if square <= 0.01:
+        return 0.0
+    shadow = overhang.depth * math.tan(math.radians(min(elevation, 89.0))) / square
+    return 1.0 - max(0.0, min(1.0, (shadow - overhang.gap) / max(overhang.height, 0.1)))
 # A shut pane lets this share of the sun through; an open sash, all of it.
 GLASS = 0.6
 
@@ -38,26 +65,32 @@ def facade_share(bearing: float | None, elevation: float, azimuth: float) -> flo
     return max(math.cos(math.radians(elevation)) * math.cos(math.radians(gap)), 0.0)
 
 
-def facade_irradiance(share: float, elevation: float, solar: float) -> float:
-    """W/m² on a vertical facade from the horizontal sun: the direct part it faces, never less than the diffuse light."""
-    diffuse = solar * 0.15
+def facade_irradiance(share: float, elevation: float, solar: float, lit: float = 1.0, sky: float = 1.0) -> float:
+    """W/m² on a vertical facade from the horizontal sun: the direct part it faces, never less than the diffuse light.
+    `lit`: the share of the window the direct sun reaches; `sky`: the share of the sky it sees (an overhang)."""
+    diffuse = solar * 0.15 * sky
     direct = 0.0
     if elevation > 5 and solar > 40:
-        direct = min(solar / max(math.sin(math.radians(elevation)), 0.09) * share, 850)
+        direct = min(solar / max(math.sin(math.radians(elevation)), 0.09) * share, 850) * lit
     return max(direct, diffuse)
 
 
 def through_windows(solar: float, elevation: float, azimuth: float, windows, opened=()) -> float:
     """Watts of sun entering the room: each window's glazing × the sun on its facade, through glass or an open sash.
-    `windows`: (glazed area, bearing or None, sheltered) of each; `opened`: the indexes of those open."""
+    `windows`: (glazed area, bearing or None, sheltered[, solar factor]) of each, sheltered being False, an Overhang, or
+    True for an ordinary one; `opened`: the indexes of those open."""
     if solar <= 0 or elevation <= 0:
         return 0.0
     total = 0.0
-    for i, (area, bearing, sheltered) in enumerate(windows):
-        watts = facade_irradiance(facade_share(bearing, elevation, azimuth), elevation, solar)
+    for i, (area, bearing, sheltered, *pane) in enumerate(windows):
+        share = facade_share(bearing, elevation, azimuth)
         if sheltered:
-            watts /= SHELTER_ATTENUATION
-        total += area * watts * (1.0 if i in opened else GLASS)
+            roof = sheltered if isinstance(sheltered, Overhang) else Overhang()
+            watts = facade_irradiance(share, elevation, solar, lit_share(roof, bearing, elevation, azimuth), SKY_UNDER)
+        else:
+            watts = facade_irradiance(share, elevation, solar)
+        # A shut pane lets its solar factor through (a double glazing's, GLASS, when not given); an open sash, all of it.
+        total += area * watts * (1.0 if i in opened else (pane[0] if pane else GLASS))
     return total
 
 

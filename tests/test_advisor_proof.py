@@ -148,7 +148,7 @@ class OutsideWater(unittest.TestCase):
         evening = datetime(2026, 11, 3, 19, 30, tzinfo=PARIS)
         view = RoomView(evening, *HOME, air=18.1, humidity=69.0, outdoor=9.9, outdoor_humidity=78.0, water_matters=True)
         [tip] = outside_water(view)
-        self.assertEqual(tip_text(tip), "Dehors 78 % à 9,9 °C, mais moins d'eau qu'ici : 7,3 g par m³ contre 10,7")
+        self.assertEqual(tip_text(tip), "Dehors, l'air est plus sec qu'ici : aérer assèche")
         self.assertEqual(outside_water(replace(view, water_matters=False)), [])
         [wetter] = outside_water(replace(view, outdoor=18.0, outdoor_humidity=90.0))
         self.assertEqual(wetter.kind, "outside_wetter")
@@ -168,3 +168,16 @@ class Belied(unittest.TestCase):
         self.assertEqual(level([(-2.0, -1.8)] * 3, reinforced=True), PROVEN)
         # Seen working now, it is proven for this airing, whatever the past ones did.
         self.assertEqual(level(cases, reinforced=True, seen=True), PROVEN)
+
+
+class UntrainedTwin(unittest.TestCase):
+    def test_a_twin_never_fitted_backs_nothing(self):
+        # Salon · Cuisine, 4-5 November: the VOC twin still as it started, its sensor without a history in the lab.
+        from advisor.physics.airfit import TWINS as AIR_TWINS, first, untrained, values
+        learned = {}
+        for key, kind, _ in AIR_TWINS:
+            learned[key], learned[f"{key}_flow"] = values(kind, first(kind), 110.0)
+        self.assertEqual(untrained(learned), {"humidity", "co2", "particles", "voc"})
+        learned["air"] = {**learned["air"], "sources": 0.01}
+        self.assertNotIn("co2", untrained(learned))
+        self.assertEqual(untrained({"heat": {}}), set())

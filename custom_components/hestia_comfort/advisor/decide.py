@@ -620,6 +620,16 @@ def aged(gesture: Gesture | None, minutes: float) -> Gesture | None:
     return replace(gesture, after=left if left > 0 else None)
 
 
+def under_way(previous: Gesture | None, now: "Now") -> Gesture | None:
+    """The airing asked, once the window is open: it is under way, « Laissez ouvert encore 5 min » — the scenarios of an
+    open window are about shutting it, and « Aérez 5 min » was no longer among them (Salon · Cuisine, 5 November at
+    7 h 26: « Rien à faire — Ouverte ou fermée » on the French window just opened)."""
+    if (now.opened and previous is not None and previous.kind in ("open", "open_more") and previous.minutes
+            and not previous.after):
+        return Gesture("close", after=previous.minutes)
+    return previous
+
+
 # A gesture shown stays at least this long while it still helps (CAHIER-MOTEUR.md § 18.3: one change per half hour).
 HOLD_MINUTES = 30
 
@@ -682,6 +692,10 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # hiver, il y a très peu de chance que je laisse ouvert, même 20 min pour aérer en pleine nuit »): the night keeps
     # closing what was left open and the devices; a window for the night is said in the evening (`tonight`).
     pool = candidates(now, twins, habits, comfort)
+    previous = under_way(previous, now)
+    # An airing « À essayer » followed is under way as well: it holds from the moment the window opens.
+    if (previous is None or previous.kind == "nothing") and under_way(tried, now) != tried:
+        previous, held = under_way(tried, now), 0.0
     # The moment said before, counted down (`aged`), is weighed as it stands: the moments compared are a quarter of an
     # hour apart from now, so « vers 17 h 30 » was never among them and the best moment slid an hour ahead at every step,
     # never to come (Salon · Cuisine, 3 November, 15 h to 18 h).
@@ -745,8 +759,11 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
                         measured={"air": now.air, "target": stove.target, "minutes": now.overheated})
     # A gesture on the card stays HOLD_MINUTES while it still helps: it neither leaves for « Rien à faire » nor drops to
     # « À essayer » at the next step, to come back at the one after (Chambre P, 2 November: four times in an hour).
+    # Shutting what is open stays while it is no worse than leaving it open: the airing just followed is not met with
+    # « Ouverte ou fermée » (Salon · Cuisine, 5 November at 7 h 26, the French window opened on « Aérez 5 min »).
     hold = (previous is not None and previous.kind != "nothing" and held is not None and held < HOLD_MINUTES
-            and previous in costs and nothing - costs[previous]["total"] >= GAIN / 2)
+            and previous in costs and (nothing - costs[previous]["total"] >= GAIN / 2
+                                       or (now.opened and previous.kind == "close" and costs[previous]["total"] <= nothing)))
     if best.kind == "nothing" and hold:
         best, rule, gain = previous, "kept", nothing - costs[previous]["total"]
     if best.kind == "nothing" or proof is None:

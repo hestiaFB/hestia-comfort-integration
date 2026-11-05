@@ -4,7 +4,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components" / "hestia_comfort"))
-from advisor.safety import forbidden, holidays
+from advisor.safety import forbidden, holidays, rained_on
 
 
 class SafetyTest(unittest.TestCase):
@@ -18,6 +18,20 @@ class SafetyTest(unittest.TestCase):
     def test_what_is_calm_or_unknown_forbids_nothing(self):
         self.assertEqual(forbidden(rain_rate=0.0, gust=20.0, rain_in=120, vigilance="orange", alarm="disarmed"), (frozenset(), None))
         self.assertEqual(forbidden(), (frozenset(), None))
+
+    def test_the_rain_spares_what_is_sheltered(self):
+        # Every opening under an overhang: the rain takes nothing away, the gusts still do.
+        self.assertEqual(forbidden(rain_rate=1.2, shelter="all"), (frozenset(), None))
+        self.assertEqual(forbidden(rain_in=10, gust=60.0, shelter="all"), (frozenset({"open"}), "gusts"))
+        # The sheltered French window open stays so; the exposed window may not be opened as well.
+        self.assertEqual(forbidden(rain_rate=1.2, shelter="opened"), (frozenset({"open_more"}), "rain"))
+
+    def test_a_gust_pushes_the_rain_under_the_overhang(self):
+        self.assertTrue(rained_on(False, 180.0, None, None))
+        self.assertFalse(rained_on(True, 180.0, 15.0, 180.0))
+        self.assertTrue(rained_on(True, 180.0, 30.0, 200.0))      # a south wind on a south French window
+        self.assertFalse(rained_on(True, 180.0, 30.0, 0.0))       # a north wind on its back
+        self.assertTrue(rained_on(True, None, 30.0, 0.0))         # the side it faces not known
 
     def test_holidays_come_from_the_alarm(self):
         self.assertTrue(holidays("armed_vacation"))
@@ -83,3 +97,22 @@ class Units(unittest.TestCase):
     def test_a_green_vigilance_in_french(self):
         self.assertEqual(forbidden(vigilance="verte"), (frozenset(), None))
         self.assertEqual(forbidden(vigilance="rouge")[1], "vigilance")
+
+
+class RainThatDoesNotCome(unittest.TestCase):
+    """5 November: « la pluie arrive » from 20 h 16, the first drops at the station at 21 h 49."""
+
+    def test_believed_45_minutes_without_a_drop(self):
+        from advisor.safety import rain_believed
+        rain_in, since = rain_believed(18, 0.0, None, 0)
+        self.assertEqual((rain_in, since), (18, 0))
+        self.assertEqual(rain_believed(6, 0.0, since, 44 * 60), (6, 0))
+        self.assertEqual(rain_believed(6, 0.0, since, 46 * 60), (None, 0))
+        # The radar moving a little further keeps the wait; far away or the rain falling ends it.
+        self.assertEqual(rain_believed(36, 0.0, since, 50 * 60), (36, 0))
+        self.assertEqual(rain_believed(90, 0.0, since, 50 * 60), (90, None))
+        self.assertEqual(rain_believed(0, 1.8, since, 50 * 60), (0, None))
+
+    def test_always_believed_without_a_rain_gauge(self):
+        from advisor.safety import rain_believed
+        self.assertEqual(rain_believed(6, None, 0, 3 * 3600), (6, None))

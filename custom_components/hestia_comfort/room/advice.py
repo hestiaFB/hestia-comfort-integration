@@ -18,7 +18,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from ..advisor.checks import GOOD, KINDS, Checker
-from ..advisor.decide import (SIGNIFICANT, Gesture, Now, Twins, aged, decide, for_season, from_thermostat, heating_back,
+from ..advisor.decide import (SHUT_SHADE, SIGNIFICANT, Gesture, Now, Twins, aged, decide, for_season, from_thermostat, heating_back,
                               heating_off, main_subject, recent_sources, shutter_tonight, simulate, stove_idle, sun_gain,
                               tonight)
 from ..advisor.feedback import declined, follow, pause_until
@@ -29,12 +29,13 @@ from ..advisor.nightly import RoomSpec
 from ..advisor.notes import grades, prune
 from ..advisor.opening import Opened, closed_cases, disturbed, scaled, seen_share, settling
 from ..advisor.physics.air import AirParams, ParticleParams
-from ..advisor.physics.airfit import TWINS, first, values
+from ..advisor.physics.airfit import TWINS, first, untrained, values
 from ..advisor.physics.fit import HOUR
-from ..advisor.physics.thermal import STEP, Params, ordinary, shutter_insulation, step
+from ..advisor.physics.sunlight import Overhang, facing, sun_position
+from ..advisor.physics.thermal import STEP, Params, glazing as glazing_of, ordinary, shutter_insulation, step
 from ..advisor.physics.water import WaterParams, absolute
 from ..advisor.proof import CASES, ORDER, PROVEN, level, live, window_reinforced
-from ..advisor.safety import forbidden, holidays
+from ..advisor.safety import forbidden, holidays, rained_on
 from ..advisor.snapshot import capture
 from ..advisor.words import doubt_text, doubtful_air, phrase, tip_text, tonight_text
 from ..const import DOMAIN
@@ -155,7 +156,10 @@ def spec(coordinator, houses: dict) -> dict:
             configs.append({**entry.data, **entry.options})
     own = coordinator.config
     sources = coordinator.sources
-    windows, kinds, orientations = {}, {}, {}
+    # « Votre maison » (HABITUDES-FOYER.md § 3 bis): what a window or a room does not set itself, it takes from the house.
+    configuration = getattr(coordinator, "home_configuration", None)
+    house = ((configuration.home.get("foyer") if configuration else None) or {})
+    windows, kinds, orientations, sheltered_from, panes, manual = {}, {}, {}, {}, {}, set()
     for config in configs:
         sheltered = config.get("rain_exposed") is False
         for entity_id in config.get("windows", []):
@@ -164,11 +168,16 @@ def spec(coordinator, houses: dict) -> dict:
             declared = Declared(entity_id, meta.get("kind") or "window", area=width * height if width and height else None, height=height)
             area, high = declared.size
             windows[entity_id], kinds[entity_id] = (area / high, high), declared.kind
+            # « Abritée par une avancée ou un balcon »: the rain spares it (advisor/safety.py `rained_on`).
+            sheltered_from[entity_id] = bool(meta.get("sheltered", sheltered))
+            panes[entity_id] = meta.get("glazing") or house.get("vitrage")
+            if meta.get("shutter", house.get("volet")) == "manual":
+                manual.add(entity_id)
             bearing = meta.get("azimuth")
             if bearing is None:
                 bearing = EXPOSURES.get(str(meta.get("exposure") or "").upper())
             if bearing is not None:
-                orientations[entity_id] = (float(bearing), bool(meta.get("sheltered", sheltered)))
+                orientations[entity_id] = (float(bearing), _overhang(meta, sheltered, high))
     # The connected shutter of the room's own windows, and whatever drives it with the sun (Adaptive Cover Pro…).
     cover = cover_auto = None
     acp = {}
@@ -198,8 +207,11 @@ def spec(coordinator, houses: dict) -> dict:
         voc = None
     settings = own.get("settings") or {}
     threshold = ((own.get("evolution") or {}).get("voc_threshold") or {})
-    comfort = {"minimum": settings.get("minimum", 20.0), "maximum": settings.get("maximum", 24.0),
-               "summer_maximum": settings.get("summer_maximum", 26.0), "humidity": settings.get("humidity_high", 60.0),
+    # The house's range for a room without its own; a thermostat the range follows still stands first (`advise`).
+    house_range = {"minimum": 20.0, "maximum": 24.0, "summer_maximum": 26.0, **(house.get("plage") or {})}
+    comfort = {"minimum": settings.get("minimum", house_range["minimum"]), "maximum": settings.get("maximum", house_range["maximum"]),
+               "summer_maximum": settings.get("summer_maximum", house_range["summer_maximum"]),
+               "humidity": settings.get("humidity_high", 60.0),
                "co2": settings.get("co2_action", 1000.0), "particles": settings.get("pm25_action", 15.0)}
     if voc:
         comfort["voc"] = threshold.get("value") if threshold.get("unit") in (None, "") and threshold.get("value") else 150.0
@@ -208,21 +220,24 @@ def spec(coordinator, houses: dict) -> dict:
             "members": [coordinator.entry_id, *(p["entry_id"] for p in coordinator.partners)],
             "temperature": sources.get("indoor_temperature"), "humidity": sources.get("indoor_humidity"),
             "co2": sources.get("co2"), "particles": sources.get("pm25"), "voc": voc,
-            "windows": windows, "kinds": kinds, "orientations": orientations, "cover": cover, "cover_auto": cover_auto, "acp": acp,
+            "windows": windows, "kinds": kinds, "orientations": orientations, "sheltered": sheltered_from, "cover": cover, "cover_auto": cover_auto, "acp": acp,
+            "panes": panes, "manual": sorted(manual),
             "boost": devices.get("ventilation_boost"), "purifier": devices.get("purifier"),
             "thermostat": thermostat, "thermostat_plage": plage, "thermostat_reference": own.get("thermostat_reference", True) is not False,
             "comfort": comfort, "foyer": own.get("foyer") or {},
             # One air, one volume: the rooms sharing it add up what they declare (« Salon · Cuisine »).
-            "volume": sum(b["surface"] * b.get("height", 2.5) for b in (c.get("room") or {} for c in configs) if b.get("surface"))
+            "volume": sum(b["surface"] * b.get("height", house.get("hauteur", 2.5)) for b in (c.get("room") or {} for c in configs)
+                          if b.get("surface"))
             or None,
-            "walls": {"heavy": "heavy", "wood": "light"}.get(built.get("wall_material"))}
+            "walls": {"heavy": "heavy", "wood": "light"}.get(built.get("wall_material") or house.get("murs"))}
 
 
 def first_twins(room: dict, hass, houses: dict) -> dict:
     """The room's twins before anything is learned: ordinary values from what it declares (advisor/house.py); the first
     night relearns them from the recorder's days."""
     declared = Room(room["name"], room["name"], volume=room["volume"], walls=room["walls"],
-                    openings=tuple(Declared(e, room["kinds"][e], area=w * h, height=h) for e, (w, h) in room["windows"].items()),
+                    openings=tuple(Declared(e, room["kinds"][e], area=w * h, height=h, pane=room.get("panes", {}).get(e))
+                                   for e, (w, h) in room["windows"].items()),
                     heating_power=heater_power(hass, room["thermostat"]) if room["thermostat"] else None)
     heat = ordinary(declared)
     if houses:
@@ -251,11 +266,25 @@ def _remade(learned: dict, learned_at, fresh: dict) -> dict:
             "ecartes": learned.get("ecartes") or []}
 
 
-def room_spec(room: dict) -> RoomSpec:
-    """The room as the nightly learning reads it."""
+def _overhang(meta: dict, sheltered: bool, height: float) -> Overhang | bool:
+    """The overhang above a window, for the sun: its depth and gap declared (« Avancée au-dessus »), else the ordinary one
+    when « Abritée » is ticked; False without one."""
+    depth, gap = meta.get("overhang_depth"), meta.get("overhang_gap")
+    if depth is not None and depth <= 0:
+        return False
+    if depth is None and not meta.get("sheltered", sheltered):
+        return False
+    ordinary = Overhang()
+    return Overhang(depth=float(depth) if depth is not None else ordinary.depth,
+                    gap=float(gap) if gap is not None else ordinary.gap, height=height)
+
+
+def room_spec(room: dict, habits=None, alarm=None, summer=False) -> RoomSpec:
+    """The room as the nightly learning reads it; `habits`, `alarm` and `summer` say when its manual shutters are shut."""
     return RoomSpec(room["name"], room["temperature"], dict(room["windows"]), room["humidity"], room["thermostat"],
                     dict(room["orientations"]), room["cover"], room["co2"], room["particles"], room["voc"],
-                    room["boost"], room["purifier"])
+                    room["boost"], room["purifier"], panes=dict(room.get("panes") or {}),
+                    manual=frozenset(room.get("manual") or ()), habits=habits, alarm=alarm, summer=summer)
 
 
 class RoomAdvisor:
@@ -456,9 +485,12 @@ class RoomAdvisor:
         cases = {s: [(g[-2], g[-1]) for g in found] for s, found in (self.learned.get("gestures") or {}).items()}
         water = absolute(current.air, current.humidity) if current.humidity is not None else None
         measured = {"co2": current.co2 is not None, "particles": current.particles is not None, "voc": current.voc is not None}
+        # A twin never fitted to the room's measures: the moment backs nothing it forecasts.
+        blind = untrained(self.learned)
         found = {}
         for subject in ("heat", "humidity", "co2", "particles", "voc"):
-            moment = window_reinforced(subject, current.air, outdoor, water, outdoor_water, measured.get(subject, True))
+            moment = (subject not in blind
+                      and window_reinforced(subject, current.air, outdoor, water, outdoor_water, measured.get(subject, True)))
             found[subject] = level(cases.get(subject, ()), moment)
             for device in ("boost", "purify"):
                 found[f"{device}:{subject}"] = level(cases.get(f"{device}:{subject}", ()), moment)
@@ -492,7 +524,10 @@ class RoomAdvisor:
                 acp[entity] = (dt_util.as_local(start), dt_util.as_local(end))
         windows = [Window(e, (self.room["orientations"].get(e) or (None,))[0], acp.get(e)) for e in self.room["windows"]]
         sun = {dt_util.as_local(h): v[2] for h, v in self.home.forecast.items()}
-        view = RoomView(local, self.hass.config.latitude, self.hass.config.longitude, windows, sun, air,
+        # The coldest panes of the room mist first (advisor/physics/surface.py): a single glazing before a double one.
+        panes = [(self.room.get("panes") or {}).get(e) or "double" for e in self.room["windows"]]
+        coldest_pane = min(panes, key=["simple", "double", "triple"].index) if panes else None
+        view = RoomView(local, self.hass.config.latitude, self.hass.config.longitude, windows, sun, air, glazing=coldest_pane,
                         minimum=comfort.minimum, maximum=comfort.maximum,
                         opened_at=dt_util.as_local(opening[0]) if opening else None,
                         air_at_opening=opening[1] if opening else None, humidity=humidity, coldest_tonight=coldest,
@@ -573,9 +608,34 @@ class RoomAdvisor:
             house_thermostat=house_stat, house_power=float(house_power) if house_stat else 0.0,
             house_now=(_number(hass, main, "power_percent") or 0.0) / 100 if house_stat else 0.0)
         orientations = room["orientations"]
-        glazing = [(sizes[e][0], *orientations[e]) for e in sizes if e in orientations] if orientations else None
+        # The manual shutters the household says shut now: away, at night, on summer's sunny side (HABITUDES-FOYER.md).
+        # Shut, they keep the sun out and the heat in, as a connected one does; at night, those it shuts for the night.
+        has_alarm = alarm_entity is not None
+        away_now = habits.away(local, alarm, has_alarm)
+        summer = self.coordinator.season_name == "summer"
+        position_now = sun_position(now, hass.config.latitude, hass.config.longitude)
+        shut_now = {e for e in room.get("manual") or () if e in sizes and habits.shut(
+            local, away_now, summer, facing((orientations.get(e) or (None,))[0], *position_now))}
+        shut_night = shut_now | ({e for e in room.get("manual") or () if e in sizes} if habits.shutters_night == "fermes" else set())
+
+        def seen(shut):
+            """The windows' sun as the room gets it, its shut manual shutters letting in what a connected one does."""
+            if not orientations:
+                return None
+            return [(sizes[e][0] * (SHUT_SHADE if e in shut else 1.0), *orientations[e], glazing_of((room.get("panes") or {}).get(e))[0])
+                    for e in sizes if e in orientations]
+
+        def kept(shut):
+            return shutter + (shutter_insulation(sum(sizes[e][0] for e in shut), 1.0) if shut else 0.0)
+
+        def shaded(shut):
+            whole = sum(a for a, _ in sizes.values())
+            return shade * (1 - (1 - SHUT_SHADE) * sum(sizes[e][0] for e in shut) / whole) if shut and whole and not orientations \
+                else shade
+
+        glazing = seen(shut_now)
         opened_index = {i for i, e in enumerate(sizes) if (s := hass.states.get(e)) and s.state == "on"}
-        coming = home.coming(now, steps, outdoor, outdoor_rh, house_heat, shade, glazing, opened_index, shutter)
+        coming = home.coming(now, steps, outdoor, outdoor_rh, house_heat, shaded(shut_now), glazing, opened_index, kept(shut_now))
         walls = self.walls if self.walls is not None else air
         # What acts on the room now, its own heating included: what the twin's trend is measured with.
         power = _number(hass, room["thermostat"], "power_percent")
@@ -600,8 +660,14 @@ class RoomAdvisor:
                       heating=None if twins.thermostat is None and twins.idle_thermostat is None else twins.thermostat is not None,
                       heating_target=twins.thermostat.target if twins.thermostat else None,
                       house_running=burning, house_rise=rise, overheated=overheated)
-        rain_rate, gust, rain_in, vigilance = home.safety()
-        taken, reason = forbidden(rain_rate, gust, rain_in, vigilance, alarm, coldest=min(u.outdoor for u, _ in coming))
+        rain_rate, gust, rain_in, vigilance, wind_from = home.safety()
+        wet = {e for e in sizes if rained_on(room.get("sheltered", {}).get(e, False), (orientations.get(e) or (None,))[0], gust, wind_from)}
+        wet_open = {e for i, e in enumerate(sizes) if i in opened_index} & wet
+        shelter = "all" if sizes and not wet else "opened" if opened and not wet_open else None
+        # Without an alarm, the empty hours the household set count as away: nobody there to make a gesture.
+        rules_alarm = alarm if has_alarm or not away_now else "armed_away"
+        taken, reason = forbidden(rain_rate, gust, rain_in, vigilance, rules_alarm, coldest=min(u.outdoor for u, _ in coming),
+                                  shelter=shelter)
         # The gestures answered « Pas maintenant », put aside for a while (CAHIER-MOTEUR.md § 15).
         aside = declined(self.paused, current, now)
         taken = taken | aside
@@ -684,7 +750,7 @@ class RoomAdvisor:
         night_coming = None
         if night or local >= bedtime - timedelta(hours=habits.mist_before):
             night_coming = home.coming(now, int((wake - local).total_seconds() // STEP), outdoor, outdoor_rh, house_heat,
-                                       shade, glazing, opened_index, shutter)
+                                       shaded(shut_night), seen(shut_night), opened_index, kept(shut_night))
         coldest = min(u.outdoor for u, _ in night_coming) if night_coming else None
         # What the shutter closed at bedtime would keep by waking up: a passive advice (advisor/knowing.py).
         shutter_night = shutter_tonight(twins, current, night_coming, 0 if night else int((bedtime - local).total_seconds() // 60)) \
