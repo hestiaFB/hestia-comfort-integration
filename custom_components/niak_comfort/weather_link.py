@@ -10,6 +10,9 @@ from homeassistant.helpers import entity_registry as er
 from .const import DOMAIN
 
 API_KEY = "niak_weather_api"
+# Hestia Weather's entity platform: its former name, then its name since Hestia Weather 3 (which keeps answering at
+# API_KEY for this version, the place ids it kept turned into the new ones).
+PLATFORMS = ("niak_weather", "hestia_weather")
 API_VERSION = 1
 # Hestia Weather station roles → Hestia Confort exterior sources.
 ROLES = {"temperature": "outdoor_temperature", "humidity": "outdoor_humidity", "rain_rate": "rain",
@@ -46,8 +49,9 @@ def entity(hass, entry_id, key):
         return None
     found = er.async_get(hass).async_get_entity_id
     for domain in ("sensor", "binary_sensor"):
-        if entity_id := found(domain, "niak_weather", f"{entry_id}_{key}"):
-            return entity_id
+        for platform in PLATFORMS:
+            if entity_id := found(domain, platform, f"{entry_id}_{key}"):
+                return entity_id
     return None
 
 

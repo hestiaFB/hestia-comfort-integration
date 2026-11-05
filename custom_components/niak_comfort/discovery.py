@@ -3,6 +3,7 @@ import re
 
 from homeassistant.helpers import area_registry as ar, device_registry as dr, entity_registry as er
 
+from . import weather_link
 from .const import OUTDOOR_AREAS, SOURCES
 from .engine import thermostat as thermostats
 from .engine.sources import INDICATOR_RESTING, INDICATOR_RUNNING
@@ -77,7 +78,7 @@ def provenance(hass, entity_id):
 
 def niak_weather(entry, key):
     """A Hestia Weather entity, recognised by its stable unique id, never by its name."""
-    return entry.platform == "niak_weather" and (entry.unique_id or "").endswith("_" + key)
+    return entry.platform in weather_link.PLATFORMS and (entry.unique_id or "").endswith("_" + key)
 
 
 def atmo_daily(hass, entry, state):
@@ -213,7 +214,7 @@ def candidate(hass, entity_id, key, area_id=None, *, include_legacy=False, indoo
     if key == "heating" and not attrs.get("hvac_action"):
         warnings.append("no_hvac_action")
     # Hestia Weather describes the outside by design; outdoor areas are the user's own statement.
-    outside = outdoor_area(hass, own_area) or entry.platform == "niak_weather"
+    outside = outdoor_area(hass, own_area) or entry.platform in weather_link.PLATFORMS
     if key in ("outdoor_temperature", "outdoor_humidity"):
         # A mixed station sits outside but also measures indoors: its use in a room decides.
         if entity_id in indoor_ids:
