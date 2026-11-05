@@ -56,10 +56,12 @@ RAIN_GONE = 60          # minutes: a forecast this far, or none, ends the wait
 
 
 def rain_believed(rain_in: float | None, rain_rate: float | None, since: float | None,
-                  now: float) -> tuple[float | None, float | None]:
+                  now: float, sheltered: bool = False) -> tuple[float | None, float | None]:
     """The rain forecast as believed, and since when (seconds) it has been said due without a drop measured. Without a
-    station measuring the rain, the forecast is always believed: nothing says it is wrong."""
-    if rain_rate is None:
+    station measuring the rain, the forecast is always believed: nothing says it is wrong. Nor with a rain gauge under a
+    tree or an overhang (`sheltered`, Hestia Weather's `station_trust`): its zero does not say the rain is not falling;
+    the rain it does measure still forbids (`forbidden`)."""
+    if rain_rate is None or sheltered:
         return rain_in, None
     if rain_rate > RAIN or rain_in is None or rain_in > RAIN_GONE:
         return rain_in, None

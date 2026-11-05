@@ -4,6 +4,16 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.8.0 — 5 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Améliorations
+
+- Station contre un mur ou sur le toit, au soleil : Hestia prend la température que retient Hestia Weather, pas celle du mur chaud.
+- Station abritée du vent d'un côté : la rafale prévue compte, une fenêtre n'est pas conseillée grande ouverte par vent fort.
+- Pluviomètre sous un arbre ou un avant-toit : une pluie annoncée reste crue, même sans goutte mesurée.
+
 ## 3.7.0 — 5 novembre 2026
 
 Pas encore dans une version de Confort.

@@ -4,11 +4,15 @@ Its entities are found by their stable unique id `<entry>_<key>`, never by name,
 settings are read through `hass.data["hestia_weather_api"]` (version 1), never directly.
 """
 import inspect
+import logging
+import math
 
 from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN
 from .engine import legacy
+
+_LOGGER = logging.getLogger(__name__)
 
 API_KEY = "hestia_weather_api"
 # Hestia Weather's entities, under its name and, until it is updated too, its former one.
@@ -97,6 +101,55 @@ def season(hass, entry_id):
         return None
     found = link.season(entry_id)
     return found.get("season") if found else None
+
+
+def station_trust(hass, entry_id):
+    """How far Hestia Weather trusts its station's measures where it stands (its docs/STATION-EMPLACEMENT.md § 5): by
+    `temperature`, `wind`, `rain`, `sun`, each with `level` (« ok », « handled », « watch ») and `now` (« station »,
+    « corrected », « forecast ») and `value` when it is not the station's. None when not linked or before Hestia Weather
+    gives api.station_trust(): the raw sensors are then kept, nothing else changes."""
+    link = api(hass)
+    method = getattr(link, "station_trust", None) if link and entry_id else None
+    if method is None:
+        return None
+    try:
+        trust = method(entry_id)
+    except Exception:  # noqa: BLE001 - the trust is a plus over the raw sensors
+        _LOGGER.warning("Hestia Comfort: Hestia Weather's station trust unreadable, the station's sensors kept as they are")
+        return None
+    return trust if isinstance(trust, dict) else None
+
+
+def from_station(hass, entry_id, entity_id):
+    """Whether a sensor of Confort's is the one Hestia Weather's trust speaks of: one of its station's sensors, or its own
+    « rain now ». Another sensor chosen in Confort keeps its own reading."""
+    link = api(hass)
+    if not link or not entry_id or not entity_id:
+        return False
+    station = link.station(entry_id) or {}
+    return entity_id in (station.get("sensors") or {}).values() or entity_id == entity(hass, entry_id, "pluie_en_cours")
+
+
+def _finite(value):
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) else None
+
+
+def retained(trust, key):
+    """The value Hestia Weather retains now instead of its station's (°C for `temperature`, km/h for `wind`: the stronger
+    gust from a sheltered side), how (« forecast » or « corrected ») and why; None while the station's own reading is the
+    one to use."""
+    row = (trust or {}).get(key)
+    if not isinstance(row, dict) or row.get("now") not in ("forecast", "corrected"):
+        return None
+    value = _finite(row.get("value"))
+    return None if value is None else (value, row.get("now"), row.get("why"))
+
+
+def gauge_sheltered(trust):
+    """The rain gauge stands under a tree or an overhang (`rain.level` « handled »): no drop measured does not say the
+    rain announced is wrong."""
+    row = (trust or {}).get("rain")
+    return isinstance(row, dict) and row.get("level") == "handled"
 
 
 def _number(hass, entity_id):

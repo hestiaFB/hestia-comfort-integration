@@ -16,6 +16,15 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.8.0 — 5 novembre 2026
+
+Confiance de Hestia Weather dans sa station (`niak-weather-integration/docs/STATION-EMPLACEMENT.md` § 4 et § 5, `api.station_trust(entry_id)`), lue par `weather_link.station_trust` ; un Weather qui ne la donne pas (ou qui échoue) = capteurs bruts, comme `station_shade`. Appliquée seulement si le capteur de Confort est celui de la station de Weather (`weather_link.from_station` : capteurs de `api.station`, ou `pluie_en_cours`).
+- Température : `temperature.now` « forecast » ou « corrected » → `advisor_home._read_outdoor` prend `temperature.value` (mur ou toit au soleil : la prévision, ou la mesure moins l'écart appris) ; l'humidité suit à eau égale (`water.relative(retenue, absolute(mesurée, HR))`). `coming()` part de la valeur retenue : l'écart station − prévision dû au mur n'est plus prolongé sur douze heures. `outside()` ajoute `station_mesuree` et `retenue` (valeur, `now`, `why`).
+- Vent : `wind.now` « forecast » (côté abrité) → `safety()` passe à `forbidden` la plus forte des rafales, station de Confort ou `wind.value` (km/h).
+- Pluie : `rain.level` « handled » (pluviomètre sous un arbre ou un avant-toit) → `rain_believed(…, sheltered=True)` croit la pluie annoncée sans attendre de goutte (plus d'abandon au bout de `RAIN_SOON_WAIT`) ; la pluie mesurée interdit toujours.
+- Pas encore : l'apprentissage de nuit lit toujours l'historique brut de la station (heures de mur au soleil comprises).
+- Tests : `tests/test_station_trust.py` (10).
+
 ### 3.7.0 — 5 novembre 2026
 
 Habitudes du foyer et « Votre maison » (`niak-comfort/docs/HABITUDES-FOYER.md` v1.0, validé par Frank le 5 novembre).

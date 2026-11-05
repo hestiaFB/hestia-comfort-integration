@@ -30,7 +30,7 @@ from .advisor.observe import Series
 from .advisor.physics.station_sun import cell, clouds_missed, corrected, learn_shade, share
 from .advisor.physics.sunlight import sun_position, through_windows
 from .advisor.physics.thermal import STEP, Inputs
-from .advisor.physics.water import absolute
+from .advisor.physics.water import absolute, relative
 from .advisor.safety import minutes, rain_believed
 from .advisor_store import AdvisorFiles
 from .const import DOMAIN, VERSION
@@ -115,6 +115,8 @@ def outside(hass):
     start = home.forecast.get(now.replace(minute=0, second=0, microsecond=0))
     outdoor = home.outdoor[0]
     return {"moteur": home.version, "source": home.forecast_source, "station": outdoor, "prevision": start[0] if start else None,
+            # The station's own reading when Hestia Weather retains another temperature now, and why.
+            "station_mesuree": home.outdoor_measured[0], "retenue": home.retained,
             "ecart": round(outdoor - start[0], 1) if start and start[0] is not None and outdoor is not None else None,
             "soleil": home.sun, **_shade_counts(home),
             "nuages_manques": None if home.sun_missed is None else round(home.sun_missed, 2)}
@@ -148,6 +150,9 @@ class AdvisorHome:
         self.boot = dt_util.utcnow()
         self.houses = {}
         self.outdoor = (None, None)
+        # The station's own reading, and how far Hestia Weather trusts it now (weather_link.station_trust): the
+        # temperature it retains replaces a station warmed by its wall or its roof in the sun.
+        self.outdoor_measured, self.trust, self.retained = (None, None), None, None
         # Since when the rain has been said due without a drop at the station (advisor/safety.py `rain_believed`).
         self.rain_soon_since = None
         self.learning = False
@@ -254,8 +259,24 @@ class AdvisorHome:
         return (configuration.home.get("foyer") if configuration else None) or {}
 
     def _read_outdoor(self):
+        """The outside's temperature and humidity now. Where Hestia Weather does not trust its station at this moment (a
+        wall or a roof in the sun, docs/STATION-EMPLACEMENT.md § 4.1 of Hestia Weather), its retained temperature is
+        taken — the forecast, or the measure less the excess learned — and the humidity follows: the wall heats the air,
+        it adds no water. `coming()` then carries no wall's gap into the evening. A Hestia Weather that does not share
+        its trust, or a sensor chosen in Confort that is not its station's, keeps the raw reading."""
         sources = self._sources()
-        self.outdoor = tuple(_number(self.hass, (sources.get(k) or {}).get("entity_id")) for k in ("outdoor_temperature", "outdoor_humidity"))
+        temperature_entity = (sources.get("outdoor_temperature") or {}).get("entity_id")
+        temperature, humidity = (_number(self.hass, (sources.get(k) or {}).get("entity_id")) for k in ("outdoor_temperature", "outdoor_humidity"))
+        self.outdoor_measured = (temperature, humidity)
+        place = self._place()
+        self.trust = weather_link.station_trust(self.hass, place)
+        kept = weather_link.retained(self.trust, "temperature")
+        self.retained = None
+        if kept is not None and temperature is not None and weather_link.from_station(self.hass, place, temperature_entity):
+            if humidity is not None:
+                humidity = round(relative(kept[0], absolute(temperature, humidity)), 1)
+            temperature, self.retained = kept[0], {"temperature": kept[0], "now": kept[1], "why": kept[2]}
+        self.outdoor = (temperature, humidity)
         return self.outdoor
 
     def house_heat(self):
@@ -280,12 +301,20 @@ class AdvisorHome:
         if gust is not None:
             unit = (s.attributes.get("unit_of_measurement") if (s := self.hass.states.get(gust_entity)) else None) or "km/h"
             gust = gust * WIND_UNITS[unit] if unit in WIND_UNITS else None
-        outlook = weather_link.outlook(self.hass, self._place())
+        place = self._place()
+        # From a side where the station is sheltered, Hestia Weather retains the stronger gust, the station's or the
+        # forecast's (km/h): a calm read behind the hedge does not open a window wide to a west wind.
+        stronger = weather_link.retained(self.trust, "wind")
+        if stronger is not None and weather_link.from_station(self.hass, place, gust_entity):
+            gust = stronger[0] if gust is None else max(gust, stronger[0])
+        outlook = weather_link.outlook(self.hass, place)
         ahead = outlook.get("rain") or {}
         rain_in = ahead.get("minutes") if isinstance(ahead.get("minutes"), (int, float)) else None
         if rain_in is None and outlook.get("rain_in_hours") is not None:
             rain_in = minutes(outlook["rain_in_hours"], "h")
-        rain_in, self.rain_soon_since = rain_believed(rain_in, rate, self.rain_soon_since, dt_util.utcnow().timestamp())
+        # A rain gauge under a tree or an overhang: its zero does not make the rain announced unbelieved.
+        sheltered = weather_link.gauge_sheltered(self.trust) and weather_link.from_station(self.hass, place, rain.get("entity_id"))
+        rain_in, self.rain_soon_since = rain_believed(rain_in, rate, self.rain_soon_since, dt_util.utcnow().timestamp(), sheltered)
         wind_from = _number(self.hass, (sources.get("wind_bearing") or {}).get("entity_id"))
         return rate, gust, rain_in, outlook.get("vigilance"), wind_from
 
