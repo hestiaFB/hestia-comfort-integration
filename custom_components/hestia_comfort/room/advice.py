@@ -279,6 +279,16 @@ def _overhang(meta: dict, sheltered: bool, height: float) -> Overhang | bool:
                     gap=float(gap) if gap is not None else ordinary.gap, height=height)
 
 
+def _away_for(state, habits, now, local) -> float | None:
+    """Hours the household has been away so far: since the alarm was armed, else since the empty day began."""
+    if state is not None:
+        return max(0.0, (now - state.last_changed).total_seconds() / 3600)
+    if habits.empty_day:
+        start = habits.empty_day[0]
+        return max(0.0, (local.hour - start.hour) + (local.minute - start.minute) / 60)
+    return None
+
+
 def room_spec(room: dict, habits=None, alarm=None, summer=False) -> RoomSpec:
     """The room as the nightly learning reads it; `habits`, `alarm` and `summer` say when its manual shutters are shut."""
     return RoomSpec(room["name"], room["temperature"], dict(room["windows"]), room["humidity"], room["thermostat"],
@@ -612,10 +622,11 @@ class RoomAdvisor:
         # Shut, they keep the sun out and the heat in, as a connected one does; at night, those it shuts for the night.
         has_alarm = alarm_entity is not None
         away_now = habits.away(local, alarm, has_alarm)
+        away_for = _away_for(hass.states.get(alarm_entity) if has_alarm else None, habits, now, local) if away_now else None
         summer = self.coordinator.season_name == "summer"
         position_now = sun_position(now, hass.config.latitude, hass.config.longitude)
         shut_now = {e for e in room.get("manual") or () if e in sizes and habits.shut(
-            local, away_now, summer, facing((orientations.get(e) or (None,))[0], *position_now))}
+            local, away_now, summer, facing((orientations.get(e) or (None,))[0], *position_now), away_for)}
         shut_night = shut_now | ({e for e in room.get("manual") or () if e in sizes} if habits.shutters_night == "fermes" else set())
 
         def seen(shut):

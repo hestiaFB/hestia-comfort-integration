@@ -84,6 +84,9 @@ class Habits:
     # shutters, « fermes », « ouverts » or « variable » (the advisor then keeps what it learned on average), while the
     # household is away, at night, and on summer's hot hours on the sunny side.
     shutters_away: str = "variable"
+    # Hours away before « fermés quand vous partez » counts: a shorter outing leaves them as they were (Frank, 5 November:
+    # the alarm set for 24 min at noon, the Salon's shutters open in full sun).
+    shutters_away_after: float = 2.0
     shutters_night: str = "variable"
     shutters_summer: str = "variable"
     # The house empty on weekdays, (from, to), when no alarm says it; None: not said.
@@ -95,7 +98,7 @@ class Habits:
             "appareils_max_min": "devices_max", "cette_nuit_avant_h": "tonight_before", "buee_avant_h": "mist_before",
             "hors_gel": "frost_guard", "tolerance": "tolerance", "pas_maintenant_min": "not_now",
             "poele_tient_h": "stove_hold", "depassement": "overheat", "depassement_min": "overheat_minutes",
-            "volets_absence": "shutters_away", "volets_nuit": "shutters_night", "volets_ete": "shutters_summer",
+            "volets_absence": "shutters_away", "volets_absence_apres_h": "shutters_away_after", "volets_nuit": "shutters_night", "volets_ete": "shutters_summer",
             "linge_pieces": "laundry"}
 
     @property
@@ -149,11 +152,21 @@ class Habits:
             return alarm in AWAY
         return self.empty(local)
 
-    def shut(self, local: datetime, away: bool, summer: bool, sun_on: bool) -> bool:
+    def empty_hours(self) -> float | None:
+        """How long the declared empty day lasts, in hours."""
+        if not self.empty_day:
+            return None
+        start, end = self.empty_day
+        return (end.hour - start.hour) + (end.minute - start.minute) / 60
+
+    def shut(self, local: datetime, away: bool, summer: bool, sun_on: bool, away_for: float | None = None) -> bool:
         """Whether the household's manual shutters are shut now, as it said: away, at night, or on the sunny side in
-        summer. « variable » never says shut: the advisor keeps what it learned on average."""
+        summer. « variable » never says shut: the advisor keeps what it learned on average. `away_for`: the hours of this
+        absence (so far, live; in all, at night) — shorter than `shutters_away_after`, the shutters stay as they were;
+        None: not known, the absence counts."""
+        long_away = away and (away_for is None or away_for >= self.shutters_away_after)
         return ((self.shutters_night == "fermes" and self.sleep.asleep(local))
-                or (self.shutters_away == "fermes" and away)
+                or (self.shutters_away == "fermes" and long_away)
                 or (self.shutters_summer == "fermes" and summer and sun_on))
 
 

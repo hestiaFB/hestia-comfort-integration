@@ -4,6 +4,14 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.9.0 — 5 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Améliorations
+
+- « Volets fermés quand vous partez » : une sortie de moins de 2 heures ne compte plus. Les volets restent ouverts pour Hestia, et le soleil qui entre est compté.
+
 ## 3.8.0 — 5 novembre 2026
 
 Pas encore dans une version de Confort.

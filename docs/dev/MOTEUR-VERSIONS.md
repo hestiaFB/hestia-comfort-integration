@@ -16,6 +16,13 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.9.0 — 5 novembre 2026
+
+« Volets fermés quand vous partez » seulement pour une absence de 2 h ou plus (`Habits.shutters_away_after`, clé `volets_absence_apres_h`, 2 h par défaut, pas encore dans le panneau). Salon, 5 nov. : alarme en absence 24 min à midi, volets ouverts en plein soleil (FP2 165 lx), le moteur les croyait fermés.
+- En direct (`room/advice.py` `_away_for`) : heures depuis le `last_changed` de l'alarme, ou depuis le début de la journée vide déclarée ; les volets comptent fermés une fois les 2 h passées.
+- La nuit (`nightly._absences`, `_absence`) : durée totale de chaque absence lue dans l'historique de l'alarme (encore en cours = jusqu'à la fin de la lecture) ; une absence courte n'est jamais lue volets fermés, une longue l'est d'un bout à l'autre ; sans alarme, la durée de la journée vide déclarée.
+- `Habits.shut(…, away_for=None)` : sans durée connue, l'absence compte comme avant.
+
 ### 3.8.0 — 5 novembre 2026
 
 Confiance de Hestia Weather dans sa station (`niak-weather-integration/docs/STATION-EMPLACEMENT.md` § 4 et § 5, `api.station_trust(entry_id)`), lue par `weather_link.station_trust` ; un Weather qui ne la donne pas (ou qui échoue) = capteurs bruts, comme `station_shade`. Appliquée seulement si le capteur de Confort est celui de la station de Weather (`weather_link.from_station` : capteurs de `api.station`, ou `pluie_en_cours`).

@@ -10,6 +10,7 @@ import math
 
 from .bench.history import attribute, contacts, numbers
 from .decide import CROSS, SHUT_SHADE, sides_apart
+from .household import AWAY
 from .observe import Series
 from .physics.thermal import glazing as glazing_of
 from .notes import prune, settle
@@ -71,7 +72,7 @@ class RoomSpec:
     summer: bool = False
 
 
-def _shut_windows(spec: RoomSpec, alarm: Series | None, when, local, location) -> set:
+def _shut_windows(spec: RoomSpec, alarm: Series | None, when, local, location, absences=()) -> set:
     """The manual shutters shut at `when`, as the household said: away, at night, on summer's sunny side. A manual
     shutter is otherwise taken as the learned average: no answer, no change (Salon, 5 November: shut while away, the sun
     counted through them made the twin believe the sun warms the room less than it does)."""
@@ -79,9 +80,30 @@ def _shut_windows(spec: RoomSpec, alarm: Series | None, when, local, location) -
         return set()
     away = spec.habits.away(local, alarm.at(when) if alarm is not None else None, spec.alarm is not None)
     position = sun_position(when, *location) if spec.summer else None
+    away_for = (_absence(absences, when) if spec.alarm is not None else spec.habits.empty_hours()) if away else None
     return {e for e in spec.manual
             if spec.habits.shut(local, away, spec.summer,
-                                position is not None and facing((spec.orientations.get(e) or (None,))[0], *position))}
+                                position is not None and facing((spec.orientations.get(e) or (None,))[0], *position), away_for)}
+
+
+def _absences(history: list, end) -> list:
+    """The alarm's absences, (from, to), read back: the night knows how long each lasted (still going at `end`: to it)."""
+    spans, since = [], None
+    for row in history:
+        at, away = datetime.fromisoformat(row["last_changed"]), row["state"] in AWAY
+        if away and since is None:
+            since = at
+        elif not away and since is not None and row["state"] not in ("unknown", "unavailable"):
+            spans.append((since, at))
+            since = None
+    if since is not None:
+        spans.append((since, end))
+    return spans
+
+
+def _absence(absences: list, when) -> float | None:
+    """Hours of the whole absence `when` falls in; None when it falls in none of them."""
+    return next(((to - since).total_seconds() / 3600 for since, to in absences if since <= when <= to), None)
 
 
 def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zone, house_heaters=None) -> list[Sample]:
@@ -98,6 +120,7 @@ def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zo
     oriented = [i for i, (e, _, _) in enumerate(windows) if e in spec.orientations]
     alarm = Series([(datetime.fromisoformat(x["last_changed"]), x["state"]) for x in history.get(spec.alarm, ())],
                    keep_none=True) if spec.alarm else None
+    absences = _absences(history.get(spec.alarm, ()), end) if spec.alarm else []
     # The connected shutter covers the room's windows: shut, it keeps their heat in (advisor/physics/thermal.py).
     glass = sum(size[0] for _, size, _ in windows)
     rows, when = [], start
@@ -106,7 +129,7 @@ def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zo
         inputs = None
         if te is not None:
             facade = None
-            shut = _shut_windows(spec, alarm, when, local, location)
+            shut = _shut_windows(spec, alarm, when, local, location, absences)
             if glazing:
                 light = sun.at(when) or 0.0
                 opened = {k for k, i in enumerate(oriented) if windows[i][2].at(when) is True}

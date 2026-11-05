@@ -98,6 +98,39 @@ class TheNightSeesTheShuttersShut(unittest.TestCase):
         self.assertGreater(shut.shutter, 0.0)
         self.assertEqual(home.shutter, 0.0)
 
+    def test_a_short_outing_leaves_them_open(self):
+        """The alarm set 24 min at noon, the Salon's shutters open in full sun (Frank, 5 November): only an absence of
+        two hours or more shuts them; the night knows how long each lasted."""
+        habits = Habits.of({"volets_absence": "fermes"})
+        start = datetime(2026, 11, 5, 11, 0, tzinfo=timezone.utc)
+        spec = RoomSpec("Salon", "sensor.salon", {WINDOW: (1.8, 2.1)}, orientations={WINDOW: (180.0, False)},
+                        manual=frozenset({WINDOW}), habits=habits, alarm="alarm_control_panel.maison")
+        sun = Series([(start - timedelta(hours=1), 400.0)])
+
+        def at_noon(back):
+            history = {e: [{"entity_id": e, "state": v, "last_changed": start.isoformat()}]
+                       for e, v in (("sensor.salon", "20"), ("sensor.dehors", "10"), (WINDOW, "off"))}
+            history["alarm_control_panel.maison"] = [
+                {"state": "disarmed", "last_changed": (start - timedelta(hours=3)).isoformat()},
+                {"state": "armed_away", "last_changed": start.isoformat()},
+                {"state": "disarmed", "last_changed": (start + back).isoformat()}]
+            when = start + timedelta(minutes=10)
+            return samples(history, spec, "sensor.dehors", sun, when, when, LOCATION, PARIS)[0].inputs
+
+        short, long = at_noon(timedelta(minutes=24)), at_noon(timedelta(hours=3))
+        self.assertEqual(short.shutter, 0.0)
+        self.assertGreater(long.shutter, 0.0)
+        self.assertLess(long.facade, short.facade * 0.1)
+
+    def test_live_the_shutters_count_after_two_hours(self):
+        habits = Habits.of({"volets_absence": "fermes"})
+        noon = datetime(2026, 11, 5, 12, 0, tzinfo=PARIS)
+        self.assertFalse(habits.shut(noon, away=True, summer=False, sun_on=False, away_for=0.4))
+        self.assertTrue(habits.shut(noon, away=True, summer=False, sun_on=False, away_for=2.0))
+        self.assertTrue(habits.shut(noon, away=True, summer=False, sun_on=False))
+        self.assertFalse(Habits.of({"volets_absence": "fermes", "volets_absence_apres_h": 3})
+                         .shut(noon, away=True, summer=False, sun_on=False, away_for=2.5))
+
     def test_variable_changes_nothing(self):
         away = self.run_with(Habits.of({}), "armed_away")
         home = self.run_with(Habits.of({}), "disarmed")
