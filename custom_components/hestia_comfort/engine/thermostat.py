@@ -1,6 +1,6 @@
 """Versatile Thermostat, recognised by itself: the extension that lets the heating speak for itself.
 
-Any climate entity gives its mode and, often, what it is doing. A Versatile Thermostat says much more, and Hestia reads
+Any climate entity gives its mode and, often, what it is doing. A Versatile Thermostat says much more, and Hestia-FB reads
 it when the room's heating is one (its platform, never its name):
 
 - its set point, which can stand as the room's minimum: the person chose it there, and a room at 18 °C in eco at
@@ -14,7 +14,7 @@ it when the room's heating is one (its platform, never its name):
 - the window it saw open, said to the person when no contact of the room says it.
 
 Versatile Thermostat 7 and later group these attributes (`specific_states`, `preset_temperatures`, `window_manager`…);
-earlier versions kept them flat. Both are read. Hestia still commands nothing.
+earlier versions kept them flat. Both are read. Hestia-FB still commands nothing.
 """
 import math
 

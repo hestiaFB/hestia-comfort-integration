@@ -171,7 +171,7 @@ export class HestiaComfortHomeCard extends LitElement {
     }
     if(blocks.includes('house')&&h.ventilation&&!h.ventilation.engaged)out.push({level:'benefit',pill:'Logement',title:h.ventilation.kind==='cross'?'Faites traverser l’air':'Ouvrez en bas et en haut',
       line:h2`${h.ventilation.openings.map(o=>o.name).join(' + ')}`,disk:'open'});
-    // A sensor that stops answering is a matter for the Hestia panel, not an advice for the home.
+    // A sensor that stops answering is a matter for the Hestia-FB panel, not an advice for the home.
     const calm=(h.level==='neutral'?'calm':h.level) as Level;
     return out.length?out:[{level:calm,pill:pills[calm],...calmAdvice}];
   }

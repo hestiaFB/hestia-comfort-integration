@@ -1,6 +1,6 @@
 """« Lumières »: what a coloured light should do for a verdict, decided without Home Assistant (light_driver.py sends it)."""
 
-# The look of each state when the person kept Hestia's colours (frontend/lights.ts holds the same).
+# The look of each state when the person kept Hestia-FB's colours (frontend/lights.ts holds the same).
 DEFAULT_LOOKS = {"calm": {"colour": "#aad6e5", "effect": "keep", "brightness": 40},
                  "benefit": {"colour": "#a5d6ae", "effect": "solid", "brightness": 50},
                  "action": {"colour": "#f1b277", "effect": "solid", "brightness": 70},
@@ -36,9 +36,9 @@ def rgb(colour):
 
 
 def plan(rule, key, *, is_on, hour, someone_home, ours):
-    """What to send: ("on", data), ("off", None), ("restore", None) to put back what was there before Hestia, or None.
+    """What to send: ("on", data), ("off", None), ("restore", None) to put back what was there before Hestia-FB, or None.
 
-    `ours` says Hestia changed this light and remembers how it was; a light Hestia never touched is only ever changed
+    `ours` says Hestia-FB changed this light and remembers how it was; a light Hestia-FB never touched is only ever changed
     when it is on, or woken for a gesture or an alert when the person allowed it."""
     if key is None:
         return None
@@ -96,7 +96,7 @@ def fit(data, attributes):
 
 
 def snapshot(state, attributes):
-    """How a light was before Hestia changed it, enough to put it back."""
+    """How a light was before Hestia-FB changed it, enough to put it back."""
     if state != "on":
         return {"on": False}
     kept = {"on": True}

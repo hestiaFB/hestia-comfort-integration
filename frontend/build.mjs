@@ -6,6 +6,6 @@ import {hubPieces} from './socle/hub-plugin.mjs';
 const lit={lit:fileURLToPath(new URL('./node_modules/lit',import.meta.url))};
 await build({entryPoints:['panel.ts'],bundle:true,format:'esm',target:'es2022',minify:true,plugins:[hubPieces],alias:lit,
   outfile:'../custom_components/hestia_comfort/frontend/panel.js',legalComments:'none',loader:{'.css':'text'}});
-// Shared « Hestia » panel (socle), copied from hestia-ecosysteme/socle/ by its copier.sh.
+// Shared « Hestia-FB » panel (socle), copied from hestia-ecosysteme/socle/ by its copier.sh.
 await build({entryPoints:['socle/shell.ts'],bundle:true,format:'esm',target:'es2022',minify:true,
   outfile:'../custom_components/hestia_comfort/frontend/hestia-socle.js',legalComments:'none'});

@@ -4,7 +4,7 @@ Each hour of a room falls in a category of the European standard on indoor envir
 humidity and its air; it earns 100 points in category I (high expectation), 75 in II (normal), 50 in III
 (moderate), none beyond. A theme's score is the mean of its hours, 0 to 100, and a letter from A to E. A room is
 graded on the themes it measures, the home on the mean of its rooms. The categories come from the standard; the
-points and the letter thresholds are Hestia's own.
+points and the letter thresholds are Hestia-FB's own.
 
 - warmth, heating season (November to April): fixed ranges for dwellings, 21-25 °C (I), 20-25 (II), 18-25 (III);
 - warmth, otherwise: the adaptive model for rooms without cooling, around 0.33·Trm + 18.8 °C, Trm being the running

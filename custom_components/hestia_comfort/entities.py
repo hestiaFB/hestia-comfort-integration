@@ -25,12 +25,12 @@ HUMID = ("slightly_humid", "humid", "very_humid")
 
 
 def room_device(entry):
-    return {"identifiers": {(DOMAIN, entry.entry_id)}, "name": entry.title, "manufacturer": "Hestia",
+    return {"identifiers": {(DOMAIN, entry.entry_id)}, "name": entry.title, "manufacturer": "Hestia-FB",
             "model": "Comfort · observation", "configuration_url": "homeassistant://hestia/confort"}
 
 
 def volume_device(coordinator):
-    return {"identifiers": {(DOMAIN, volume_id(coordinator))}, "name": coordinator.volume_name, "manufacturer": "Hestia",
+    return {"identifiers": {(DOMAIN, volume_id(coordinator))}, "name": coordinator.volume_name, "manufacturer": "Hestia-FB",
             "model": "Comfort · même air", "configuration_url": "homeassistant://hestia/confort"}
 
 
@@ -202,7 +202,7 @@ class HomeEntity:
         self.key = key
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_translation_key = f"home_{key}"
-        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}, "name": entry.title, "manufacturer": "Hestia",
+        self._attr_device_info = {"identifiers": {(DOMAIN, entry.entry_id)}, "name": entry.title, "manufacturer": "Hestia-FB",
                                   "model": "Comfort · logement", "configuration_url": "homeassistant://hestia/confort"}
         self._listening = {}
 

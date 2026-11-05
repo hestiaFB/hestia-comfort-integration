@@ -90,7 +90,7 @@ Habitudes du foyer et « Votre maison » (`niak-comfort/docs/HABITUDES-FOYER.md`
 - Rien n'est noté si autre chose a agi pendant le geste ou l'heure qui suit : fenêtre rouverte, VMC ou purificateur qui change, source d'humidité (douche, cuisine). Un geste écarté le jour (`ecartes`) l'est aussi la nuit.
 - La nuit corrige chaque catégorie (pièce × geste × sujet) vers la médiane de ses notes récentes (poids divisé par 2 en 15 jours, 3 notes au moins), au plus ×2 ou ÷2 par nuit, gardée si la dernière journée n'est pas prévue plus de 5 % moins bien. Pour la chaleur, elle remplace l'ancienne correction des fenêtres ; pour l'humidité, le CO₂, les COV et les particules, elle est nouvelle ; la part du débit de la VMC (`boost_scale`) et du purificateur (`purifier_scale`, nouveau) en viennent aussi.
 - Preuves : « appris » si la médiane des 10 dernières notes est entre la moitié et le double ; « démenti » dès que les 2 dernières sont à 0 ou −, quoi qu'il y ait eu avant.
-- « Ce que Hestia sait » reçoit pour chaque effet ses dernières notes (« 0 0 − ») et la correction de la nuit.
+- « Ce que Hestia-FB sait » reçoit pour chaque effet ses dernières notes (« 0 0 − ») et la correction de la nuit.
 
 ### 3.0.6 — 3 novembre 2026
 

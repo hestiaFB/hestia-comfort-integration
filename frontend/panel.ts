@@ -41,7 +41,7 @@ const rowLabels:Record<string,string>=words({indoor_temperature:fr('Température
 const roomSections=[{stage:0,path:'mesures',label:fr('Mesures'),title:fr('Mesures'),icon:'temperature'},{stage:1,path:'ouvertures',label:fr('Ouvertures'),title:fr('Fenêtres et portes'),icon:'openings'},{stage:3,path:'chauffage',label:fr('Chauffage'),title:fr('Chauffage'),icon:'heating'},{stage:2,path:'equipements',label:fr('Équipements'),title:fr('Équipements'),icon:'air'},{stage:4,path:'piece',label:fr('La pièce'),title:fr('La pièce'),icon:'room'},{stage:8,path:'apprentissage',label:fr('Apprentissage'),title:fr('Apprentissage'),icon:'learning'},{stage:7,path:'notifications',label:fr('Notifications'),title:fr('Notifications'),icon:'light'}];
 // A new room goes through the tabs as steps, then its summary; a room that exists opens on its tabs, with the save bar.
 const roomOrder=[0,1,3,2,4,5];
-// The step menu ends on « Récapitulatif », as in every Hestia brick (socle 1.12).
+// The step menu ends on « Récapitulatif », as in every Hestia-FB brick (socle 1.12).
 const createSections=[...roomSections.filter(x=>x.stage<7),{stage:5,path:'recapitulatif',label:fr('Récapitulatif'),title:fr('Récapitulatif'),icon:'review'}];
 const repository='https://github.com/hestiaFB/hestia-comfort-integration';
 // The third-party integrations by theme on the Extensions page, as in Hestia Weather; one not listed here goes under « Autres ».
@@ -298,7 +298,7 @@ export class ComfortSetup extends LitElement {
   catch{this.overview=[];}
  }
  private detected(s:Record<string,string|string[]>){const parts=[s.indoor_temperature&&t('température'),s.indoor_humidity&&t('humidité'),s.co2&&'CO₂',s.heating&&t('chauffage')].filter(Boolean) as string[];const n=Array.isArray(s.windows)?s.windows.length:0;if(n)parts.push(n>1?t('{n} ouvrants',{n}):t('{n} ouvrant',{n}));return parts.join(', ');}
- // Creates every checked room at once with Hestia's unambiguous proposals; each room keeps its assistant.
+ // Creates every checked room at once with Hestia-FB's unambiguous proposals; each room keeps its assistant.
  private async createAll(){
   const areas=(this.overview??[]).filter(a=>this.picked.includes(a.area_id));if(!areas.length){this.error=t('Cochez au moins une pièce.');return;}
   this.busy=true;this.error='';let created=0;
@@ -405,7 +405,7 @@ export class ComfortSetup extends LitElement {
  }
  /** Chauffage : d'abord si la pièce est chauffée ; éteint, le thermostat et ses réglages s'effacent (gardés pour un retour). */
  private heatingStage(){const d=this.draft!,heated=d.heated!==false,head=listRow({label:t('Pièce chauffée'),value:toggle(t('Pièce chauffée'),heated,on=>this.draft={...this.draft!,heated:on},this.busy)});
-  if(!heated)return html`${listSection(t('Chauffage'),[head])}${noteBox(t('Pièce non chauffée'),t('Hestia ne conseillera jamais de la réchauffer.'))}`;
+  if(!heated)return html`${listSection(t('Chauffage'),[head])}${noteBox(t('Pièce non chauffée'),t('Hestia-FB ne conseillera jamais de la réchauffer.'))}`;
   const list=this.heaters(),all=this.discovery?.candidates.heating??[],free=all.filter(c=>!list.some(h=>h.entity_id===c.entity_id)).map(c=>c.entity_id),found=(id:string)=>all.find(c=>c.entity_id===id),vt=this.uses('versatile_thermostat');
   const add=(id:string)=>({entity_id:id,scope:this.looksLikeStove(id)?'house':'room'} as Heater);
   const rows=[head,...list.flatMap((h,i)=>{const c=found(h.entity_id);return [
@@ -453,7 +453,7 @@ export class ComfortSetup extends LitElement {
     html`<button type="button" class="nk-row nk-row-go danger-row" ?disabled=${this.busy} @click=${()=>this.clear('windows',id)}><span class="nk-row-lab">${t('Retirer cet ouvrant')}</span></button>`],
     {help:html`<p>${t('La taille règle l’air qui entre et le soleil reçu. L’exposition dit quand le soleil arrive sur la fenêtre.')}</p>`});})}
   ${listSection(d.windows.length?'':t('Fenêtres et portes'),[listRow({label:t('Ajouter un ouvrant'),sub:t('Le contact de la porte ou de la fenêtre.'),value:this.selector('windows',free,'','',v=>this.pick('windows',v))}),
-   d.windows.length?nothing:listRow({label:t('Pas de contact ici, c’est voulu'),sub:t('Hestia ne le proposera plus.'),value:toggle(t('Pas de contact ici, c’est voulu'),d.windows_unmeasured===true,on=>this.draft={...this.draft!,windows_unmeasured:on})})])}`;}
+   d.windows.length?nothing:listRow({label:t('Pas de contact ici, c’est voulu'),sub:t('Hestia-FB ne le proposera plus.'),value:toggle(t('Pas de contact ici, c’est voulu'),d.windows_unmeasured===true,on=>this.draft={...this.draft!,windows_unmeasured:on})})])}`;}
  /** One opening in rows (CAHIER-HUB.md § 5.3): where it faces, what it is, its size, its shutter; the rest in « Pour aller plus loin ». */
  private openingRows(id:string){const m=this.draft!.openings[id]??defaultOpening(),found=m.shutter==='connected'&&m.cover_entity?this.discovery?.drivers?.[m.cover_entity]:undefined,driver=found&&this.uses(found.driver??'adaptive_cover_pro')?found:undefined;
   const select=(label:string,value:string|undefined,options:[string,string][],set:(v:string)=>void)=>html`<select aria-label=${label} @change=${(e:Event)=>set((e.target as HTMLSelectElement).value)}>${options.map(([v,l])=>html`<option value=${v} ?selected=${(value??'')===v}>${l}</option>`)}</select>`;
@@ -547,7 +547,7 @@ export class ComfortSetup extends LitElement {
   const setCustom=(i:number,change:Partial<CustomEquipment>|null)=>{const list=[...(this.draft!.custom_equipment??[])];if(change)list[i]={...list[i],...change};else list.splice(i,1);this.draft={...this.draft!,custom_equipment:list};};
   const effects:[string,string][]=[['heat',t('Chauffe')],['cool',t('Rafraîchit')],['humid',t('Mouille l’air')],['dry',t('Assèche l’air')],['voc',t('COV, odeurs')],['particles',t('Particules, fumée')],['purify',t('Purifie')]];
   return html`${listSection(t('VMC'),[...this.sensorRows('ventilation'),...(d.sources.ventilation?[...this.sensorRows('ventilation_boost'),flow('ventilation_boost',t('Débit en vitesse rapide'))]:[])],
-   {help:html`<p>${t('Le débit, sur la notice, donne une durée juste dès le premier jour. Vide, Hestia suppose une VMC ordinaire et se corrige au fil des utilisations.')}</p>`})}
+   {help:html`<p>${t('Le débit, sur la notice, donne une durée juste dès le premier jour. Vide, Hestia-FB suppose une VMC ordinaire et se corrige au fil des utilisations.')}</p>`})}
   ${listSection(t('Purificateur'),[...this.sensorRows('purifier'),...(d.sources.purifier?[flow('purifier',t('Débit d’air propre'),t('« CADR » sur la notice ou la boîte.'))]:[])])}
   ${listSection(t('Ce qui change l’air de la pièce'),[...item('shower',t('Douche ou baignoire'),t('Humidité')),...item('hob',t('Plaque de cuisson'),t('Humidité, COV, particules')),...item('oven',t('Four'),t('COV, chaleur')),
    ...item('hood',t('Hotte'),t('Enlève l’humidité et le COV')),...item('drying',t('Linge qui sèche'),t('Humidité')),...item('fan',t('Ventilateur'),t('Rafraîchit la peau, pas l’air')),
@@ -555,7 +555,7 @@ export class ComfortSetup extends LitElement {
     listRow({label:sub(t('Ce qu’il change')),value:html`<span class="nk-chips">${effects.map(([v,l])=>html`<button type="button" class="nk-chip" aria-pressed=${String(c.effects.includes(v))} @click=${()=>setCustom(i,{effects:c.effects.includes(v)?c.effects.filter(x=>x!==v):[...c.effects,v]})}>${l}</button>`)}</span>`}),
     listRow({label:sub(t('Pour savoir quand il marche')),value:run(c.entity_id??'',v=>setCustom(i,{entity_id:v||null}))})]),
    custom.length<10?html`<button type="button" class="nk-row nk-row-go" ?disabled=${this.busy} @click=${()=>this.draft={...this.draft!,custom_equipment:[...custom,{name:'',effects:[],entity_id:null}]}}><span class="nk-row-lab">${t('Ajouter un autre équipement')}</span><span class="nk-chev" aria-hidden="true">+</span></button>`:nothing],
-   {help:html`<p>${t('Relié à une entité, Hestia sait quand il marche : « C’est le four, le COV retombera quand il s’arrête ».')}</p>`})}`;}
+   {help:html`<p>${t('Relié à une entité, Hestia-FB sait quand il marche : « C’est le four, le COV retombera quand il s’arrête ».')}</p>`})}`;}
  /** What can say an equipment runs: a switch, a plug, a fan, a contact, or a power sensor. */
  private runEntities(){const s=this.hass?.states??{};return Object.keys(s).filter(id=>/^(switch|binary_sensor|fan|input_boolean)\./.test(id)||id.startsWith('sensor.')&&(s[id].attributes?.device_class==='power'||s[id].attributes?.unit_of_measurement==='W')).sort();}
  private summary(){const d=this.draft!,home=this.snapshot!.home;const name=(key:string,id?:string)=>id?this.discovery?.candidates[key]?.find(v=>v.entity_id===id)?.name??id:'';
@@ -626,7 +626,7 @@ export class ComfortSetup extends LitElement {
   ${listSection(t('Ce qui manque encore'),st.missing.length?st.missing.map(m=>listRow({label:m})):[listRow({label:t('Rien : tout ce que la pièce possède a été vu.')})])}
   ${listSection(t('Ses prévisions'),[listRow({label:t('Justesse'),value:p?t('±{temp} °C · ±{hum} %',{temp:num(p.temperature,p.temperature<1?2:1),hum:num(p.humidity,0)}):t('pas encore vérifiées')}),
    ...(w?[listRow({label:t('Cette semaine'),value:t('{a} conseils suivis, {b} laissés',{a:w.followed,b:w.ignored})})]:[])])}`;}
- /** The general settings: the rooms, Hestia's own bricks, then the other integrations Confort reads or could read. */
+ /** The general settings: the rooms, Hestia-FB's own bricks, then the other integrations Confort reads or could read. */
  /** What changed in the outside since the page opened, for the save bar. */
  private exteriorChanges(){if(!this.exteriorDraft||!this.originalExterior)return 0;const [sources,weather]=JSON.parse(this.originalExterior) as [Record<string,unknown>,string|null],now=this.exteriorDraft as unknown as Record<string,unknown>;
   return [...new Set([...Object.keys(sources),...Object.keys(now)])].filter(k=>JSON.stringify(sources[k])!==JSON.stringify(now[k])).length+((weather??null)!==(this.weatherEntry??null)?1:0);}
@@ -762,7 +762,7 @@ export class ComfortSetup extends LitElement {
   ${s.rooms.length?html`${frame(t('Les cartes'),html`<p>${t('Dans un tableau de bord :')} <strong>${t('Ajouter une carte')}</strong>${t(', puis')} <strong>${t('Hestia Confort')}</strong> ${t('pour une pièce, ou')} <strong>${t('Hestia Confort · logement')}</strong> ${t('pour la synthèse de toutes les pièces.')}</p>`)}`:nothing}${this.health?html`${this.health.todo.length?frame(t('À régler'),html`<ul class="hl-lines">${this.health.todo.map(l=>this.hline(l))}</ul>`,{className:'todo'}):nothing}${this.health.tips.length?frame(t('À améliorer'),html`<ul class="hl-lines">${this.health.tips.map(l=>this.hline(l))}</ul>`):nothing}<p><button @click=${()=>this.path('')}>${t('Retour à l’accueil Confort')}</button></p>`:this.healthError?html`<p class="notice" role="alert">${t('Le bilan technique n’a pas pu être chargé.')} <button @click=${()=>void this.loadHealth()}>${t('Réessayer')}</button></p>`:html`<p class="muted" role="status">${t('Actualisation du bilan…')}</p>`}`;}
  protected render(){if(this.hass?.user?.is_admin===false)return html`<main><h1>${t('Hestia Confort')}</h1><p>${t('La configuration du logement est réservée aux administrateurs Home Assistant.')}</p></main>`;
   const editing=!!(this.draft||this.exteriorDraft);
-  // Inside the shared « Hestia » panel, its header and tabs replace this one.
+  // Inside the shared « Hestia-FB » panel, its header and tabs replace this one.
   const header=this.hasAttribute('embedded')?nothing:html`<header><button aria-label=${t('Ouvrir le menu Home Assistant')} @click=${()=>this.menu()}><span class="menu-icon"></span></button><strong>${t('Hestia Confort')}</strong></header>`;
   return html`${header}<main class=${(this.page==='health'||this.page==='review')&&!editing&&!this.preview&&this.snapshot?.rooms.length?'wide':''}>${this.confirmDiscard?html`<section class="notice" role="alertdialog" aria-label=${t('Abandonner le brouillon')}><h2>${t('Quitter sans enregistrer ?')}</h2><p>${t('Vos choix de cette page seront perdus.')}</p><div class="actions"><button @click=${()=>this.confirmDiscard=false}>${t('Continuer la configuration')}</button><button @click=${()=>this.discard()}>${t('Quitter sans enregistrer')}</button></div></section>`:nothing}
    ${!editing?html`${this.errorBlock()}${this.error&&!this.snapshot?html`<button @click=${()=>this.load()}>${t('Réessayer')}</button>`:nothing}`:nothing}${this.saved&&this.saved!==t('Enregistré')?html`<p class="notice success" role="status">${this.saved}</p>`:nothing}${this.busy&&!this.snapshot?html`<p class="loading" role="status">${t('Chargement de votre logement…')}</p>`:nothing}

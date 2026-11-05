@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 export const SHELL=readFileSync(new URL('../socle/shell.ts',import.meta.url),'utf8').match(/ELEMENT='([^']+)'/)[1];
 export const comfort=JSON.parse(readFileSync(new URL('../../card/preview/evolution/setup-fixture.json',import.meta.url)));
 export const weather=JSON.parse(readFileSync(new URL('./fixtures/weather.json',import.meta.url)));
-export function harness(withWeather=true){return `<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aperçu du hub Hestia</title>
+export function harness(withWeather=true){return `<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aperçu du hub Hestia-FB</title>
 <style>body{margin:0;--primary-text-color:#edf1f7;--secondary-text-color:#bdc5d1;--primary-background-color:#151c25;--card-background-color:#222932;--divider-color:#657386;--primary-color:#285f87;background:var(--primary-background-color);color:var(--primary-text-color);font-family:system-ui}aside{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 16px;font-size:12px;background:var(--card-background-color);border-bottom:1px solid var(--divider-color)}aside button{flex-shrink:0;min-height:36px;padding:6px 10px;border:1px solid var(--divider-color);border-radius:8px;background:transparent;color:inherit;font:inherit;cursor:pointer}ha-panel-custom{display:block}</style>
 <aside><span>Aperçu · données fictives · aucune connexion à votre Home Assistant</span><button id="theme">Changer de thème</button></aside><ha-panel-custom><${SHELL}></${SHELL}></ha-panel-custom>
 <script type="module">

@@ -72,7 +72,7 @@ class Facts:
     """The Hestia Weather place the exterior comes from, "" when not linked."""
     weather_installed: bool = False
     free_areas: list = field(default_factory=list)
-    """Home Assistant rooms with a thermometer that no Hestia room follows: (area_id, name)."""
+    """Home Assistant rooms with a thermometer that no Hestia-FB room follows: (area_id, name)."""
     wled: list = field(default_factory=list)
     """Who the WLED lights show, as « Notifications lumineuses » sets them: « Tout le logement » or room names."""
     version: str = ""
@@ -184,7 +184,7 @@ def report(f):
                 cells.append({"level": "ok", "text": _count(len(mine), "{n} contact", "{n} contacts") if key == "windows" else t("répond")})
         rooms.append({"entry_id": room.entry_id, "title": room.title, "cells": cells})
 
-    # Extensions: Hestia's own bricks, then other integrations Hestia reads by itself, each making the advice better where it is used.
+    # Extensions: Hestia-FB's own bricks, then other integrations Hestia-FB reads by itself, each making the advice better where it is used.
     vt = [r.title for r in f.rooms if r.thermostat]
     linked = {"hestia_weather": [f.weather] if f.weather else [], thermostats.PLATFORM: vt, people.PLATFORM: [f.alarm] if f.alarm else [],
               **{key: [r.title for r in f.rooms if key in r.drivers] for key in cover_link.ADAPTERS}, "wled": f.wled,

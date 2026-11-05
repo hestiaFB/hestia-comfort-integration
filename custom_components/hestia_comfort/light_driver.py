@@ -1,7 +1,7 @@
 """« Lumières »: the one thing Hestia Confort commands. A coloured light chosen in the hub takes the advice's colour.
 
 The person chose the light, when it may act (already on, or woken for a gesture or an alert; never at night; only when
-someone is home) and its look for each state. What the light was before Hestia changed it is kept, and put back when the
+someone is home) and its look for each state. What the light was before Hestia-FB changed it is kept, and put back when the
 advice calms down or a safeguard stops it. A light switched off by hand is left alone until the advice changes.
 A WLED segment is a light of its own; when the strip has several, its main light is turned on with it, and put back."""
 from datetime import timedelta
@@ -26,9 +26,9 @@ class LightDriver:
         self.hass = hass
         self.configuration = configuration
         self.listening = {}
-        # By light: how it was before Hestia, the last decision taken, and whether the person switched it off by hand.
+        # By light: how it was before Hestia-FB, the last decision taken, and whether the person switched it off by hand.
         self.kept, self.decided, self.silenced, self.mains = {}, {}, {}, {}
-        # By WLED segment whose speed Hestia changed: its speed entity and the speed it had.
+        # By WLED segment whose speed Hestia-FB changed: its speed entity and the speed it had.
         self.speeds = {}
 
     @callback
@@ -93,10 +93,10 @@ class LightDriver:
             key = light_plan.state_key(self.verdict(rule.get("follow", "home")))
             decision = (key, light_plan.blocked(rule, hour, home), rule.get("states", {}).get(key) if key else None, rule.get("wake"))
             ours = entity_id in self.kept
-            # A light the person turns on while a gesture waits takes its colour then: its own on/off counts until Hestia changes it.
+            # A light the person turns on while a gesture waits takes its colour then: its own on/off counts until Hestia-FB changes it.
             decision = (*decision, None if ours else state.state == "on")
             if ours and self.decided.get(entity_id, (None,))[0] == "on" and state.state == "off":
-                # Switched off by hand while Hestia had changed it: the person's choice, kept until the advice changes.
+                # Switched off by hand while Hestia-FB had changed it: the person's choice, kept until the advice changes.
                 self.kept.pop(entity_id, None)
                 self.silenced[entity_id] = key
                 ours = False
@@ -214,7 +214,7 @@ def _leds(hass, config_entry_id, number):
 
 
 def _automations(hass, entity_id):
-    """The automations already driving a light, by their names: the hub warns before Hestia takes it."""
+    """The automations already driving a light, by their names: the hub warns before Hestia-FB takes it."""
     try:
         from homeassistant.components.automation import automations_with_entity
         found = automations_with_entity(hass, entity_id)

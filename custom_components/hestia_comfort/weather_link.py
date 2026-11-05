@@ -1,4 +1,4 @@
-"""Link with Hestia Weather, through its published interface only (Écosystème Hestia, rule 6).
+"""Link with Hestia Weather, through its published interface only (Écosystème Hestia-FB, rule 6).
 
 Its entities are found by their stable unique id `<entry>_<key>`, never by name, and its
 settings are read through `hass.data["hestia_weather_api"]` (version 1), never directly.

@@ -34,18 +34,18 @@ export function questions(o:HabitsContext):Asked[]{
   choices:[['fermes',t('Fermés')],['ouverts',t('Ouverts')],['variable',last]],value:(f,seen)=>f[key]??(seen?'variable':undefined),
   answer:(f,v)=>{const n={...f};if(v==='variable')delete n[key];else n[key]=v as ShutterHabit;return n;}});
  const list:Asked[]=[
-  {key:'vitrage',group:t('Les fenêtres'),title:t('Vos fenêtres sont en…'),short:t('Vitrage'),why:t('Hestia saura quand vos vitres s’embuent, et ce que le soleil apporte.'),
+  {key:'vitrage',group:t('Les fenêtres'),title:t('Vos fenêtres sont en…'),short:t('Vitrage'),why:t('Hestia-FB saura quand vos vitres s’embuent, et ce que le soleil apporte.'),
    choices:[['simple',t('Simple vitrage')],['double',t('Double vitrage')],['triple',t('Triple vitrage')],['variable',t('Ça dépend des fenêtres')]],
    value:(f,seen)=>f.vitrage??(seen?'variable':undefined),answer:(f,v)=>{const n={...f};if(v==='variable')delete n.vitrage;else n.vitrage=v as Glazing;return n;}}];
  if(o.manual.length)list.push(
-  shutters('volets_absence',t('Quand vous partez, les volets restent…'),t('Quand vous partez'),t('Hestia saura que le soleil n’entre pas pendant vos absences.'),t('Ça dépend')),
-  shutters('volets_nuit',t('La nuit, les volets sont…'),t('La nuit'),t('Hestia comptera la chaleur qu’ils gardent jusqu’au matin.'),t('Ça dépend des pièces')),
-  shutters('volets_ete',t('L’été, aux heures chaudes, les volets côté soleil sont…'),t('L’été, aux heures chaudes'),t('Hestia ne vous rappellera de les fermer que si besoin.'),t('Ça dépend')));
+  shutters('volets_absence',t('Quand vous partez, les volets restent…'),t('Quand vous partez'),t('Hestia-FB saura que le soleil n’entre pas pendant vos absences.'),t('Ça dépend')),
+  shutters('volets_nuit',t('La nuit, les volets sont…'),t('La nuit'),t('Hestia-FB comptera la chaleur qu’ils gardent jusqu’au matin.'),t('Ça dépend des pièces')),
+  shutters('volets_ete',t('L’été, aux heures chaudes, les volets côté soleil sont…'),t('L’été, aux heures chaudes'),t('Hestia-FB ne vous rappellera de les fermer que si besoin.'),t('Ça dépend')));
  if(!o.absences)list.push({key:'journee_vide',group:t('La maison'),title:t('En semaine, dans la journée, la maison est…'),short:t('En semaine, dans la journée'),
   why:t('Pas de conseil quand personne n’est là pour le suivre.'),choices:[['vide',t('Souvent vide')],['occupee',t('Souvent occupée')],['variable',t('Ça change')]],
   value:(f,seen)=>f.journee_vide?'vide':seen?'variable':undefined,
   answer:(f,v)=>{const n={...f};if(v==='vide')n.journee_vide=f.journee_vide??{de:'08:30',a:'17:30'};else delete n.journee_vide;return n;}});
- list.push({key:'linge_pieces',group:t('La maison'),title:t('L’hiver, le linge sèche…'),short:t('L’hiver, le linge sèche'),why:t('Hestia reconnaîtra l’humidité du linge, et dira quand aérer.'),
+ list.push({key:'linge_pieces',group:t('La maison'),title:t('L’hiver, le linge sèche…'),short:t('L’hiver, le linge sèche'),why:t('Hestia-FB reconnaîtra l’humidité du linge, et dira quand aérer.'),
   choices:[['dehors',t('Dehors ou au sèche-linge')],['dedans',t('Dans la maison')],['deux',t('Les deux, selon le temps')]],
   value:(f,seen)=>f.linge_pieces?.length?(f.linge_parfois?'deux':'dedans'):f.linge_pieces||seen?'dehors':undefined,
   // « Dans la maison » or « Les deux » (Frank, 5 November: outside when it is fine, inside otherwise): the rooms are then
@@ -94,9 +94,9 @@ export function habitsSection(o:HabitsContext):TemplateResult{
   sub:left>1?t('{n} questions, une minute : ce que les capteurs ne voient pas.',{n:left}):t('Une question : ce que les capteurs ne voient pas.'),go:o.quiz})]);
  if(shutters.length)rows.push(listRow({label:html`<b>${t(VOLETS)}</b>`,sub:o.manual.join(', ')}),...shutters.map(q=>row(o,q)));
  rows.push(listRow({label:html`<b>${t('La maison')}</b>`}));
- if(o.absences)rows.push(listRow({label:t('En semaine, dans la journée'),value:noteBox(t('Lu sur {name}.',{name:o.absences}),t('Hestia sait quand la maison est vide : rien à répondre.'))}));
+ if(o.absences)rows.push(listRow({label:t('En semaine, dans la journée'),value:noteBox(t('Lu sur {name}.',{name:o.absences}),t('Hestia-FB sait quand la maison est vide : rien à répondre.'))}));
  rows.push(...asked.filter(q=>q.key==='journee_vide'||q.key==='linge_pieces').map(q=>row(o,q)));
- return listSection(t('Vos habitudes'),rows,{help:html`<p>${t('Ce que les capteurs ne voient pas. Hestia s’en sert pour apprendre chaque pièce et pour choisir ses conseils.')}</p><p>${t('« Ça dépend » laisse Hestia faire la moyenne de ce qu’il observe. Un volet motorisé est lu tout seul : ces questions ne le concernent pas.')}</p>`});
+ return listSection(t('Vos habitudes'),rows,{help:html`<p>${t('Ce que les capteurs ne voient pas. Hestia-FB s’en sert pour apprendre chaque pièce et pour choisir ses conseils.')}</p><p>${t('« Ça dépend » laisse Hestia-FB faire la moyenne de ce qu’il observe. Un volet motorisé est lu tout seul : ces questions ne le concernent pas.')}</p>`});
 }
 
 /** The week-end's waking up, in « Sommeil ». */
@@ -127,7 +127,7 @@ export function houseSection(o:HabitsContext&{uses:HouseUses}):TemplateResult{
 export function quizScreen(o:HabitsContext&{step:number;go:(step:number)=>void;back:NkAction;settings:()=>void}):TemplateResult{
  const list=questions(o),f=o.foyer;
  if(o.step>=list.length)return html`${pageHead({back:o.back,title:t('Vos habitudes')})}
-  <div class="hb-quiz"><div class="hb-done"><span class="hb-mark" aria-hidden="true">✓</span><h2>${t('C’est noté.')}</h2><p class="muted">${t('Hestia s’en sert dès cette nuit.')}<br>${t('Tout se change dans Réglages.')}</p></div>
+  <div class="hb-quiz"><div class="hb-done"><span class="hb-mark" aria-hidden="true">✓</span><h2>${t('C’est noté.')}</h2><p class="muted">${t('Hestia-FB s’en sert dès cette nuit.')}<br>${t('Tout se change dans Réglages.')}</p></div>
   ${listSection('',list.map(q=>listRow({label:q.short,value:answerText(o,q)})))}
   <p class="hb-foot"><span class="hb-sp"></span><button type="button" @click=${o.settings}>${t('Voir dans Réglages')}</button><button type="button" class="primary" @click=${o.back.onClick}>${t('Terminer')}</button></p></div>`;
  const q=list[o.step],value=q.value(f,seen(f,q.key)),more=extra(o,q.key);

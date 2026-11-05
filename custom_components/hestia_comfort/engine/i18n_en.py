@@ -106,7 +106,7 @@ EN: dict[str, str] = {
     "qualité de l’air": "air quality",
     "désarmée": "disarmed", "absence": "away", "à la maison": "at home", "nuit": "night", "vacances": "holidays",
     "personnalisée": "custom", "déclenchée": "triggered",
-    # panel.py: the « Hestia » home page
+    # panel.py: the « Hestia-FB » home page
     "Aucune pièce suivie pour l’instant.": "No room followed yet.", "Commencez par le Salon dans l’onglet Confort.": "Start with the living room in the Comfort tab.",
     "{n} point à régler.": "{n} point to fix.", "{n} points à régler.": "{n} points to fix.", "rien à régler.": "nothing to fix.",
     "Hestia Weather est installé : il peut remplir l’extérieur pour vous.": "Hestia Weather is installed: it can fill in the outside for you.",

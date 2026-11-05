@@ -24,14 +24,14 @@
     "abort": {
       "already_configured": "This room already has a Hestia Comfort configuration.",
       "use_panel": "Hestia Comfort is already enabled. Add and edit rooms from the Hestia Comfort page in the sidebar.",
-      "migrated": "Your installation was resumed under the new name. Follow the next steps in Hestia → Home."
+      "migrated": "Your installation was resumed under the new name. Follow the next steps in Hestia-FB → Home."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Hestia Comfort",
-        "description": "Rooms, their sensors and outdoor sources are managed in the Confort tab of the Hestia panel.\n\n[Open Hestia Comfort settings]({link})",
+        "description": "Rooms, their sensors and outdoor sources are managed in the Confort tab of the Hestia-FB panel.\n\n[Open Hestia Comfort settings]({link})",
         "submit": "Close"
       }
     },

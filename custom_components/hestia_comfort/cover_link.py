@@ -1,7 +1,7 @@
 """The integrations that drive a cover with the sun, each recognised by itself: one adapter per integration.
 
 Every adapter answers the same questions for each cover it drives: is it on, does it drive the cover now, has
-a hand taken over, is the sun in front of the window and from when to when, where it aims, and why. Hestia
+a hand taken over, is the sun in front of the window and from when to when, where it aims, and why. Hestia-FB
 reads them and commands nothing. Entities are recognised by their platform and stable unique id, never by
 their name. Each cover's roles carry `driver` (the integration's key, also its switch in the general settings),
 `name`, and `watch` (every entity whose change refreshes the room).

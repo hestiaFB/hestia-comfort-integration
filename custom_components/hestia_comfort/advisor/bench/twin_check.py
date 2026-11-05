@@ -30,7 +30,7 @@ except ImportError:  # run from custom_components/hestia_comfort, where the engi
 DT = timedelta(seconds=STEP)
 ZONE = ZoneInfo("Europe/Paris")
 
-# Frank's house, as Hestia would know it before anything is declared: sensors, windows and their kind only.
+# Frank's house, as Hestia-FB would know it before anything is declared: sensors, windows and their kind only.
 STATION = {"temperature": "sensor.gw2000a_outdoor_temperature", "humidity": "sensor.gw2000a_outdoor_humidity",
            "sun": "sensor.gw2000a_solar_radiation"}
 HOUSE = {
@@ -52,7 +52,7 @@ HOME_SHARE, AWAY_SHARE = 0.5, 0.1
 
 
 # What Frank declared on 31 October, from the plan of the house: floor area (m²) and window sizes (width × height, m);
-# the heating power is the one declared in Versatile Thermostat (`power_manager.device_power`), which Hestia can read.
+# the heating power is the one declared in Versatile Thermostat (`power_manager.device_power`), which Hestia-FB can read.
 # The salon's air reaches the kitchen, the larder and the hall with its staircase: one volume, heated by the stove.
 DECLARED = {
     "Chambre P": (17.06, 1500, {"fenetre_p": (1.40, 0.95)}),
@@ -83,7 +83,7 @@ def _openings(names, sizes=None):
 
 
 def room_of(name, declared=True) -> Room:
-    """The room as Hestia knows it: only its windows and their kind, or everything Frank declared."""
+    """The room as Hestia-FB knows it: only its windows and their kind, or everything Frank declared."""
     names = HOUSE[name][3]
     if not declared or name not in DECLARED:
         return Room(name, name, openings=_openings(names))

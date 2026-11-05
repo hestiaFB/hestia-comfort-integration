@@ -1,4 +1,4 @@
-"""« Télécharger les diagnostics »: what Hestia reads and computes for one room, in one file to share in an issue.
+"""« Télécharger les diagnostics »: what Hestia-FB reads and computes for one room, in one file to share in an issue.
 
 Everything the card is sent (the advice, the measures as read), what the room has learned, the raw state of each
 chosen sensor and the first forecast hours, so that a strange advice can be explained without access to the home.

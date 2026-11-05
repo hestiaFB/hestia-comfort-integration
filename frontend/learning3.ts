@@ -15,7 +15,7 @@ const signed=(v:number,d=1)=>(v>0?'+':v<0?'−':'')+num(Math.abs(v),d);
 const LEVELS:Record<Effect3['niveau'],[string,string,string]>={
  proven:[fr('Avéré'),'ok',fr('Vu et mesuré assez souvent pour annoncer un résultat.')],
  reinforced:[fr('Renforcé'),'',fr('Vu quelques fois, ou appuyé par les mesures du moment : le conseil reste prudent.')],
- supposed:[fr('Supposé'),'',fr('Pas encore vu : Hestia part d’une pièce ordinaire.')]};
+ supposed:[fr('Supposé'),'',fr('Pas encore vu : Hestia-FB part d’une pièce ordinaire.')]};
 /** Each effect in the household's words: what does it, on what. */
 const EFFECTS:Record<string,string>={heat:fr('Fenêtres · chaleur'),humidity:fr('Fenêtres · humidité'),co2:fr('Fenêtres · CO₂'),
  particles:fr('Fenêtres · particules'),voc:fr('Fenêtres · COV'),'heating:heat':fr('Chauffage'),'boost:humidity':fr('VMC rapide · humidité'),
@@ -44,9 +44,9 @@ export const firstMissing=(a:Advisor3Room)=>a.effets.map(missing).find(Boolean)?
 export function roomLearning3(a:Advisor3Room):TemplateResult{
  const left=a.effets.map(missing).filter((m):m is string=>!!m);
  const day=a.appris_le?new Date(a.appris_le).toLocaleString(currentLocale(),{weekday:'long',hour:'2-digit',minute:'2-digit'}):null;
- return html`${listSection(t('Ce que Hestia sait de la pièce'),a.effets.map(e=>{const [word,cls,why]=LEVELS[e.niveau];
+ return html`${listSection(t('Ce que Hestia-FB sait de la pièce'),a.effets.map(e=>{const [word,cls,why]=LEVELS[e.niveau];
    return listRow({label:label(e),sub:seen(e),value:html`<span class=${'nk-pill '+cls} title=${t(why)}>${t(word)}</span>`});}),
-  {help:html`<p>${t('Avéré : vu et mesuré assez souvent pour annoncer un résultat. Renforcé : vu quelques fois, le conseil reste prudent. Supposé : pas encore vu, Hestia part d’une pièce ordinaire.')}</p>`})}
+  {help:html`<p>${t('Avéré : vu et mesuré assez souvent pour annoncer un résultat. Renforcé : vu quelques fois, le conseil reste prudent. Supposé : pas encore vu, Hestia-FB part d’une pièce ordinaire.')}</p>`})}
  ${listSection(t('Ce qui manque encore'),left.length?left.map(l=>listRow({label:l})):[listRow({label:t('Rien : tout ce que la pièce possède a été vu.')})])}
  ${listSection(t('Ses prévisions'),[
   listRow({label:t('Écart sur la dernière heure'),value:a.ecart_1h!=null?t('{v} °C',{v:signed(a.ecart_1h,1)}):t('pas encore mesuré')}),

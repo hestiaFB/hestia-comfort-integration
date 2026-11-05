@@ -19,9 +19,9 @@ thermostat it gives, on a device of its own linked to the thermostat's:
 Scheduler (nielsfaber/scheduler-component): one switch per schedule (`switch.schedule_…`), on while it runs, with
 the `entities` it drives, one action per time slot (`actions`, `timeslots`), the slot running (`current_slot`) and the
 next one with its start (`next_slot`, `next_trigger`). A Versatile Thermostat driven by presets gives the temperature of
-each (`preset_temperatures`). Its conditions (a workday, someone home) may skip a slot: Hestia does not foresee them.
+each (`preset_temperatures`). Its conditions (a workday, someone home) may skip a slot: Hestia-FB does not foresee them.
 
-Hestia reads them and commands nothing. Nothing here is guessed: a change whose time is unknown or past is none.
+Hestia-FB reads them and commands nothing. Nothing here is guessed: a change whose time is unknown or past is none.
 """
 from collections.abc import Mapping
 from datetime import datetime

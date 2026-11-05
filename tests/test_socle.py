@@ -1,4 +1,4 @@
-"""Shared « Hestia » panel (socle v1): registration, newest copy wins, home page states."""
+"""Shared « Hestia-FB » panel (socle v1): registration, newest copy wins, home page states."""
 from pathlib import Path
 import sys
 import tempfile
@@ -42,7 +42,7 @@ class SocleTests(unittest.IsolatedAsyncioTestCase):
     async def test_one_brick_opens_the_hestia_panel_and_keeps_its_old_addresses(self):
         await socle.async_register_brick(self.hass, brick(), "/a/hestia-socle.js")
         panels = self.hass.data[DATA_PANELS]
-        self.assertEqual(panels["hestia"].sidebar_title, "Hestia")
+        self.assertEqual(panels["hestia"].sidebar_title, "Hestia-FB")
         self.assertEqual(self.module(), "/a/hestia-socle.js")
         self.assertTrue(panels["hestia"].require_admin)
         # The panel's address before socle 1.12 (legacy.PANEL) leads to /hestia, hidden from the sidebar.
@@ -180,7 +180,7 @@ class SocleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.module(), "/a/hestia-socle.js")
         self.assertFalse((await socle.async_overview(self.hass))["sidebar"])
         await socle.async_set_sidebar(self.hass, True)
-        self.assertEqual(self.hass.data[DATA_PANELS]["hestia"].sidebar_title, "Hestia")
+        self.assertEqual(self.hass.data[DATA_PANELS]["hestia"].sidebar_title, "Hestia-FB")
 
     async def test_the_choice_survives_a_restart_and_applies_to_the_next_brick(self):
         await socle.async_register_brick(self.hass, brick(), "/a/hestia-socle.js")

@@ -8,11 +8,11 @@ Concevoir ensemble soleil/volets, aération fine, air/présence, pour vérifier 
 
 Frank a choisi : **adapter les conseils et garder le suivi d’une pièce confirmée vide**. Une absence ne supprime ni le besoin mesuré ni les alertes d’ouvrants. Un simple silence d’un détecteur de mouvement ne prouve pas qu’une pièce est vide.
 
-**Les volets manuels en bois sont un cas principal.** Chaque ouvrant peut avoir : aucun volet, un volet manuel (bois, battant ou autre), ou un volet relié à Home Assistant. Un volet manuel n’exige aucune entité `cover`, ni capteur de lumière, ni déclaration régulière de sa position. Hestia conseille sans connaître cette position : « Si le volet est ouvert, fermez-le côté ouest ». La carte dit « position non mesurée ». Elle ne transforme jamais un conseil en état confirmé. Une éventuelle saisie manuelle de position serait une fonction séparée à cadrer, pas une donnée supposée ici. Le matériau ne donne pas à lui seul une performance thermique ou un facteur d’occultation.
+**Les volets manuels en bois sont un cas principal.** Chaque ouvrant peut avoir : aucun volet, un volet manuel (bois, battant ou autre), ou un volet relié à Home Assistant. Un volet manuel n’exige aucune entité `cover`, ni capteur de lumière, ni déclaration régulière de sa position. Hestia-FB conseille sans connaître cette position : « Si le volet est ouvert, fermez-le côté ouest ». La carte dit « position non mesurée ». Elle ne transforme jamais un conseil en état confirmé. Une éventuelle saisie manuelle de position serait une fonction séparée à cadrer, pas une donnée supposée ici. Le matériau ne donne pas à lui seul une performance thermique ou un facteur d’occultation.
 
 ## Bloc 7 — soleil, protections et lumière
 
-Réglage par ouvrant : exposition existante, présence et mode du volet ; pour un volet relié, entité `cover` explicitement choisie. Position réelle si disponible, inconnue si le volet ne répond plus ou ne donne pas de position. Les éventuels signaux d’automatisation et de dérogation sont explicitement configurés ; rien n’est déduit d’un nom. Hestia conseille, sans ouvrir ou fermer lui-même les volets.
+Réglage par ouvrant : exposition existante, présence et mode du volet ; pour un volet relié, entité `cover` explicitement choisie. Position réelle si disponible, inconnue si le volet ne répond plus ou ne donne pas de position. Les éventuels signaux d’automatisation et de dérogation sont explicitement configurés ; rien n’est déduit d’un nom. Hestia-FB conseille, sans ouvrir ou fermer lui-même les volets.
 
 En été, limiter les apports sur les façades exposées ; en hiver, signaler un apport solaire utile lorsque la pièce a besoin de chaleur ; la nuit, proposer une protection compatible avec le besoin de la pièce. Respecter une dérogation connue, sans injonction contradictoire. Sans volet, conserver les autres conseils disponibles.
 
@@ -34,7 +34,7 @@ Humidité : comparer les humidités absolues et l’humidité relative qu’aura
 
 ## Bloc 9 — air et présence
 
-Présence facultative à trois états : occupée, vide confirmée, inconnue/non suivie. Plusieurs sources, sens et délais explicités ; un mouvement est un indice de présence et non une preuve durable d’absence. Comportement par défaut décidé par Frank : adapter la priorité et le vocabulaire, conserver le suivi thermique et de l’air, garder visibles pluie/gel/rafales/fenêtre ouverte. Hestia ne conseille pas de laisser une pièce vide se dégrader pour le seul motif qu’elle est vide.
+Présence facultative à trois états : occupée, vide confirmée, inconnue/non suivie. Plusieurs sources, sens et délais explicités ; un mouvement est un indice de présence et non une preuve durable d’absence. Comportement par défaut décidé par Frank : adapter la priorité et le vocabulaire, conserver le suivi thermique et de l’air, garder visibles pluie/gel/rafales/fenêtre ouverte. Hestia-FB ne conseille pas de laisser une pièce vide se dégrader pour le seul motif qu’elle est vide.
 
 CO₂, PM2.5 et COV restent des mesures distinctes. PM2.5 en unité reconnue ; COV avec nature et unité, notamment indice fabricant, concentration massique ou ppb. Aucun seuil brut partagé ni conversion générique entre un indice et une concentration. Les seuils repris du template sont historiques et devront être rattachés à la bonne famille de mesure avant de proposer des valeurs par défaut.
 
@@ -72,7 +72,7 @@ Les réglages restent des étapes nommées par leur rôle : Température et humi
 
 ## Vérifications de maquette et portée réelle
 
-La revue indépendante autorise la présentation de cette maquette (SHIP), dans le monde visuel Hestia existant, mode Operate. La carte réemploie réellement `card/src/ui/charter.css` dans son Shadow DOM : bandeau, comparaison dedans/dehors, surface continue et couleurs de situation sont conservés. Les ajouts de présentation restent locaux à `card/preview/evolution/` ; ils ne constituent pas un changement du système de design ni de ses tokens.
+La revue indépendante autorise la présentation de cette maquette (SHIP), dans le monde visuel Hestia-FB existant, mode Operate. La carte réemploie réellement `card/src/ui/charter.css` dans son Shadow DOM : bandeau, comparaison dedans/dehors, surface continue et couleurs de situation sont conservés. Les ajouts de présentation restent locaux à `card/preview/evolution/` ; ils ne constituent pas un changement du système de design ni de ses tokens.
 
 Le dossier `dist/evolution-review/evidence.md` consigne les contrôles navigateur : 16 scénarios, trois vues, choix aucun volet/manuel/relié et réglages air/présence. Aucun débordement horizontal n’a été mesuré à 390 et 1280 px CSS. Les captures `*-v2.png` remplacent les premières captures coupées ; les images bureau font 1600 px pour 1280 px CSS, avec une densité de 1,25. Les cas manuels gardent « position non mesurée » et un conseil conditionnel ; une pièce vide confirmée conserve son suivi. Le silence d’un détecteur reste une présence inconnue.
 

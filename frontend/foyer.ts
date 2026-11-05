@@ -42,8 +42,8 @@ export function foyerPage(o:Options){
  return html`${o.head===false?nothing:pageHead({back:o.back,title:t('Réglages du foyer'),subtitle:t('Votre façon de vivre, pour toute la maison. Une pièce qui vit autrement se règle dans son onglet « La pièce ».')})}
  ${listSection(t('Sommeil'),[row(t('Coucher'),time(t('Coucher'),f.sommeil.debut,v=>set('sommeil',{debut:v,fin:f.sommeil.fin}))),row(t('Lever'),time(t('Lever'),f.sommeil.fin,v=>set('sommeil',{debut:f.sommeil.debut,fin:v}))),
   ...(context?[weekendRow(context)]:[]),
-  row(t('Ouvrir une fenêtre la nuit'),toggle(t('Ouvrir une fenêtre la nuit'),f.ouvrir_la_nuit,on=>set('ouvrir_la_nuit',on),o.busy),f.ouvrir_la_nuit?t('Hestia peut conseiller d’ouvrir pendant le sommeil.'):t('Aucune ouverture conseillée pendant le sommeil.'))],
-  {help:html`<p>${t('La nuit, Hestia ne propose que les gestes importants. L’alarme en mode nuit compte aussi.')}</p>`})}
+  row(t('Ouvrir une fenêtre la nuit'),toggle(t('Ouvrir une fenêtre la nuit'),f.ouvrir_la_nuit,on=>set('ouvrir_la_nuit',on),o.busy),f.ouvrir_la_nuit?t('Hestia-FB peut conseiller d’ouvrir pendant le sommeil.'):t('Aucune ouverture conseillée pendant le sommeil.'))],
+  {help:html`<p>${t('La nuit, Hestia-FB ne propose que les gestes importants. L’alarme en mode nuit compte aussi.')}</p>`})}
  ${context&&o.home?html`${houseSection({...context,uses:o.home.uses})}${habitsSection(context)}`:nothing}
  ${listSection(t('Conseils'),[row(t('Combien de conseils'),// To the right, more advice; its two ends said (Frank, 5 November: « la barre n'indique rien »).
   html`<span class="hb-scale"><input type="range" aria-label=${t('Combien de conseils')} min="0" max="4" step="1" .value=${String(4-tol)} ?disabled=${o.busy} @change=${(e:Event)=>set('tolerance',TOLERANCES[4-Number((e.target as HTMLInputElement).value)])}><span class="hb-ends" aria-hidden="true"><span>${t('Moins')}</span><span>${t('Plus')}</span></span></span>`,t(toleranceWords[tol])),
@@ -51,7 +51,7 @@ export function foyerPage(o:Options){
   row(t('Gestes « plus tard », jusqu’à'),choice('plus_tard_max_min',t('Gestes « plus tard », jusqu’à'),[30,60,120,180,240],duration)),
   row(t('VMC et purificateur conseillés, au plus'),choice('appareils_max_min',t('VMC et purificateur conseillés, au plus'),[15,30,45,60,90,120],duration)),
   row(t('« Pas maintenant » met de côté'),choice('pas_maintenant_min',t('« Pas maintenant » met de côté'),[15,30,60,120,240],duration))],
-  {help:html`<p>${t('Hestia ne commande rien : il conseille, vous faites le geste.')}</p><p>${t('Hestia calcule la durée de chaque geste, de 5 en 5 minutes. Vous fixez seulement les limites. La sécurité passe toujours : « Fermez, il pleut » reste.')}</p>`})}
+  {help:html`<p>${t('Hestia-FB ne commande rien : il conseille, vous faites le geste.')}</p><p>${t('Hestia-FB calcule la durée de chaque geste, de 5 en 5 minutes. Vous fixez seulement les limites. La sécurité passe toujours : « Fermez, il pleut » reste.')}</p>`})}
  ${listSection(t('Le soir'),[row(t('« Cette nuit, pensez à… »'),choice('cette_nuit_avant_h',t('« Cette nuit, pensez à… »'),[1,2,3,4,5,6,7,8],hours)),row(t('Buée sur les vitres'),choice('buee_avant_h',t('Buée sur les vitres'),[1,2,3,4,5,6,7,8],hours))])}
  ${context?nothing:listSection(t('Le logement'),[row(t('Murs'),pick('isolation',t('Murs'),WALLS)),row(t('Fenêtres'),pick('vitrage',t('Fenêtres'),GLAZING))],
   {help:html`<p>${t('Pour le ressenti des pièces : des murs et des vitres froids se sentent, même quand l’air est à bonne température.')}</p>`})}
@@ -59,11 +59,11 @@ export function foyerPage(o:Options){
   row(t('Allergie aux pollens'),toggle(t('Allergie aux pollens'),o.allergy,on=>o.setAllergy(on),o.busy),o.allergy&&!o.weatherLinked?t('Les pollens viennent de Hestia Weather : reliez-le dans Extensions.'):t('Les jours de pollens élevés, aérations courtes et tôt.'))])}
  ${o.stove?listSection(t('Chauffage'),[
   // Advice only, never a command (Frank, 5 November: « on sous-entend que Confort coupe de lui-même »).
-  listRow({label:t('Conseiller de le couper quand la maison tient sans lui'),sub:t('Hestia vous le dit, il ne touche pas au chauffage.'),
+  listRow({label:t('Conseiller de le couper quand la maison tient sans lui'),sub:t('Hestia-FB vous le dit, il ne touche pas au chauffage.'),
    value:choice('poele_tient_h',t('Conseiller de le couper quand la maison tient sans lui'),[1,1.5,2,2.5,3,4,5,6,8,10,12],n=>t('{n} h sans lui',{n:String(n).replace('.',',')}))}),
   listRow({label:t('Conseiller de le couper quand il chauffe trop'),sub:t('Au-dessus de la consigne, depuis un moment.'),
    value:html`${choice('depassement',t('Conseiller de le couper quand il chauffe trop'),[0.5,1,1.5,2,2.5,3],n=>'+ '+degrees(n))}${choice('depassement_min',t('Pendant'),[10,15,20,30,45,60,90,120],n=>t('pendant {d}',{d:duration(n)}))}`})],
-  {help:html`<p>${t('Pour le chauffage de toute la maison : poêle, chaudière, pompe à chaleur. Pas les radiateurs d’une seule pièce.')}</p><p>${t('Hestia ne le commande pas : il vous conseille de le couper, vous décidez. Rallumer coûte de l’énergie et de l’usure : le conseil ne vient que si la maison tient assez longtemps.')}</p>`}):nothing}`;
+  {help:html`<p>${t('Pour le chauffage de toute la maison : poêle, chaudière, pompe à chaleur. Pas les radiateurs d’une seule pièce.')}</p><p>${t('Hestia-FB ne le commande pas : il vous conseille de le couper, vous décidez. Rallumer coûte de l’énergie et de l’usure : le conseil ne vient que si la maison tient assez longtemps.')}</p>`}):nothing}`;
 }
 
 /** « Différent du foyer pour cette pièce »: a box per setting a room may set apart; ticked, it opens on the house's value. */

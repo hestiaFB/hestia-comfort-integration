@@ -37,7 +37,7 @@ export class HestiaComfortReviewCard extends LitElement {
   }
 }
 
-/** The editor: a title and the format, as the other Hestia cards. */
+/** The editor: a title and the format, as the other Hestia-FB cards. */
 export class HestiaComfortReviewEditor extends LitElement {
   @property({attribute:false}) hass?:HomeAssistant;
   @state() private config?:ReviewConfig;

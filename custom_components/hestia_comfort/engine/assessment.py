@@ -526,7 +526,7 @@ def assess(readings: Mapping[str, Reading], settings: Settings = Settings(),
     elif rain_coming:
         action, reason, level = "fermer", "rain_soon", "action"
     elif hard and (opened or wants_open or not closed):
-        # Windows not known to be shut still hear the constraint: Hestia cannot tell all is well.
+        # Windows not known to be shut still hear the constraint: Hestia-FB cannot tell all is well.
         # Only outdoor air reaches every opening; rain spares sheltered ones, gusts are handled above.
         action, reason = ("fermer" if opened and pollution is True else "attendre"), "opening_blocked"
         if level in ("calm", "neutral"):
@@ -676,7 +676,7 @@ def assess(readings: Mapping[str, Reading], settings: Settings = Settings(),
                 break
     if warm_walls:
         action, reason, level = "ok", "warm_walls", "action"
-    # Protections never configured: the advice stands, the card says what Hestia does not watch.
+    # Protections never configured: the advice stands, the card says what Hestia-FB does not watch.
     unverified = tuple(k for k in ("pollution", "rain") if k not in readings and not (k == "rain" and all_sheltered))
     extended = features(readings, settings, context, openings, sun, details,
                         needs, action, reason, now, ai, ae, air_detail)

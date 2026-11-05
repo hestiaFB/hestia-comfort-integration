@@ -378,7 +378,7 @@ class RoomAdvisor:
         await self.async_save(now)
 
     def knowing(self):
-        """What Hestia knows of the room (« Ce que Hestia sait de votre maison », CAHIER-HUB.md § 5.3): each effect it can
+        """What Hestia-FB knows of the room (« Ce que Hestia-FB sait de votre maison », CAHIER-HUB.md § 5.3): each effect it can
         have, with its level of proof, the gestures seen and what is still missing; the share proven; how far the twin
         missed the last hour. The devices' effects are listed before any of their starts was seen."""
         levels = (self.result or {}).get("preuves") or {}

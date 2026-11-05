@@ -141,7 +141,7 @@ class Configuration:
                 "drivers": {cover: self._driver(roles) for cover, roles in cover_link.find_all(self.hass).items()}}
 
     def _driver(self, roles):
-        """What the panel shows of a cover's driver: each signal Hestia reads, with its current state."""
+        """What the panel shows of a cover's driver: each signal Hestia-FB reads, with its current state."""
         def signal(role):
             state = self.hass.states.get(roles[role]) if roles.get(role) else None
             available = state and state.state not in ("unknown", "unavailable")

@@ -1,6 +1,6 @@
 # Dépannage
 
-Commencez par l’**Accueil Hestia** : il dit ce qui va, et ce qui reste à régler en orange.
+Commencez par l’**Accueil Hestia-FB** : il dit ce qui va, et ce qui reste à régler en orange.
 
 Puis ouvrez **Confort → Accueil**. Quand quelque chose est à régler, l’encadré **À régler** liste chaque problème, avec un bouton vers le bon réglage. Le tableau **Vos pièces** montre où en est l’apprentissage de chaque pièce.
 
@@ -23,12 +23,12 @@ Exemple : « Cuisine : le CO₂ ne répond pas · Depuis 2 h ».
 Home Assistant dit que ce capteur est indisponible ou inconnu.
 
 1. Ouvrez le capteur dans Home Assistant : sa pile, sa connexion, son intégration.
-2. S’il revient, Hestia le reprend tout seul.
+2. S’il revient, Hestia-FB le reprend tout seul.
 3. S’il est remplacé, choisissez le nouveau dans les réglages de la pièce.
 
 « **N’existe plus** » : l’entité a été supprimée ou renommée. Choisissez-la à nouveau.
 
-Ce qui manque reste inconnu : Hestia conseille avec le reste. Seule la température de la pièce est indispensable.
+Ce qui manque reste inconnu : Hestia-FB conseille avec le reste. Seule la température de la pièce est indispensable.
 
 Beaucoup de capteurs n’envoient une valeur que quand elle change. Une valeur stable reste valable tant que l’appareil donne signe de vie, et au plus 3 heures (réglable dans **La pièce → Réglages avancés**).
 
@@ -60,11 +60,11 @@ La carte est fournie par l’intégration : rien à installer à part.
 
 ## L’extérieur et Hestia Weather
 
-**« Extérieur à configurer »** : sans l’extérieur, Hestia ne peut pas dire s’il vaut mieux ouvrir ou fermer. Réglez-le dans **Confort → Réglages généraux**.
+**« Extérieur à configurer »** : sans l’extérieur, Hestia-FB ne peut pas dire s’il vaut mieux ouvrir ou fermer. Réglez-le dans **Confort → Réglages généraux**.
 
 **Hestia Weather est installé, mais n’est pas proposé** :
 
-- vérifiez que Hestia Weather a au moins un lieu (onglet **Météo** du panneau Hestia) ;
+- vérifiez que Hestia Weather a au moins un lieu (onglet **Météo** du panneau Hestia-FB) ;
 - Confort a besoin de Hestia Weather 2.1 ou plus récent ;
 - après l’installation de Weather, redémarrez Home Assistant.
 
@@ -80,9 +80,9 @@ Une fois relié, l’encadré **Extensions** de l’Accueil indique Hestia Weath
 
 **« Pollution · ne répond pas »** : la source de l’indice ne donne plus de valeur.
 
-Le conseil reste valable. Hestia le signale dans **Détails** et sur l’Accueil Hestia.
+Le conseil reste valable. Hestia-FB le signale dans **Détails** et sur l’Accueil Hestia-FB.
 
-Seule la pluie reste une protection : si son capteur se tait, Hestia demande de vérifier dehors.
+Seule la pluie reste une protection : si son capteur se tait, Hestia-FB demande de vérifier dehors.
 
 **Atmo France est en panne** : avec Hestia Weather 2.5.7 ou plus, choisissez une station WAQI dans **Weather → Qualité de l’air**. Confort suit ce choix, sans autre réglage.
 
@@ -106,7 +106,7 @@ Vérifiez aussi les réglages de la pièce :
 
 Une pastille **« Au mieux »** n’est pas une erreur : une mesure sort de votre plage, mais aucun geste ne ferait mieux. « À savoir » dit pourquoi.
 
-« **Rien à faire** » alors qu’il fait chaud ? Dehors n’est pas plus frais, ou ouvrir n’aiderait pas. Hestia ne parle que pour un geste utile.
+« **Rien à faire** » alors qu’il fait chaud ? Dehors n’est pas plus frais, ou ouvrir n’aiderait pas. Hestia-FB ne parle que pour un geste utile.
 
 La durée d’aération change ? La pièce apprend. Les premiers jours, elle reste prudente. Son état d’apprentissage et la précision de ses prévisions sont dans **Vos pièces**, sur l’Accueil Confort.
 
@@ -118,11 +118,11 @@ La durée d’aération change ? La pièce apprend. Les premiers jours, elle res
 - ce volet doit faire partie des volets réglés dans Adaptive Cover Pro ;
 - après avoir ajouté Adaptive Cover Pro, rechargez Hestia Confort (ou redémarrez Home Assistant).
 
-**Hestia dit « automatisme coupé »** alors qu’Adaptive Cover Pro est installé : un de ses interrupteurs est éteint (Integration Enabled, Automatic Control ou Sun Tracking). Le panneau dit lequel.
+**Hestia-FB dit « automatisme coupé »** alors qu’Adaptive Cover Pro est installé : un de ses interrupteurs est éteint (Integration Enabled, Automatic Control ou Sun Tracking). Le panneau dit lequel.
 
-**Hestia vous demande de fermer le volet** : Adaptive Cover Pro ne le pilote pas en ce moment, et le soleil arrive sur une pièce trop chaude.
+**Hestia-FB vous demande de fermer le volet** : Adaptive Cover Pro ne le pilote pas en ce moment, et le soleil arrive sur une pièce trop chaude.
 
-Le mode climat ou une autre fonction d’Adaptive Cover Pro est indisponible ? Hestia l’ignore : ce n’est pas un capteur en panne.
+Le mode climat ou une autre fonction d’Adaptive Cover Pro est indisponible ? Hestia-FB l’ignore : ce n’est pas un capteur en panne.
 
 ## Le bilan n’a pas encore de note
 
@@ -168,4 +168,4 @@ Retirez vos informations personnelles avant d’envoyer.
 
 **Paramètres → Appareils et services → Hestia Comfort**, puis, sur la ligne de la pièce, **⋮ → Télécharger les diagnostics**. Glissez le fichier dans le ticket.
 
-Il contient ce que Hestia calcule pour la pièce : le conseil tel que la carte le reçoit, les mesures lues, l’état brut de chaque capteur choisi (et du thermostat), ce que la pièce a appris et les premières heures de prévision. Les coordonnées de la maison sont retirées. Les noms des capteurs restent : relisez-le si certains vous semblent trop personnels.
+Il contient ce que Hestia-FB calcule pour la pièce : le conseil tel que la carte le reçoit, les mesures lues, l’état brut de chaque capteur choisi (et du thermostat), ce que la pièce a appris et les premières heures de prévision. Les coordonnées de la maison sont retirées. Les noms des capteurs restent : relisez-le si certains vous semblent trop personnels.

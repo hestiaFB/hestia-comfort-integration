@@ -1,4 +1,4 @@
-"""The interface Hestia Confort publishes for the other Hestia bricks (version 1).
+"""The interface Hestia Confort publishes for the other Hestia-FB bricks (version 1).
 
 Other bricks read `hass.data["hestia_comfort_api"]` and check `version` before using it. It only grows
 compatibly within a major version. First reader in view: a « Maison » brick, for the house as a whole.

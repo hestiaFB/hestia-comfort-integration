@@ -1,6 +1,6 @@
 """Bundled admin panel and Lovelace card: one installation, nothing to declare by hand.
 
-The settings live in the shared « Hestia » panel (socle, see socle.py), as the « Confort » tab.
+The settings live in the shared « Hestia-FB » panel (socle, see socle.py), as the « Confort » tab.
 """
 import hashlib
 from pathlib import Path
@@ -97,7 +97,7 @@ def _count(n, one, many):
 
 
 async def comfort_status(hass, lang=None):
-    """What the « Hestia » home page says about Hestia Confort, from its own settings only, in the hub's language (socle 1.14)."""
+    """What the « Hestia-FB » home page says about Hestia Confort, from its own settings only, in the hub's language (socle 1.14)."""
     with speaking(lang):
         return await _status(hass)
 
@@ -137,7 +137,7 @@ async def ws_health(hass, connection, msg):
 @websocket_api.require_admin
 @callback
 def ws_twins(hass, connection, msg):
-    """« Ce que Hestia a appris » : each room's twin, with its last 24 hours replayed against the measures."""
+    """« Ce que Hestia-FB a appris » : each room's twin, with its last 24 hours replayed against the measures."""
     rooms = []
     for entry in hass.config_entries.async_entries(DOMAIN):
         coordinator = getattr(entry, "runtime_data", None)

@@ -43,7 +43,7 @@ Toute la famille lit la même carte. Elle ne parle que quand un geste aide vraim
 1. Dans HACS, ⋮ → **Dépôts personnalisés** : ajoutez `https://github.com/hestiaFB/hestia-comfort-integration`, catégorie **Intégration**.
 2. Installez **Hestia Comfort** (son nom dans HACS), puis redémarrez Home Assistant.
 3. **Paramètres → Appareils et services → Ajouter une intégration → Hestia Comfort.**
-4. Ouvrez **Hestia** dans la barre latérale, onglet **Confort**.
+4. Ouvrez **Hestia-FB** dans la barre latérale, onglet **Confort**.
 
 [![Ouvrir dans HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=hestiaFB&repository=hestia-comfort-integration&category=integration)
 
@@ -51,9 +51,9 @@ La carte est fournie par l’intégration : rien d’autre à installer.
 
 ## Premiers pas
 
-1. **Vos pièces** : Hestia reprend vos pièces Home Assistant et les capteurs qui y sont rangés. Décochez celles à ne pas suivre, puis créez-les d’un coup.
+1. **Vos pièces** : Hestia-FB reprend vos pièces Home Assistant et les capteurs qui y sont rangés. Décochez celles à ne pas suivre, puis créez-les d’un coup.
 2. **L’extérieur** : dans **Réglages généraux**, choisissez Hestia Weather (ses mesures sont reprises telles quelles) ou vos capteurs. Il sert à toutes les pièces.
-3. **Chaque pièce** : dans **Réglages généraux**, **Modifier** ouvre ses réglages. Hestia propose les capteurs de la pièce : vous gardez, changez ou retirez.
+3. **Chaque pièce** : dans **Réglages généraux**, **Modifier** ouvre ses réglages. Hestia-FB propose les capteurs de la pièce : vous gardez, changez ou retirez.
 4. **La carte** : sur un tableau de bord, **Ajouter une carte → Hestia Confort**.
 
 Rien n’est enregistré avant **Enregistrer**. [Le guide pas à pas](docs/guide.md).
@@ -83,7 +83,7 @@ La couleur dit s’il y a quelque chose à faire :
 
 Sous l’échelle, le graphique **« Prochaines heures »** montre la pièce sans le geste conseillé et avec : vous voyez ce qu’il change.
 
-Hestia ne conseille d’aérer que si c’est mieux qu’attendre, et jamais en pleine nuit : il dit à partir de quelle heure.
+Hestia-FB ne conseille d’aérer que si c’est mieux qu’attendre, et jamais en pleine nuit : il dit à partir de quelle heure.
 
 Un appui sur une mesure ouvre son historique dans Home Assistant. [Lire les conseils](docs/guide.md#lire-les-conseils).
 
@@ -97,13 +97,13 @@ Une note de confort de **A à E**, pour le logement et pour chaque pièce, sur l
 
 ![Le bilan du logement : la note B, la chaleur, l’humidité et l’air sur douze mois, puis les conseils et la note de chaque pièce](docs/images/hestia-comfort-bilan.png)
 
-Il est dans le panneau **Hestia**, onglet **Confort**, sous **Accueil**. La carte **Hestia Confort · bilan** le montre à toute la famille. Il faut deux semaines de mesures pour noter un thème. [Le bilan en détail](docs/guide.md#le-bilan-du-logement).
+Il est dans le panneau **Hestia-FB**, onglet **Confort**, sous **Accueil**. La carte **Hestia Confort · bilan** le montre à toute la famille. Il faut deux semaines de mesures pour noter un thème. [Le bilan en détail](docs/guide.md#le-bilan-du-logement).
 
-## Le panneau Hestia
+## Le panneau Hestia-FB
 
-Tout se règle dans le panneau **Hestia** de la barre latérale, onglet **Confort**. Pas de YAML, pas de nom d’entité à connaître.
+Tout se règle dans le panneau **Hestia-FB** de la barre latérale, onglet **Confort**. Pas de YAML, pas de nom d’entité à connaître.
 
-![Le panneau Hestia, onglet Confort : l’accueil, avec chaque pièce, ce qu’elle a observé et ce qui lui reste à apprendre](docs/images/hestia-comfort-panneau.png)
+![Le panneau Hestia-FB, onglet Confort : l’accueil, avec chaque pièce, ce qu’elle a observé et ce qui lui reste à apprendre](docs/images/hestia-comfort-panneau.png)
 
 - **Accueil** : à lire seulement. L’état du logement, ce qui reste à régler, l’apprentissage de chaque pièce, l’état des extensions, puis **Versions et liens**. Une pièce s’ouvre sur son bilan.
 - **Bilan du logement** : la note et la fiche de chaque pièce.
@@ -139,7 +139,7 @@ L’extension officielle, de la même famille. Avec elle, Confort :
 - tient compte des vigilances et des orages ;
 - suit la source d’air choisie dans Weather (Atmo France ou une station WAQI).
 
-Sans elle, choisissez **Vos propres capteurs** : une mesure à la fois, toutes facultatives. La liaison se règle des deux côtés et les deux disent toujours la même chose : dans Hestia Weather 2.9.0 ou plus récent, **Réglages → Extensions → Hestia Confort**. Coupée d’un côté, elle l’est des deux. Les deux briques partagent le panneau **Hestia** et la même charte.
+Sans elle, choisissez **Vos propres capteurs** : une mesure à la fois, toutes facultatives. La liaison se règle des deux côtés et les deux disent toujours la même chose : dans Hestia Weather 2.9.0 ou plus récent, **Réglages → Extensions → Hestia Confort**. Coupée d’un côté, elle l’est des deux. Les deux briques partagent le panneau **Hestia-FB** et la même charte.
 
 ### Versatile Thermostat
 
@@ -147,7 +147,7 @@ Dès que vous le choisissez dans l’onglet **Chauffage** d’une pièce :
 
 - sa consigne sert de minimum à la pièce : en éco à 17 °C, une pièce à 18 °C n’est pas « trop fraîche » ;
 - seul un arrêt à la main donne « Rallumez le chauffage ». Arrêté par une fenêtre ouverte ou par lui-même, il repartira seul : la carte l’explique ;
-- en éco, hors-gel ou absence, une pièce plus fraîche est voulue : Hestia ne demande rien ;
+- en éco, hors-gel ou absence, une pièce plus fraîche est voulue : Hestia-FB ne demande rien ;
 - la fenêtre ouverte qu’il détecte est signalée, même sans contact sur la fenêtre.
 
 Un autre thermostat ne dit pas s’il chauffe ? Choisissez son **indicateur de chauffe** (vanne, relais, état de marche) dans l’onglet **Chauffage** : l’apprentissage du chauffage peut alors aller jusqu’au bout.
@@ -156,9 +156,9 @@ Un autre thermostat ne dit pas s’il chauffe ? Choisissez son **indicateur de c
 
 Dès que vous choisissez le volet d’une fenêtre :
 
-- Hestia lit ses interrupteurs (pilotage automatique, suivi du soleil, mode climat, reprise à la main) et l’orientation exacte de la fenêtre ;
-- quand Adaptive Cover Pro pilote le volet, Hestia ne vous demande pas de le faire ;
-- s’il est coupé, Hestia prévient avant que le soleil n’arrive : « à fermer avant 13 h 50 » ;
+- Hestia-FB lit ses interrupteurs (pilotage automatique, suivi du soleil, mode climat, reprise à la main) et l’orientation exacte de la fenêtre ;
+- quand Adaptive Cover Pro pilote le volet, Hestia-FB ne vous demande pas de le faire ;
+- s’il est coupé, Hestia-FB prévient avant que le soleil n’arrive : « à fermer avant 13 h 50 » ;
 - la carte a une tuile **Volet** : position, et qui le pilote.
 
 [Plus de détails](docs/guide.md#avec-adaptive-cover-pro).
@@ -168,7 +168,7 @@ Dès que vous choisissez le volet d’une fenêtre :
 - Armée en absence, la maison est vide et une fenêtre ouverte devient urgente ; en mode nuit, elle est signalée.
 - Dans l’onglet **Présence** de chaque pièce, cochez les personnes à qui elle sert : la chambre de quelqu’un qui est parti compte comme vide.
 
-Hestia ne commande aucune de ces extensions : il les lit.
+Hestia-FB ne commande aucune de ces extensions : il les lit.
 
 ## Pour vos automatisations
 
@@ -206,7 +206,7 @@ Hestia Confort parle **français** et **anglais**. Les cartes, le bilan, le pann
 
 Les valeurs des entités (Conseil, État…) restent en français, pour que vos automatisations ne changent pas avec la langue.
 
-**D’autres langues arriveront, avec votre aide.** Hestia est un projet d’entraide : vous parlez allemand, néerlandais, italien, espagnol… ? [Proposez votre traduction](https://github.com/hestiaFB/hestia-comfort-integration/issues/new?title=Traduction%20%3A%20) : une liste de phrases à traduire, sans rien connaître au code. Votre nom sera cité. [Comment traduire](docs/dev/README.md#traduire).
+**D’autres langues arriveront, avec votre aide.** Hestia-FB est un projet d’entraide : vous parlez allemand, néerlandais, italien, espagnol… ? [Proposez votre traduction](https://github.com/hestiaFB/hestia-comfort-integration/issues/new?title=Traduction%20%3A%20) : une liste de phrases à traduire, sans rien connaître au code. Votre nom sera cité. [Comment traduire](docs/dev/README.md#traduire).
 
 > **In English.** Hestia Comfort speaks French and English. More languages will come through mutual help: if you speak another language, [offer a translation](https://github.com/hestiaFB/hestia-comfort-integration/issues/new?title=Translation%3A%20). No coding needed.
 

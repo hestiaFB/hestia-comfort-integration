@@ -24,14 +24,14 @@
     "abort": {
       "already_configured": "Cette pièce possède déjà une configuration Hestia Comfort.",
       "use_panel": "Hestia Confort est déjà activé. Ajoutez et modifiez vos pièces depuis la page Hestia Confort de la barre latérale.",
-      "migrated": "Votre installation a été reprise sous le nouveau nom. Suivez la suite dans Hestia → Accueil."
+      "migrated": "Votre installation a été reprise sous le nouveau nom. Suivez la suite dans Hestia-FB → Accueil."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Hestia Confort",
-        "description": "Les pièces, leurs capteurs et l’extérieur se règlent dans l’onglet Confort du panneau Hestia.\n\n[Ouvrir les paramètres de Hestia Confort]({link})",
+        "description": "Les pièces, leurs capteurs et l’extérieur se règlent dans l’onglet Confort du panneau Hestia-FB.\n\n[Ouvrir les paramètres de Hestia Confort]({link})",
         "submit": "Fermer"
       }
     },

@@ -18,7 +18,7 @@ Données fictives, aucune connexion à un Home Assistant réel :
 - `card/preview/refonte/` : la vraie carte compilée, nourrie par des situations calculées par le moteur Python (`scenes.py` → `scenes.json`) ;
 - `card/preview/formats/` : les formats de carte ;
 - `card/preview/card.html`, `floors.html`, `floor-settings.html` : carte, étages, réglage d’un étage ;
-- `frontend/tests/hub-harness.mjs` : le panneau Hestia (Accueil, Confort, Weather).
+- `frontend/tests/hub-harness.mjs` : le panneau Hestia-FB (Accueil, Confort, Weather).
 
 Les images de `docs/images/` viennent de ces bancs.
 
@@ -29,7 +29,7 @@ Hestia Confort parle français et anglais. Le français est écrit dans le code 
 | Fichier | Ce qu’il traduit |
 | --- | --- |
 | `card/src/i18n/en.ts` | Les cartes et le bilan |
-| `frontend/i18n-en.ts` et `frontend/socle/i18n-en.ts` | Le panneau Hestia |
+| `frontend/i18n-en.ts` et `frontend/socle/i18n-en.ts` | Le panneau Hestia-FB |
 | `custom_components/hestia_comfort/engine/i18n_en.py` | Les conseils et les textes calculés pour la carte et le panneau |
 | `custom_components/hestia_comfort/translations/en.json` | L’assistant de Paramètres et les noms des entités |
 
