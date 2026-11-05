@@ -6,9 +6,13 @@ Il est écrit dans chaque instantané, dans le journal des conseils, dans les av
 
 ## La règle
 
-- **Majeur** : une nouvelle génération du moteur ; les jumeaux appris ne sont pas repris, ils sont réappris.
-- **Mineur** : un geste, une règle ou une façon de décider qui change des conseils.
-- **Correctif** : une correction qui ne change que le conseil qui était faux.
+Règle revue par Frank le 5 novembre 2026, à partir de 3.9.0 : le numéro du milieu ne monte plus à chaque ajout.
+
+- **Majeur** (3.9.0 → 4.0.0) : une nouvelle génération du moteur ; les jumeaux appris ne sont pas repris, ils sont réappris.
+- **Mineur** (3.9.0 → 3.10.0) : un changement intermédiaire : un nouveau geste, une nouvelle source ou une nouvelle série de questions, une autre façon de décider pour toutes les pièces.
+- **Correctif** (3.9.0 → 3.9.1) : un petit ajout, un réglage, un calcul affiné ou une correction.
+
+En cas de doute entre les deux derniers, c'est un correctif.
 
 Chaque changement du moteur monte son numéro et ajoute une ligne ci-dessous, la plus récente en haut.
 
