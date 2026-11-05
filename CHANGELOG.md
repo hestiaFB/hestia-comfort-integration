@@ -1,3 +1,9 @@
+## 1.7.30 — Toujours relié à Hestia Weather 3
+
+### Corrections
+
+- Hestia Weather peut passer en version 3 avant Hestia Confort : la pluie en cours et la qualité de l’air de Hestia Weather restent lues, sous leur nouveau nom.
+
 ## 1.7.29 — Un correctif pour les pièces rechargées
 
 **En bref**
