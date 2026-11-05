@@ -16,6 +16,8 @@ export interface HabitsContext {
  absences:string|null;
  rooms:{entry_id:string;title:string}[];
  change:(next:Foyer)=>void;
+ /** Opens the questionnaire: « Vos habitudes » shows only it while nothing is answered. */
+ quiz?:()=>void;
 }
 
 const GLAZING_WORDS:[Glazing,string][]=[['simple',fr('Simple')],['double',fr('Double')],['triple',fr('Triple')]];
@@ -60,6 +62,8 @@ export function questions(o:HabitsContext):Asked[]{
 const seen=(f:Foyer,key:Question)=>(f.repondu??[]).includes(key);
 /** The questions not answered yet (« Ça dépend » or « Je ne sais pas » count: a question is never asked twice). */
 export function unanswered(o:HabitsContext):number{return questions(o).filter(q=>!seen(o.foyer,q.key)).length;}
+/** Where the questionnaire opens: its first question not answered yet (the first one when all are). */
+export function firstUnanswered(o:HabitsContext):number{const i=questions(o).findIndex(q=>!seen(o.foyer,q.key));return i<0?0:i;}
 const noted=(f:Foyer,key:Question):Foyer=>({...f,repondu:[...new Set([...(f.repondu??[]),key])]});
 
 /** What a choice opens: the empty hours, the laundry's rooms, the weekend's waking hour. */
@@ -83,6 +87,11 @@ function row(o:HabitsContext,q:Asked):TemplateResult{
 /** Réglages › « Vos habitudes »: the same questions, in rows, to change one's mind later. */
 export function habitsSection(o:HabitsContext):TemplateResult{
  const asked=questions(o),rows:unknown[]=[],shutters=asked.filter(q=>q.group===t(VOLETS));
+ // One or the other (Frank, 5 November, as in Weather's Station › Emplacement): nothing answered yet, only the card that
+ // opens the questionnaire; once one answer is given, the rows.
+ const left=unanswered(o);
+ if(o.quiz&&left===asked.length)return listSection(t('Vos habitudes'),[listRow({name:t('Vos habitudes'),label:html`<strong>${t('Vos habitudes')}</strong>`,
+  sub:left>1?t('{n} questions, une minute : ce que les capteurs ne voient pas.',{n:left}):t('Une question : ce que les capteurs ne voient pas.'),go:o.quiz})]);
  if(shutters.length)rows.push(listRow({label:html`<b>${t(VOLETS)}</b>`,sub:o.manual.join(', ')}),...shutters.map(q=>row(o,q)));
  rows.push(listRow({label:html`<b>${t('La maison')}</b>`}));
  if(o.absences)rows.push(listRow({label:t('En semaine, dans la journée'),value:noteBox(t('Lu sur {name}.',{name:o.absences}),t('Hestia sait quand la maison est vide : rien à répondre.'))}));

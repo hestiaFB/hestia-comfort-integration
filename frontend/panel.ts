@@ -8,7 +8,7 @@ import {kpis,todoLists,listSection,listRow,saveBar,tabBar,numberField,segmented,
 import {PANEL_EN} from './i18n-en';
 import {lightEditor,noLights,type Lights,type LightRule,type LightInfo} from './lights';
 import {foyerPage,roomFoyer,toleranceName,FOYER_DEFAULTS,duration,type Foyer} from './foyer';
-import {quizScreen,unanswered,habitsStyles,type HabitsContext,type HouseUses} from './habitudes';
+import {quizScreen,unanswered,firstUnanswered,habitsStyles,type HabitsContext,type HouseUses} from './habitudes';
 import {overhangSketch} from './sketch';
 import {roomLearning3,outside3,firstMissing} from './learning3';
 import {words,labels,indoor,outdoor,multiple,exposures,kinds,measurement,newRoom,coverage,exteriorSummary,livingArea,defaultOpening,warningText,warningId,stages,intros,outdoorGroups,airSource,airChoices,exteriorChoices,airReferenceDefaults,vocPreset,thresholdSources,type Choice,type Candidate,type Discovery,type Health,type HealthLine,type Target,type Snapshot,type Hass,type Room,type RoomConfig,type Spec,type Twins,type Twin,type Progress,type Extension,seasonNames,ordinarySize,type Heater,type OpeningMeta,type RoomBuilt,type CustomEquipment} from './model';
@@ -184,7 +184,7 @@ export class ComfortSetup extends LitElement {
  /** « À améliorer »: the questions on the household's habits not answered yet (HABITUDES-FOYER.md § 4); never orange. */
  private habitsLine():NkLine[]{const n=this.snapshot?unanswered(this.habitsContext()):0;
   return n?[{level:'tip',text:t('Vos habitudes'),why:n>1?t('{n} questions, une minute : ce que les capteurs ne voient pas.',{n}):t('Une question : ce que les capteurs ne voient pas.'),
-   go:{label:t('Répondre'),onClick:()=>{this.quizStep=0;this.path('reglages/habitudes');},disabled:this.busy}}]:[];}
+   go:{label:t('Répondre'),onClick:()=>{this.quizStep=firstUnanswered(this.habitsContext());this.path('reglages/habitudes');},disabled:this.busy}}]:[];}
  /** The home as « Vos habitudes » and « Votre maison » need it: the rooms with a manual shutter, what says the absences. */
  private habitsContext():HabitsContext{const s=this.snapshot!,house=this.foyer(),rooms=s.rooms.map(r=>({entry_id:r.entry_id,title:r.title}));
   const shutter=(r:Room,w:string)=>r.config.openings?.[w]?.shutter??house.volet??'none';
@@ -193,7 +193,7 @@ export class ComfortSetup extends LitElement {
   const registry=(this.hass as unknown as {entities?:Record<string,{platform?:string;disabled_by?:string|null}>})?.entities??{};
   const alarm=typeof s.home.alarm==='string'?s.home.alarm||null:Object.entries(registry).find(([id,e])=>id.startsWith('alarm_control_panel.')&&e.platform==='alarmo'&&!e.disabled_by)?.[0]??null;
   const absences=alarm?(this.hass?.states?.[alarm]?.attributes?.friendly_name as string|undefined)??alarm:null;
-  return {foyer:house,busy:this.busy,manual,absences,rooms,change:next=>void this.saveFoyer(next)};}
+  return {foyer:house,busy:this.busy,manual,absences,rooms,change:next=>void this.saveFoyer(next),quiz:()=>{this.quizStep=firstUnanswered(this.habitsContext());this.path('reglages/habitudes');}};}
  /** How many windows and rooms take each value of « Votre maison ». */
  private houseUses():HouseUses{const rooms=this.snapshot?.rooms??[],windows=rooms.flatMap(r=>r.config.windows.map(w=>r.config.openings?.[w]??{}));
   const said=(n:number,own:number)=>own?t('Repris par {n} ouvrants · {own} différents',{n,own}):t('Repris par {n} ouvrants',{n});
