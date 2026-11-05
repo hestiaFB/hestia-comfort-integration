@@ -24,14 +24,18 @@ const list=(x:unknown)=>Array.isArray(x)?x.filter((i):i is string=>typeof i==='s
 const range=(v:View):[number,number]|null=>{const s=v.assessment.features?.season;
   return s?.minimum!=null&&s?.maximum!=null?[s.minimum,s.maximum]:v.comfort_minimum!=null&&v.comfort_maximum!=null?[v.comfort_minimum,v.comfort_maximum]:null;};
 
-/** The arrow, its speed and the last half hour on the word's line; « stable » says only that. */
+/** The arrow on the word's line (planche-tendance.html, choice E, 5 November): the charter's arrow leans with the speed,
+ *  → steady, ↗ ↘ slowly, ↑ ↓ fast, the words in front and the speed under them. No curve: the sensor's tenth no longer shakes it. */
+const LEANS={temperature:[.3,1],humidity:[3,10]} as const;
 function trendLine(tr:Trend|undefined,slope:number|null|undefined,unit:string,digits:number):TemplateResult|typeof nothing {
   if(!tr)return nothing;
-  const moving=tr.way!=='stable'&&slope!=null&&Math.abs(slope)>=(digits?.05:.5);
-  const pts=tr.points,vals=pts.map(p=>p[1]),lo=Math.min(...vals),hi=Math.max(...vals),r=(hi-lo)||1,win=Math.max(...pts.map(p=>p[0]),1);
-  const X=(ago:number)=>(win-ago)/win*44,Y=(x:number)=>14-(x-lo)/r*12,last=pts[pts.length-1];
-  return html`<span class="nc-fx-trend" data-tone=${tr.tone}><span class="nw-trend nc-way" data-way=${moving?tr.way:'stable'} data-tone=${tr.tone}></span>${moving?`${signed(slope!,digits)} ${unit}/h`:t('stable')}
-    <svg viewBox="-2 -1 48 18" width="44" height="16" aria-hidden="true"><path d=${pts.map((p,i)=>`${i?'L':'M'}${X(p[0]).toFixed(1)} ${Y(p[1]).toFixed(1)}`).join(' ')}></path><circle cx=${X(last[0])} cy=${Y(last[1])} r="2.2"></circle></svg></span>`;
+  const [slow,fast]=LEANS[unit==='%'?'humidity':'temperature'],a=slope==null?0:Math.abs(slope);
+  // Without a speed, the engine's way alone leans it slowly.
+  const up=slope!=null?slope>0:tr.way==='up',moving=slope!=null?a>=slow&&tr.way!=='stable':tr.way!=='stable',quick=moving&&a>=fast;
+  const turn=!moving?90:quick?(up?0:180):(up?45:135);
+  const word=!moving?t('stable'):quick?(up?t('monte vite'):t('baisse vite')):(up?t('monte doucement'):t('baisse doucement'));
+  return html`<span class="nc-fx-trend" data-tone=${moving?tr.tone:'steady'}><span class="nc-fx-say"><span>${word}</span>${moving&&slope!=null?html`<small>${signed(slope,digits)} ${unit}/h</small>`:nothing}</span>
+    <span class="nw-trend nc-fx-arrow" data-way="lean" data-tone=${moving?tr.tone:'steady'} style=${`--r:${turn}deg`} aria-hidden="true"></span></span>`;
 }
 
 // ---------- « À savoir » spread out: each line where it answers (the engine does not yet say a line's subject or time). ----------

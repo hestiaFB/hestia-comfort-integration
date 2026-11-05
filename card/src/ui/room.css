@@ -586,14 +586,19 @@ button.nc-mrow { cursor:pointer; }
 .nc-try b { font-weight:650; color:var(--nw-fg); }
 /* Le Ressenti : la chaleur puis l'humidité, chacune son mot, sa tendance, sa frise compacte, ce qui joue. */
 .nc-fx { display:grid; gap:14px; }
+/* Chaleur puis humidité : un trait fin et de l'air entre les deux, comme au pied. */
+.nc-fx-row + .nc-fx-row { margin-top:4px; padding-top:16px; border-top:1px solid var(--nw-line-soft); }
 .nc-fx-row { display:grid; gap:2px; min-width:0; }
 .nc-fx-top { display:flex; align-items:center; flex-wrap:wrap; gap:2px 10px; }
 .nc-fx-word { font-size:var(--nw-fs-case); font-weight:600; letter-spacing:-.015em; line-height:1.2; color:color-mix(in oklab, var(--c) 40%, var(--nw-fg)); }
 .nc-fx-trend { margin-left:auto; display:inline-flex; align-items:center; gap:5px; font-size:var(--nw-fs-small); font-weight:600; white-space:nowrap;
   color:color-mix(in oklab, var(--t, var(--nw-fg2)) 55%, var(--nw-fg2)); }
-.nc-fx-trend svg { flex:none; overflow:visible; }
-.nc-fx-trend path { fill:none; stroke:var(--t, var(--nw-fg2)); stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
-.nc-fx-trend circle { fill:var(--t, var(--nw-fg2)); }
+/* La flèche qui penche selon la vitesse (choix E du 5 nov.) : les mots devant, la vitesse dessous. */
+.nc-fx-trend .nc-fx-say { display:inline-flex; flex-direction:column; align-items:flex-end; line-height:1.25; }
+.nc-fx-trend .nc-fx-say small { font-size:var(--nw-fs-label); font-weight:500; color:var(--nw-fg2); }
+.nc-fx-trend .nc-fx-arrow { width:16px; height:16px; animation:nc-fx-lean .6s var(--nw-ease) .15s backwards; }
+@keyframes nc-fx-lean { from { transform:rotate(90deg); opacity:0; } }
+@media (prefers-reduced-motion:reduce) { .nc-fx-trend .nc-fx-arrow { animation:none; } }
 .nc-fx-line { margin:4px 0 0; font-size:var(--nw-fs-small); color:var(--nw-fg2); }
 .nc-fx-line b, .nc-fx-foot b { font-weight:650; color:var(--nw-fg); }
 .nc-fx-foot { margin:0; padding-top:10px; border-top:1px solid var(--nw-line-soft); font-size:var(--nw-fs-small); color:var(--nw-fg2); }
