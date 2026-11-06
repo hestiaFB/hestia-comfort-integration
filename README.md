@@ -200,6 +200,8 @@ Mettez à jour Hestia Weather en même temps, si vous l’avez : la liaison entr
 
 Hestia Confort 3.x va avec Hestia Weather 3.x ; Hestia Weather 3.2.0 ou plus récente pour tout avoir.
 
+**La mise à jour est refusée** (« changed its domain from niak_… to hestia_… ») ? Suivez [le guide du passage au nom Hestia](docs/PASSAGE-HESTIA.md) : un dossier à supprimer, deux redémarrages, rien n’est perdu.
+
 ## Langues
 
 Hestia Confort parle **français** et **anglais**. Les cartes, le bilan, le panneau et les noms des entités suivent la langue de Home Assistant ; toute autre langue s’affiche en anglais pour l’instant.
