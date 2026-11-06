@@ -20,6 +20,15 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.11.0 — 6 novembre 2026
+
+Le réglage « Allergie aux pollens » (`home.pollen_allergy`, Confort 2.1.0b2) n'était plus lu par le moteur 3. Règle revue et validée par Frank le 6 nov. (les quatre choix recommandés, puis la durée nécessaire pour l'humidité et le CO₂ après le rejeu des 3-6 nov.). Nouvelle source : les pollens du jour de Hestia Weather (`api.pollen`, via `configuration.pollen()`, donnés seulement si quelqu'un est allergique).
+- `advisor/pollen.py` : `Pollen` (niveau, espèce principale, bons moments en minutes depuis maintenant, `after_rain`, `open_for`) et `today()` : None sauf `high` (niveau ≥ 3). Bons moments : les `MORNING` (2) heures après le réveil (`Sleep.end_on`, aujourd'hui et demain) et les `RINSED` (60) minutes après la pluie mesurée (`RoomAdvisor.rained_at`, posé quand `rain_rate > safety.RAIN`).
+- `decide(pollen=)`, après les coûts : (1) `open`/`open_more` dont le sujet principal n'est pas dans `FREE` (humidité, moisissure, CO₂) retiré des scénarios s'il n'est pas à un bon moment (`after`) ou s'il dure plus de `AIRING` (10) min ou sans fin (`_too_long`) : ni conseillé, ni gardé, ni « À essayer ». Les sujets `FREE` gardent la durée qu'il leur faut (choix de Frank après le rejeu : bornées à 10 min, les aérations de la Chambre A pour son humidité ne changeaient plus rien et disparaissaient — environ 150 cas sur 1 645). (2) Fenêtre ouverte : si la laisser encore ouverte (pour de bon, `keep`, ou `close` plus tard) n'aide pas un sujet `FREE` (`_needed`, `significant` contre refermer maintenant), « Refermez » dès `open_for ≥ 10 min` (règle `pollen`, phrase `pollen_close`) ; avant, ni `keep` ni `close` plus tard que ce qui reste des 10 min.
+- `tonight(pollen=)` : jamais « Cette nuit, pensez à ouvrir ».
+- « Bon à savoir » : `knowing.pollen_today` → « Pollens élevés aujourd'hui (graminées) : aérez seulement si c'est utile, de préférence tôt le matin », ou après la pluie « La pluie a lavé l'air des pollens : bon moment pour aérer » (fr, en, de).
+- Instantanés : `pollen` capturé et rejoué. Tests `tests/test_advisor_pollen.py`. Sans allergie ou sans pollens élevés, rien ne change.
+
 ### 3.10.0 — 6 novembre 2026
 
 Chambre P, 6 nov. : 74 % sans conseil d'aérer ; ouverte quand même par Frank à 16 h 20, l'humidité baisse (74 → 71 % en 28 min, 19,5 → 18,7 °C), alors que le jumeau prévoyait 16,7 °C et 83 % en 30 min. Coefficient de fenêtre appris 6,73 (Chambre A 0,42 pour une fenêtre comparable). Puis demande de Frank : dire quand un conseil suivi ne marche pas, et plus de nuances.

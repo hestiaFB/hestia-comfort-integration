@@ -36,7 +36,8 @@ from ..advisor.physics.sunlight import Overhang, facing, sun_position
 from ..advisor.physics.thermal import STEP, Params, bounded, glazing as glazing_of, ordinary, shutter_insulation, step
 from ..advisor.physics.water import WaterParams, absolute
 from ..advisor.proof import CASES, ORDER, PROVEN, level, live, window_reinforced
-from ..advisor.safety import forbidden, holidays, rained_on
+from ..advisor.pollen import today as pollen_today
+from ..advisor.safety import RAIN, forbidden, holidays, rained_on
 from ..advisor.snapshot import capture
 from ..advisor.words import TEXTS, doubt_text, doubtful_air, phrase, tip_text, tonight_text
 from ..const import DOMAIN
@@ -351,6 +352,8 @@ class RoomAdvisor:
         # What the airing advised was for (its subject, when last shown): an airing followed that does not do it is said
         # so (advisor/opening.py `failed`); and when it was said, for « Noté » in « À savoir » until it is judged.
         self.aim, self.failed_at = None, None
+        # When the rain was last measured falling: the hour after it, the air holds few pollens (advisor/pollen.py).
+        self.rained_at = None
         self.checker, self.sensors = Checker(), {}
         self.shown = None
         self.result = None
@@ -562,7 +565,7 @@ class RoomAdvisor:
 
     def _good_to_know(self, now, air, opening, comfort, humidity=None, coldest=None, bedtime=None, asleep=False,
                       shutter_night=None, wake=None, back=None, off=None, end_hour=None, stove=None, sun_warms=None,
-                      outdoor=None, outdoor_rh=None, water=False, share=None, planned=None):
+                      outdoor=None, outdoor_rh=None, water=False, share=None, planned=None, pollen=None):
         """« Bon à savoir »: the sun on the windows (Adaptive Cover Pro's hours first), a gesture seen to work."""
         local = dt_util.as_local(now)
         acp = {}
@@ -583,13 +586,13 @@ class RoomAdvisor:
                         bedtime=bedtime, asleep=asleep, shutter_night=shutter_night, wake=wake, heating_back=back,
                         heating_off=off, end_hour=end_hour, stove_idle=stove, sun_gain=sun_warms,
                         outdoor=outdoor, outdoor_humidity=outdoor_rh, water_matters=water, window_share=share,
-                        humidity_at_opening=opening[2] if opening else None, heating_planned=planned)
+                        humidity_at_opening=opening[2] if opening else None, heating_planned=planned, pollen=pollen)
         return tips(view)
 
-    def _tonight(self, twins, current, local, bedtime, wake, coming, comfort, proof, marks, taken, habits):
+    def _tonight(self, twins, current, local, bedtime, wake, coming, comfort, proof, marks, taken, habits, pollen=None):
         """« Cette nuit, pensez à… »: in the evening, the windows at the room's bedtime judged over the whole night."""
         found = tonight(twins, current, coming, int((bedtime - local).total_seconds() // 60), comfort, proof=proof,
-                        forbidden=taken, habits=habits)
+                        forbidden=taken, habits=habits, pollen=pollen)
         return tonight_text(found, wake.hour, marks=marks) if found else None
 
     async def advise(self, now, stepping=True):
@@ -743,6 +746,13 @@ class RoomAdvisor:
                                       aimed.get("preset", stat.attributes.get("preset_mode")),
                                       (stat.attributes.get("preset_temperatures") or {}).get("comfort_temp"))
         opening = self._opening(now, opened, air, current.humidity)
+        # A day of high pollens, for a household that said someone is allergic (« Réglages du foyer », advisor/pollen.py).
+        raining = rain_rate is not None and rain_rate > RAIN
+        if raining:
+            self.rained_at = now
+        configuration = getattr(self.coordinator, "home_configuration", None)
+        pollen = pollen_today(configuration.pollen() if configuration else None, local, habits.sleep, self.rained_at,
+                              raining, opening[0] if opening else None)
         # The window open now, seen at work: the rest of the airing is judged with the share of its forecast it really does
         # (Chambre P, 3 November: one leaf ajar, « 13,6 points d'humidité en moins » while the humidity rose).
         shares = seen_shares(self.opened_seen, now, air, current.humidity) if opened and self.opened_seen else {}
@@ -791,16 +801,19 @@ class RoomAdvisor:
             """The decision and everything simulated around it, in the executor (PLAN-OPTIMISATION.md, point 8): it only
             reads what was gathered above, never Home Assistant nor the room's own state, which change back on the loop."""
             decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                              holidays=away, habits=habits, held=held, tried=tried, aired=aired, failed=failure)
+                              holidays=away, habits=habits, held=held, tried=tried, aired=aired, failed=failure,
+                              pollen=pollen)
             if decision.rule == "unproven" and opened and opening:
                 # The gesture under way may show its effect now (CAHIER-MOTEUR.md § 4.1).
                 subject = main_subject(decision.scenarios, decision.passive)
                 if self._seen(subject, decision, opening, now, air, current.humidity):
                     proof[subject] = PROVEN
                     decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                                      holidays=away, habits=habits, held=held, tried=tried, aired=aired, failed=failure)
+                                      holidays=away, habits=habits, held=held, tried=tried, aired=aired, failed=failure,
+                                      pollen=pollen)
             snap = capture(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                           holidays=away, habits=habits, reason=reason, held=held, tried=tried, aired=aired, failed=failure, end_hour=end_hour, hour=local.hour + local.minute / 60,
+                           holidays=away, habits=habits, reason=reason, held=held, tried=tried, aired=aired, failed=failure,
+                           pollen=pollen, end_hour=end_hour, hour=local.hour + local.minute / 60,
                            room=name, when=now.isoformat(), version=home.version)
             # The local time now: a later gesture says its hour (« Aérez 5 min vers 13 h 50 »), never only its length.
             words = phrase(decision, end_hour, marks=marks, hour=local.hour + local.minute / 60, reason=reason)
@@ -816,7 +829,8 @@ class RoomAdvisor:
             stove = stove_idle(twins, current, coming, comfort.minimum, habits.stove_hold) if decision.rule != "overheat" else None
             night_text = None
             if night_coming and not night and local >= bedtime - timedelta(hours=habits.tonight_before):
-                night_text = self._tonight(twins, current, local, bedtime, wake, night_coming, comfort, proof, marks, taken, habits)
+                night_text = self._tonight(twins, current, local, bedtime, wake, night_coming, comfort, proof, marks, taken, habits,
+                                           pollen)
             return decision, snap, words, shutter_night, back, off, stove, sun_gain(twins, current, coming), night_text
 
         decision, snap, words, shutter_night, back, off, stove, sunny, night_text = await hass.async_add_executor_job(think)
@@ -860,7 +874,7 @@ class RoomAdvisor:
                    if stat and stat.at is not None and stat.then is not None and stat.then > stat.target else None)
         good = self._good_to_know(now, air, opening, comfort, current.humidity, coldest, bedtime, night, shutter_night, wake,
                                   back, off, end_hour, stove, sunny, outdoor, outdoor_rh, water,
-                                  share, planned)
+                                  share, planned, pollen)
         good_words = [tip_text(t, now=local) for t in good]
         # An airing that did not work, kept in mind: said until it is judged, an hour after it was shut.
         if self.failed_at is not None and now - self.failed_at[1] < timedelta(minutes=RESTING_MINUTES):

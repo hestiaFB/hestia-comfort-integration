@@ -17,6 +17,7 @@ from .physics.surface import mould_excess
 from .physics.thermal import STEP, Inputs, Params, shutter_insulation, step
 from .physics.vents import conductance, leak_flow, window_flow
 from .physics.water import WaterParams, absolute, relative, water_step
+from .pollen import AIRING as POLLEN_AIRING, FREE as POLLEN_FREE, Pollen
 from .proof import PROVEN, REINFORCED, SUPPOSED
 
 HOURS = STEP / 3600
@@ -712,16 +713,40 @@ def _for_the_outside(later: Gesture, twins: Twins, now: Now, coming, comfort: Co
     return real - own > own
 
 
+def _too_long(g: Gesture, pollen: Pollen, short: bool = False) -> bool:
+    """A gesture longer than a day of high pollens allows (advisor/pollen.py) to anything but the humidity, the mould or
+    the CO₂: an airing longer than POLLEN_AIRING or without an end; with `short` (a window open that is not needed for
+    them), leaving it open beyond what is left of them, or for good."""
+    if g.kind == "open":
+        return g.minutes is None or g.minutes > POLLEN_AIRING
+    if g.kind == "open_more":
+        return g.minutes is None or g.minutes > (pollen.left() if short else POLLEN_AIRING)
+    if short:
+        return g.kind == "keep" or (g.kind == "close" and bool(g.after) and g.after > pollen.left())
+    return False
+
+
+def _needed(paths: dict, comfort: Comfort, night: bool, tolerance: float) -> bool:
+    """Whether leaving the window open a while longer — for good, « Laissez ouvert », or shut later — makes a difference
+    one feels on the humidity, the mould or the CO₂ (POLLEN_FREE), against shutting it now."""
+    shut = paths.get(Gesture("close"))
+    if shut is None:
+        return False
+    return any(set(POLLEN_FREE) & set(significant(shut, path, comfort, night, tolerance=tolerance))
+               for g, path in paths.items() if g.kind in ("nothing", "keep") or (g.kind == "close" and g.after))
+
+
 def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
            previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
            proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits(),
            held: float | None = None, tried: Gesture | None = None, aired: float | None = None,
-           failed: dict | None = None) -> Decision:
+           failed: dict | None = None, pollen: Pollen | None = None) -> Decision:
     """The gesture to advise. `forbidden`: kinds a safety rule takes away (« open » under the rain, in gusts…).
     `proof`: the level of the windows' effect on each subject (advisor/proof.py); None, all taken as proven.
     `held`: minutes `previous` has been on the card (HOLD_MINUTES); `tried`: the gesture shown « À essayer », as it
     stands now (`aged`); `aired`: minutes since an airing was shut, None if none lately; `failed`: the airing advised
-    and followed, measured doing less than it was to (advisor/opening.py `failed`)."""
+    and followed, measured doing less than it was to (advisor/opening.py `failed`); `pollen`: the day's high pollens,
+    for an allergic household (advisor/pollen.py), None otherwise."""
     if "open" in forbidden and now.opened:
         # The rain or the gusts: what is open is shut, whatever it costs.
         return Decision(Gesture("close"), 0.0, "safety", {})
@@ -761,6 +786,25 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
                 and not (g.kind.removesuffix("_off") in DEVICES and now.night)]
     paths = {g: simulate(twins, now, coming, g) for g in gestures}
     costs = {g: cost(paths[g], comfort, weights, g, now.night) for g in gestures}
+    if pollen is not None:
+        # The humidity, the mould and the CO₂ keep the airing they need, at any hour (Frank, 6 November, after the rejeu of
+        # 3 to 6 November: capped at 10 min, Chambre A's airings for its humidity changed nothing and vanished). Anything
+        # else waits for a good moment — the early morning, the hour after the rain — and lasts POLLEN_AIRING at most.
+        # Left out of the scenarios, it is neither advised, nor held, nor « À essayer ».
+        banned = {g for g in gestures if g.kind in ("open", "open_more") and main_subject(costs, g) not in POLLEN_FREE
+                  and (not pollen.good_at(g.after or 0) or _too_long(g, pollen))}
+        # A window open is shut after POLLEN_AIRING minutes, unless leaving it open a while longer helps the humidity, the
+        # mould or the CO₂ — then it is judged as on any day.
+        if now.opened and not _needed(paths, comfort, now.night, habits.tolerance):
+            # Half a step of slack: the steps are not exactly five minutes apart.
+            if pollen.open_for is not None and pollen.open_for >= POLLEN_AIRING - STEP / 120:
+                shut = Gesture("close")
+                return Decision(shut, costs[Gesture("nothing")]["total"] - costs[shut]["total"], "pollen", costs, paths,
+                                measured={"minutes": pollen.open_for})
+            banned |= {g for g in gestures if _too_long(g, pollen, short=True)}
+        gestures = [g for g in gestures if g not in banned]
+        paths = {g: p for g, p in paths.items() if g not in banned}
+        costs = {g: c for g, c in costs.items() if g not in banned}
     nothing = costs[Gesture("nothing")]["total"]
     idle = paths[Gesture("nothing")]
 
@@ -888,7 +932,8 @@ def _from(path: Path, k: int) -> Path:
 
 def tonight(twins: Twins, now: Now, coming, bedtime_minutes: int, comfort: Comfort = Comfort(),
             weights: Weights = Weights(), proof: dict[str, str] | None = None,
-            forbidden: frozenset[str] = frozenset(), habits: Habits = Habits()) -> Decision | None:
+            forbidden: frozenset[str] = frozenset(), habits: Habits = Habits(),
+            pollen: Pollen | None = None) -> Decision | None:
     """What to do with the windows at bedtime, judged over the whole night: `coming` runs from now until waking up,
     `bedtime_minutes` from now. Only the gesture at bedtime is compared with leaving the windows as they are; None when
     there is nothing worth saying. The night's stricter gaps apply (`significant`)."""
@@ -897,6 +942,9 @@ def tonight(twins: Twins, now: Now, coming, bedtime_minutes: int, comfort: Comfo
     # A window left open while the household sleeps only when it says it would (« Ouvrir une fenêtre la nuit », off by
     # default): Chambre P, 3 November, « Cette nuit, pensez à ouvrir » — « à cette période, personne n'ouvre la nuit ».
     if later.kind == "open" and (forbidden & {"open", "open_long"} or not habits.open_at_night):
+        return None
+    # Nor on a day of high pollens, for an allergic household (Frank, 6 November).
+    if later.kind == "open" and pollen is not None:
         return None
     gestures = [Gesture("nothing"), later]
     paths = {g: simulate(twins, at_night, coming, g) for g in gestures}

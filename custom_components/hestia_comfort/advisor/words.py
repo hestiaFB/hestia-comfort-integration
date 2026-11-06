@@ -8,6 +8,7 @@ from datetime import time
 
 from .decide import SUBJECTS, Decision, Gesture, main_subject, reference
 from .knowing import Tip
+from .pollen import AIRING as POLLEN_AIRING
 from .proof import PROVEN, REINFORCED
 
 TEXTS = {
@@ -71,6 +72,9 @@ TEXTS = {
         "doubt_range": "{value} : valeur impossible", "doubt_jump": "saut soudain à {value}", "doubt_frozen": "figée depuis {since}",
         "m_temperature": "température", "m_humidity": "humidité", "m_co2": "CO₂", "m_particles": "particules", "m_voc": "COV",
         "mist": "Buée probable sur les vitres cette nuit ({outdoor} °C dehors)",
+        "pollen_close": "Pollens élevés aujourd'hui : {minutes} min d'aération suffisent",
+        "pollen": "Pollens élevés aujourd'hui{main} : aérez seulement si c'est utile, de préférence tôt le matin",
+        "pollen_rain": "La pluie a lavé l'air des pollens : bon moment pour aérer",
         "open_weak": "Ouverte depuis {since} : {air_then} → {air} °C, {humidity_then} → {humidity} % : elle renouvelle peu l'air",
         "open_weak_air": "Ouverte depuis {since} : {air_then} → {air} °C : elle renouvelle peu l'air",
         "outside_drier": "Dehors, l'air est plus sec qu'ici : aérer assèche",
@@ -143,6 +147,9 @@ TEXTS = {
         "doubt_range": "{value}: impossible value", "doubt_jump": "sudden jump to {value}", "doubt_frozen": "frozen since {since}",
         "m_temperature": "temperature", "m_humidity": "humidity", "m_co2": "CO₂", "m_particles": "particles", "m_voc": "VOC",
         "mist": "Misted panes likely tonight ({outdoor} °C outside)",
+        "pollen_close": "High pollen today: {minutes} min of airing is enough",
+        "pollen": "High pollen today{main}: air only when it helps, ideally early in the morning",
+        "pollen_rain": "The rain has washed the pollen out of the air: a good time to air",
         "open_weak": "Open since {since}: {air_then} → {air} °C, {humidity_then} → {humidity}%: it renews little air",
         "open_weak_air": "Open since {since}: {air_then} → {air} °C: it renews little air",
         "outside_drier": "The air outside is drier than in here: airing dries the room",
@@ -215,6 +222,9 @@ TEXTS = {
         "doubt_range": "{value}: unmöglicher Wert", "doubt_jump": "plötzlicher Sprung auf {value}", "doubt_frozen": "unverändert seit {since}",
         "m_temperature": "Temperatur", "m_humidity": "Feuchte", "m_co2": "CO₂", "m_particles": "Partikel", "m_voc": "VOC",
         "mist": "Heute Nacht wahrscheinlich beschlagene Scheiben ({outdoor} °C draußen)",
+        "pollen_close": "Hoher Pollenflug heute: {minutes} Min. Lüften genügen",
+        "pollen": "Hoher Pollenflug heute{main}: nur lüften, wenn es nötig ist, am besten früh am Morgen",
+        "pollen_rain": "Der Regen hat die Pollen aus der Luft gewaschen: ein guter Moment zum Lüften",
         "open_weak": "Offen seit {since}: {air_then} → {air} °C, {humidity_then} → {humidity} %: es kommt wenig frische Luft",
         "open_weak_air": "Offen seit {since}: {air_then} → {air} °C: es kommt wenig frische Luft",
         "outside_drier": "Draußen ist die Luft trockener als hier: Lüften trocknet",
@@ -403,6 +413,10 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     elif decision.rule == "safety" and reason and f"safety_{reason}" in words:
         line = words[f"safety_{reason}"]
         shaded.append("fact")
+    elif decision.rule == "pollen":
+        # A day of high pollens, the window open long enough (advisor/pollen.py): a rule, said as such.
+        line = words["pollen_close"].format(minutes=POLLEN_AIRING)
+        shaded.append("fact")
     elif gesture.kind == "nothing" and not opened and reason and f"safety_{reason}" in words:
         # A shut room whose openings a safety rule took away: that is why nothing is to do.
         line = words["keep_shut"].format(why=words[f"safety_{reason}"])
@@ -472,6 +486,11 @@ def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
         return words["sun_gain"].format(line=line, gain=_number(v["gain"], language)) if v.get("gain") is not None else line
     if tip.kind == "mist":
         return words["mist"].format(outdoor=_number(v["outdoor"], language))
+    if tip.kind == "pollen":
+        main = f" ({v['main'].lower()})" if isinstance(v.get("main"), str) and v["main"] else ""
+        return words["pollen"].format(main=main)
+    if tip.kind == "pollen_rain":
+        return words["pollen_rain"]
     if tip.kind == "open_weak":
         key = "open_weak" if None not in (v["humidity_then"], v["humidity"]) else "open_weak_air"
         return words[key].format(since=_time(v["since"], words), air_then=_number(v["air_then"], language),

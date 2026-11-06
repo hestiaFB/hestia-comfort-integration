@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from .physics.sunlight import bearing_name, sun_hours
 from .physics.surface import misted
 from .physics.water import absolute
+from .pollen import Pollen
 from .proof import LIVE_MINUTES, LIVE_SHARE, PROVEN, REINFORCED, SUPPOSED, WATER_GAP
 
 # The sun is said only when it warms the room by this much over the coming hours (°C): the days it changes nothing, its
@@ -81,6 +82,8 @@ class RoomView:
     # The share of its forecast the window open now really does (advisor/opening.py), and the humidity when it was opened.
     window_share: float | None = None
     humidity_at_opening: float | None = None
+    # The day's high pollens, for an allergic household (advisor/pollen.py); None otherwise.
+    pollen: Pollen | None = None
 
 
 def sun_on_windows(view: RoomView) -> list[Tip]:
@@ -244,7 +247,18 @@ def window_weak(view: RoomView) -> list[Tip]:
     return [Tip("open_weak", values, "heat", 4, None, PROVEN)]
 
 
-PROVIDERS = [window_weak, outside_water, gesture_seen, mist_tonight, heating_catches_up, heating_planned, heating_is_off, stove_at_its_lowest, shutter_at_night,
+def pollen_today(view: RoomView) -> list[Tip]:
+    """A day of high pollens, for an allergic household (advisor/pollen.py): airings kept short, best early in the morning;
+    just after the rain, the air washed of them is said instead. Proven: Hestia Weather says the day's level."""
+    found = view.pollen
+    if found is None:
+        return []
+    if found.after_rain:
+        return [Tip("pollen_rain", {}, "air", 4, None, PROVEN)]
+    return [Tip("pollen", {"level": found.level, "main": found.main}, "air", 4, None, PROVEN)]
+
+
+PROVIDERS = [pollen_today, window_weak, outside_water, gesture_seen, mist_tonight, heating_catches_up, heating_planned, heating_is_off, stove_at_its_lowest, shutter_at_night,
              sun_on_windows]
 
 

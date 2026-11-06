@@ -4,6 +4,19 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.11.0 — 6 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Corrections
+
+- Le réglage « Allergie aux pollens » compte de nouveau. Les jours de pollens élevés :
+  - pour l'humidité ou le CO₂, l'aération reste conseillée à toute heure, aussi longue qu'il le faut ;
+  - pour rafraîchir ou chasser une odeur, elle attend le matin après le réveil, ou l'heure qui suit la pluie, et dure 10 minutes au plus ;
+  - une fenêtre ouverte depuis 10 minutes : « Refermez », sauf si elle aide pour l'humidité ou le CO₂ ;
+  - pas de fenêtre ouverte conseillée pour la nuit.
+- « Bon à savoir » dit quand les pollens sont élevés, et quand la pluie vient de laver l'air.
+
 ## 3.10.0 — 6 novembre 2026
 
 Dans Confort 3.0.0.
