@@ -53,6 +53,7 @@ def rained_on(sheltered: bool, facing: float | None, gust: float | None, wind_fr
 # 21 h 49 and the rain at 22 h 27 — the evening's airings were held back in five rooms).
 RAIN_SOON_WAIT = 45     # minutes
 RAIN_GONE = 60          # minutes: a forecast this far, or none, ends the wait
+RAIN_SOON_KEPT = 40     # minutes: once said, « la pluie arrive » holds while the forecast stays this close
 
 
 def rain_believed(rain_in: float | None, rain_rate: float | None, since: float | None,
@@ -66,6 +67,10 @@ def rain_believed(rain_in: float | None, rain_rate: float | None, since: float |
     if rain_rate > RAIN or rain_in is None or rain_in > RAIN_GONE:
         return rain_in, None
     if rain_in > RAIN_SOON:
+        # Said due already: a forecast that slips a few minutes further does not lift it, only one that moves away
+        # (6 November, Chambre A and Salon: « la pluie arrive » came and went every 5 to 20 minutes from 8 h 06).
+        if since is not None and rain_in <= RAIN_SOON_KEPT and now - since <= RAIN_SOON_WAIT * 60:
+            return float(RAIN_SOON), since
         return rain_in, since
     since = now if since is None else since
     return (None if now - since > RAIN_SOON_WAIT * 60 else rain_in), since

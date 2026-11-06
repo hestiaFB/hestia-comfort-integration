@@ -26,7 +26,7 @@ GAIN, MARGIN = 0.5, 0.2
 
 @dataclass(frozen=True)
 class Gesture:
-    kind: str                   # nothing | close | open
+    kind: str                   # nothing | close | open | keep (the window left open, « Ouvrez » under way)…
     minutes: int | None = None  # how long an opening lasts; None: until the end of the horizon
     after: int | None = None    # minutes before the gesture: « Refermez vers 16 h », « Aérez vers 14 h »
     target: float | None = None # °C the heating is set back to: « Remettez le chauffage à 19 °C »
@@ -555,7 +555,7 @@ def cost(path: Path, comfort: Comfort, weights: Weights, gesture: Gesture, night
         "voc": weights.voc * sum(max(0.0, v - comfort.voc) for v in path.voc) * HOURS,
         "mould": weights.mould * path.mould,
         "energy": weights.energy * path.spent,
-        "bother": 0.0 if gesture.kind == "nothing" else weights.bother * (weights.night if night else 1.0),
+        "bother": 0.0 if gesture.kind in ("nothing", "keep") else weights.bother * (weights.night if night else 1.0),
     }
     terms["total"] = sum(terms.values())
     return terms
@@ -584,7 +584,7 @@ def reference(scenarios: dict, gesture: Gesture) -> Gesture:
     """What a gesture is said against: « do nothing », but « Laissez ouvert encore 10 min » against shutting now. Against
     leaving the window open for hours, it « saved » the heating that shutting saves (Chambre P, 3 November: « 2,4 kWh de
     chauffage économisés » to dry the room, Frank: « pourquoi une économie de chauffage ? »)."""
-    if gesture.kind == "close" and gesture.after and Gesture("close") in scenarios:
+    if (gesture.kind == "close" and gesture.after or gesture.kind == "keep") and Gesture("close") in scenarios:
         return Gesture("close")
     return Gesture("nothing")
 
@@ -620,14 +620,34 @@ def aged(gesture: Gesture | None, minutes: float) -> Gesture | None:
     return replace(gesture, after=left if left > 0 else None)
 
 
+def remembered(shown: Gesture | None, at, decided: Gesture | None, now):
+    """(gesture, since when it counts) to keep after a decision: a countdown the decision keeps goes on counting from when
+    it was said. Kept from the last step, rounded to five minutes at each, « encore 45 min » never went down when the
+    steps came every minute or two (Chambre M, 5 November from 21 h 40). `at`, `now`: datetimes."""
+    if (shown is not None and decided is not None and decided.after and at is not None
+            and decided == aged(shown, (now - at).total_seconds() / 60)):
+        return shown, at
+    return decided, now
+
+
 def under_way(previous: Gesture | None, now: "Now") -> Gesture | None:
     """The airing asked, once the window is open: it is under way, « Laissez ouvert encore 5 min » — the scenarios of an
     open window are about shutting it, and « Aérez 5 min » was no longer among them (Salon · Cuisine, 5 November at
     7 h 26: « Rien à faire — Ouverte ou fermée » on the French window just opened)."""
-    if (now.opened and previous is not None and previous.kind in ("open", "open_more") and previous.minutes
-            and not previous.after):
-        return Gesture("close", after=previous.minutes)
+    if now.opened and previous is not None and previous.kind in ("open", "open_more") and not previous.after:
+        if previous.minutes:
+            return Gesture("close", after=previous.minutes)
+        # « Ouvrez », for good: « Laissez ouvert » while shutting would do worse (Chambre A, 5 November at 20 h 38:
+        # « Ouvrez » to try at 20 h 31, the window opened, then « Rien à faire » at 67 %).
+        if previous.kind == "open":
+            return Gesture("keep")
     return previous
+
+
+# An airing shut is judged this long after (advisor/opening.py SETTLE): no new opening for a slow subject before.
+RESTING_MINUTES = 60
+# The subjects measured as they go, which may ask for another airing at once.
+FAST_SUBJECTS = ("co2", "particles", "voc")
 
 
 # A gesture shown stays at least this long while it still helps (CAHIER-MOTEUR.md § 18.3: one change per half hour).
@@ -677,11 +697,11 @@ def _for_the_outside(later: Gesture, twins: Twins, now: Now, coming, comfort: Co
 def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
            previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
            proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits(),
-           held: float | None = None, tried: Gesture | None = None) -> Decision:
+           held: float | None = None, tried: Gesture | None = None, aired: float | None = None) -> Decision:
     """The gesture to advise. `forbidden`: kinds a safety rule takes away (« open » under the rain, in gusts…).
     `proof`: the level of the windows' effect on each subject (advisor/proof.py); None, all taken as proven.
     `held`: minutes `previous` has been on the card (HOLD_MINUTES); `tried`: the gesture shown « À essayer », as it
-    stands now (`aged`)."""
+    stands now (`aged`); `aired`: minutes since an airing was shut, None if none lately."""
     if "open" in forbidden and now.opened:
         # The rain or the gusts: what is open is shut, whatever it costs.
         return Decision(Gesture("close"), 0.0, "safety", {})
@@ -696,6 +716,10 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # An airing « À essayer » followed is under way as well: it holds from the moment the window opens.
     if (previous is None or previous.kind == "nothing") and under_way(tried, now) != tried:
         previous, held = under_way(tried, now), 0.0
+    # Leaving open what is open is weighed as it is: the same scenario as doing nothing, said as a gesture when shutting
+    # would clearly do worse (« Laissez ouvert »), or when it follows « Ouvrez » (`under_way`).
+    if now.opened and Gesture("keep") not in pool:
+        pool.append(Gesture("keep"))
     # The moment said before, counted down (`aged`), is weighed as it stands: the moments compared are a quarter of an
     # hour apart from now, so « vers 17 h 30 » was never among them and the best moment slid an hour ahead at every step,
     # never to come (Salon · Cuisine, 3 November, 15 h to 18 h).
@@ -724,6 +748,19 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # long cooking: a 10-minute airing hardly shows, opening does).
     worth = [g for g in gestures if g.kind != "nothing" and nothing - costs[g]["total"] >= GAIN
              and significant(idle, paths[g], comfort, now.night, tolerance=habits.tolerance)]
+    # An airing just shut is judged an hour later, once the walls gave back their water (advisor/opening.py SETTLE): no
+    # new opening for the slow subjects before (Chambre P, 5 November at 21 h 33: « Aérez 5 min » again 45 s after the
+    # « Refermez » it had asked). The CO₂, the particles and the VOC are measured as they go and may ask again.
+    if aired is not None and aired < RESTING_MINUTES:
+        worth = [g for g in worth if not (g.kind == "open" and (g.after or 0) < RESTING_MINUTES - aired
+                                          and main_subject(costs, g) not in FAST_SUBJECTS)]
+    # A countdown shown is never lengthened: « encore 15 min », « encore 10 min », then « encore 15 min » again, a
+    # moment that recedes and never comes (Chambre M, 5 November from 21 h 02). Shut at its end, or left open for good.
+    # « Refermez » is a countdown at its end: « Laissez ouvert encore 15 min » three minutes later went back on it
+    # (Chambre M, 5 November at 20 h 59 and 21 h 02).
+    countdown = next((g.after or 0 for g in (previous, tried) if g is not None and g.kind == "close"), None)
+    if countdown is not None:
+        worth = [g for g in worth if not (g.kind == "close" and g.after and g.after > countdown)]
     # An airing later only for what the outside brings: otherwise « Aérez » comes when it is worth it now.
     later = min((g for g in [*worth, previous] if g is not None and g.kind == "open" and g.after and g in costs),
                 key=lambda g: costs[g]["total"], default=None)
@@ -761,17 +798,31 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # « À essayer » at the next step, to come back at the one after (Chambre P, 2 November: four times in an hour).
     # Shutting what is open stays while it is no worse than leaving it open: the airing just followed is not met with
     # « Ouverte ou fermée » (Salon · Cuisine, 5 November at 7 h 26, the French window opened on « Aérez 5 min »).
-    hold = (previous is not None and previous.kind != "nothing" and held is not None and held < HOLD_MINUTES
-            and previous in costs and (nothing - costs[previous]["total"] >= GAIN / 2
-                                       or (now.opened and previous.kind == "close" and costs[previous]["total"] <= nothing)))
+    # « Laissez ouvert » after « Ouvrez » has no end of its own: it stays while shutting now would clearly do worse.
+    keeping = (now.opened and previous is not None and previous.kind == "keep" and previous in costs
+               and Gesture("close") in costs and costs[Gesture("close")]["total"] - costs[previous]["total"] >= GAIN / 2)
+    hold = keeping or (previous is not None and previous.kind != "nothing" and held is not None and held < HOLD_MINUTES
+                       and previous in costs and (nothing - costs[previous]["total"] >= GAIN / 2
+                                                  or (now.opened and previous.kind == "close" and costs[previous]["total"] <= nothing)))
     if best.kind == "nothing" and hold:
         best, rule, gain = previous, "kept", nothing - costs[previous]["total"]
+    close, keep = Gesture("close"), Gesture("keep")
+    if (best.kind == "nothing" and keep in costs and close in costs and costs[close]["total"] - nothing >= GAIN
+            and significant(paths[close], paths[keep], comfort, now.night, tolerance=habits.tolerance)):
+        # Open, and shutting now would clearly do worse: « Laissez ouvert », not « Rien à faire » (Frank, 5 November:
+        # « Rien à faire » in Chambre A at 67 %, the window just opened, while shutting would end at 75 %).
+        best, rule, gain = keep, "best", 0.0
     if best.kind == "nothing" or proof is None:
         return Decision(best, gain, rule, costs, paths)
     # Only a proven effect sends a gesture to the banner as soon as it is significant; a reinforced one must be clear-cut;
     # a supposed one stays a passive advice (CAHIER-MOTEUR.md § 4.1). The energy a window saves rests on its heat.
     subject = main_subject(costs, best)
     found = proof.get(effect(best, subject), SUPPOSED)
+    if best.kind in ("keep", "close"):
+        # Nothing to do but leave it, or shut what is open: never « À essayer », whatever the proof, which only says how
+        # sure the line is. Held back, « Laissez ouvert encore 15 min » left the banner to « Rien à faire », the window
+        # open all night at 17 °C (Chambre M, 5 November at 21 h 02): the window's effect is as unsure either way.
+        return Decision(best, gain, rule, costs, paths, level=found)
     if found == PROVEN or (found == REINFORCED and significant(paths[Gesture("nothing")], paths[best], comfort, now.night,
                                                                 stricter=REINFORCED_STRICTER, tolerance=habits.tolerance)):
         return Decision(best, gain, rule, costs, paths, level=found)

@@ -254,8 +254,8 @@ class TriedHolds(unittest.TestCase):
         from advisor.snapshot import load, restore
         args = restore(load(Path(__file__).parent / "fixtures" / "chambre-al-4-novembre-15h13.json"))
         self.assertEqual(decide(**args).passive, Gesture("open", 25))
-        self.assertEqual(decide(**args, tried=Gesture("open", 30)).passive, Gesture("open", 30))
-        self.assertEqual(decide(**args, tried=Gesture("open", 5)).passive, Gesture("open", 25))
+        self.assertEqual(decide(**{**args, "tried": Gesture("open", 30)}).passive, Gesture("open", 30))
+        self.assertEqual(decide(**{**args, "tried": Gesture("open", 5)}).passive, Gesture("open", 25))
 
 
 class AiringUnderWay(unittest.TestCase):
@@ -276,6 +276,94 @@ class AiringUnderWay(unittest.TestCase):
         args = {**self.args, "previous": Gesture("nothing"), "held": 60.0, "tried": Gesture("open", 5)}
         self.assertEqual(decide(**args).gesture, Gesture("close", after=5))
 
-    def test_without_an_airing_asked_nothing_changes(self):
+    def test_without_an_airing_asked_it_is_left_open(self):
+        # No countdown without an airing asked; shutting now would bring the VOC back: « Laissez ouvert » (3.9.3).
         args = {**self.args, "previous": Gesture("nothing"), "held": 60.0}
-        self.assertEqual(decide(**args).gesture, Gesture("nothing"))
+        self.assertEqual(decide(**args).gesture, Gesture("keep"))
+
+
+class OpenUnderWay(unittest.TestCase):
+    """Chambre A, 5 November at 20 h 38: « Ouvrez » to try at 20 h 31, the window opened at 20 h 37, and the card said
+    « Rien à faire » at 67 % — the very scenario it had advised, now doing nothing, while shutting would end at 75 %."""
+
+    def setUp(self):
+        from advisor.snapshot import load, restore
+        self.args = restore(load(Path(__file__).parent / "fixtures" / "chambre-a-5-novembre-20h38.json"))
+
+    def test_the_opening_tried_and_followed_is_left_open(self):
+        decision = decide(**{**self.args, "tried": Gesture("open")})
+        self.assertEqual(decision.gesture, Gesture("keep"))
+        self.assertEqual(decision.scenarios[Gesture("keep")]["total"], decision.scenarios[Gesture("nothing")]["total"])
+
+    def test_it_stays_past_half_an_hour_while_shutting_does_worse(self):
+        args = {**self.args, "previous": Gesture("keep"), "held": 120.0}
+        self.assertEqual(decide(**args).gesture, Gesture("keep"))
+
+    def test_it_ends_once_the_window_is_shut(self):
+        # The window shut: nothing left to keep open.
+        args = {**self.args, "previous": Gesture("keep"), "held": 10.0, "now": replace(self.args["now"], opened=())}
+        self.assertNotEqual(decide(**args).gesture.kind, "keep")
+
+    def test_opened_without_advice_it_is_said_too(self):
+        # Frank, 5 November: « Laissez ouvert » for any window whose shutting would clearly do worse, never « À essayer ».
+        decision = decide(**self.args)
+        self.assertEqual(decision.gesture, Gesture("keep"))
+        self.assertIsNone(decision.passive)
+
+    def test_never_when_shutting_does_as_well(self):
+        # A mild afternoon, open or shut alike: « Rien à faire », not « Laissez ouvert ».
+        now = Now(air=21.5, walls=21.5, opened=(FRENCH.size,), humidity=50.0, co2=600.0)
+        self.assertEqual(decide(TWINS, now, day(outdoor=21.0)).gesture, Gesture("nothing"))
+
+    def test_said_against_shutting_now(self):
+        from advisor.words import phrase
+        words = phrase(decide(**{**self.args, "tried": Gesture("open")}), 23, hour=20 + 38 / 60)
+        self.assertEqual(words["title"], "Laissez ouvert")
+        self.assertEqual(words["line"], "65 % d'humidité à 23 h au lieu de 75 %, sans doute")
+        self.assertEqual(len(words["why"]), len(set(words["why"])))
+
+
+class AfterAnAiring(unittest.TestCase):
+    """5 November, evening: Chambre P asked « Aérez 5 min » again 45 s after the « Refermez » that ended the first one;
+    Chambre M went from « Refermez » to « Rien à faire », the window open all night, then counted 15, 10, 15 minutes."""
+
+    def setUp(self):
+        from advisor.snapshot import load, restore
+        fixtures = Path(__file__).parent / "fixtures"
+        self.p = restore(load(fixtures / "chambre-p-5-novembre-21h33.json"))
+        self.m = restore(load(fixtures / "chambre-m-5-novembre-21h02.json"))
+
+    def test_no_new_airing_for_the_humidity_before_the_last_is_judged(self):
+        self.assertEqual(decide(**self.p).passive, Gesture("open", 5))
+        self.assertIsNone(decide(**{**self.p, "aired": 1.0}).passive)
+        self.assertEqual(decide(**{**self.p, "aired": 61.0}).passive, Gesture("open", 5))
+
+    def test_shutting_is_never_held_back_to_try(self):
+        decision = decide(**self.m)
+        self.assertEqual(decision.gesture, Gesture("close", after=15))
+        self.assertIsNone(decision.passive)
+
+    def test_a_countdown_is_never_lengthened(self):
+        self.assertEqual(decide(**{**self.m, "previous": Gesture("close", after=10), "held": 5.0}).gesture,
+                         Gesture("close", after=10))
+        # « Refermez » is a countdown at its end.
+        self.assertEqual(decide(**{**self.m, "previous": Gesture("close"), "held": 3.0}).gesture, Gesture("close"))
+
+
+class CountdownGoesDown(unittest.TestCase):
+    """Chambre M, 5 November from 21 h 40: « Laissez ouvert encore 45 min » at every step for nine minutes, the steps a
+    minute or two apart and each rounded back to 45."""
+
+    def test_a_countdown_kept_counts_from_when_it_was_said(self):
+        from datetime import datetime, timedelta
+        from advisor.decide import aged, remembered
+        said = datetime(2026, 11, 5, 21, 40)
+        shown, at = Gesture("close", after=45), said
+        for minutes in range(1, 10):
+            now = said + timedelta(minutes=minutes)
+            decided = aged(shown, (now - at).total_seconds() / 60)
+            shown, at = remembered(shown, at, decided, now)
+        self.assertEqual(aged(shown, (now - at).total_seconds() / 60), Gesture("close", after=35))
+        # Another gesture, or the same said anew: it counts from now.
+        self.assertEqual(remembered(shown, at, Gesture("close", after=20), now), (Gesture("close", after=20), now))
+        self.assertEqual(remembered(shown, at, Gesture("nothing"), now), (Gesture("nothing"), now))

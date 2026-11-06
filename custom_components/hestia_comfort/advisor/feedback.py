@@ -34,6 +34,9 @@ def done(kind: str, now: Now, target: float | None = None) -> bool:
         return bool(now.opened)
     if kind == "close":
         return not now.opened
+    if kind == "keep":
+        # Left open: nothing more to do, the « Ouvrez » it follows was the gesture.
+        return True
     if kind in ("boost", "purify"):
         return now.boosting if kind == "boost" else now.purifying
     if kind in ("boost_off", "purify_off"):

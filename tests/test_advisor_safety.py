@@ -113,6 +113,19 @@ class RainThatDoesNotCome(unittest.TestCase):
         self.assertEqual(rain_believed(90, 0.0, since, 50 * 60), (90, None))
         self.assertEqual(rain_believed(0, 1.8, since, 50 * 60), (0, None))
 
+    def test_once_said_it_holds_while_the_forecast_stays_close(self):
+        # 6 November, Chambre A and Salon: « la pluie arrive » came and went every 5 to 20 minutes, the forecast hovering
+        # around 20 minutes. Once said, it holds within 40 minutes; further, or after the wait, it goes.
+        from advisor.safety import RAIN_SOON, forbidden, rain_believed
+        rain_in, since = rain_believed(18, 0.0, None, 0)
+        held, kept = rain_believed(25, 0.0, since, 5 * 60)
+        self.assertEqual((held, kept), (RAIN_SOON, 0))
+        self.assertEqual(forbidden(0.0, rain_in=held)[1], "rain_soon")
+        self.assertEqual(rain_believed(45, 0.0, since, 5 * 60), (45, 0))
+        self.assertEqual(rain_believed(25, 0.0, since, 46 * 60), (25, 0))
+        # Never said: 25 minutes away is not « soon ».
+        self.assertEqual(rain_believed(25, 0.0, None, 0), (25, None))
+
     def test_always_believed_without_a_rain_gauge(self):
         from advisor.safety import rain_believed
         self.assertEqual(rain_believed(6, None, 0, 3 * 3600), (6, None))

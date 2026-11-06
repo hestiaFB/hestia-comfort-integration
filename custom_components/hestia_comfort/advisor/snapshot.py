@@ -36,14 +36,14 @@ def _pairs(value):
 def capture(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
             previous: Gesture | None = None, forbidden=frozenset(), proof: dict | None = None, holidays: bool = False,
             habits: Habits = Habits(), *,
-            reason: str | None = None, held: float | None = None,
+            reason: str | None = None, held: float | None = None, tried: Gesture | None = None, aired: float | None = None,
             end_hour: int, hour: float | None = None, language: str = "fr", room: str = "", when: str = "",
             version: str = "") -> dict:
     """The decision's inputs, as plain JSON."""
     return {"format": FORMAT, "version": version, "room": room, "when": when, "twins": _plain(twins), "now": _plain(now),
             "coming": [[_plain(u), water] for u, water in coming], "comfort": _plain(comfort), "weights": _plain(weights),
             "previous": _plain(previous), "forbidden": sorted(forbidden), "reason": reason, "proof": proof, "holidays": holidays,
-            "habits": habits.setting(), "held": held,
+            "habits": habits.setting(), "held": held, "tried": _plain(tried), "aired": aired,
             "end_hour": end_hour, "hour": hour, "language": language}
 
 
@@ -68,7 +68,8 @@ def restore(snap: dict) -> dict:
     return {"twins": twins, "now": now, "coming": coming, "comfort": Comfort(**snap["comfort"]),
             "weights": Weights(**snap["weights"]), "previous": Gesture(**snap["previous"]) if snap.get("previous") else None,
             "forbidden": frozenset(snap["forbidden"]), "proof": snap.get("proof"), "holidays": snap.get("holidays", False),
-            "habits": Habits.of(snap.get("habits")), "held": snap.get("held")}
+            "habits": Habits.of(snap.get("habits")), "held": snap.get("held"),
+            "tried": Gesture(**snap["tried"]) if snap.get("tried") else None, "aired": snap.get("aired")}
 
 
 def replay(snap: dict, **changes) -> tuple[Decision, dict]:

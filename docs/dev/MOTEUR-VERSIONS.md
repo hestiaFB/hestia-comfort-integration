@@ -20,6 +20,36 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.9.6 — 6 novembre 2026
+
+Bilan de la nuit du 5 au 6 nov.
+- Chambre M, 5 nov. de 21 h 40 à 21 h 49 : « Laissez ouvert encore 45 min » à chaque pas. `RoomAdvisor.previous` gardait le geste déjà vieilli avec l'heure du pas ; vieilli de nouveau au pas suivant (1 à 2 min plus tard) et arrondi aux 5 min (`aged`), il revenait à 45. → `decide.remembered(shown, at, decided, now)` : un compte à rebours que la décision garde compte depuis le moment où il a été dit ; même chose pour `tried`.
+- Chambre A et Salon, 6 nov. de 8 h 06 à 8 h 36 : « la pluie arrive » allumé, éteint, rallumé (prévision autour de 20 min). → `safety.rain_believed` : une fois dite (`since` posé), la pluie reste « proche » (`RAIN_SOON`) tant que la prévision reste à `RAIN_SOON_KEPT` (40 min) ou moins, dans l'attente de `RAIN_SOON_WAIT` (45 min) ; au-delà de 60 min ou sous la pluie, comme avant. Sans pluviomètre, rien ne change.
+
+### 3.9.4 — 5 novembre 2026
+
+Soir du 5 nov., deux chambres :
+- Chambre P, 21 h 33 : « À essayer — Aérez 5 min » 45 s après le « Refermez » qui finissait la première (75 → 73 %). → `decide(aired=)` (minutes depuis la fermeture d'une aération, `RoomAdvisor.shut_at`, gardé au redémarrage) : pendant `RESTING_MINUTES` (60, = `opening.SETTLE`, le temps de juger l'aération), plus d'« Aérez » dont le sujet principal n'est pas dans `FAST_SUBJECTS` (CO₂, particules, COV, mesurés en direct). Une aération de moins de 10 min n'est toujours pas jugée (`opening.settling`).
+- Chambre M, 20 h 59 → 21 h 33 : « Refermez », puis « Rien à faire — Ouverte : 17,0 °C à 0 h » avec « À essayer — Laissez ouvert encore 15 min » qui allait 15, 10, 15, 10… → (1) `close` (maintenant ou plus tard) n'est jamais retenu faute de preuve, comme `keep` : la preuve ne règle que le conditionnel ; c'est une exception à CAHIER-MOTEUR § 4.1 ; (2) un compte à rebours affiché (`previous` ou `tried` de type `close`, « Refermez » = 0) n'est jamais allongé : les `close` à `after` plus grand sortent de `worth`.
+- Instantanés : `tried` et `aired` capturés et rejoués. Fixtures `chambre-p-5-novembre-21h33.json`, `chambre-m-5-novembre-21h02.json` ; tests `AfterAnAiring`, `test_advisor_proof` revus.
+
+### 3.9.3 — 5 novembre 2026
+
+Frank, 5 nov. : « Laissez ouvert » partout, pas seulement après « Ouvrez ».
+- `keep` est dans les scénarios dès qu'une fenêtre est ouverte. Après l'hystérésis (`hold` : une aération suivie garde son « Laissez ouvert encore N min »), un « Rien à faire » fenêtre ouverte devient `keep` (règle `best`) quand refermer maintenant coûte au moins `GAIN` de plus et fait une différence qui se sent (`significant(close, keep)`). Il tient ensuite comme en 3.9.2 (refermer ≥ `GAIN / 2` de plus).
+- `keep` n'est jamais « À essayer » : la preuve ne règle que le conditionnel de la phrase (« sans doute »).
+- Bandeau bleu « Au mieux » (`banner_level`, `level3` de `advisor3.ts`) : le geste est fait, rien de plus à faire — la phrase de la carte 2.1 « Le geste est fait : l'aération en cours fait son effet » (`room.ts`).
+- Tests revus : Salon · Cuisine 5 nov. 7 h 26 sans aération demandée → `keep` (le COV reviendrait) ; Chambre P 3 nov. battant entrouvert → `keep` (59 % à 22 h au lieu de 70 % avec la part réelle de la fenêtre).
+
+### 3.9.2 — 5 novembre 2026
+
+Chambre A, 5 nov. : « À essayer — Ouvrez : 65 % d'humidité à 23 h au lieu de 74 % » à 20 h 31, fenêtre ouverte à 20 h 37, puis « Rien à faire — Humidité 65 % à 23 h : aucun geste ne ferait vraiment mieux » à 67 % (instantané `tests/fixtures/chambre-a-5-novembre-20h38.json`). `under_way` ne reconnaissait que les aérations à durée (« Aérez 20 min » → « Laissez ouvert encore 20 min », Chambre M au même moment) : « Ouvrez » n'a pas de durée, et une fois la fenêtre ouverte, son scénario est celui de « ne rien faire ».
+- Nouveau geste `keep` (« Laissez ouvert ») : `under_way` change un « Ouvrez » suivi (bandeau ou « À essayer ») en `keep`, ajouté aux scénarios tant que la fenêtre est ouverte ; même trajectoire que `nothing`, sans dérangement.
+- Il tient sans limite de 30 min tant que refermer maintenant coûterait au moins `GAIN / 2` de plus ; sinon le choix redevient libre (« Refermez », « Laissez ouvert encore N min » ou « Rien à faire »).
+- `reference(keep)` = refermer maintenant : la phrase dit le gain contre la fenêtre fermée (« 65 % d'humidité à 23 h au lieu de 75 %, sans doute »), « Pourquoi ? » montre Ouverte et Fermée.
+- « À essayer » gardé au redémarrage (`state["tried"]` de `room/advice.py`), comme le geste du bandeau.
+- Verdict `keep_open`, `feedback.done("keep")` vrai (le geste suivi est l'« Ouvrez »), pictogramme `open` sur la carte (`advisor3.ts`).
+
 ### 3.9.0 — 5 novembre 2026
 
 « Volets fermés quand vous partez » seulement pour une absence de 2 h ou plus (`Habits.shutters_away_after`, clé `volets_absence_apres_h`, 2 h par défaut, pas encore dans le panneau). Salon, 5 nov. : alarme en absence 24 min à midi, volets ouverts en plein soleil (FP2 165 lx), le moteur les croyait fermés.

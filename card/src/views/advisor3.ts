@@ -19,7 +19,7 @@ const str=(x:unknown)=>typeof x==='string'?x:'';
 const list=(x:unknown)=>Array.isArray(x)?x.filter((i):i is string=>typeof i==='string'):[];
 /** The icon of each gesture, as the 2.1 banner draws its disk. */
 const DISKS:Record<string,string>={nothing:'check',open:'open',open_more:'air',close:'shut',boost:'vmc',boost_off:'vmc',purify:'fan',
-  purify_off:'fan',shutter_close:'window',shutter_open:'window',heat_on:'flame',heat_to:'flame',heat_stop:'flame'};
+  purify_off:'fan',shutter_close:'window',shutter_open:'window',heat_on:'flame',heat_to:'flame',heat_stop:'flame',keep:'open'};
 /** How sure the effect the gesture rests on is (advisor/proof.py), said under the gesture. */
 const PROOF:Record<string,string>={proven:'effet avéré dans cette pièce',reinforced:'effet probable',supposed:'effet supposé'};
 /** Why the banner says what it says: the rule, in a plain sentence. */
@@ -47,6 +47,8 @@ export function level3(x:Advisor3):{level:Level;pill:string}{
   if(rule==='doubtful')return {level:'neutral',pill:'À vérifier'};
   if(rule==='waiting')return {level:'neutral',pill:'Démarrage'};
   if(rule==='safety')return {level:'urgent',pill:'Attention'};
+  // « Laissez ouvert »: the gesture is done, nothing more to do (advisor/decide.py `keep`).
+  if(gesture==='keep')return {level:'calm',pill:'Au mieux'};
   if(gesture!=='nothing')return {level:'action',pill:'Geste conseillé'};
   if(str(a.a_essayer))return {level:'benefit',pill:'À saisir'};
   return {level:'calm',pill:['insignificant','unproven'].includes(rule)||beyond(a)?'Au mieux':'Tout va bien'};

@@ -15,7 +15,7 @@ TEXTS = {
         "boost": "Lancez la VMC rapide {minutes} min", "boost_off": "Remettez la VMC en vitesse normale",
         "purify": "Lancez le purificateur {minutes} min", "purify_off": "Arrêtez le purificateur",
         "boosted": "VMC rapide {minutes} min", "purified": "Purificateur {minutes} min", "device_off": "Appareil arrêté",
-        "nothing": "Rien à faire", "close": "Refermez", "open": "Aérez {minutes} min", "open_long": "Ouvrez",
+        "nothing": "Rien à faire", "keep": "Laissez ouvert", "close": "Refermez", "open": "Aérez {minutes} min", "open_long": "Ouvrez",
         "close_later": "Refermez vers {at}", "open_later": "Aérez {minutes} min vers {at}", "close_soon": "Laissez ouvert encore {after} min", "open_more": "Ouvrez aussi {which} {minutes} min", "open_more_plain": "les autres fenêtres", "opened_more": "Ouvertes des deux côtés {minutes} min", "instead": "{line} au lieu de {minutes}",
         "heat": "vous gardez {value} °C d'ici {hour} h", "heat_open": "{value} °C de mieux d'ici {hour} h",
         "humidity": "{chosen} % d'humidité au lieu de {idle} %", "humidity_at": "{chosen} % d'humidité à {at} au lieu de {idle} %", "humidity_brief": "l'humidité baisse pendant l'aération, puis revient", "co2": "l'air redevient sain en {minutes} min",
@@ -73,7 +73,7 @@ TEXTS = {
         "boost": "Run the ventilation fast for {minutes} min", "boost_off": "Set the ventilation back to normal",
         "purify": "Run the purifier for {minutes} min", "purify_off": "Stop the purifier",
         "boosted": "Fast ventilation {minutes} min", "purified": "Purifier {minutes} min", "device_off": "Device stopped",
-        "nothing": "Nothing to do", "close": "Close", "open": "Air for {minutes} min", "open_long": "Open",
+        "nothing": "Nothing to do", "keep": "Leave it open", "close": "Close", "open": "Air for {minutes} min", "open_long": "Open",
         "close_later": "Close around {at}", "open_later": "Air {minutes} min around {at}", "close_soon": "Leave it open {after} more min", "open_more": "Open {which} too for {minutes} min", "open_more_plain": "the other windows", "opened_more": "Open on both sides {minutes} min", "instead": "{line} instead of {minutes}",
         "heat": "you keep {value} °C until {hour}:00", "heat_open": "{value} °C better by {hour}:00",
         "humidity": "{chosen}% humidity instead of {idle}%", "humidity_at": "{chosen}% humidity at {at} instead of {idle}%", "humidity_brief": "the humidity drops while airing, then comes back", "co2": "the air is fresh again in {minutes} min",
@@ -131,7 +131,7 @@ TEXTS = {
         "boost": "Lüftung {minutes} Min. auf hohe Stufe", "boost_off": "Lüftung zurück auf normale Stufe",
         "purify": "Luftreiniger {minutes} Min. einschalten", "purify_off": "Luftreiniger ausschalten",
         "boosted": "Lüftung hoch {minutes} Min.", "purified": "Luftreiniger {minutes} Min.", "device_off": "Gerät aus",
-        "nothing": "Nichts zu tun", "close": "Schließen", "open": "{minutes} Min. lüften", "open_long": "Öffnen",
+        "nothing": "Nichts zu tun", "keep": "Offen lassen", "close": "Schließen", "open": "{minutes} Min. lüften", "open_long": "Öffnen",
         "close_later": "Gegen {at} schließen", "open_later": "Gegen {at} {minutes} Min. lüften", "close_soon": "Noch {after} Min. offen lassen", "open_more": "Auch {which} {minutes} Min. öffnen", "open_more_plain": "die anderen Fenster", "opened_more": "Auf beiden Seiten offen {minutes} Min.", "instead": "{line} statt in {minutes}",
         "heat": "Sie behalten {value} °C bis {hour} Uhr", "heat_open": "{value} °C besser bis {hour} Uhr",
         "humidity": "{chosen} % Feuchte statt {idle} %", "humidity_at": "{chosen} % Feuchte um {at} statt {idle} %", "humidity_brief": "die Feuchte sinkt beim Lüften und steigt danach wieder", "co2": "die Luft ist in {minutes} Min. wieder frisch",
@@ -246,7 +246,7 @@ def _name(gesture: Gesture, path, words, opened: bool) -> str:
         return words["heated"] if gesture.kind == "heat_on" else words["heated_to"].format(target=_degrees(gesture.target, "fr"))
     if gesture.kind == "open":
         return words["aired"].format(minutes=gesture.minutes) if gesture.minutes else words["open_now"]
-    if gesture.kind == "nothing" and opened:
+    if gesture.kind in ("nothing", "keep") and opened:
         return words["open_now"]
     return words["shut"]
 
@@ -312,7 +312,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             elif hour is not None:
                 # Said to the quarter of an hour, or at the forecast's end for a window left open: a time that moved five
                 # minutes at every step changed the line each time (Chambre AL, 4 November).
-                if gesture.kind in ("open", "open_more") and not gesture.minutes:
+                if gesture.kind in ("open", "open_more", "keep") and not gesture.minutes:
                     at = end_hour * 60 % (24 * 60)
                 else:
                     at = round((hour * 60 + (k + 1) * STEP_MINUTES) / 15) * 15 % (24 * 60)
@@ -347,8 +347,9 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         line = words["sure" if sure else "unsure"].format(line=line)
     # « Pourquoi ? » compares two or three scenarios (CAHIER-MOTEUR.md § 14): doing nothing, the advice, and the best
     # other one when it differs.
-    shown = [Gesture("nothing"), gesture]
-    others = sorted((g for g in decision.scenarios if g not in shown), key=lambda g: decision.scenarios[g]["total"])
+    # « Laissez ouvert » is the scenario of doing nothing: said against shutting now, as its line is.
+    shown = [Gesture("nothing"), reference(paths, gesture) if gesture.kind == "keep" else gesture]
+    others = sorted((g for g in decision.scenarios if g not in shown and g.kind != "keep"), key=lambda g: decision.scenarios[g]["total"])
     shown += others[:1]
     why = []
     for g in dict.fromkeys(shown):

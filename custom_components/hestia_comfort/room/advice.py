@@ -18,7 +18,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from ..advisor.checks import GOOD, KINDS, Checker
-from ..advisor.decide import (SHUT_SHADE, SIGNIFICANT, Gesture, Now, Twins, aged, decide, for_season, from_thermostat, heating_back,
+from ..advisor.decide import (SHUT_SHADE, SIGNIFICANT, Gesture, Now, Twins, aged, decide, for_season, remembered, from_thermostat, heating_back,
                               heating_off, main_subject, recent_sources, shutter_tonight, simulate, stove_idle, sun_gain,
                               tonight)
 from ..advisor.feedback import declined, follow, pause_until
@@ -76,7 +76,8 @@ def _number(hass, entity_id, attribute=None):
 # The gesture as the entities' stable state (engine/verdict.py GESTURES), from the 3.0 advisor's gesture.
 GESTURE_KEYS = {"nothing": "none", "open": "open", "open_more": "open", "close": "close", "boost": "ventilation",
                 "boost_off": "ventilation", "purify": "ventilation", "purify_off": "ventilation", "shutter_close": "covers",
-                "shutter_open": "covers", "heat_on": "heat", "heat_to": "heat", "heat_stop": "heat"}
+                "shutter_open": "covers", "heat_on": "heat", "heat_to": "heat", "heat_stop": "heat",
+                "keep": "keep_open"}
 # « Rien à faire » while a measure stays out of its range or mark (advisor/words.py): « Au mieux », as the card says.
 BEYOND = re.compile(r"aucun geste ne ferait vraiment mieux|^(Ouverte ou fermée|Ouverte|Fermée) :", re.IGNORECASE)
 
@@ -91,6 +92,9 @@ def banner_level(result: dict) -> tuple[str, str]:
         return "neutral", "Démarrage"
     if rule == "safety":
         return "urgent", "Attention"
+    if gesture == "keep":
+        # « Laissez ouvert »: the gesture is done, nothing more to do (card/src/views/room.ts « Le geste est fait »).
+        return "calm", "Au mieux"
     if gesture != "nothing":
         return "action", "Geste conseillé"
     if result.get("a_essayer"):
@@ -323,6 +327,8 @@ class RoomAdvisor:
         self.tried = None
         # The gesture the card asks for, followed until done or replaced; the gestures put aside by « Pas maintenant ».
         self.asked, self.paused = None, {}
+        # When an airing was last shut: the next opening waits until it is judged (advisor/decide.py RESTING_MINUTES).
+        self.shut_at = None
         self.checker, self.sensors = Checker(), {}
         self.shown = None
         self.result = None
@@ -352,6 +358,10 @@ class RoomAdvisor:
             self.hot_since = dt_util.parse_datetime(state["hot_since"]) if state.get("hot_since") else None
             if shown := state.get("shown"):
                 self.previous = (Gesture(**shown["gesture"]), dt_util.parse_datetime(shown["at"]), dt_util.parse_datetime(shown["since"]))
+            # « À essayer » as well: « Ouvrez » followed after a restart is still « Laissez ouvert » (advisor/decide.py `under_way`).
+            if tried := state.get("tried"):
+                self.tried = (Gesture(**tried["gesture"]), dt_util.parse_datetime(tried["at"]))
+            self.shut_at = dt_util.parse_datetime(state["shut_at"]) if state.get("shut_at") else None
             self.paused = {k: until for k, v in (state.get("paused") or {}).items() if (until := dt_util.parse_datetime(v)) and until > now}
         if self.walls is None and self.room["temperature"]:
             self.walls = await self.home.mean_air(self.room["temperature"], now - timedelta(hours=WALLS_HOURS), now)
@@ -362,6 +372,11 @@ class RoomAdvisor:
         if self.previous:
             gesture, at, since = self.previous
             state["shown"] = {"gesture": asdict(gesture), "at": at.isoformat(), "since": since.isoformat()}
+        if self.tried:
+            gesture, at = self.tried
+            state["tried"] = {"gesture": asdict(gesture), "at": at.isoformat()}
+        if self.shut_at:
+            state["shut_at"] = self.shut_at.isoformat()
         return state
 
     async def async_save(self, now):
@@ -456,6 +471,8 @@ class RoomAdvisor:
     def _opening(self, now, opened, air, humidity):
         """(since, air, humidity) of the opening under way, as this step first saw it; None when shut or not seen."""
         if not opened:
+            if self.opening is not None:
+                self.shut_at = now
             if self.opened_seen is not None and self.opened_from is not None:
                 # The airing just shut: the twin's forecast for it as it was, open that long then shut, judged in an hour.
                 twins, start, coming = self.opened_from
@@ -722,15 +739,17 @@ class RoomAdvisor:
         # The gesture shown « À essayer », counted down too: it holds while it is about as good.
         tried_before, tried_at = self.tried or (None, now)
         tried = aged(tried_before, (now - tried_at).total_seconds() / 60)
+        # Minutes since an airing was shut: the next opening for a slow subject waits until it is judged.
+        aired = (now - self.shut_at).total_seconds() / 60 if self.shut_at and not opened else None
         decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                          holidays=away, habits=habits, held=held, tried=tried)
+                          holidays=away, habits=habits, held=held, tried=tried, aired=aired)
         if decision.rule == "unproven" and opened and opening:
             # The gesture under way may show its effect now (CAHIER-MOTEUR.md § 4.1).
             subject = main_subject(decision.scenarios, decision.passive)
             if self._seen(subject, decision, opening, now, air, current.humidity):
                 proof[subject] = PROVEN
                 decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                                  holidays=away, habits=habits, held=held, tried=tried)
+                                  holidays=away, habits=habits, held=held, tried=tried, aired=aired)
         # What the twin gives the windows left open, from the moment they are first seen open; a safety rule that shuts
         # them weighs no scenario (Salon · Cuisine, 4 November at 6 h 26: the advice failed on it), the next step will.
         path = decision.paths.get(Gesture("nothing"))
@@ -738,14 +757,16 @@ class RoomAdvisor:
             self.opened_seen = Opened(opening[0], opening[1], opening[2], tuple(path.air), tuple(path.humidity or ()))
             self.opened_from = (twins, current, coming)
         snap = capture(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                       holidays=away, habits=habits, reason=reason, held=held, end_hour=end_hour, hour=local.hour + local.minute / 60,
+                       holidays=away, habits=habits, reason=reason, held=held, tried=tried, aired=aired, end_hour=end_hour, hour=local.hour + local.minute / 60,
                        room=name, when=now.isoformat(), version=home.version)
         snap["pas_maintenant"] = sorted(aside)
         same = shown_before is not None and (shown_before.kind, shown_before.after is None) == (decision.gesture.kind, decision.gesture.after is None)
-        self.previous = (decision.gesture, now, shown_since if same else now)
+        # A countdown kept goes on from when it was said (`remembered`), not from this step.
+        kept, kept_at = remembered(shown_before, shown_at, decision.gesture, now)
+        self.previous = (kept, kept_at, shown_since if same else now)
         # Kept through a step where a safety rule takes the gesture away (a gust): it comes back as it was, not anew.
         if decision.passive is not None:
-            self.tried = (decision.passive, now)
+            self.tried = remembered(tried_before, tried_at, decision.passive, now)
         elif decision.gesture.kind != "nothing" or not taken:
             self.tried = None
         if stepping:

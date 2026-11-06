@@ -37,7 +37,8 @@ class SeenAtWork(unittest.TestCase):
         args.update(twins=scaled(args["twins"], share), now=replace(args["now"], air=18.1, humidity=69.0),
                     previous=Gesture("close", after=10))
         self.assertNotEqual(decide(**args).gesture, Gesture("close", after=5))
-        self.assertEqual(decide(**args).gesture.kind, "nothing")
+        # Left open for the evening, even ajar, it still dries the room more than shutting: « Laissez ouvert » (3.9.3).
+        self.assertEqual(decide(**args).gesture.kind, "keep")
 
     def test_a_window_doing_as_forecast_keeps_its_share(self):
         snap, opened = chambre_p()

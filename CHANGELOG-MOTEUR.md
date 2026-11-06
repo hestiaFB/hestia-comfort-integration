@@ -4,6 +4,41 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.9.6 — 6 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Corrections
+
+- « Laissez ouvert encore 45 min » descend bien : 40, 35… Il restait bloqué quand Hestia recalculait souvent.
+- « La pluie arrive » ne s'allume et ne s'éteint plus toutes les quelques minutes quand la prévision hésite.
+
+## 3.9.4 — 5 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Corrections
+
+- Après une aération, Hestia ne redemande plus d'aérer pour l'humidité avant d'avoir vu son effet, une heure après la fermeture.
+- « Laissez ouvert encore 10 min » ne repart plus à 15 min, et « Refermez » ne redevient plus « Laissez ouvert encore… ».
+- « Refermez » s'affiche toujours au bandeau, même quand son effet n'est pas encore prouvé : la fenêtre ne reste plus ouverte toute la nuit sous « Rien à faire ».
+
+## 3.9.3 — 5 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Améliorations
+
+- Fenêtre ouverte, et la refermer maintenant ferait nettement moins bien : la carte dit « Laissez ouvert » et ce que l'on y gagne, en bleu, au lieu de « Rien à faire ».
+
+## 3.9.2 — 5 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Corrections
+
+- Après « Ouvrez », une fois la fenêtre ouverte, la carte dit « Laissez ouvert » et ce que l'on y gagne, au lieu de « Rien à faire ».
+
 ## 3.9.0 — 5 novembre 2026
 
 Pas encore dans une version de Confort.

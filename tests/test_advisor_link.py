@@ -149,6 +149,9 @@ class OneDecisionForTheCardTheEntitiesAndTheLights(unittest.TestCase):
         self.assertEqual((later["gesture"], later["state"], later["level"]), ("later", "action", "action"))
         soon = verdict(decided(title="Laissez ouvert encore 5 min", geste="close", apres=5, regle="best"), self.view)
         self.assertEqual(soon["gesture"], "keep_open")
+        # « Laissez ouvert », for good: nothing more to do, in blue (advisor/decide.py `keep`).
+        kept = verdict(decided(title="Laissez ouvert", geste="keep", regle="best"), self.view)
+        self.assertEqual((kept["gesture"], kept["pill"], kept["mood"]), ("keep_open", "Au mieux", "best"))
         now = verdict(decided(title="Lancez la VMC rapide 30 min", geste="boost", regle="best"), self.view)
         self.assertEqual((now["gesture"], now["colour"]), ("ventilation", "#f1b277"))
 
