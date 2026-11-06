@@ -178,6 +178,11 @@ export class ComfortSetup extends LitElement {
   const back=!!t&&(this.snapshot?.rooms??[]).every(r=>t.rooms.some(x=>x.entry_id===r.entry_id&&(x.advisor||x.progress)));
   if(back){this.reloadTries=0;return;}
   if(this.reloadTries++<10)setTimeout(()=>{if(this.isConnected)void this.loadHealth();},3000);}
+ // The same reload hides the room's sensors and its report for those seconds (« À régler », no temperature under its name):
+ // once it is back, the report, the learning and the sensors' state are asked again, at 4 then 10 s.
+ private settleAfterSave(entryId:string){
+  for(const ms of [4000,10000])setTimeout(()=>{if(!this.isConnected)return;void this.loadHealth();
+   const d=this.draft;if(d&&this.entryId===entryId)void this.discover(d.area_id,entryId).then(found=>{if(this.entryId===entryId)this.discovery=found;},()=>{});},ms);}
  private async loadHealth(){
   const generation=++this.healthGeneration;this.healthLoading=true;this.healthError='';
   // What the twins learned is a bonus: the health page never waits for it nor fails with it.
@@ -544,7 +549,7 @@ export class ComfortSetup extends LitElement {
    if(workspace!==this.workspaceGeneration)return;
    // A room saved stays on screen, on the same tab and at the same place: no other page in between, nothing reloaded.
    const kept=wasRoom&&edited?this.snapshot.rooms.find(r=>r.entry_id===edited):undefined;
-   if(kept){const config=editable(kept.config);this.drafts.delete(this.workspaceKey);this.draft=config;this.original=JSON.stringify(config);this.acknowledged=[...(config.acknowledged??[])];this.revision=this.snapshot.revision;this.saved=t('Enregistré');return;}
+   if(kept){const config=editable(kept.config);this.drafts.delete(this.workspaceKey);this.draft=config;this.original=JSON.stringify(config);this.acknowledged=[...(config.acknowledged??[])];this.revision=this.snapshot.revision;this.saved=t('Enregistré');this.settleAfterSave(kept.entry_id);return;}
    this.drafts.delete(this.workspaceKey);this.workspaceKey='';this.path('');this.draft=undefined;this.exteriorDraft=undefined;this.discovery=undefined;this.entryId=undefined;
    if(wasRoom&&edited){const tab=roomSections.find(x=>x.stage===this.stage)?.path??'mesures';await this.openRoom(edited,tab);this.saved=t('Enregistré');return;}
    if(wasRoom){this.preview=this.snapshot.rooms.find(r=>!before.has(r.entry_id))?.entry_id;this.previewEdited=false;if(this.preview)this.path('apercu/'+this.preview);}
