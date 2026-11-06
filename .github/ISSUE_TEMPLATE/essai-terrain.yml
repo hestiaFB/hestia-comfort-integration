@@ -1,0 +1,37 @@
+name: Essai terrain du moteur · Engine field report
+description: Partager le rapport anonyme du moteur de conseil, pour l'aider à mieux conseiller toutes les maisons. Share the advice engine's anonymous report.
+title: "Essai terrain "
+labels: ["essai terrain"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci de participer ! Le bouton « Préparer une issue sur GitHub » du panneau Hestia a rempli le résumé.
+        Il ne reste qu'à **déposer le fichier du rapport** ci-dessous (glissez-le dans le cadre).
+        Cette issue est publique : le rapport est anonyme, vous pouvez le relire avant de le déposer.
+
+        Thanks for taking part! The « Prepare a GitHub issue » button of the Hestia panel filled in the summary.
+        Only **the report file** is missing below (drag it into the box). This issue is public: the report is anonymous.
+  - type: textarea
+    id: rapport
+    attributes:
+      label: Le rapport · The report
+      description: Le fichier « hestia-confort-rapport-….json » téléchargé dans « À propos ». The file downloaded in « About ».
+      placeholder: Glissez le fichier ici. Drop the file here.
+    validations:
+      required: true
+  - type: textarea
+    id: resume
+    attributes:
+      label: Résumé · Summary
+      description: Rempli par le panneau. Filled in by the panel.
+  - type: textarea
+    id: remarques
+    attributes:
+      label: Ce que vous avez remarqué · What you noticed
+      description: Facultatif. Un conseil qui ne collait pas, à quel moment, dans quelle pièce. Optional.
+  - type: input
+    id: version
+    attributes:
+      label: Versions
+      description: Remplies par le panneau. Filled in by the panel.

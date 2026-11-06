@@ -4,6 +4,7 @@ import {live} from 'lit/directives/live.js';
 import styles from './styles.css';
 // The comfort review is shared with its Lovelace card (card/src/review.ts).
 import {kpis,todoLists,listSection,listRow,saveBar,tabBar,numberField,segmented,toggle,moreRow,frame,noteBox,hubStyles,modernStyles,helpTip,defaultValue,pageHead,todoFrame,itemsFrame,stepMenu,stepFooter,extensionsFrame,detectedFrame,versionsFrame,extensionCard as nkExtensionCard,aboutPage,removeBlock as nkRemoveBlock,pageStyles,hassChanged,setLanguage,addDictionary,wordsReady,t,fr,currentLocale,currentLanguage,type NkLine,type NkLevel} from './socle/ui';
+import {fieldTrialFrame,type FieldReport} from './fieldtrial';
 import {lightEditor,noLights,type Lights,type LightRule,type LightInfo} from './lights';
 import {foyerPage,roomFoyer,toleranceName,FOYER_DEFAULTS,duration,type Foyer} from './foyer';
 import {quizScreen,unanswered,firstUnanswered,habitsStyles,type HabitsContext,type HouseUses} from './habitudes';
@@ -98,6 +99,10 @@ export class ComfortSetup extends LitElement {
  // The room's settings as saved, to show the save bar only once something changed (CAHIER-HUB.md § 6).
  private original='';
  @state() private healthError='';
+ // « Participez à l'amélioration du moteur » (fieldtrial.ts): asked when Confort's home opens, while the engine is in beta.
+ @state() private fieldReport?:FieldReport;
+ @state() private fieldError='';
+ private fieldAsked=false;
  private healthGeneration=0;
  // The tab opens on the home's technical state; « Modifier » leads to the rooms.
  @state() private page:'health'|'rooms'|'review'|'settings'|'foyer'|'pieces'|'learning'|'about'='health';
@@ -145,6 +150,8 @@ export class ComfortSetup extends LitElement {
   add(this.snapshot?.rooms.map(r=>r.config));add(this.snapshot?.home);add(this.draft);add(this.exteriorDraft);return ids;}
  protected updated(changed:PropertyValues){
   if(this.page==='review')void loadReview();
+  if(this.page==='health'&&!this.fieldAsked&&this.hass){this.fieldAsked=true;void this.loadFieldReport();}
+  if(this.page!=='health')this.fieldAsked=false;
   // The hub's words (socle 1.13) follow Home Assistant's language.
   // Its words come back from Confort in the new language too: the report is asked again.
   if(setLanguage(this.hass?.language)){this.requestUpdate();if(this.snapshot)void this.loadHealth();}
@@ -197,6 +204,7 @@ export class ComfortSetup extends LitElement {
   ${kpis([{value:`${answering} / ${configured}`,label:t('capteurs qui répondent'),level:answering===configured?'ok':'todo'},
    {value:`${avg} %`,label:t('du logement appris'),go:()=>this.path('apprentissage')},
    {value:String(followed),label:many(followed)?t('conseils suivis cette semaine'):t('conseil suivi cette semaine')}])}
+  ${h.advisor_beta===false?nothing:fieldTrialFrame({report:this.fieldReport,error:this.fieldError||undefined,busy:this.busy,repository,participate:on=>void this.participate(on)})}
   ${todoLists(h.todo.map(l=>this.nkLine(l)),[...this.habitsLine(),...h.tips.map(l=>this.nkLine(l))])}
   ${this.roomList()}`;}
  /** « À améliorer »: the questions on the household's habits not answered yet (HABITUDES-FOYER.md § 4); never orange. */
@@ -705,6 +713,13 @@ export class ComfortSetup extends LitElement {
   return aboutPage({name:'Hestia Confort',repository,card:t('Tableau de bord → Ajouter une carte → Hestia Confort, ou Hestia Confort · logement.'),
    versions:[[t('Hestia Confort'),version||'—'],...(h?.advisor?[[t('Moteur de conseil'),h.advisor] as [string,string]]:[]),['API','hestia_comfort_api v1'],
     ...(h?.socle?[[t('Socle commun'),h.socle] as [string,string]]:[]),[t('Liaisons'),bricks.length?bricks.join(' · '):t('Aucune brique reliée')]]});}
+ private async loadFieldReport(){this.fieldError='';
+  try{this.fieldReport=await this.ws<FieldReport>({type:'hestia_comfort/field_report'});}
+  catch(e){this.fieldError=this.message(e);}}
+ /** « Je participe »: our analysis tools on or off (configuration.py set_analysis), then the report as it now is. */
+ private async participate(on:boolean){this.busy=true;
+  try{await this.ws({type:'hestia_comfort/set_analysis',enabled:on});await this.loadFieldReport();}
+  catch(e){this.fieldError=this.message(e);}finally{this.busy=false;}}
  private foyer():Foyer{return this.snapshot?.home.foyer??{};}
  /** A new room starts from the house's range (« Votre maison »); its windows take the rest as they read it. */
  private withHouse(room:RoomConfig):RoomConfig{const p=this.foyer().plage??{};return {...room,settings:{...room.settings,...p}};}

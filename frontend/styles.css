@@ -179,3 +179,7 @@ details.howto{padding-left:0;margin:6px 0}details.howto summary{cursor:pointer;c
 .nk-bar{display:inline-block;width:80px;height:6px;border-radius:999px;background:var(--nk-border,var(--nc-border));overflow:hidden;vertical-align:middle}
 .nk-bar i{display:block;height:100%;background:var(--nk-ok,var(--primary-color));border-radius:999px}
 .ac-kpi-go{text-align:left;font:inherit;color:inherit;cursor:pointer;margin:0;min-height:0}.ac-kpi-go:hover{border-color:var(--primary-color)}
+
+/* « Participez à l'amélioration du moteur » (fieldtrial.ts) */
+.ft-frame p{margin:0 0 8px}.ft-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:16px}
+.ft-raw{max-height:320px;overflow:auto;margin:8px 0 0;padding:12px;font-size:var(--nw-fs-small,12px);line-height:1.4;white-space:pre-wrap;word-break:break-word;border:1px solid var(--nk-border,var(--divider-color));border-radius:8px}

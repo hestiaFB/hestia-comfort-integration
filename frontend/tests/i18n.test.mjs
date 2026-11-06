@@ -31,7 +31,7 @@ function frenchTexts(source){
  }
  return found;
 }
-const texts=new Set(['panel.ts','model.ts','lights.ts','foyer.ts','sketch.ts','learning3.ts','habitudes.ts'].flatMap(f=>frenchTexts(readFileSync(join(root,f),'utf8'))).filter(Boolean));
+const texts=new Set(['panel.ts','model.ts','lights.ts','foyer.ts','sketch.ts','learning3.ts','habitudes.ts','fieldtrial.ts'].flatMap(f=>frenchTexts(readFileSync(join(root,f),'utf8'))).filter(Boolean));
 const names=text=>[...text.matchAll(/\{(\w+)\}/g)].map(x=>x[1]).sort().join();
 
 test('the panel has English words for every French text it shows',()=>{

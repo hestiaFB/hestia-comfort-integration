@@ -43,7 +43,7 @@ def async_setup_websocket(hass):
     websocket_api.async_register_command(hass, ws_periods)
     for command in (ws_configuration, ws_discover, ws_overview, ws_weather, ws_validate, ws_save, ws_remove):
         websocket_api.async_register_command(hass, command)
-    for command in (ws_advice_opinion, ws_atelier, ws_trace, ws_relearn, ws_analysis):
+    for command in (ws_advice_opinion, ws_atelier, ws_trace, ws_relearn, ws_analysis, ws_field_report):
         websocket_api.async_register_command(hass, command)
 
 
@@ -435,8 +435,20 @@ async def ws_relearn(hass, connection, msg):
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_analysis(hass, connection, msg):
-    """Our analysis tools on or off (configuration.py `set_analysis`): on at the lab, off for everyone else. No page sets it
-    yet: asked by the lab's own scripts."""
+    """Our analysis tools on or off (configuration.py `set_analysis`): on at the lab, off by default; set by « Je participe »
+    in « À propos » (frontend/panel.ts `fieldTrial`) while the engine is in beta."""
     service = await get_configuration(hass)
     await service.set_analysis(msg["enabled"])
     connection.send_result(msg["id"], {"analysis": msg["enabled"]})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/field_report", vol.Optional("language"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_field_report(hass, connection, msg):
+    """« Participez à l'amélioration du moteur » (field_report.py): the anonymous report, and what would make it more
+    useful. Nothing is sent anywhere: the panel shows it and the person downloads it."""
+    from . import field_report
+    from .advisor_home import DATA
+    service = await get_configuration(hass)
+    connection.send_result(msg["id"], await field_report.build(hass, service, hass.data.get(DATA)))
