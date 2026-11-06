@@ -265,7 +265,6 @@
     },
     "marketplace_untracked": {
       "title": "Hestia Confort : reprendre les mises à jour",
-      "description": "Depuis le passage au nom Hestia, le Marketplace ne suit plus Hestia Confort : il ne vous proposera plus ses mises à jour.\n\nAppuyez sur Réparer : il télécharge à nouveau la même version ({version}). Rien ne change dans votre maison.",
       "fix_flow": {
         "step": {
           "confirm": {

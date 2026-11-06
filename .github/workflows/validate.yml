@@ -36,7 +36,8 @@ jobs:
         working-directory: frontend
       - run: npm run validate
         working-directory: frontend
-      - run: git diff --exit-code -- custom_components/hestia_comfort/frontend/
+      # The gzip copies are left out: the same script compresses to other bytes with another Node's zlib.
+      - run: git diff --exit-code -- custom_components/hestia_comfort/frontend/ ':(exclude)*.gz'
   card:
     runs-on: ubuntu-latest
     steps:
@@ -64,6 +65,9 @@ jobs:
         working-directory: card
         env:
           HESTIA_TEST_FIREFOX: "1"
+      # The panel's own packages (esbuild) for its browser tests.
+      - run: npm ci
+        working-directory: frontend
       - run: npm --prefix ../frontend run test:browser
         working-directory: card
         env:
