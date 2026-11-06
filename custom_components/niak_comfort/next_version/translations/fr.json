@@ -1,0 +1,282 @@
+{
+  "title": "Hestia Comfort",
+  "config": {
+    "step": {
+      "user": {
+        "title": "1 · Votre première pièce",
+        "description": "Commencez par le Salon ou choisissez une autre pièce Home Assistant. Vous pourrez ajouter les autres ensuite. Le nom de la pièce sera utilisé si vous laissez le nom affiché vide.",
+        "data": {
+          "area_id": "Pièce Home Assistant",
+          "name": "Nom affiché (facultatif)"
+        }
+      },
+      "home": {
+        "title": "Activer Hestia Confort",
+        "description": "Validez pour ajouter la page Hestia Confort dans la barre latérale. Vous y configurerez le Salon, puis vos autres pièces et l’extérieur du logement, avec des propositions expliquées."
+      }
+    },
+    "error": {
+      "invalid_settings": "Vérifiez la plage de confort, l’ordre des seuils et les marges d’hystérésis.",
+      "invalid_source": "Choisissez une entité compatible existante.",
+      "required_source": "Choisissez la température intérieure pour suivre cette pièce.",
+      "invalid_area": "Choisissez une pièce Home Assistant existante."
+    },
+    "abort": {
+      "already_configured": "Cette pièce possède déjà une configuration Hestia Comfort.",
+      "use_panel": "Hestia Confort est déjà activé. Ajoutez et modifiez vos pièces depuis la page Hestia Confort de la barre latérale.",
+      "migrated": "Votre installation a été reprise sous le nouveau nom. Suivez la suite dans Hestia-FB → Accueil."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Hestia Confort",
+        "description": "Les pièces, leurs capteurs et l’extérieur se règlent dans l’onglet Confort du panneau Hestia-FB.\n\n[Ouvrir les paramètres de Hestia Confort]({link})",
+        "submit": "Fermer"
+      }
+    },
+    "error": {
+      "invalid_settings": "Vérifiez la plage de confort, l’ordre des seuils et les marges d’hystérésis.",
+      "invalid_source": "Choisissez une entité compatible existante.",
+      "required_source": "Choisissez la température intérieure pour suivre cette pièce.",
+      "invalid_area": "Choisissez une pièce Home Assistant existante."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "advice": {
+        "name": "Conseil"
+      },
+      "state": {
+        "name": "État",
+        "state": {
+          "calm": "Tout va bien",
+          "best": "Au mieux",
+          "benefit": "À saisir",
+          "action": "Geste conseillé",
+          "urgent": "Attention",
+          "neutral": "À vérifier",
+          "optimized": "Conseil optimisé",
+          "too_cold": "Trop frais",
+          "starting": "Démarrage",
+          "sensors_silent": "Capteurs muets",
+          "sensor_silent": "Un capteur muet"
+        }
+      },
+      "colour": {
+        "name": "Couleur"
+      },
+      "humidity": {
+        "name": "Humidité",
+        "state": {
+          "normal": "Dans votre plage",
+          "slightly_humid": "Légèrement humide",
+          "humid": "Air humide",
+          "very_humid": "Très humide",
+          "slightly_dry": "Légèrement sec",
+          "dry": "Air sec",
+          "very_dry": "Très sec"
+        }
+      },
+      "learning": {
+        "name": "Apprentissage"
+      },
+      "home_rooms_asking": {
+        "name": "Pièces demandant un geste"
+      },
+      "home_advice": {
+        "name": "Conseil"
+      },
+      "home_colour": {
+        "name": "Couleur"
+      },
+      "reason": {
+        "name": "Raison",
+        "state": {
+          "within_comfort": "Rien à signaler",
+          "rain_open_windows": "Pluie et ouvrants ouverts",
+          "opening_blocked": "Contrainte extérieure",
+          "verify_exterior": "Vérifier les conditions extérieures",
+          "air_needed": "Renouvellement d’air nécessaire",
+          "cooling_possible": "Rafraîchissement possible",
+          "warming_possible": "Réchauffement possible",
+          "drying_possible": "Assèchement possible",
+          "exchange_harmful": "Échange défavorable",
+          "cooling_unavailable": "Fraîcheur indisponible",
+          "heat_needed": "Besoin de chaleur",
+          "drying_unavailable": "Assèchement indisponible",
+          "drying_later": "Assécher plus tard",
+          "drying_slow": "Aérer assèche peu ici",
+          "drying_night": "Aérer au réveil",
+          "drying_alone": "Sèche d’elle-même",
+          "ventilation_possible": "La VMC peut assécher",
+          "warm_walls": "Chauffez un peu plus",
+          "incomplete_data": "Information incomplète",
+          "optional_air_change": "Renouvellement d’air facultatif",
+          "gust_open_windows": "Rafales : fermer",
+          "alarm_open": "Alarme armée : fermer",
+          "short_air_change": "Aération courte",
+          "sun_entering": "Soleil qui entre",
+          "rain_soon": "Pluie imminente",
+          "precool_possible": "Pré-rafraîchir la nuit",
+          "precool_later": "Pré-rafraîchir plus tard",
+          "shared_volume": "Même air qu’une pièce voisine",
+          "humid_outdoor": "Humidité venue du dehors",
+          "open_neutral": "Fenêtre ouverte sans effet",
+          "rehumidification_risk": "Air du dehors plus humide"
+        }
+      },
+      "heating_action": {
+        "name": "Chauffage observé",
+        "state": {
+          "heating": "Chauffe en cours",
+          "idle": "Au repos",
+          "off": "Arrêté",
+          "cooling": "Rafraîchit",
+          "unknown": "Inconnu",
+          "not_configured": "Non configuré"
+        }
+      },
+      "coverage": {
+        "name": "Couverture des données",
+        "state": {
+          "partial": "Bilan partiel",
+          "configured_sources_available": "Sources configurées disponibles"
+        }
+      },
+      "twin_temperature": {
+        "name": "Température prévue dans 1 h"
+      },
+      "twin_humidity": {
+        "name": "Humidité prévue dans 1 h"
+      },
+      "humidity_room": {
+        "name": "Humidité · {room}",
+        "state": {
+          "normal": "Dans votre plage",
+          "slightly_humid": "Légèrement humide",
+          "humid": "Air humide",
+          "very_humid": "Très humide",
+          "slightly_dry": "Légèrement sec",
+          "dry": "Air sec",
+          "very_dry": "Très sec"
+        }
+      },
+      "learning_room": {
+        "name": "Apprentissage · {room}"
+      },
+      "heating_action_room": {
+        "name": "Chauffage observé · {room}",
+        "state": {
+          "heating": "Chauffe en cours",
+          "idle": "Au repos",
+          "off": "Arrêté",
+          "cooling": "Rafraîchit",
+          "unknown": "Inconnu",
+          "not_configured": "Non configuré"
+        }
+      },
+      "reason_room": {
+        "name": "Raison · {room}",
+        "state": {
+          "within_comfort": "Rien à signaler",
+          "rain_open_windows": "Pluie et ouvrants ouverts",
+          "opening_blocked": "Contrainte extérieure",
+          "verify_exterior": "Vérifier les conditions extérieures",
+          "air_needed": "Renouvellement d’air nécessaire",
+          "cooling_possible": "Rafraîchissement possible",
+          "warming_possible": "Réchauffement possible",
+          "drying_possible": "Assèchement possible",
+          "exchange_harmful": "Échange défavorable",
+          "cooling_unavailable": "Fraîcheur indisponible",
+          "heat_needed": "Besoin de chaleur",
+          "drying_unavailable": "Assèchement indisponible",
+          "drying_later": "Assécher plus tard",
+          "drying_slow": "Aérer assèche peu ici",
+          "drying_night": "Aérer au réveil",
+          "drying_alone": "Sèche d’elle-même",
+          "ventilation_possible": "La VMC peut assécher",
+          "warm_walls": "Chauffez un peu plus",
+          "incomplete_data": "Information incomplète",
+          "optional_air_change": "Renouvellement d’air facultatif",
+          "gust_open_windows": "Rafales : fermer",
+          "alarm_open": "Alarme armée : fermer",
+          "short_air_change": "Aération courte",
+          "sun_entering": "Soleil qui entre",
+          "rain_soon": "Pluie imminente",
+          "precool_possible": "Pré-rafraîchir la nuit",
+          "precool_later": "Pré-rafraîchir plus tard",
+          "shared_volume": "Même air qu’une pièce voisine",
+          "humid_outdoor": "Humidité venue du dehors",
+          "open_neutral": "Fenêtre ouverte sans effet",
+          "rehumidification_risk": "Air du dehors plus humide"
+        }
+      },
+      "coverage_room": {
+        "name": "Couverture des données · {room}",
+        "state": {
+          "partial": "Bilan partiel",
+          "configured_sources_available": "Sources configurées disponibles"
+        }
+      },
+      "twin_temperature_room": {
+        "name": "Température prévue dans 1 h · {room}"
+      },
+      "twin_humidity_room": {
+        "name": "Humidité prévue dans 1 h · {room}"
+      }
+    },
+    "binary_sensor": {
+      "gesture": {
+        "name": "Geste à faire"
+      },
+      "airing": {
+        "name": "Aération conseillée"
+      },
+      "close": {
+        "name": "Fenêtres à refermer"
+      },
+      "ventilation": {
+        "name": "VMC conseillée"
+      },
+      "humid": {
+        "name": "Trop humide"
+      },
+      "home_gesture": {
+        "name": "Un geste à faire"
+      },
+      "humid_room": {
+        "name": "Trop humide · {room}"
+      }
+    }
+  },
+  "issues": {
+    "migration_manual": {
+      "title": "Hestia Confort : quelques lignes à changer à la main",
+      "description": "Hestia Confort porte désormais le nom technique « hestia_comfort ». Vos pièces, réglages, apprentissages, historiques et statistiques ont été gardés, et ce qui a été fait dans l’interface a été mis à jour.\n\nCes fichiers écrits à la main utilisent encore l’ancien nom (numéros de ligne entre parenthèses). Remplacez-y l’ancien nom par « hestia_comfort » (ou « hestia-comfort » pour les cartes) :\n\n{items}"
+    },
+    "migration_restart": {
+      "title": "Hestia Confort : redémarrez Home Assistant",
+      "description": "Le passage au nom « hestia_comfort » est fait. L’ancienne copie de l’intégration a été retirée : redémarrez Home Assistant une fois pour terminer."
+    },
+    "migration_failed": {
+      "title": "Hestia Confort : le passage au nouveau nom n’est pas terminé",
+      "description": "Rien n’a été perdu. Le passage reprendra au prochain redémarrage de Home Assistant. Si ce message revient, ouvrez un signalement avec le journal de Home Assistant."
+    },
+    "marketplace_untracked": {
+      "title": "Hestia Confort : reprendre les mises à jour",
+      "description": "Depuis le passage au nom Hestia, le Marketplace ne suit plus Hestia Confort : il ne vous proposera plus ses mises à jour.\n\nAppuyez sur Réparer : il télécharge à nouveau la même version ({version}). Rien ne change dans votre maison.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Reprendre les mises à jour de Hestia Confort",
+            "description": "Le Marketplace va télécharger à nouveau Hestia Confort {version}, la version que vous avez déjà. Vos pièces, vos réglages, ce qu’elles ont appris et leur historique ne changent pas.\n\nHome Assistant vous demandera peut-être de redémarrer ensuite."
+          }
+        },
+        "abort": {
+          "download_failed": "Le Marketplace n’a pas pu télécharger Hestia Confort. Ouvrez Paramètres › Marketplace › Hestia Confort et appuyez sur Télécharger."
+        }
+      }
+    }
+  }
+}

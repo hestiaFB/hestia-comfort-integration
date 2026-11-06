@@ -1,0 +1,282 @@
+{
+  "title": "Hestia Comfort",
+  "config": {
+    "step": {
+      "user": {
+        "title": "1 · Your first room",
+        "description": "Start with the living room or choose another Home Assistant area. You can add more later. Leave the display name empty to use the area name.",
+        "data": {
+          "area_id": "Home Assistant area",
+          "name": "Display name (optional)"
+        }
+      },
+      "home": {
+        "title": "Enable Hestia Comfort",
+        "description": "Confirm to add the Hestia Comfort page to the sidebar. There you will configure the living room, then other rooms and the outdoor sources, with explained proposals."
+      }
+    },
+    "error": {
+      "invalid_settings": "Check comfort range, threshold ordering and hysteresis margins.",
+      "invalid_source": "Choose an existing compatible entity.",
+      "required_source": "Choose an indoor temperature sensor for this room.",
+      "invalid_area": "Choose an existing Home Assistant area."
+    },
+    "abort": {
+      "already_configured": "This room already has a Hestia Comfort configuration.",
+      "use_panel": "Hestia Comfort is already enabled. Add and edit rooms from the Hestia Comfort page in the sidebar.",
+      "migrated": "Your installation was resumed under the new name. Follow the next steps in Hestia-FB → Home."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Hestia Comfort",
+        "description": "Rooms, their sensors and outdoor sources are managed in the Confort tab of the Hestia-FB panel.\n\n[Open Hestia Comfort settings]({link})",
+        "submit": "Close"
+      }
+    },
+    "error": {
+      "invalid_settings": "Check comfort range, threshold ordering and hysteresis margins.",
+      "invalid_source": "Choose an existing compatible entity.",
+      "required_source": "Choose an indoor temperature sensor for this room.",
+      "invalid_area": "Choose an existing Home Assistant area."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "advice": {
+        "name": "Advice"
+      },
+      "state": {
+        "name": "State",
+        "state": {
+          "calm": "All is well",
+          "best": "At its best",
+          "benefit": "Opportunity",
+          "action": "Action advised",
+          "urgent": "Attention",
+          "neutral": "To check",
+          "optimized": "Optimised advice",
+          "too_cold": "Too cool",
+          "starting": "Starting",
+          "sensors_silent": "Sensors silent",
+          "sensor_silent": "One sensor silent"
+        }
+      },
+      "colour": {
+        "name": "Colour"
+      },
+      "humidity": {
+        "name": "Humidity",
+        "state": {
+          "normal": "Within your range",
+          "slightly_humid": "Slightly humid",
+          "humid": "Humid",
+          "very_humid": "Very humid",
+          "slightly_dry": "Slightly dry",
+          "dry": "Dry",
+          "very_dry": "Very dry"
+        }
+      },
+      "learning": {
+        "name": "Learning"
+      },
+      "home_rooms_asking": {
+        "name": "Rooms asking for a gesture"
+      },
+      "home_advice": {
+        "name": "Advice"
+      },
+      "home_colour": {
+        "name": "Colour"
+      },
+      "reason": {
+        "name": "Reason",
+        "state": {
+          "within_comfort": "Within configured comfort range",
+          "rain_open_windows": "Rain with open windows",
+          "opening_blocked": "Outdoor constraint",
+          "verify_exterior": "Check exterior conditions",
+          "air_needed": "Air renewal needed",
+          "cooling_possible": "Cooling possible",
+          "warming_possible": "Warming possible",
+          "drying_possible": "Drying possible",
+          "exchange_harmful": "Unfavorable exchange",
+          "cooling_unavailable": "Cooling unavailable",
+          "heat_needed": "Heat needed",
+          "drying_unavailable": "Drying unavailable",
+          "drying_later": "Drying later",
+          "drying_slow": "Little drying here",
+          "drying_night": "Airing in the morning",
+          "drying_alone": "Drying by itself",
+          "ventilation_possible": "Ventilation can dry",
+          "warm_walls": "Warm the walls",
+          "incomplete_data": "Incomplete information",
+          "optional_air_change": "Optional air renewal",
+          "gust_open_windows": "Gusts: close",
+          "alarm_open": "Alarm armed: close",
+          "short_air_change": "Short airing",
+          "sun_entering": "Sun coming in",
+          "rain_soon": "Rain coming",
+          "precool_possible": "Pre-cool at night",
+          "precool_later": "Pre-cool later",
+          "shared_volume": "Shared air with a neighbouring room",
+          "humid_outdoor": "Outdoor humidity",
+          "open_neutral": "Open window, no effect",
+          "rehumidification_risk": "Outdoor air more humid"
+        }
+      },
+      "heating_action": {
+        "name": "Observed heating",
+        "state": {
+          "heating": "Heating",
+          "idle": "Idle",
+          "off": "Off",
+          "cooling": "Cooling",
+          "unknown": "Unknown",
+          "not_configured": "Not configured"
+        }
+      },
+      "coverage": {
+        "name": "Data coverage",
+        "state": {
+          "partial": "Partial assessment",
+          "configured_sources_available": "Configured sources available"
+        }
+      },
+      "twin_temperature": {
+        "name": "Temperature expected in 1 h"
+      },
+      "twin_humidity": {
+        "name": "Humidity expected in 1 h"
+      },
+      "humidity_room": {
+        "name": "Humidity · {room}",
+        "state": {
+          "normal": "Within your range",
+          "slightly_humid": "Slightly humid",
+          "humid": "Humid",
+          "very_humid": "Very humid",
+          "slightly_dry": "Slightly dry",
+          "dry": "Dry",
+          "very_dry": "Very dry"
+        }
+      },
+      "learning_room": {
+        "name": "Learning · {room}"
+      },
+      "heating_action_room": {
+        "name": "Observed heating · {room}",
+        "state": {
+          "heating": "Heating",
+          "idle": "Idle",
+          "off": "Off",
+          "cooling": "Cooling",
+          "unknown": "Unknown",
+          "not_configured": "Not configured"
+        }
+      },
+      "reason_room": {
+        "name": "Reason · {room}",
+        "state": {
+          "within_comfort": "Within configured comfort range",
+          "rain_open_windows": "Rain with open windows",
+          "opening_blocked": "Outdoor constraint",
+          "verify_exterior": "Check exterior conditions",
+          "air_needed": "Air renewal needed",
+          "cooling_possible": "Cooling possible",
+          "warming_possible": "Warming possible",
+          "drying_possible": "Drying possible",
+          "exchange_harmful": "Unfavorable exchange",
+          "cooling_unavailable": "Cooling unavailable",
+          "heat_needed": "Heat needed",
+          "drying_unavailable": "Drying unavailable",
+          "drying_later": "Drying later",
+          "drying_slow": "Little drying here",
+          "drying_night": "Airing in the morning",
+          "drying_alone": "Drying by itself",
+          "ventilation_possible": "Ventilation can dry",
+          "warm_walls": "Warm the walls",
+          "incomplete_data": "Incomplete information",
+          "optional_air_change": "Optional air renewal",
+          "gust_open_windows": "Gusts: close",
+          "alarm_open": "Alarm armed: close",
+          "short_air_change": "Short airing",
+          "sun_entering": "Sun coming in",
+          "rain_soon": "Rain coming",
+          "precool_possible": "Pre-cool at night",
+          "precool_later": "Pre-cool later",
+          "shared_volume": "Shared air with a neighbouring room",
+          "humid_outdoor": "Outdoor humidity",
+          "open_neutral": "Open window, no effect",
+          "rehumidification_risk": "Outdoor air more humid"
+        }
+      },
+      "coverage_room": {
+        "name": "Data coverage · {room}",
+        "state": {
+          "partial": "Partial assessment",
+          "configured_sources_available": "Configured sources available"
+        }
+      },
+      "twin_temperature_room": {
+        "name": "Temperature expected in 1 h · {room}"
+      },
+      "twin_humidity_room": {
+        "name": "Humidity expected in 1 h · {room}"
+      }
+    },
+    "binary_sensor": {
+      "gesture": {
+        "name": "Gesture to make"
+      },
+      "airing": {
+        "name": "Airing advised"
+      },
+      "close": {
+        "name": "Windows to close"
+      },
+      "ventilation": {
+        "name": "Ventilation advised"
+      },
+      "humid": {
+        "name": "Too humid"
+      },
+      "home_gesture": {
+        "name": "A gesture to make"
+      },
+      "humid_room": {
+        "name": "Too humid · {room}"
+      }
+    }
+  },
+  "issues": {
+    "migration_manual": {
+      "title": "Hestia Comfort: a few lines to change by hand",
+      "description": "Hestia Comfort's technical name is now “hestia_comfort”. Your rooms, settings, learning, history and statistics were kept, and what was made in the interface was updated.\n\nThese hand-written files still use the former name (line numbers in brackets). Replace it there with “hestia_comfort” (or “hestia-comfort” for the cards):\n\n{items}"
+    },
+    "migration_restart": {
+      "title": "Hestia Comfort: restart Home Assistant",
+      "description": "The move to the “hestia_comfort” name is done. The former copy of the integration was removed: restart Home Assistant once to finish."
+    },
+    "migration_failed": {
+      "title": "Hestia Comfort: the move to the new name did not finish",
+      "description": "Nothing was lost. It will start again at the next restart of Home Assistant. If this message comes back, open an issue with Home Assistant's log."
+    },
+    "marketplace_untracked": {
+      "title": "Hestia Comfort: get updates again",
+      "description": "Since the move to the Hestia name, the Marketplace no longer follows Hestia Comfort: it will not offer its updates any more.\n\nPress Repair: it downloads the same version ({version}) again. Nothing changes in your home.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Get Hestia Comfort updates again",
+            "description": "The Marketplace will download Hestia Comfort {version} again, the version you already have. Your rooms, your settings, what they learned and their history do not change.\n\nHome Assistant may ask you to restart afterwards."
+          }
+        },
+        "abort": {
+          "download_failed": "The Marketplace could not download Hestia Comfort. Open Settings › Marketplace › Hestia Comfort and press Download."
+        }
+      }
+    }
+  }
+}
