@@ -1,3 +1,11 @@
+## 3.0.1 — Correctif : le panneau après « Enregistrer »
+
+### Corrections
+
+- Après « Enregistrer » dans une pièce, l’onglet Apprentissage restait sur « Chargement… », et la pièce affichait « À régler » sans ses mesures, jusqu’au rechargement de la page. Tout revient seul en quelques secondes.
+
+### Moteur de conseil 3.10.0 — inchangé
+
 ## 3.0.0 — Un nouveau moteur de conseil, des cartes refaites, un Confort plus léger
 
 ### Avant de mettre à jour
