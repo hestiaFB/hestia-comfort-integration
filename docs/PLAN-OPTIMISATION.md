@@ -353,6 +353,42 @@ encore ; mais une pièce n'envoie plus qu'un message pour toutes ses cartes.
   sur le disque en moins (chiffres du labo).
 - Tests : 831, la même seule erreur qu'avant.
 
+### Finitions (points 19, 20, 21) — demandées par Frank et faites le 6 nov. au soir, au labo, non commitées
+
+Après le bilan global du 6 nov. (Hestia ≈ 1,3 % d'un cœur au labo en temps normal, plus aucun blocage au-dessus de
+0,1 s), Frank a demandé ces trois points seulement.
+
+- **Point 19 — l'historique relu seulement s'il est nouveau** (`room/learning.py`, `room/constants.py`). Au démarrage et
+  toutes les 6 heures, chaque pièce relisait ses 10 jours d'historique. Désormais elle ne relit que ce qui est venu depuis
+  sa dernière lecture, plus un jour de marge (`READ_MARGIN`) ; les 10 jours entiers une fois par jour (`DEEP_EVERY`), pour
+  l'ombre de la station et le COV des aérations. Le magasin du jumeau garde `read_until`, `deep_at`, `sun_shade` et
+  `voc_airings` : après un redémarrage, la pièce sait jusqu'où elle a lu et retrouve l'ombre apprise sans la refaire. Une
+  ouverture déjà en cours au début de ce qui est lu n'est plus apprise une seconde fois, coupée (`_inside`). Test :
+  `tests/test_ha_adapter.py` `test_a_pass_reads_only_what_is_new_and_ten_days_once_a_day`.
+- **Point 20 — les blocages au démarrage** : mesurés sur trois démarrages, avec le journal de chaque coordinateur. Le
+  blocage de 0,45 s vu une fois ne s'est pas reproduit ; Confort ne fige plus HA au démarrage, Weather calcule hors de la
+  boucle (0,09-0,10 s par mise à jour, en temps écoulé, sans blocage). Ce qui reste au-dessus de 0,1 s est Remote
+  Home-Assistant (labo seulement) et une entité interrogée à intervalle régulier qui n'est pas d'Hestia. Rien à corriger.
+- **Point 21 — la fiche d'une pièce plus légère** (`configuration.py` `discover`, `discovery.py` `catalog`). Les 735
+  interrupteurs proposés pour l'automatisation du volet ne portent plus que ce que le panneau lit (identifiant, nom,
+  avertissements : le sélecteur de HA montre le nom lui-même) ; la liste de la reprise à la main, identique, n'est plus
+  calculée deux fois ; la provenance d'une entité proposée pour plusieurs rôles est suivie une seule fois par fiche.
+  Vérifié au labo : mêmes interrupteurs dans le même ordre, mêmes avertissements, mêmes suggestions, les 22 autres rôles
+  identiques.
+- Tests : 835, la même seule erreur qu'avant (`test_domain_migration_ha`).
+
+| Mesure (labo) | Avant | Après |
+|---|---|---|
+| Historique relu au démarrage (8 pièces) | 6,4 s, 538 lectures compactées | **2,3 s, 134** |
+| Ombre de la station réapprise au démarrage | 6 fois | **0** (gardée) |
+| HA figé par Hestia au démarrage | 0,12-0,45 s quelques fois | **rien au-dessus de 0,1 s** |
+| Fiche d'une pièce : taille | 453 ko | **308 ko** |
+| Fiche d'une pièce : calcul (sous profileur) | 332 ms | **252 ms** |
+| Fiche d'une pièce : temps de réponse | 190-200 ms | 145-200 ms (selon la charge du labo) |
+
+Ce qui reste pour la fiche : le calcul de `catalog` lui-même (environ 6 800 entités examinées pour 1 400 proposées).
+Le gagner vraiment voudrait garder la détection entre deux ouvertures, comme le fait Weather : pas fait.
+
 ## Comment on avance
 
 1. Un lot à la fois : code, tests, déploiement au labo, mesure avant/après notée ici.

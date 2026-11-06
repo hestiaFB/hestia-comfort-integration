@@ -1,5 +1,5 @@
 """What a room learns: its stores, ten days of history read compacted, its twin, and the hourly statistics."""
-from datetime import timedelta
+from datetime import datetime, timedelta
 from functools import partial
 import asyncio
 
@@ -9,12 +9,31 @@ from .. import recorder_history
 from ..const import DOMAIN, SEASON_REFRESH_SECONDS
 from ..engine import airflow, habits, learning, sunlight, twin, voc as vocs
 from ..engine.sources import indicator_state
-from .constants import FULL_SPAN, TWIN_FORMAT
+from .constants import DEEP_EVERY, FULL_SPAN, READ_MARGIN, SHORT_SPAN, TWIN_FORMAT
 
 
 def _contacts(states, windows):
     """{window: [(time, open or not, None while it does not answer)]} from a recorder answer."""
     return {e: [(row.last_changed, {"on": True, "off": False}.get(row.state)) for row in states.get(e, [])] for e in windows}
+
+
+def _when(value):
+    """A stored ISO time, or None."""
+    try:
+        return datetime.fromisoformat(value) if isinstance(value, str) else None
+    except ValueError:
+        return None
+
+
+def _inside(items, start):
+    """Fresh summaries that begin after the start of what was read: one already under way there is cut short, and an
+    earlier pass learned it whole (the merges would keep both, under two starts)."""
+    out = []
+    for item in items:
+        began = _when(item.get("start")) if isinstance(item, dict) else None
+        if began is None or began > start:
+            out.append(item)
+    return out
 
 
 class LearningMixin:
@@ -29,6 +48,13 @@ class LearningMixin:
             self.flow_model = airflow.fit(listed("flows"))
             stored = await self._twin_store.async_load() or {}
             if isinstance(stored.get("samples"), list) and stored.get("format") == TWIN_FORMAT and stored["samples"]:
+                # How far the history was read, and what the last deep pass learned: a start then reads only what is new.
+                self._read_until, self._deep_at = _when(stored.get("read_until")), _when(stored.get("deep_at"))
+                if isinstance(stored.get("sun_shade"), dict) and self.sun_shade is None:
+                    self.sun_shade = stored["sun_shade"]
+                if isinstance(stored.get("voc_airings"), list) and not self.voc_airings:
+                    self.voc_airings = stored["voc_airings"]
+                    self.voc_slots = vocs.outdoor_slots(self.voc_airings)
                 rows, now = stored["samples"], dt_util.utcnow()
                 self.twin = await self.hass.async_add_executor_job(twin.summary, rows, now)
                 self.habits = await self.hass.async_add_executor_job(habits.detect, rows, dt_util.get_default_time_zone())
@@ -50,12 +76,25 @@ class LearningMixin:
         lock = self.hass.data.setdefault(f"{DOMAIN}_learning_lock", asyncio.Lock())
         async with lock:
             try:
-                await self._learn_pass(now, span)
+                span, deep = self._read_span(now, span)
+                await self._learn_pass(now, span, deep)
             finally:
                 self._history_pass = {}
 
-    async def _learn_pass(self, now, span=FULL_SPAN):
+    def _read_span(self, now, asked):
+        """How far back this pass reads, and whether it is the deep one: all ten days, the station's shade and the VOC of
+        the airings learned again, once a day. Otherwise what came since the last pass, plus a day."""
+        if asked < FULL_SPAN:
+            return asked, False
+        read_until, deep_at = getattr(self, "_read_until", None), getattr(self, "_deep_at", None)
+        if read_until is None or deep_at is None or not timedelta(0) <= now - deep_at < DEEP_EVERY or read_until > now:
+            return FULL_SPAN, True
+        return min(FULL_SPAN, max(SHORT_SPAN, now - read_until + READ_MARGIN)), False
+
+    async def _learn_pass(self, now, span=FULL_SPAN, deep=None):
         """Refit the room's airing model from the stored openings plus the recorder's recent history."""
+        deep = span >= FULL_SPAN if deep is None else deep
+        complete = True
         stored = await self._learning_store.async_load() or {}
         episodes = stored.get("episodes") if isinstance(stored.get("episodes"), list) else []
         flows = stored.get("flows") if isinstance(stored.get("flows"), list) else []
@@ -78,23 +117,25 @@ class LearningMixin:
                             points(co2) if co2 else [])
 
                 contacts, measured, co2_points = await self.hass.async_add_executor_job(prepare)
+                start = now - span
                 if humidity:
                     fresh = await self.hass.async_add_executor_job(learning.episodes, contacts, *measured)
-                    episodes = learning.merge(episodes, fresh, now)
+                    episodes = learning.merge(episodes, _inside(fresh, start), now)
                     # The peaks of water the room sheds by itself, windows shut: what waiting brings.
                     fresh = await self.hass.async_add_executor_job(learning.peaks, contacts, *measured)
-                    shed = learning.merge(shed, fresh, now)[-learning.KEEP_PEAKS:]
+                    shed = learning.merge(shed, _inside(fresh, start), now)[-learning.KEEP_PEAKS:]
                 if co2:
                     fresh = await self.hass.async_add_executor_job(airflow.flows, contacts, co2_points)
-                    flows = airflow.merge(flows, fresh, now)
+                    flows = airflow.merge(flows, _inside(fresh, start), now)
                 await self._learning_store.async_save({"episodes": episodes, "flows": flows, "peaks": shed})
             except Exception:  # the room then keeps what it learned before, or the default model
+                complete = False
                 if not self._learning_failed:
                     self._learning_failed = True
                     self.logger.warning("Past openings could not be read for %s", self.config.get("name"), exc_info=True)
         model, flow_model = {**learning.fit(episodes), **learning.settling(shed)}, airflow.fit(flows)
         # The twin only observes: the next periodic refresh shows it, no extra one that would delay a sensor change.
-        await self._learn_twin(now, span)
+        await self._learn_twin(now, span, deep, complete)
         if model != self.drying_model or flow_model != self.flow_model:
             self.drying_model, self.flow_model = model, flow_model
             await self.async_request_refresh()
@@ -118,8 +159,10 @@ class LearningMixin:
             out.append((row.last_changed, (value - 32) * 5 / 9 if converted else value))
         return out
 
-    async def _learn_twin(self, now, span=FULL_SPAN):
-        """Add the days read (ten, or the last one after a window is shut) to the twin's half-hour samples (thirty days kept) and refit it."""
+    async def _learn_twin(self, now, span=FULL_SPAN, deep=None, complete=True):
+        """Add the days read (ten once a day, what is new otherwise, the last one after a window is shut) to the twin's
+        half-hour samples (thirty days kept) and refit it. `complete`: the openings were read too, so the history counts
+        as read up to now."""
         stored = await self._twin_store.async_load() or {}
         # Samples kept before the sun was counted on the windows and the air was learned are rebuilt from the history.
         rows = stored.get("samples") if isinstance(stored.get("samples"), list) and stored.get("format") == TWIN_FORMAT else []
@@ -130,7 +173,7 @@ class LearningMixin:
                 solar, heating = self._source_entity("solar"), self.sources.get("heating")
                 # The air as well: how CO₂ and VOC go down, windows shut and open.
                 air = {k: self.sources.get(k) for k in ("co2", "voc")}
-                start, full = now - span, span >= FULL_SPAN
+                start, full = now - span, span >= FULL_SPAN if deep is None else deep
                 beside = [p["indoor"] for p in self.partners if all(p.get("indoor") or [None])]
                 states = await self._history(
                     [*self.windows, *sources.values(), solar, *air.values(), *(e for pair in beside for e in pair)], start, now)
@@ -174,7 +217,14 @@ class LearningMixin:
                 if airings is not None:
                     self.voc_airings = airings
                     self.voc_slots = vocs.outdoor_slots(self.voc_airings)
-                await self._twin_store.async_save({"samples": rows, "format": TWIN_FORMAT})
+                if complete:
+                    self._read_until = now
+                    if full:
+                        self._deep_at = now
+                read_until, deep_at = getattr(self, "_read_until", None), getattr(self, "_deep_at", None)
+                await self._twin_store.async_save({
+                    "samples": rows, "format": TWIN_FORMAT, "read_until": read_until.isoformat() if read_until else None,
+                    "deep_at": deep_at.isoformat() if deep_at else None, "sun_shade": self.sun_shade, "voc_airings": self.voc_airings})
             except Exception:  # the twin then keeps what it learned before
                 if not self._twin_failed:
                     self._twin_failed = True

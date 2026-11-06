@@ -229,6 +229,50 @@ class AdapterTests(AdapterFixture):
         await restored._restore_learning()
         self.assertEqual(restored.drying_model, coordinator.drying_model)
 
+    async def test_a_pass_reads_only_what_is_new_and_ten_days_once_a_day(self):
+        # 6 November (PLAN-OPTIMISATION.md, point 19): every start and every six hours read ten days for each room.
+        from homeassistant.core import State
+        from custom_components.hestia_comfort.room.constants import FULL_SPAN, READ_MARGIN
+        sources = {**self.entry.data["sources"], "indoor_humidity": "sensor.hum", "outdoor_humidity": "sensor.out_hum"}
+        self.hass.config_entries._entries[self.entry.entry_id] = self.entry
+        self.hass.config_entries.async_update_entry(self.entry, options={"sources": sources})
+        self.hass.config.components.add("recorder")
+        now = dt_util.utcnow()
+        start = now - timedelta(hours=5)
+        row = lambda entity_id, state, minutes: State(entity_id, state, last_changed=start + timedelta(minutes=minutes))
+        history = {"binary_sensor.window": [row("binary_sensor.window", "off", 0), row("binary_sensor.window", "on", 30),
+                                            row("binary_sensor.window", "off", 150)],
+                   "sensor.inside": [row("sensor.inside", "68", 0)],
+                   "sensor.hum": [row("sensor.hum", str(80 - min(15, m / 8)), m) for m in range(0, 300, 5)],
+                   "sensor.outside": [row("sensor.outside", "12", 0)], "sensor.out_hum": [row("sensor.out_hum", "80", 0)]}
+        class FakeRecorder:
+            async def async_add_executor_job(self, function, *args):
+                return function(*args)
+        begins = []
+        def significant(hass, begin, end, entity_ids, *args):
+            begins.append(begin)
+            return {e: [r for r in history.get(e, []) if r.last_changed < end] for e in entity_ids}
+        async def learn(coordinator, at):
+            begins.clear()
+            with patch("homeassistant.components.recorder.get_instance", return_value=FakeRecorder()), \
+                    patch("homeassistant.components.recorder.history.get_significant_states", significant):
+                await coordinator._learn(at)
+            return min(begins)
+        coordinator = ComfortCoordinator(self.hass, self.entry)
+        # The first pass reads all ten days.
+        self.assertEqual(await learn(coordinator, now), now - FULL_SPAN)
+        # Six hours later: what came since, plus a day. The opening learned stays one opening.
+        later = now + timedelta(hours=6)
+        self.assertEqual(await learn(coordinator, later), now - READ_MARGIN)
+        self.assertEqual(coordinator.drying_model["openings"], 1)
+        # After a restart too: the room knows how far it read.
+        restored = ComfortCoordinator(self.hass, self.entry)
+        await restored._restore_learning()
+        self.assertEqual(await learn(restored, later + timedelta(hours=1)), later - READ_MARGIN)
+        # A day after the last deep pass: ten days again, for the station's shade and the VOC of the airings.
+        self.assertEqual(await learn(restored, now + timedelta(hours=25)), now + timedelta(hours=25) - FULL_SPAN)
+        self.assertEqual(restored.drying_model["openings"], 1)
+
     async def test_a_restart_reads_the_last_half_hour_for_the_trends(self):
         # 30 October: after the b4 install the Cuisine had no curve until its sensors spoke again.
         from custom_components.hestia_comfort.recorder_history import Row

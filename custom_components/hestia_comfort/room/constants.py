@@ -7,9 +7,13 @@ STATE_KINDS: Final = ("window", "heating", "rain", "pollution", "presence", "pur
 SUN_SMOOTHING: Final = timedelta(minutes=15)
 # Twin samples stored before 1.2.9 counted the other room's windows as this room's own: rebuilt from the history.
 TWIN_FORMAT: Final = 3
-# What a learning pass reads: ten days every six hours, the last day after a window is shut (the merges keep the rest).
+# What a learning pass reads: the last day after a window is shut (the merges keep the rest). Every six hours and after a
+# start, only what came since the last pass plus READ_MARGIN; all ten days once every DEEP_EVERY, for the station's shade
+# and the VOC of the airings (PLAN-OPTIMISATION.md, point 19: a start read ten days for every room).
 FULL_SPAN: Final = timedelta(days=10)
 SHORT_SPAN: Final = timedelta(hours=24)
+READ_MARGIN: Final = timedelta(hours=24)
+DEEP_EVERY: Final = timedelta(hours=24)
 # Measures that move all the time (a CO₂ every few seconds): their changes are grouped, one refresh at most per
 # MEASURE_COOLDOWN (30 s since PLAN-OPTIMISATION.md point 7, agreed by Frank on 6 November: 10 s before); a window, the
 # heating, a presence or a cover is shown within a second.
