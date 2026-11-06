@@ -120,7 +120,8 @@ class Gestures(unittest.TestCase):
         self.assertEqual(words["subject"], "humidity")
         # What the card will show and when, not a difference to work out (« 13,6 points en moins »).
         # An hour after shutting, not the airing's own low the walls fill back within minutes.
-        self.assertEqual(words["line"], "62 % d'humidité à 20 h 30 au lieu de 68 %, sans doute")
+        # Probable, said « devrait » (Frank, 6 November: three ways, by how sure the room has shown it to be).
+        self.assertEqual(words["line"], "l'humidité devrait passer à 62 % vers 20 h 30 au lieu de 68 %")
 
     def test_a_later_airing_for_the_cool_of_the_evening_is_for_the_outside(self):
         # The room at 26 °C, 27 °C outside now, 14 °C within the hour: twenty minutes in half an hour cool it better, and
@@ -319,7 +320,7 @@ class OpenUnderWay(unittest.TestCase):
         from advisor.words import phrase
         words = phrase(decide(**{**self.args, "tried": Gesture("open")}), 23, hour=20 + 38 / 60)
         self.assertEqual(words["title"], "Laissez ouvert")
-        self.assertEqual(words["line"], "65 % d'humidité à 23 h au lieu de 75 %, sans doute")
+        self.assertEqual(words["line"], "l'humidité devrait passer à 65 % vers 23 h au lieu de 75 %")
         self.assertEqual(len(words["why"]), len(set(words["why"])))
 
 

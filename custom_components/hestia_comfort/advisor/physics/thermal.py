@@ -51,6 +51,19 @@ def shutter_insulation(area: float, closed: float) -> float:
     return gained * area * min(1.0, max(0.0, closed))
 
 
+# What a window can do, as a multiplier of the window law (advisor/physics/vents.py), whatever the days seem to say: the
+# law is for a sash wide open; a wind or a draught may add half as much again, a leaf barely ajar does a tenth. Chambre P
+# had learned 6.7 (fifteen times Chambre A's for a window of the same size) and foresaw the room at 12 °C and 100 % of
+# humidity after an evening's airing; measured on 6 November, the window did a sixth of it (Frank: « l'humidité baisse »).
+WINDOW_RANGE = (0.1, 1.5)
+
+
+def bounded(p: "Params") -> "Params":
+    """The parameters within what physics allows: the window's within WINDOW_RANGE."""
+    low, high = WINDOW_RANGE
+    return p if low <= p.window <= high else replace(p, window=min(high, max(low, p.window)))
+
+
 @dataclass(frozen=True)
 class Params:
     h_env: float    # W/K lost through walls and glazing

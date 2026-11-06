@@ -19,7 +19,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from ..advisor.checks import GOOD, KINDS, Checker
-from ..advisor.decide import (SHUT_SHADE, SIGNIFICANT, Gesture, Now, Twins, aged, decide, for_season, remembered, from_thermostat, heating_back,
+from ..advisor.decide import (SHUT_SHADE, SIGNIFICANT, RESTING_MINUTES, Gesture, Now, Twins, aged, decide, for_season, remembered, from_thermostat, heating_back,
                               heating_off, main_subject, recent_sources, shutter_tonight, simulate, stove_idle, sun_gain,
                               tonight)
 from ..advisor.feedback import declined, follow, pause_until
@@ -28,17 +28,17 @@ from ..advisor.house import ORDINARY_VOLUME, Opening as Declared, Room
 from ..advisor.knowing import RoomView, Window, tips
 from ..advisor.nightly import RoomSpec
 from ..advisor.notes import grades, prune
-from ..advisor.opening import Opened, closed_cases, disturbed, scaled, seen_share, settling
+from ..advisor.opening import Opened, closed_cases, disturbed, failed, scaled, seen_shares, settling
 from ..advisor.physics.air import AirParams, ParticleParams
 from ..advisor.physics.airfit import TWINS, first, untrained, values
 from ..advisor.physics.fit import HOUR
 from ..advisor.physics.sunlight import Overhang, facing, sun_position
-from ..advisor.physics.thermal import STEP, Params, glazing as glazing_of, ordinary, shutter_insulation, step
+from ..advisor.physics.thermal import STEP, Params, bounded, glazing as glazing_of, ordinary, shutter_insulation, step
 from ..advisor.physics.water import WaterParams, absolute
 from ..advisor.proof import CASES, ORDER, PROVEN, level, live, window_reinforced
 from ..advisor.safety import forbidden, holidays, rained_on
 from ..advisor.snapshot import capture
-from ..advisor.words import doubt_text, doubtful_air, phrase, tip_text, tonight_text
+from ..advisor.words import TEXTS, doubt_text, doubtful_air, phrase, tip_text, tonight_text
 from ..const import DOMAIN
 from ..engine.verdict import COLOURS, HUES, STATES, humidity_label
 
@@ -49,6 +49,8 @@ EXPOSURES = {"N": 0, "NE": 45, "E": 90, "SE": 135, "S": 180, "SO": 225, "SW": 22
 # m³/h when the person does not know the flow (« Pour aller plus loin »): the real shares are learned from the devices'
 # notes (advisor/notes.py, advisor/nightly.py `boost_scale`, `purifier_scale`).
 FLOWS = {"ventilation_boost": 60.0, "purifier": 150.0}
+# An airing shown this long before the window was opened counts as the one followed (`RoomAdvisor.aim`).
+AIM_MINUTES = 60
 # The share of a house heater (a stove) a room receives before anything is learned: most of it in the room it stands in,
 # little elsewhere (lab, 3 November: learned 0.74 in the Salon · Cuisine, 0 to 0.27 in the other rooms; the Chambre M,
 # given 0.2 before its first night, was forecast 30 °C at 20 h when the stove was lit, and told to open).
@@ -346,6 +348,9 @@ class RoomAdvisor:
         self.asked, self.paused = None, {}
         # When an airing was last shut: the next opening waits until it is judged (advisor/decide.py RESTING_MINUTES).
         self.shut_at = None
+        # What the airing advised was for (its subject, when last shown): an airing followed that does not do it is said
+        # so (advisor/opening.py `failed`); and when it was said, for « Noté » in « À savoir » until it is judged.
+        self.aim, self.failed_at = None, None
         self.checker, self.sensors = Checker(), {}
         self.shown = None
         self.result = None
@@ -489,7 +494,7 @@ class RoomAdvisor:
         """(since, air, humidity) of the opening under way, as this step first saw it; None when shut or not seen."""
         if not opened:
             if self.opening is not None:
-                self.shut_at = now
+                self.shut_at, self.aim = now, None
             if self.opened_seen is not None and self.opened_from is not None:
                 # The airing just shut: the twin's forecast for it as it was, open that long then shut, judged in an hour.
                 twins, start, coming = self.opened_from
@@ -634,7 +639,8 @@ class RoomAdvisor:
         glass = sum(a for a, _ in sizes.values()) if room["cover"] else 0.0
         shutter = 0.0 if position is None else shutter_insulation(glass, 1 - position / 100)
         driven = (s := hass.states.get(room["cover_auto"] or "")) is not None and s.state == "on"
-        heat = Params(**learned["heat"])
+        # Learned before the bound: within what a window can do (advisor/physics/thermal.py WINDOW_RANGE).
+        heat = bounded(Params(**learned["heat"]))
         houses = home.houses
         # The room's main heating when it is a house heater (the Salon's stove): simulated as its thermostat.
         main = room["thermostat_plage"]
@@ -739,9 +745,14 @@ class RoomAdvisor:
         opening = self._opening(now, opened, air, current.humidity)
         # The window open now, seen at work: the rest of the airing is judged with the share of its forecast it really does
         # (Chambre P, 3 November: one leaf ajar, « 13,6 points d'humidité en moins » while the humidity rose).
-        share = seen_share(self.opened_seen, now, air, current.humidity) if opened and self.opened_seen else None
+        shares = seen_shares(self.opened_seen, now, air, current.humidity) if opened and self.opened_seen else {}
+        share = shares.get("heat", shares.get("water"))
         if share is not None:
-            twins = scaled(twins, share)
+            twins = scaled(twins, share, water=shares.get("water"))
+        # The airing advised and followed, doing less than it was to: said as measured (advisor/decide.py `failed`).
+        followed_aim = (self.aim is not None and opened and self.opened_seen is not None
+                        and self.aim[1] >= self.opened_seen.since - timedelta(minutes=AIM_MINUTES))
+        failure = failed(self.aim[0], shares, self.opened_seen, now, air, current.humidity) if followed_aim else None
         proof = self._proof(current, outdoor, coming[0][1])
         # A source running now (a cooking, a shower…): the last half hour replayed on the twin against the measures.
         # Replayed in the executor, as the decision below (PLAN-OPTIMISATION.md, point 8): Home Assistant does not wait.
@@ -780,16 +791,16 @@ class RoomAdvisor:
             """The decision and everything simulated around it, in the executor (PLAN-OPTIMISATION.md, point 8): it only
             reads what was gathered above, never Home Assistant nor the room's own state, which change back on the loop."""
             decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                              holidays=away, habits=habits, held=held, tried=tried, aired=aired)
+                              holidays=away, habits=habits, held=held, tried=tried, aired=aired, failed=failure)
             if decision.rule == "unproven" and opened and opening:
                 # The gesture under way may show its effect now (CAHIER-MOTEUR.md § 4.1).
                 subject = main_subject(decision.scenarios, decision.passive)
                 if self._seen(subject, decision, opening, now, air, current.humidity):
                     proof[subject] = PROVEN
                     decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                                      holidays=away, habits=habits, held=held, tried=tried, aired=aired)
+                                      holidays=away, habits=habits, held=held, tried=tried, aired=aired, failed=failure)
             snap = capture(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                           holidays=away, habits=habits, reason=reason, held=held, tried=tried, aired=aired, end_hour=end_hour, hour=local.hour + local.minute / 60,
+                           holidays=away, habits=habits, reason=reason, held=held, tried=tried, aired=aired, failed=failure, end_hour=end_hour, hour=local.hour + local.minute / 60,
                            room=name, when=now.isoformat(), version=home.version)
             # The local time now: a later gesture says its hour (« Aérez 5 min vers 13 h 50 »), never only its length.
             words = phrase(decision, end_hour, marks=marks, hour=local.hour + local.minute / 60, reason=reason)
@@ -823,6 +834,13 @@ class RoomAdvisor:
         # Kept through a step where a safety rule takes the gesture away (a gust): it comes back as it was, not anew.
         if decision.passive is not None:
             self.tried = remembered(tried_before, tried_at, decision.passive, now)
+        # What an airing shown (on the banner or to try) is for: what it will be judged on once followed.
+        for shown_now, aim in ((decision.gesture, words.get("subject")),
+                               (decision.passive, decision.passive and main_subject(decision.scenarios, decision.passive))):
+            if shown_now is not None and shown_now.kind in ("open", "open_more") and aim:
+                self.aim = (aim, now)
+        if decision.rule == "ineffective":
+            self.failed_at = (decision.measured["subject"], now)
         elif decision.gesture.kind != "nothing" or not taken:
             self.tried = None
         if stepping:
@@ -844,6 +862,10 @@ class RoomAdvisor:
                                   back, off, end_hour, stove, sunny, outdoor, outdoor_rh, water,
                                   share, planned)
         good_words = [tip_text(t, now=local) for t in good]
+        # An airing that did not work, kept in mind: said until it is judged, an hour after it was shut.
+        if self.failed_at is not None and now - self.failed_at[1] < timedelta(minutes=RESTING_MINUTES):
+            texts = TEXTS["fr"]
+            good_words.insert(0, texts["ineffective_noted"].format(what=texts[f"ineffective_{self.failed_at[0]}"]))
         # « Cette nuit, pensez à refermer » says nothing more than a banner already saying « Refermez ».
         if night_text and decision.gesture.kind != "close":
             good_words.insert(0, night_text)

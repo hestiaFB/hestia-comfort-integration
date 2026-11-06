@@ -4,6 +4,20 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.10.0 — 6 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Nouveautés
+
+- Une aération conseillée qui ne fait pas l'effet prévu est dite clairement après 10 minutes : « L'aération ne fait pas l'effet prévu : 74 % → 75 % en 10 min. Refermez pour ne pas empirer. » Hestia le note pour la prochaine fois.
+- Les conseils disent à quel point Hestia en est sûre : affirmatif quand la pièce l'a déjà montré, « devrait » quand c'est probable, « pourrait…, à vérifier » quand ce n'a jamais été vérifié dans la pièce.
+
+### Améliorations
+
+- Une fenêtre ouverte est jugée à part sur la chaleur et sur l'humidité : une pièce qui se refroidit peu mais sèche bien n'est plus vue comme une pièce qui ne sèche pas.
+- Ce qu'une fenêtre peut faire est borné par la physique : un apprentissage trompé par quelques jours étranges ne peut plus prévoir une chambre à 12 °C après une aération.
+
 ## 3.9.6 — 6 novembre 2026
 
 Pas encore dans une version de Confort.

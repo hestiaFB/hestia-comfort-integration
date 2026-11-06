@@ -101,3 +101,56 @@ class SeenAtWork(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReadApart(unittest.TestCase):
+    """Chambre P, 6 November: opened at 16 h 20 at 19.5 °C and 74 %; at 16 h 48, 18.7 °C and 71 %. The twin had foreseen
+    16.7 °C and 83 % (a window fifteen times Chambre A's): the window did a sixth of the heat, and dried the air more."""
+
+    def setUp(self):
+        from advisor.decide import decide as decided
+        self.args = restore(load(Path(__file__).parent / "fixtures" / "chambre-p-6-novembre-16h20.json"))
+        path = decided(**self.args).paths[Gesture("open")]
+        now = self.args["now"]
+        self.opened = Opened(datetime(2026, 11, 6, 16, 20, tzinfo=PARIS), now.air, now.humidity, tuple(path.air),
+                             tuple(path.humidity))
+        self.at = datetime(2026, 11, 6, 16, 48, tzinfo=PARIS)
+
+    def test_the_heat_and_the_water_are_read_apart(self):
+        from advisor.opening import seen_shares
+        shares = seen_shares(self.opened, self.at, 18.7, 71.0)
+        self.assertLess(shares["heat"], 0.3)
+        self.assertGreater(shares["water"], 1.0)
+        # The drying kept: the air's flows follow the water read, the heat its own.
+        twins = scaled(self.args["twins"], shares["heat"], water=shares["water"])
+        self.assertAlmostEqual(twins.heat.window, self.args["twins"].heat.window * shares["heat"])
+        self.assertAlmostEqual(twins.water_flow[1], self.args["twins"].water_flow[1] * shares["water"])
+
+    def test_an_airing_that_dries_is_not_said_to_fail(self):
+        from advisor.opening import failed, seen_shares
+        shares = seen_shares(self.opened, self.at, 18.7, 71.0)
+        self.assertIsNone(failed("humidity", shares, self.opened, self.at, 18.7, 71.0))
+
+    def test_an_airing_that_does_not_dry_is_said_to_fail_as_measured(self):
+        # The same airing, the humidity up a point instead: « Refermez », said with what was measured.
+        from advisor.opening import failed, seen_shares
+        shares = seen_shares(self.opened, self.at, 19.2, 75.0)
+        found = failed("humidity", shares, self.opened, self.at, 19.2, 75.0)
+        self.assertEqual((found["subject"], found["then"], found["now"], round(found["minutes"])), ("humidity", 74.0, 75.0, 28))
+        decision = decide(**{**self.args, "now": replace(self.args["now"], opened=self.args["twins"].windows), "failed": found})
+        self.assertEqual((decision.gesture, decision.rule), (Gesture("close"), "ineffective"))
+        from advisor.words import phrase
+        self.assertEqual(phrase(decision, 19, hour=16.8)["line"],
+                         "L'aération ne fait pas l'effet prévu : 74 % → 75 % en 28 min. Refermez pour ne pas empirer")
+        # A subject not read on the windows (the CO₂) never says so.
+        self.assertIsNone(failed("co2", shares, self.opened, self.at, 19.2, 75.0))
+
+
+class WithinPhysics(unittest.TestCase):
+    def test_a_window_never_does_more_than_physics_allows(self):
+        from advisor.physics.thermal import WINDOW_RANGE, bounded
+        heat = restore(load(Path(__file__).parent / "fixtures" / "chambre-p-6-novembre-16h20.json"))["twins"].heat
+        self.assertGreater(heat.window, 6)          # learned before the bound
+        self.assertEqual(bounded(heat).window, WINDOW_RANGE[1])
+        self.assertEqual(bounded(replace(heat, window=0.4)).window, 0.4)
+        self.assertEqual(bounded(replace(heat, window=0.01)).window, WINDOW_RANGE[0])

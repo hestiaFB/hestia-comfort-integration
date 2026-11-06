@@ -715,14 +715,20 @@ def _for_the_outside(later: Gesture, twins: Twins, now: Now, coming, comfort: Co
 def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
            previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
            proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits(),
-           held: float | None = None, tried: Gesture | None = None, aired: float | None = None) -> Decision:
+           held: float | None = None, tried: Gesture | None = None, aired: float | None = None,
+           failed: dict | None = None) -> Decision:
     """The gesture to advise. `forbidden`: kinds a safety rule takes away (« open » under the rain, in gusts…).
     `proof`: the level of the windows' effect on each subject (advisor/proof.py); None, all taken as proven.
     `held`: minutes `previous` has been on the card (HOLD_MINUTES); `tried`: the gesture shown « À essayer », as it
-    stands now (`aged`); `aired`: minutes since an airing was shut, None if none lately."""
+    stands now (`aged`); `aired`: minutes since an airing was shut, None if none lately; `failed`: the airing advised
+    and followed, measured doing less than it was to (advisor/opening.py `failed`)."""
     if "open" in forbidden and now.opened:
         # The rain or the gusts: what is open is shut, whatever it costs.
         return Decision(Gesture("close"), 0.0, "safety", {})
+    if failed is not None and now.opened:
+        # The airing followed does not do what it was advised for: shut it, said as measured, not with the twin's next
+        # guess (Frank, 6 November: « au bout de 10 minutes, le conseil ne fonctionne pas, la carte doit me le dire »).
+        return Decision(Gesture("close"), 0.0, "ineffective", {}, measured=failed)
     if holidays:
         # Away for days (CAHIER-MOTEUR.md § 11, point 8): only the dwelling counts — frost, humidity, mould.
         comfort = replace(comfort, minimum=habits.frost_guard, maximum=HOLIDAY_MAXIMUM)

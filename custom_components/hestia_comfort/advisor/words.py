@@ -22,6 +22,23 @@ TEXTS = {
         "particles": "les particules retombent en {minutes} min", "voc": "le COV retombe en {minutes} min", "energy": "{value} kWh de chauffage économisés",
         "mould": "moins de risque de moisissure sur les murs froids",
         "sure": "{line}", "unsure": "{line}, sans doute",
+        # Three ways of saying a gain, by how sure the room has shown it to be (Frank, 6 November): proven, said plainly;
+        # probable, « devrait »; never seen in this room, « pourrait », and « à vérifier ».
+        "heat_likely": "vous devriez garder {value} °C d'ici {hour} h", "heat_maybe": "vous pourriez garder {value} °C d'ici {hour} h",
+        "heat_open_likely": "la pièce devrait gagner {value} °C d'ici {hour} h", "heat_open_maybe": "la pièce pourrait gagner {value} °C d'ici {hour} h",
+        "humidity_likely": "l'humidité devrait passer à {chosen} % au lieu de {idle} %", "humidity_maybe": "l'humidité pourrait passer à {chosen} %",
+        "humidity_at_likely": "l'humidité devrait passer à {chosen} % vers {at} au lieu de {idle} %", "humidity_at_maybe": "l'humidité pourrait passer à {chosen} % vers {at}",
+        "humidity_brief_likely": "l'humidité devrait baisser pendant l'aération, puis revenir", "humidity_brief_maybe": "l'humidité pourrait baisser pendant l'aération, puis revenir",
+        "co2_likely": "l'air devrait redevenir sain en {minutes} min", "co2_maybe": "l'air pourrait redevenir sain en {minutes} min",
+        "particles_likely": "les particules devraient retomber en {minutes} min", "particles_maybe": "les particules pourraient retomber en {minutes} min",
+        "voc_likely": "le COV devrait retomber en {minutes} min", "voc_maybe": "le COV pourrait retomber en {minutes} min",
+        "energy_likely": "environ {value} kWh de chauffage économisés", "energy_maybe": "peut-être {value} kWh de chauffage économisés",
+        "mould_likely": "devrait limiter la moisissure sur les murs froids", "mould_maybe": "pourrait limiter la moisissure sur les murs froids",
+        "maybe": "{line}, à vérifier",
+        # An airing followed that does not do what was forecast, said as measured (Frank, 6 November).
+        "ineffective": "L'aération ne fait pas l'effet prévu : {then} → {now} en {minutes} min. Refermez pour ne pas empirer",
+        "ineffective_noted": "Noté : ici, la fenêtre {what} moins que prévu. Hestia en tiendra compte",
+        "ineffective_humidity": "sèche", "ineffective_heat": "change la température",
         "why": "{gesture} : {air} °C à {hour} h", "why_humidity": ", humidité {humidity} %",
         "shut": "Fermée", "open_now": "Ouverte", "aired": "Aérée {minutes} min", "later": "Dans {minutes} min",
         "nothing_line": "Ouverte ou fermée, la pièce restera dans votre plage",
@@ -80,6 +97,20 @@ TEXTS = {
         "particles": "the particles settle in {minutes} min", "voc": "the VOC falls back in {minutes} min", "energy": "{value} kWh of heating saved",
         "mould": "less risk of mould on the cold walls",
         "sure": "{line}", "unsure": "{line}, most likely",
+        "heat_likely": "you should keep {value} °C until {hour}:00", "heat_maybe": "you could keep {value} °C until {hour}:00",
+        "heat_open_likely": "the room should gain {value} °C by {hour}:00", "heat_open_maybe": "the room could gain {value} °C by {hour}:00",
+        "humidity_likely": "the humidity should go to {chosen} % instead of {idle} %", "humidity_maybe": "the humidity could go to {chosen} %",
+        "humidity_at_likely": "the humidity should go to {chosen} % around {at} instead of {idle} %", "humidity_at_maybe": "the humidity could go to {chosen} % around {at}",
+        "humidity_brief_likely": "the humidity should drop while airing, then come back", "humidity_brief_maybe": "the humidity could drop while airing, then come back",
+        "co2_likely": "the air should be healthy again in {minutes} min", "co2_maybe": "the air could be healthy again in {minutes} min",
+        "particles_likely": "the particles should settle in {minutes} min", "particles_maybe": "the particles could settle in {minutes} min",
+        "voc_likely": "the VOC should drop in {minutes} min", "voc_maybe": "the VOC could drop in {minutes} min",
+        "energy_likely": "about {value} kWh of heating saved", "energy_maybe": "perhaps {value} kWh of heating saved",
+        "mould_likely": "should limit mould on the cold walls", "mould_maybe": "could limit mould on the cold walls",
+        "maybe": "{line}, to be checked",
+        "ineffective": "The airing is not doing what was expected: {then} → {now} in {minutes} min. Close it so as not to make it worse",
+        "ineffective_noted": "Noted: here, the window {what} less than expected. Hestia will take it into account",
+        "ineffective_humidity": "dries", "ineffective_heat": "changes the temperature",
         "why": "{gesture}: {air} °C at {hour}:00", "why_humidity": ", humidity {humidity} %",
         "shut": "Shut", "open_now": "Open", "aired": "Aired {minutes} min", "later": "In {minutes} min",
         "nothing_line": "Open or shut, the room stays in your range",
@@ -138,6 +169,20 @@ TEXTS = {
         "particles": "die Partikel setzen sich in {minutes} Min.", "voc": "die VOC sinken in {minutes} Min.", "energy": "{value} kWh Heizenergie gespart",
         "mould": "weniger Schimmelgefahr an kalten Wänden",
         "sure": "{line}", "unsure": "{line}, voraussichtlich",
+        "heat_likely": "Sie dürften {value} °C bis {hour} Uhr behalten", "heat_maybe": "Sie könnten {value} °C bis {hour} Uhr behalten",
+        "heat_open_likely": "der Raum dürfte bis {hour} Uhr {value} °C gewinnen", "heat_open_maybe": "der Raum könnte bis {hour} Uhr {value} °C gewinnen",
+        "humidity_likely": "die Feuchte dürfte auf {chosen} % statt {idle} % gehen", "humidity_maybe": "die Feuchte könnte auf {chosen} % gehen",
+        "humidity_at_likely": "die Feuchte dürfte gegen {at} auf {chosen} % statt {idle} % gehen", "humidity_at_maybe": "die Feuchte könnte gegen {at} auf {chosen} % gehen",
+        "humidity_brief_likely": "die Feuchte dürfte beim Lüften sinken und dann zurückkehren", "humidity_brief_maybe": "die Feuchte könnte beim Lüften sinken und dann zurückkehren",
+        "co2_likely": "die Luft dürfte in {minutes} Min. wieder gesund sein", "co2_maybe": "die Luft könnte in {minutes} Min. wieder gesund sein",
+        "particles_likely": "die Partikel dürften in {minutes} Min. sinken", "particles_maybe": "die Partikel könnten in {minutes} Min. sinken",
+        "voc_likely": "die VOC dürften in {minutes} Min. sinken", "voc_maybe": "die VOC könnten in {minutes} Min. sinken",
+        "energy_likely": "etwa {value} kWh Heizung gespart", "energy_maybe": "vielleicht {value} kWh Heizung gespart",
+        "mould_likely": "dürfte Schimmel an kalten Wänden begrenzen", "mould_maybe": "könnte Schimmel an kalten Wänden begrenzen",
+        "maybe": "{line}, noch zu prüfen",
+        "ineffective": "Das Lüften wirkt nicht wie erwartet: {then} → {now} in {minutes} Min. Schließen Sie, damit es nicht schlimmer wird",
+        "ineffective_noted": "Notiert: Hier {what} das Fenster weniger als erwartet. Hestia berücksichtigt es",
+        "ineffective_humidity": "trocknet", "ineffective_heat": "ändert die Temperatur",
         "why": "{gesture}: {air} °C um {hour} Uhr", "why_humidity": ", Feuchte {humidity} %",
         "shut": "Geschlossen", "open_now": "Offen", "aired": "{minutes} Min. gelüftet", "later": "In {minutes} Min.",
         "nothing_line": "Offen oder geschlossen, der Raum bleibt in Ihrem Bereich",
@@ -259,7 +304,18 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     words = TEXTS[language]
     # A reinforced effect is said in the conditional (CAHIER-MOTEUR.md § 4.1).
     # A supposed one too, when the card keeps it a while (an airing under way, advisor/decide.py `under_way`).
-    sure = sure and decision.level == PROVEN
+    level = decision.level if sure or decision.level != PROVEN else REINFORCED
+    sure = level == PROVEN
+    # Three ways of saying a gain (Frank, 6 November): proven, plainly; probable, « devrait »; never seen in this room,
+    # « pourrait » and « à vérifier ». A line without its own wording keeps « sans doute ».
+    tier = "" if level == PROVEN else "_likely" if level == REINFORCED else "_maybe"
+    shaded = []
+
+    def say(key, **values):
+        if tier and f"{key}{tier}" in words:
+            shaded.append(tier)
+            return words[f"{key}{tier}"].format(**values)
+        return words[key].format(**values)
     marks = {"minimum": 20.0, "maximum": 24.0, "humidity": 60.0, "co2": 1000.0, "particles": 15.0, "voc": 150.0, **(marks or {})}
     # Something is open when closing is one of the scenarios.
     opened = any(g.kind == "close" for g in decision.scenarios)
@@ -300,7 +356,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         chosen, idle = paths[gesture], paths[reference(paths, gesture)]
         if subject == "heat":
             gain = chosen.air[-1] - idle.air[-1]
-            line = words["heat" if gesture.kind in ("close", "shutter_close") else "heat_open"].format(value=_number(abs(gain), language), hour=end_hour)
+            line = say("heat" if gesture.kind in ("close", "shutter_close") else "heat_open", value=_number(abs(gain), language), hour=end_hour)
         elif subject == "humidity" and chosen.humidity and idle.humidity:
             # What the card will show an hour after the window is shut again: what stays, not the airing's own low, which
             # the walls and the bedding fill back within minutes (Chambre P, 3 November: 66 % open, 69 % ten minutes
@@ -308,7 +364,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             k = _lasting(gesture, min(len(idle.humidity), len(chosen.humidity)))
             values = {"chosen": round(chosen.humidity[k]), "idle": round(idle.humidity[k])}
             if values["idle"] - values["chosen"] < 1:
-                line = words["humidity_brief"]
+                line = say("humidity_brief")
             elif hour is not None:
                 # Said to the quarter of an hour, or at the forecast's end for a window left open: a time that moved five
                 # minutes at every step changed the line each time (Chambre AL, 4 November).
@@ -316,35 +372,46 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
                     at = end_hour * 60 % (24 * 60)
                 else:
                     at = round((hour * 60 + (k + 1) * STEP_MINUTES) / 15) * 15 % (24 * 60)
-                line = words["humidity_at"].format(at=_time(time(at // 60, at % 60), words), **values)
+                line = say("humidity_at", at=_time(time(at // 60, at % 60), words), **values)
             else:
-                line = words["humidity"].format(**values)
+                line = say("humidity", **values)
         elif subject in ("co2", "particles", "voc"):
             series = getattr(chosen, subject)
             minutes = _back_under(series, marks[subject]) if series else None
             if minutes:
-                line = words[subject].format(minutes=minutes)
+                line = say(subject, minutes=minutes)
                 # Opened on both sides: how much sooner than with the windows open now (« en 5 min au lieu de 15 »).
                 without = _back_under(getattr(idle, subject), marks[subject]) if gesture.kind == "open_more" else None
                 if without and without > minutes:
                     line = words["instead"].format(line=line, minutes=without)
         elif subject == "mould":
-            line = words["mould"]
+            line = say("mould")
         elif subject == "energy":
-            line = words["energy"].format(value=_number(idle.spent - chosen.spent, language))
-    if decision.rule == "overheat" and decision.measured:
+            line = say("energy", value=_number(idle.spent - chosen.spent, language))
+    if decision.rule == "ineffective" and decision.measured:
+        # The airing followed, measured at work, against what it was to do: a fact, said as such.
+        m = decision.measured
+        unit = (lambda v: f"{round(v)} %") if m["subject"] == "humidity" else (lambda v: f"{_number(v, language)} °C")
+        line = words["ineffective"].format(then=unit(m["then"]), now=unit(m["now"]), minutes=round(m["minutes"]))
+        shaded.append("fact")
+    elif decision.rule == "overheat" and decision.measured:
         # A fact measured, said as such: no forecast behind it.
         m = decision.measured
         line = words["overheat"].format(air=_number(m["air"], language), target=_degrees(m["target"], language),
                                         minutes=round(m["minutes"]))
+        shaded.append("fact")
     elif decision.rule == "safety" and reason and f"safety_{reason}" in words:
         line = words[f"safety_{reason}"]
+        shaded.append("fact")
     elif gesture.kind == "nothing" and not opened and reason and f"safety_{reason}" in words:
         # A shut room whose openings a safety rule took away: that is why nothing is to do.
         line = words["keep_shut"].format(why=words[f"safety_{reason}"])
     # The conditional is for a gesture's gain, never for « Rien à faire ».
-    if line and gesture.kind != "nothing":
-        line = words["sure" if sure else "unsure"].format(line=line)
+    if line and gesture.kind != "nothing" and "fact" not in shaded:
+        if shaded:
+            line = words["maybe"].format(line=line) if tier == "_maybe" else line
+        else:
+            line = words["sure" if sure else "unsure"].format(line=line)
     # « Pourquoi ? » compares two or three scenarios (CAHIER-MOTEUR.md § 14): doing nothing, the advice, and the best
     # other one when it differs.
     # « Laissez ouvert » is the scenario of doing nothing: said against shutting now, as its line is.

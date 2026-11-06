@@ -21,6 +21,26 @@ HEAT_READ, WATER_READ = 0.3, 0.5
 LOWEST, HIGHEST = 0.0, 1.5
 # Under this share, the window renews little of the air: said in « Bon à savoir ».
 WEAK = 0.5
+# Under this share of what it was advised for, an airing does not work: « Refermez », said as measured (Frank, 6 November:
+# « le conseil n'est pas efficace, refermez pour ne pas empirer »). Above it, the twin goes on with the share it sees.
+INEFFECTIVE = 0.3
+# What each subject an airing is advised for is read on (`seen_shares`): the humidity and the mould on the air's water.
+READ_ON = {"humidity": "water", "mould": "water", "heat": "heat"}
+
+
+def failed(subject: str | None, shares: dict, opened: Opened, now: datetime, air: float,
+           humidity: float | None) -> dict | None:
+    """The airing advised for `subject`, seen at work, when it does less than INEFFECTIVE of its forecast: what was
+    measured since it was opened, for the card to say. None while it works, or when it cannot be read yet."""
+    key = READ_ON.get(subject or "")
+    if key is None or key not in shares or shares[key] >= INEFFECTIVE:
+        return None
+    minutes = (now - opened.since).total_seconds() / 60
+    if key == "water":
+        if humidity is None or opened.humidity is None:
+            return None
+        return {"subject": "humidity", "then": opened.humidity, "now": humidity, "minutes": minutes, "share": shares[key]}
+    return {"subject": "heat", "then": opened.air, "now": air, "minutes": minutes, "share": shares[key]}
 
 
 @dataclass(frozen=True)
@@ -33,32 +53,42 @@ class Opened:
     forecast_humidity: tuple[float, ...] = ()
 
 
-def seen_share(opened: Opened, now: datetime, air: float, humidity: float | None) -> float | None:
-    """The share of the forecast the open window shows since it was opened: 1 as forecast, 0 nothing at all; None when
-    too soon, or when the forecast changes too little to be read."""
+def seen_shares(opened: Opened, now: datetime, air: float, humidity: float | None) -> dict[str, float]:
+    """The share of the forecast the open window shows since it was opened, read apart on the heat and on the water: 1 as
+    forecast, 0 nothing at all. A subject is left out when too soon or when its forecast changes too little to be read.
+    Apart, because the twin learns them apart: Chambre P, 6 November, the window did a sixth of the heat forecast and
+    half as much water again — scaled on the heat alone, the drying vanished and the twin saw the humidity climb."""
     minutes = (now - opened.since).total_seconds() / 60
     k = int(round(minutes * 60 / STEP)) - 1
     if minutes < OBSERVE_MINUTES or k < 0 or not opened.forecast_air:
-        return None
+        return {}
     k = min(k, len(opened.forecast_air) - 1)
+    found = {}
     told = opened.forecast_air[k] - opened.air
     if abs(told) >= HEAT_READ:
-        share = (air - opened.air) / told
-    elif humidity is not None and opened.humidity is not None and len(opened.forecast_humidity) > k:
+        found["heat"] = (air - opened.air) / told
+    if humidity is not None and opened.humidity is not None and len(opened.forecast_humidity) > k:
         then = absolute(opened.air, opened.humidity)
         told = absolute(opened.forecast_air[k], opened.forecast_humidity[k]) - then
-        if abs(told) < WATER_READ:
-            return None
-        share = (absolute(air, humidity) - then) / told
-    else:
-        return None
-    return min(HIGHEST, max(LOWEST, share))
+        if abs(told) >= WATER_READ:
+            found["water"] = (absolute(air, humidity) - then) / told
+    return {subject: min(HIGHEST, max(LOWEST, share)) for subject, share in found.items()}
 
 
-def scaled(twins, share: float):
-    """The twins with the windows doing this share of what they learned: the heat's, and each air's."""
+def seen_share(opened: Opened, now: datetime, air: float, humidity: float | None) -> float | None:
+    """The share of the forecast the open window shows: the heat's when it can be read, the air's water otherwise (the
+    air first, its heat free of the room's own sources of water); None when neither can be read yet."""
+    shares = seen_shares(opened, now, air, humidity)
+    return shares.get("heat", shares.get("water"))
+
+
+def scaled(twins, share: float, water: float | None = None):
+    """The twins with the windows doing this share of what they learned: the heat's, and each air's — the air's by
+    `water` when the water was read apart (`seen_shares`), the same air carrying the water, the CO₂ and the rest."""
+    air = share if water is None else water
+
     def flow(pair):
-        return (pair[0], pair[1] * share)
+        return (pair[0], pair[1] * air)
     return replace(twins, heat=replace(twins.heat, window=twins.heat.window * share), water_flow=flow(twins.water_flow),
                    air_flow=flow(twins.air_flow), particles_flow=flow(twins.particles_flow), voc_flow=flow(twins.voc_flow))
 

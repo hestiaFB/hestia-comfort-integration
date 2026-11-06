@@ -55,21 +55,23 @@ class DecisionByProof(unittest.TestCase):
         self.assertEqual((decision.gesture, decision.level, decision.passive), (Gesture("close"), SUPPOSED, None))
         words = phrase(decision, end_hour=7)
         self.assertEqual(words["title"], "Refermez")
-        self.assertTrue(words["line"].endswith(", sans doute"))
+        # Never seen in this room: « pourrait », and « à vérifier ».
+        self.assertRegex(words["line"], r"^vous pourriez garder \d+,\d °C d'ici 7 h, à vérifier$")
 
     def test_a_reinforced_effect_needs_a_clear_cut_gain_and_is_said_in_the_conditional(self):
         # 12.8 °C outside against 20.6 inside: the moment backs the window's effect on the heat, and closing keeps
         # about 3 °C — at night the gaps are already doubled, the reinforced level adds nothing.
         decision = decide(TWINS, self.NIGHT, night(), proof={"heat": REINFORCED, "humidity": REINFORCED})
         self.assertEqual((decision.gesture, decision.level), (Gesture("close"), REINFORCED))
-        self.assertTrue(phrase(decision, end_hour=7)["line"].endswith(", sans doute"))
+        self.assertTrue(phrase(decision, end_hour=7)["line"].startswith("vous devriez garder "))
         # By day, 1.8 °C kept: shut whatever the proof, said in the conditional unless proven.
         mild = Now(air=20.2, walls=20.2, opened=(FRENCH.size,), humidity=55.0)
         proven = decide(TWINS, mild, day(outdoor=14.0), proof={"heat": PROVEN, "humidity": PROVEN})
         reinforced = decide(TWINS, mild, day(outdoor=14.0), proof={"heat": REINFORCED, "humidity": REINFORCED})
         self.assertEqual(proven.gesture, Gesture("close"))
         self.assertEqual((reinforced.gesture, reinforced.passive), (Gesture("close"), None))
-        self.assertTrue(phrase(reinforced, end_hour=17)["line"].endswith(", sans doute"))
+        self.assertTrue(phrase(reinforced, end_hour=17)["line"].startswith("vous devriez garder "))
+        self.assertTrue(phrase(proven, end_hour=17)["line"].startswith("vous gardez "))
 
 class GoodToKnow(unittest.TestCase):
     NOW = datetime(2026, 10, 31, 11, 0, tzinfo=PARIS)

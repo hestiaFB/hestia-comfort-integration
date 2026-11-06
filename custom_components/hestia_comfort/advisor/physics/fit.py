@@ -14,7 +14,7 @@ from datetime import datetime
 import math
 
 from ..notes import SETTLE_STEPS, SHORTEST_STEPS, case, episodes, left_out, put_aside, settle
-from .thermal import Inputs, Params, step
+from .thermal import Inputs, Params, bounded, step
 
 # What is fitted: (name, as a logarithm of its ordinary value, first move of the search).
 FREE = (("h_env", True, 0.5), ("heat", True, 0.5), ("sun", True, 0.5), ("window", True, 0.5), ("cm", True, 0.5),
@@ -215,14 +215,15 @@ def notes(p: Params, samples: list[Sample], skipped=(), why: dict | None = None)
 def fit_windows(p: Params, samples: list[Sample], now: datetime, skipped=()) -> tuple[Params, list, dict]:
     """The window's parameter set from the openings' notes, a night at a time (advisor/notes.py `settle`): the twin as
     corrected, the notes with it, the report."""
-    window, found, report = settle(lambda w: notes(replace(p, window=w), samples, skipped), p.window, now)
-    return replace(p, window=window), found, report
+    window, found, report = settle(lambda w: notes(bounded(replace(p, window=w)), samples, skipped), p.window, now)
+    return bounded(replace(p, window=window)), found, report
 
 
 def params_of(base: Params, x) -> Params:
-    # The share of the house's heat a room receives is never below nothing (Chambre P had learned −10 %).
-    return replace(base, **{name: (math.exp(v) * getattr(base, name) if log else max(0.0, v) if name == "share" else v)
-                            for (name, log, _), v in zip(FREE, x)})
+    # The share of the house's heat a room receives is never below nothing (Chambre P had learned −10 %); the window
+    # never does more than physics allows (`bounded`).
+    return bounded(replace(base, **{name: (math.exp(v) * getattr(base, name) if log else max(0.0, v) if name == "share" else v)
+                                    for (name, log, _), v in zip(FREE, x)}))
 
 
 def _start(base: Params):

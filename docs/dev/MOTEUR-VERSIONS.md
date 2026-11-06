@@ -20,6 +20,15 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.10.0 — 6 novembre 2026
+
+Chambre P, 6 nov. : 74 % sans conseil d'aérer ; ouverte quand même par Frank à 16 h 20, l'humidité baisse (74 → 71 % en 28 min, 19,5 → 18,7 °C), alors que le jumeau prévoyait 16,7 °C et 83 % en 30 min. Coefficient de fenêtre appris 6,73 (Chambre A 0,42 pour une fenêtre comparable). Puis demande de Frank : dire quand un conseil suivi ne marche pas, et plus de nuances.
+- `physics/thermal.WINDOW_RANGE` (0,1 – 1,5, comme `opening.LOWEST/HIGHEST`) et `bounded()` : appliqué au chargement des jumeaux (`room/advice.py`), dans `fit.params_of` et `fit_windows`. Chambre P : 6,73 → 1,5 ; la prévision de chaleur fenêtre ouverte devient juste (18,6 °C prévus, 18,7 °C mesurés à 30 min). L'eau reste sous-estimée (74 % prévus, 71 % mesurés) : à corriger par la note de l'aération du jour, la nuit.
+- `opening.seen_shares` : la part de la fenêtre lue à part sur la chaleur et sur l'eau ; `scaled(twins, share, water=)` règle les flux d'air (eau, CO₂, particules, COV) sur la part de l'eau quand elle est lue. Avant, la part de la chaleur (0,16) s'appliquait aussi à l'eau (lue 1,5) et le jumeau voyait l'humidité monter. `seen_share` garde son sens (chaleur, sinon eau).
+- `opening.failed` + `decide(failed=)` : l'aération montrée (bandeau ou « À essayer ») puis suivie dans l'heure (`RoomAdvisor.aim`, `AIM_MINUTES`), lue après 10 min (`OBSERVE_MINUTES`) à moins de `INEFFECTIVE` (0,3) de sa prévision sur son sujet (humidité ou moisissure : l'eau ; chaleur : la chaleur) → « Refermez », règle `ineffective`, phrase mesurée (`words["ineffective"]`). « Noté : ici, la fenêtre sèche moins que prévu. Hestia en tiendra compte » dans « À savoir » pendant `RESTING_MINUTES`. La mémoire elle-même = la note de l'aération jugée 1 h après la fermeture (`proof.belied`, réglage de nuit de la fenêtre). CO₂, particules, COV : pas encore lus à part, jamais dits inefficaces.
+- `words.phrase` : trois façons de dire un gain selon `decision.level` — avéré tel quel ; probable `…_likely` (« devrait ») ; supposé `…_maybe` (« pourrait ») + `words["maybe"]` (« , à vérifier »). Une phrase sans forme propre garde « , sans doute ». Les faits mesurés (`ineffective`, `overheat`, sécurité) jamais au conditionnel. `sure=False` (« À essayer ») = au plus probable.
+- Instantanés : `failed` capturé et rejoué. Fixture `chambre-p-6-novembre-16h20.json` ; tests `ReadApart`, `WithinPhysics` ; phrases revues dans `test_advisor_decide/proof/words`.
+
 ### 3.9.6 — 6 novembre 2026
 
 Bilan de la nuit du 5 au 6 nov.

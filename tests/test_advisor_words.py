@@ -35,7 +35,7 @@ class WordsTest(unittest.TestCase):
         # A shut room is not told « open or shut » (first advice in the test Home Assistant, 31 October).
         self.assertEqual(phrase(decision, end_hour=17)["line"], "La pièce restera dans votre plage")
         unsure = decide(TWINS, Now(air=20.6, walls=20.6, opened=(FRENCH.size,), humidity=66.0, night=True), night())
-        self.assertTrue(phrase(unsure, end_hour=7, sure=False)["line"].endswith(", sans doute"))
+        self.assertTrue(phrase(unsure, end_hour=7, sure=False)["line"].startswith("vous devriez garder "))
 
     def test_nothing_to_do_never_says_in_your_range_when_the_room_is_not(self):
         # 31 October, Chambre P at 18.3 °C, its window open on a mild afternoon: « restera dans votre plage » was false.
