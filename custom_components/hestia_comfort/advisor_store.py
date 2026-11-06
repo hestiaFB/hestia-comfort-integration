@@ -45,12 +45,14 @@ class AdvisorFiles:
                 if old.stat().st_mtime < limit:
                     old.unlink()
 
-    def signal(self, slug: str, local: datetime, kind: str, note: str, shown: dict) -> str | None:
-        """The room's last snapshot, with its trace and what the card showed, kept in « signales » without limit."""
-        last = self.folder / "instantanes" / f"{slug}-dernier.json"
-        if not last.exists():
-            return None
-        snap = load_snapshot(last)
+    def signal(self, slug: str, local: datetime, kind: str, note: str, shown: dict, snap: dict | None = None) -> str | None:
+        """The room's last snapshot, with its trace and what the card showed, kept in « signales » without limit. `snap`:
+        the one kept in memory (the analysis tools off, PLAN-OPTIMISATION.md point 16), else the last one written."""
+        if snap is None:
+            last = self.folder / "instantanes" / f"{slug}-dernier.json"
+            if not last.exists():
+                return None
+            snap = load_snapshot(last)
         decision, words = replay(snap)
         folder = self.folder / "signales"
         folder.mkdir(parents=True, exist_ok=True)

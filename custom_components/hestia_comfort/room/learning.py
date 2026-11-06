@@ -12,6 +12,11 @@ from ..engine.sources import indicator_state
 from .constants import FULL_SPAN, TWIN_FORMAT
 
 
+def _contacts(states, windows):
+    """{window: [(time, open or not, None while it does not answer)]} from a recorder answer."""
+    return {e: [(row.last_changed, {"on": True, "off": False}.get(row.state)) for row in states.get(e, [])] for e in windows}
+
+
 class LearningMixin:
     """Part of ComfortCoordinator: its methods use the coordinator's own state (self)."""
 
@@ -64,16 +69,23 @@ class LearningMixin:
         if windows and (humidity or co2) and "recorder" in self.hass.config.components:
             try:
                 states = await self._history([*windows, *sources.values(), co2], now - span, now)
-                points = lambda entity_id: self._points(states, entity_id)
-                contacts = {e: [(row.last_changed, {"on": True, "off": False}.get(row.state)) for row in states.get(e, [])] for e in windows}
+                fahrenheit = self._fahrenheit([*sources.values(), co2])
+
+                def prepare():
+                    """In the executor (PLAN-OPTIMISATION.md, point 2): ten days of rows turned into points."""
+                    points = lambda entity_id: self._points(states, entity_id, fahrenheit)
+                    return (_contacts(states, windows), [points(sources[k]) for k in keys] if humidity else [],
+                            points(co2) if co2 else [])
+
+                contacts, measured, co2_points = await self.hass.async_add_executor_job(prepare)
                 if humidity:
-                    fresh = await self.hass.async_add_executor_job(learning.episodes, contacts, *(points(sources[k]) for k in keys))
+                    fresh = await self.hass.async_add_executor_job(learning.episodes, contacts, *measured)
                     episodes = learning.merge(episodes, fresh, now)
                     # The peaks of water the room sheds by itself, windows shut: what waiting brings.
-                    fresh = await self.hass.async_add_executor_job(learning.peaks, contacts, *(points(sources[k]) for k in keys))
+                    fresh = await self.hass.async_add_executor_job(learning.peaks, contacts, *measured)
                     shed = learning.merge(shed, fresh, now)[-learning.KEEP_PEAKS:]
                 if co2:
-                    fresh = await self.hass.async_add_executor_job(airflow.flows, contacts, points(co2))
+                    fresh = await self.hass.async_add_executor_job(airflow.flows, contacts, co2_points)
                     flows = airflow.merge(flows, fresh, now)
                 await self._learning_store.async_save({"episodes": episodes, "flows": flows, "peaks": shed})
             except Exception:  # the room then keeps what it learned before, or the default model
@@ -87,24 +99,23 @@ class LearningMixin:
             self.drying_model, self.flow_model = model, flow_model
             await self.async_request_refresh()
 
-    def _sun_history(self, states, entity_id, learn=True):
-        """The station's sunshine over the last days, with the hours it is shaded learned (ten days read) and estimated."""
-        points, latitude, longitude = self._points(states, entity_id), self.hass.config.latitude, self.hass.config.longitude
-        if learn or self.sun_shade is None:
-            self.sun_shade = sunlight.learn(points, latitude, longitude, dt_util.get_default_time_zone())
-        return sunlight.corrected(points, latitude, longitude, self.sun_shade)
+    def _fahrenheit(self, entity_ids):
+        """The entities reporting in °F, read on the loop: the points are made in the executor, which never reads
+        Home Assistant's states."""
+        return {e for e in entity_ids if e and (state := self.hass.states.get(e)) and state.attributes.get("unit_of_measurement") == "°F"}
 
-    def _points(self, states, entity_id):
-        """Numeric (time, value) points of one entity from a recorder answer, in °C for temperatures."""
-        state = self.hass.states.get(entity_id)
-        fahrenheit = bool(state) and state.attributes.get("unit_of_measurement") == "°F"
+    @staticmethod
+    def _points(states, entity_id, fahrenheit=()):
+        """Numeric (time, value) points of one entity from a recorder answer, in °C for temperatures (`fahrenheit`: the
+        entities reporting in °F)."""
+        converted = entity_id in fahrenheit
         out = []
         for row in states.get(entity_id, []):
             try:
                 value = float(row.state)
             except (TypeError, ValueError):
                 continue
-            out.append((row.last_changed, (value - 32) * 5 / 9 if fahrenheit else value))
+            out.append((row.last_changed, (value - 32) * 5 / 9 if converted else value))
         return out
 
     async def _learn_twin(self, now, span=FULL_SPAN):
@@ -127,21 +138,41 @@ class LearningMixin:
                 # An indicator chosen beside it says it in its state, and is what the room reads now.
                 indicator = self.sources.get("heating_indicator") if heating else None
                 running = await self._history([indicator or heating], start, now, None if indicator else "hvac_action") if heating else {}
-                contacts = {e: [(row.last_changed, {"on": True, "off": False}.get(row.state)) for row in states.get(e, [])] for e in self.windows}
-                heat = [(row.last_changed, indicator_state(row.state) == "heating") for row in running.get(indicator, [])] if indicator else \
-                    [(row.last_updated, row.attributes.get("hvac_action") == "heating") for row in running.get(heating, [])
-                     if hasattr(row, "attributes")]
-                fresh = await self.hass.async_add_executor_job(
-                    partial(twin.samples, start, now, *(self._points(states, sources[k]) for k in keys),
-                            self._sun_history(states, solar, full) if solar else [], contacts, heat,
-                            facades=self._facades(), location=(self.hass.config.latitude, self.hass.config.longitude),
-                            co2=self._points(states, air["co2"]) if air["co2"] else [], voc=self._points(states, air["voc"]) if air["voc"] else [],
-                            near=set(self.config.get("windows", [])) if self.partners else None,
-                            beside=[(self._points(states, t), self._points(states, h)) for t, h in beside]))
+                # What the executor needs from Home Assistant, read here on the loop (PLAN-OPTIMISATION.md, point 2).
+                fahrenheit = self._fahrenheit([*sources.values(), solar, *air.values(), *(e for pair in beside for e in pair)])
+                location, zone, shade = (self.hass.config.latitude, self.hass.config.longitude), dt_util.get_default_time_zone(), self.sun_shade
+                facades, windows = self._facades(), list(self.windows)
+                near = set(self.config.get("windows", [])) if self.partners else None
+                threshold = self._voc_threshold() if full and air["voc"] else None
+
+                def prepare():
+                    """In the executor: the points, the station's sun with its shade learned again (ten days read), the
+                    half-hour samples, and what the openings did to the VOC."""
+                    points = lambda entity_id: self._points(states, entity_id, fahrenheit)
+                    contacts = _contacts(states, windows)
+                    heat = [(row.last_changed, indicator_state(row.state) == "heating") for row in running.get(indicator, [])] if indicator else \
+                        [(row.last_updated, row.attributes.get("hvac_action") == "heating") for row in running.get(heating, [])
+                         if hasattr(row, "attributes")]
+                    learned_shade, sun = shade, []
+                    if solar:
+                        sunshine = points(solar)
+                        if full or learned_shade is None:
+                            learned_shade = sunlight.learn(sunshine, *location, zone)
+                        sun = sunlight.corrected(sunshine, *location, learned_shade)
+                    fresh = twin.samples(start, now, *(points(sources[k]) for k in keys), sun, contacts, heat,
+                                         facades=facades, location=location,
+                                         co2=points(air["co2"]) if air["co2"] else [], voc=points(air["voc"]) if air["voc"] else [],
+                                         near=near, beside=[(points(t), points(h)) for t, h in beside])
+                    # What the openings did to the VOC in their first minutes (ten days read): the hours when the air outside brings it.
+                    airings = vocs.airings(contacts, points(air["voc"]), threshold, zone) if threshold else None
+                    return fresh, learned_shade, airings
+
+                fresh, learned_shade, airings = await self.hass.async_add_executor_job(prepare)
+                if solar:
+                    self.sun_shade = learned_shade
                 rows = twin.merge(rows, fresh, now)
-                # What the openings did to the VOC in their first minutes (ten days read): the hours when the air outside brings it.
-                if full and air["voc"] and (threshold := self._voc_threshold()):
-                    self.voc_airings = vocs.airings(contacts, self._points(states, air["voc"]), threshold, dt_util.get_default_time_zone())
+                if airings is not None:
+                    self.voc_airings = airings
                     self.voc_slots = vocs.outdoor_slots(self.voc_airings)
                 await self._twin_store.async_save({"samples": rows, "format": TWIN_FORMAT})
             except Exception:  # the twin then keeps what it learned before

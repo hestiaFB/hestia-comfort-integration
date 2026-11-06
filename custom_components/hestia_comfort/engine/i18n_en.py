@@ -144,7 +144,7 @@ EN: dict[str, str] = {
     "Cette pièce Home Assistant est déjà utilisée par une autre pièce Hestia Confort.": "This Home Assistant area is already used by another Hestia Comfort room.",
     "Cette pièce Hestia Confort n’existe plus.": "This Hestia Comfort room no longer exists.", "La pièce n’a pas pu être ajoutée.": "The room could not be added.",
     "La configuration a changé ailleurs. Rechargez les pièces avant de supprimer.": "The configuration changed elsewhere. Reload the rooms before removing.",
-    "Choisissez une alarme de Home Assistant.": "Choose a Home Assistant alarm.", "Réglage d’allergie invalide.": "Invalid allergy setting.", "Extension inconnue.": "Unknown extension.", "Tout le logement": "The whole home", "Bandeaux LED, effets et segments": "LED strips, effects and segments",
+    "Choisissez une alarme de Home Assistant.": "Choose a Home Assistant alarm.", "Réglage d’allergie invalide.": "Invalid allergy setting.", "Réglage invalide.": "Invalid setting.", "Extension inconnue.": "Unknown extension.", "Tout le logement": "The whole home", "Bandeaux LED, effets et segments": "LED strips, effects and segments",
     "Bandeaux LED : leurs effets (respiration, vague…) et leurs segments sont proposés dans les notifications lumineuses, un segment par pièce.": "LED strips: their effects (breathing, wave…) and their segments are offered in the light notifications, one segment per room.",
     "Sans lui : les notifications lumineuses utilisent les ampoules couleur, sans effets.": "Without it: the light notifications use colour bulbs, without effects.",
     "installé, aucune notification lumineuse": "installed, no light notification", "Réglage des lumières invalide.": "Invalid lights setting.", "Réponse invalide.": "Invalid answer.",

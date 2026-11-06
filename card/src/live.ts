@@ -1,4 +1,5 @@
 import {isView} from './view';
+import {subscribeShared} from './shared';
 import type {Connection, Unsubscribe, View} from './types';
 /** Owns exactly one subscription. Late replies from previous rooms cannot leak. */
 export class LiveView {
@@ -22,7 +23,8 @@ export class LiveView {
   }
   private async connect(generation:number) {
     try {
-      const remove=await this.connection!.subscribeMessage<unknown>(event=>{
+      // The page's one subscription to this room (shared.ts), whatever the number of its cards.
+      const remove=await subscribeShared(this.connection!,{type:'hestia_comfort/subscribe',...(this.entry?{entry_id:this.entry}:{})},(event:unknown)=>{
         if(generation!==this.generation||!this.running) return;
         if(event && typeof event==='object' && 'reload' in event && event.reload===true){this.onClear();this.onProblem('reload');this.reconnect(generation);return;}
         if(event && typeof event==='object' && 'unavailable' in event && event.unavailable===true){this.onClear();this.onProblem('unavailable');return;}
@@ -31,7 +33,7 @@ export class LiveView {
         const age=Date.now()-Date.parse(view.computed_at);
         if(age>75000 || age< -60000){this.onClear();this.onProblem('stale');return;}
         this.last=Date.now();this.onView(view);
-      },{type:'hestia_comfort/subscribe',...(this.entry?{entry_id:this.entry}:{})});
+      });
       if(generation!==this.generation||!this.running) await remove(); else this.unsubscribe=remove;
     } catch(error) {
       if(generation!==this.generation||!this.running) return;

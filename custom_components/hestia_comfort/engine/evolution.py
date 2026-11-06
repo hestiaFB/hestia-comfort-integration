@@ -327,9 +327,12 @@ def features(readings,settings,context,openings,sun,details,needs,action,reason,
     vm='Durée indicative avant réévaluation ; les mesures restent prioritaires, sans garantie de renouvellement complet.'
     if capacity is not None: vm+=' Capacité estimée en m² effectifs, avec hypothèse d’ouverture ; débit non mesuré.'
     if opened and elapsed is None: vm+=' Ouvert depuis une durée inconnue.'
+    # The trends on a two-minute grid (PLAN-OPTIMISATION.md, point 11): recomputed against the exact minute, their slopes
+    # and points moved at every refresh, and the room's view went out again though nothing on the card had changed.
+    grid=now-timedelta(minutes=now.minute%2,seconds=now.second,microseconds=now.microsecond) if isinstance(now,datetime) else now
     return dict(shutters=_shutters(readings,settings,openings,sun,details,needs,now),presence=_presence(readings,context),air=air,
                 ventilation=dict(opened_minutes=elapsed,duration_minutes=duration,message=vm,capacity=capacity),
                 humidity=dict(dew_point=dew,incoming_relative=incoming,glass_temperature=glass,condensation_risk=condensation,message=hmessage),
-                trends=dict(indoor=_slope(context.get('temperature_history'),now),outdoor=_slope(context.get('outdoor_history'),now),window_minutes=30,
-                            curves={k:_curve(context.get(k+'_history'),now,k) for k in STEADY},
+                trends=dict(indoor=_slope(context.get('temperature_history'),grid),outdoor=_slope(context.get('outdoor_history'),grid),window_minutes=30,
+                            curves={k:_curve(context.get(k+'_history'),grid,k) for k in STEADY},
                             message='Tendance en °C/h sur au plus 30 minutes de mesures réelles ; au moins 3 mesures sur 10 minutes.'))

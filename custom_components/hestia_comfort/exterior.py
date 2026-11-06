@@ -1,5 +1,6 @@
 """Normalize supported exterior sources without equating daily outlooks to observations."""
 from dataclasses import replace
+from datetime import timedelta
 import math
 from homeassistant.util import dt as dt_util
 from .const import SOURCES
@@ -14,7 +15,10 @@ def exterior_reading(state, key, spec, *, now, max_age):
         if not isinstance(index, int) or not 1 <= index <= 6:
             return Reading(None, "unknown", source=entity_id, detail="unavailable")
         # Like ATMO: an index can flag the precaution, never prove the air at these windows is good now.
-        return Reading(index >= spec.get("block_from", 4), "estimated", source=entity_id, received_at=spec.get("at"), detail="hestia_weather_air")
+        # Hestia Weather's time of calculation, to five minutes: it computes every minute (PLAN-OPTIMISATION.md, point 11).
+        at = dt_util.parse_datetime(spec["at"]) if isinstance(spec.get("at"), str) else None
+        at = (at - timedelta(minutes=at.minute % 5, seconds=at.second, microseconds=at.microsecond)).isoformat() if at else spec.get("at")
+        return Reading(index >= spec.get("block_from", 4), "estimated", source=entity_id, received_at=at, detail="hestia_weather_air")
     if not state:
         return Reading(None, "unknown", source=entity_id, detail="unavailable")
     adapter = spec.get("adapter", "direct")

@@ -20,6 +20,7 @@ The twin only observes: nothing here decides an advice.
 """
 from bisect import bisect_right
 from datetime import datetime, timedelta
+from functools import lru_cache
 import math
 
 STEP = timedelta(minutes=30)
@@ -56,6 +57,9 @@ class _Series:
         return self.values[i - 1] if i else None
 
 
+# A room's calculation asks the sun of each coming half hour about eight times (« Cette nuit », « Prochaines heures », the
+# shut and open runs): the positions are kept for the exact moments already asked (PLAN-OPTIMISATION.md, point 5).
+@lru_cache(maxsize=4096)
 def sun_position(when, latitude, longitude):
     """Elevation and azimuth of the sun in degrees (NOAA's simplified formulas, within a degree)."""
     day = when.timetuple().tm_yday

@@ -1,7 +1,25 @@
 """Who is at home: the room's people, the alarm, presence sensors, and the extensions turned off."""
+import time
+
 from homeassistant.helpers import entity_registry as er
 
 from ..engine import people
+
+
+# Alarmo's panel, found in the entity registry once every ten minutes (PLAN-OPTIMISATION.md, point 9): each room's
+# calculation asked for it twice, through every entity of the home. A panel added or turned off is seen within ten minutes.
+ALARMO, ALARMO_KEPT = "hestia_comfort_alarmo", 600
+
+
+def alarmo(hass):
+    """Alarmo's alarm panel, or None."""
+    kept = hass.data.get(ALARMO)
+    now = time.monotonic()
+    if kept is None or now >= kept[0]:
+        entities = getattr(er.async_get(hass), "entities", None) or {}
+        kept = hass.data[ALARMO] = (now + ALARMO_KEPT, next((e.entity_id for e in entities.values() if e.domain == "alarm_control_panel"
+                                                             and e.platform == people.PLATFORM and not e.disabled_by), None))
+    return kept[1]
 
 
 class PresenceMixin:
@@ -17,9 +35,7 @@ class PresenceMixin:
         chosen = (self.home_configuration.home.get("alarm") if self.home_configuration is not None else None)
         if isinstance(chosen, str):
             return chosen or None
-        entities = getattr(er.async_get(self.hass), "entities", None) or {}
-        return next((e.entity_id for e in entities.values() if e.domain == "alarm_control_panel" and e.platform == people.PLATFORM
-                     and not e.disabled_by), None)
+        return alarmo(self.hass)
 
     def _occupancy_entities(self):
         alarm = self._alarm_entity()

@@ -113,11 +113,18 @@ test('old, wrong-room, unavailable and malformed snapshots clear the view',async
     assert.deepEqual(problems,['stale','version','unavailable','version']);assert.ok(clears>=4);
   }finally{live.stop();}
 });
-test('two cards own separate subscriptions and cleanup',async()=>{
-  let active=0;const conn={subscribeMessage:async()=>{active++;return ()=>active--;}};
-  const a=new LiveView(()=>{},()=>{},()=>{}),b=new LiveView(()=>{},()=>{},()=>{});
-  try {a.start(conn,'salon');b.start(conn,'salon');await flush();assert.equal(active,2);a.stop();await flush();assert.equal(active,1);}
-  finally{a.stop();b.stop();await flush();assert.equal(active,0);}
+test('two cards of a room share one subscription, kept while one of them listens (PLAN-OPTIMISATION.md, point 13)',async()=>{
+  let active=0,send;const conn={subscribeMessage:async(cb)=>{active++;send=cb;return ()=>active--;}};
+  const seen={a:0,b:0,c:0};
+  const a=new LiveView(()=>seen.a++,()=>{},()=>{}),b=new LiveView(()=>seen.b++,()=>{},()=>{}),c=new LiveView(()=>seen.c++,()=>{},()=>{});
+  try {
+    a.start(conn,'salon');b.start(conn,'salon');await flush();assert.equal(active,1);
+    const v=fresh();v.entry_id='salon';send({version:1,view:v});assert.deepEqual([seen.a,seen.b],[1,1]);
+    // A card added later gets the last view at once.
+    c.start(conn,'salon');await flush();await flush();assert.equal(active,1);assert.equal(seen.c,1);
+    a.stop();c.stop();await flush();assert.equal(active,1);
+  }
+  finally{a.stop();b.stop();c.stop();await flush();assert.equal(active,0);}
 });
 
 test('intentional absence differs from unavailable, stale and invalid readings',()=>{

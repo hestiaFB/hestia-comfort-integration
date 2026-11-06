@@ -11,6 +11,9 @@ from datetime import timedelta
 from functools import partial
 import logging
 import math
+from pathlib import Path
+import pickle
+import sys
 
 from homeassistant.components.recorder import get_instance, history as recorder_history
 from homeassistant.components.recorder.statistics import statistics_during_period
@@ -55,6 +58,58 @@ OFFSET_STEPS = 144      # twelve hours of five-minute steps
 # the recorder's days (60 at most), with Open-Meteo's sun of those days.
 LEARN_AT, LEARN_AFTER_START, LEARN_DAYS = (3, 30), 600, 60
 WIND_UNITS = {"km/h": 1.0, "m/s": 3.6, "mph": 1.609344, "kn": 1.852}
+# The only attributes the nightly learning reads (advisor/bench/history.py `attribute`): the heating's power, the cover's
+# position. The history is read one entity and one day at a time (PLAN-OPTIMISATION.md, point 1): never sixty days of
+# every state with all its attributes in memory at once, and never converted on Home Assistant's loop.
+NIGHT_ATTRIBUTES = ("power_percent", "current_position")
+NIGHT_SLICE = timedelta(days=1)
+
+
+def night_rows(entity_id, states, attributes, last=None):
+    """The states as the nightly learning reads them (dicts, advisor/bench/history.py), with `last` the key of the row kept
+    before them: (rows, last). A state repeated as it was (only an attribute the learning does not read changed) is
+    kept once: every series holds its value until the next row, and a repeated state keeps its `last_changed`, so
+    nothing the learning reads changes."""
+    rows = []
+    for state in states:
+        kept = {k: state.attributes[k] for k in NIGHT_ATTRIBUTES if k in state.attributes} if attributes else {}
+        if (state.state, kept) == last:
+            continue
+        last = (state.state, kept)
+        rows.append({"entity_id": entity_id, "state": state.state, "attributes": kept,
+                     "last_changed": state.last_changed.isoformat(), "last_updated": state.last_updated.isoformat()})
+    return rows, last
+
+
+# One room's nightly learning, in a process of its own (PLAN-OPTIMISATION.md, point 10): night_worker.py.
+NIGHT_WORKER = Path(__file__).with_name("night_worker.py")
+
+
+def room_history(history, spec, outdoor, outdoor_rh, houses):
+    """Only what one room's learning reads (advisor/nightly.py): sent to its process, not the whole home's."""
+    wanted = {outdoor, outdoor_rh, spec.alarm, spec.temperature, spec.humidity, spec.thermostat, spec.cover, spec.co2,
+              spec.particles, spec.voc, *spec.windows, *(houses or {}), *(d[0] for d in (spec.boost, spec.purifier) if d)}
+    return {e: rows for e, rows in history.items() if e in wanted}
+
+
+def night_history(hass, start, end, entity_ids, with_attributes):
+    """{entity: [state as a dict]} for the nightly learning, read and converted in the recorder's executor."""
+    out = {}
+    for entity_id in entity_ids:
+        rows, last, begin = [], None, start
+        attributes = entity_id in with_attributes
+        while begin < end:
+            stop = min(begin + NIGHT_SLICE, end)
+            # The state at `start` opens the window; later slices only add what changed within them.
+            found = recorder_history.get_significant_states(hass, begin, stop, [entity_id], None, begin == start, False, False,
+                                                            not attributes)
+            more, last = night_rows(entity_id, found.get(entity_id, ()), attributes, last)
+            rows.extend(more)
+            del found
+            begin = stop
+        if rows:
+            out[entity_id] = rows
+    return out
 
 
 def _number(hass, entity_id, attribute=None):
@@ -156,6 +211,8 @@ class AdvisorHome:
         # Since when the rain has been said due without a drop at the station (advisor/safety.py `rain_believed`).
         self.rain_soon_since = None
         self.learning = False
+        # The nightly learning's own process failed once (night_worker.py): said once in the log, then in the threads.
+        self.worker_failed = False
         self.forecast, self.forecast_at, self.forecast_source = {}, None, "Open-Meteo"
         # The station's own shade by the sun's position, and the clouds the forecast missed in the last two hours, read
         # where it sees the sun (advisor/physics/station_sun.py); None: the forecast sun is kept as it is.
@@ -251,6 +308,12 @@ class AdvisorHome:
     def _place(self):
         coordinator = self._anchor()
         return coordinator._weather_place() if coordinator else None
+
+    def analysis(self):
+        """Our analysis tools on (configuration.py `set_analysis`): the files the Atelier reads are written. Off by default."""
+        coordinator = self._anchor()
+        configuration = coordinator.home_configuration if coordinator else None
+        return bool(configuration and configuration.home.get("analysis"))
 
     def foyer(self):
         """The household's settings of the house (« Réglages du foyer »)."""
@@ -595,12 +658,10 @@ class AdvisorHome:
                 wanted |= {spec.temperature, *spec.windows} | {e for e in (spec.humidity, spec.thermostat, spec.cover, spec.co2,
                                                                          spec.particles, spec.voc) if e} \
                     | {d[0] for d in (spec.boost, spec.purifier) if d}
-            states = await get_instance(self.hass).async_add_executor_job(partial(
-                recorder_history.get_significant_states, self.hass, now - timedelta(days=LEARN_DAYS), now, sorted(wanted),
-                significant_changes_only=False, minimal_response=False, no_attributes=False))
-            history = {e: [{"entity_id": e, "state": x.state, "attributes": dict(x.attributes),
-                            "last_changed": x.last_changed.isoformat(), "last_updated": x.last_updated.isoformat()} for x in found]
-                       for e, found in states.items() if found}
+            # The heating's power and the cover's position are attributes: only their entities are read with them.
+            with_attributes = {e for spec in specs.values() for e in (spec.thermostat, spec.cover) if e} | set(self.houses)
+            history = await get_instance(self.hass).async_add_executor_job(
+                night_history, self.hass, now - timedelta(days=LEARN_DAYS), now, sorted(wanted), with_attributes)
             first = min((dt_util.parse_datetime(v[0]["last_changed"]) for v in history.values()), default=now)
             sun = await self._past_sun(max(1, min(92, (now - first).days + 1)))
             zone = dt_util.get_time_zone(self.hass.config.time_zone)
@@ -610,9 +671,10 @@ class AdvisorHome:
                 advisor = self.rooms.get(entry_id)
                 if advisor is None:
                     continue
+                arguments = (spec, advisor.learned, room_history(history, spec, outdoor, outdoor_rh, self.houses), sun, now,
+                             outdoor, outdoor_rh, location, zone, self.houses)
                 try:
-                    entry, report = await self.hass.async_add_executor_job(
-                        learn_room, spec, advisor.learned, history, sun, now, outdoor, outdoor_rh, location, zone, self.houses)
+                    entry, report = await self._learn_room(arguments)
                 except Exception:  # noqa: BLE001 - one room that fails keeps its twins
                     _LOGGER.exception("Hestia Comfort: nightly learning of %s", spec.name)
                     continue
@@ -625,10 +687,30 @@ class AdvisorHome:
             except Exception:  # noqa: BLE001 - the shade learned before is kept
                 _LOGGER.exception("Hestia Comfort: station shade")
             await self._save()
-            await self.hass.async_add_executor_job(self.files.learned, {"heure": now.isoformat(), "moteur": self.version, "pieces": reports})
+            if self.analysis():
+                await self.hass.async_add_executor_job(self.files.learned, {"heure": now.isoformat(), "moteur": self.version, "pieces": reports})
             await self.hass.async_add_executor_job(self.files.prune, now)
         finally:
             self.learning = False
+
+    async def _learn_room(self, arguments):
+        """One room's nightly learning in its own process (night_worker.py, PLAN-OPTIMISATION.md point 10): a minute or
+        more of pure calculation that, in one of Home Assistant's threads, slowed the whole of it down. Where a process
+        cannot be started or fails, in Home Assistant's threads as before, its reason in the log."""
+        payload = await self.hass.async_add_executor_job(partial(pickle.dumps, arguments, protocol=pickle.HIGHEST_PROTOCOL))
+        try:
+            process = await asyncio.create_subprocess_exec(sys.executable, "-I", str(NIGHT_WORKER), stdin=asyncio.subprocess.PIPE,
+                                                           stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+            out, err = await process.communicate(payload)
+            if process.returncode == 0 and out:
+                return await self.hass.async_add_executor_job(pickle.loads, out)
+            reason = err.decode(errors="replace").strip().splitlines()[-1:] or [f"code {process.returncode}"]
+        except OSError as error:
+            reason = [str(error)]
+        if not self.worker_failed:
+            self.worker_failed = True
+            _LOGGER.warning("Hestia Comfort: the nightly learning runs in Home Assistant's own threads (%s)", reason[0])
+        return await self.hass.async_add_executor_job(learn_room, *arguments)
 
     async def _past_sun(self, days):
         """Open-Meteo's sun of the past days, each value the mean of the hour that ends at its time."""

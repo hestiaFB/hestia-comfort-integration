@@ -2,6 +2,7 @@
 from collections import deque
 from dataclasses import asdict, replace
 from datetime import timedelta
+from functools import partial
 import logging
 import random
 
@@ -41,6 +42,10 @@ def heating_power(attributes):
     return None if action is None else 100.0 if action == "heating" else 0.0
 
 
+def _five_minutes(moment):
+    return moment - timedelta(minutes=moment.minute % 5, seconds=moment.second, microseconds=moment.microsecond)
+
+
 def heated_minutes(rows, start, end):
     """Minutes spent « heating » between start and end, from the recorder's rows of the thermostat's « hvac_action »
     (an attribute: it changes at the row's last update, not at its last state change)."""
@@ -76,6 +81,10 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
         self.home_configuration = hass.data.get(DATA_CONFIG)
         self.previous = None
         self._horizon = None
+        # « Cette nuit » and « Prochaines heures » as last simulated: (what they read, the night, {advice: the graph}).
+        self._simulated = None
+        # What this room last read of Hestia Weather (weather_link.fingerprint).
+        self._weather_seen = None
         self.entry_id = entry.entry_id
         self.stop_listeners = set()
         self.opened_since = {}
@@ -166,7 +175,8 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
             self.config_entry.async_on_unload(async_track_state_change_event(self.hass, sorted(ids), self._changed))
         # Linked to Hestia Weather: recompute when its forecasts or alerts change.
         if weather_link.api(self.hass) and (place := self._weather_place()):
-            self.config_entry.async_on_unload(weather_link.listen(self.hass, place, lambda: self.hass.async_create_task(self.async_request_refresh())))
+            self._weather_seen = weather_link.fingerprint(self.hass, place)
+            self.config_entry.async_on_unload(weather_link.listen(self.hass, place, partial(self._weather_updated, place)))
         stored = await self._feedback_store.async_load() or {}
         self.feedback = feedback.keep(stored.get("records"), dt_util.utcnow())
         await self._restore_learning()
@@ -178,6 +188,16 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
             logging.getLogger(__name__).exception("Hestia Comfort: advisor 3.0 for %s", self.config.get("name"))
             self.advisor = None
         await self.async_config_entry_first_refresh()
+
+    @callback
+    def _weather_updated(self, place):
+        """Hestia Weather recomputed its place (every minute): this room recomputes only when what it reads there changed,
+        grouped with its measures, and never inside Hestia Weather's own update (PLAN-OPTIMISATION.md, point 3)."""
+        seen = weather_link.fingerprint(self.hass, place)
+        if seen == self._weather_seen:
+            return
+        self._weather_seen = seen
+        self.hass.async_create_task(self._measure_refresh.async_call())
 
     @callback
     def async_stopped(self):
@@ -427,7 +447,9 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
                 power = heating_power(state.attributes)
                 if power is not None:
                     # A state that lasts: a thermostat heating for an hour reports nothing new, yet its curve goes on.
-                    readings["heating_power"] = Reading(power, "valid", selected["heating"], now.isoformat(), "percent")
+                    # Dated to five minutes (PLAN-OPTIMISATION.md, point 11): the curve takes a point each five minutes, and the
+                    # view no longer changes at every refresh for its date alone.
+                    readings["heating_power"] = Reading(power, "valid", selected["heating"], _five_minutes(now).isoformat(), "percent")
                 target = state.attributes.get("temperature")
                 if isinstance(target, (int, float)) and not isinstance(target, bool):
                     readings["heating_target"] = Reading(float(target), "valid", selected["heating"], state.last_reported.isoformat())
@@ -481,14 +503,33 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
         own.setdefault("features", {})["learned"] = twin.learned_advice(own, self.twin, current, (self.drying_model or {}).get("openings", 0), summary)
         # Tonight, simulated on the room's own twin (engine/night.py): when opening cools, what it leaves for tomorrow.
         learned_twin = self.twin or {}
-        own["features"]["night"] = night.plan(learned_twin.get("model") if learned_twin.get("status") == "ready" else None,
-                                              current, outlook.get("hours") or [], now, minimum=self.settings.minimum,
-                                              mass=learned_twin.get("mass"), sun=self._sun_ahead())
+        model = learned_twin.get("model") if learned_twin.get("status") == "ready" else None
+        hours, sun_ahead = outlook.get("hours") or [], self._sun_ahead()
+        # Both are simulated again only when what they read moved (PLAN-OPTIMISATION.md, point 6): the measures to a tenth
+        # of a degree and a point of humidity, the forecast, the advice, the twin, the sun; and at least every five
+        # minutes, so that the graph never starts more than five minutes late.
+        rounded = lambda key, digits: round(current[key], digits) if isinstance(current.get(key), (int, float)) else None
+        moved = (int(now.timestamp() // 300), id(learned_twin), rounded("ti", 1), rounded("hi", 0), self.settings.minimum,
+                 None if learned_twin.get("mass") is None else round(learned_twin["mass"], 2), repr(hours),
+                 (self.sun_shade or {}).get("scale"), tuple(self._facades()))
+        if self._simulated is None or self._simulated[0] != moved:
+            own["features"]["night"] = night.plan(model, current, hours, now, minimum=self.settings.minimum,
+                                                  mass=learned_twin.get("mass"), sun=sun_ahead)
+            self._simulated = (moved, own["features"]["night"], {})
+        else:
+            own["features"]["night"] = self._simulated[1]
         # « Prochaines heures »: the room without the advised gesture and with it, for the card's graph (engine/horizon.py).
-        own["features"]["horizon"] = horizon.build(own, learned_twin.get("model") if learned_twin.get("status") == "ready" else None,
-                                                   current, outlook.get("hours") or [], now, minimum=self.settings.minimum,
-                                                   mass=learned_twin.get("mass"), sun=self._sun_ahead(),
-                                                   previous=self._horizon)
+        features = own.get("features") or {}
+        advised = repr((own.get("reason"), own.get("action"), tuple(own.get("needs") or ()), rounded("te", 1),
+                        current.get("heated"), current.get("holding"), (features.get("volume") or {}).get("reason"),
+                        ((features.get("ventilation") or {}).get("duration_minutes") or {}).get("max"),
+                        (features.get("warmth") or {}).get("warming"), (features.get("season") or {}).get("group"),
+                        (features.get("drying") or {}).get("minutes"), ((features.get("drying") or {}).get("later") or {}).get("time")))
+        drawn = self._simulated[2].get(advised)
+        if drawn is None:
+            drawn = self._simulated[2][advised] = horizon.build(own, model, current, hours, now, minimum=self.settings.minimum,
+                                                               mass=learned_twin.get("mass"), sun=sun_ahead, previous=self._horizon)
+        own["features"]["horizon"] = drawn
         self._horizon = own["features"]["horizon"]
         assessment = self._settle(own)
         self._track(assessment, current, now)

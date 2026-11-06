@@ -8,6 +8,7 @@ Every five minutes the house's advisor (advisor_home.py) asks the room for its d
 safety, scenarios compared, words. Between two steps a window moved only decides again: the twin's trail does not move.
 Taken over from the test Home Assistant's `hestia_advisor_dev` (Engine._advise and its helpers).
 """
+import asyncio
 from collections import deque
 from dataclasses import asdict, replace
 from datetime import timedelta
@@ -588,7 +589,14 @@ class RoomAdvisor:
 
     async def advise(self, now, stepping=True):
         """The room's decision now, kept in `self.result`; `stepping`: a five-minute step (the twin's trail moves), or a
-        window that moved in between (it decides again only). False when the room cannot be advised yet."""
+        window that moved in between (it decides again only). False when the room cannot be advised yet.
+
+        It thinks in the executor: a window that moves meanwhile waits for it, one decision at a time per room."""
+        lock = self.__dict__.setdefault("_deciding", asyncio.Lock())
+        async with lock:
+            return await self._advise(now, stepping)
+
+    async def _advise(self, now, stepping):
         room, home, hass = self.room, self.home, self.hass
         # The twin's trail moves five minutes at a time, whatever asks for a decision in between.
         if stepping and self.trail and now - self.trail[-1][0] < STEP_AT_LEAST:
@@ -736,12 +744,14 @@ class RoomAdvisor:
             twins = scaled(twins, share)
         proof = self._proof(current, outdoor, coming[0][1])
         # A source running now (a cooking, a shower…): the last half hour replayed on the twin against the measures.
+        # Replayed in the executor, as the decision below (PLAN-OPTIMISATION.md, point 8): Home Assistant does not wait.
         rows = list(self.air_trail)
         start = max((i for i, row in enumerate(rows) if now - row[0] >= timedelta(minutes=27.5)), default=None)
         measured_now = current
         if start is not None:
             try:
-                found = recent_sources(twins, rows[start][1], [(row[2], row[3]) for row in rows[start:]], current)
+                found = await hass.async_add_executor_job(
+                    recent_sources, twins, rows[start][1], [(row[2], row[3]) for row in rows[start:]], current)
             except Exception:  # noqa: BLE001 - the sources are a plus
                 _LOGGER.exception("Hestia Comfort: sources for %s", name)
                 found = {}
@@ -758,24 +768,53 @@ class RoomAdvisor:
         tried = aged(tried_before, (now - tried_at).total_seconds() / 60)
         # Minutes since an airing was shut: the next opening for a slow subject waits until it is judged.
         aired = (now - self.shut_at).total_seconds() / 60 if self.shut_at and not opened else None
-        decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                          holidays=away, habits=habits, held=held, tried=tried, aired=aired)
-        if decision.rule == "unproven" and opened and opening:
-            # The gesture under way may show its effect now (CAHIER-MOTEUR.md § 4.1).
-            subject = main_subject(decision.scenarios, decision.passive)
-            if self._seen(subject, decision, opening, now, air, current.humidity):
-                proof[subject] = PROVEN
-                decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                                  holidays=away, habits=habits, held=held, tried=tried, aired=aired)
+        marks = {"minimum": comfort.minimum, "maximum": comfort.maximum, "humidity": comfort.humidity, "co2": comfort.co2,
+                 "particles": comfort.particles, "voc": comfort.voc}
+        # The coming night, from the evening on: « Cette nuit, pensez à… », misted panes.
+        night_coming = None
+        if night or local >= bedtime - timedelta(hours=habits.mist_before):
+            night_coming = home.coming(now, int((wake - local).total_seconds() // STEP), outdoor, outdoor_rh, house_heat,
+                                       shaded(shut_night), seen(shut_night), opened_index, kept(shut_night))
+
+        def think():
+            """The decision and everything simulated around it, in the executor (PLAN-OPTIMISATION.md, point 8): it only
+            reads what was gathered above, never Home Assistant nor the room's own state, which change back on the loop."""
+            decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
+                              holidays=away, habits=habits, held=held, tried=tried, aired=aired)
+            if decision.rule == "unproven" and opened and opening:
+                # The gesture under way may show its effect now (CAHIER-MOTEUR.md § 4.1).
+                subject = main_subject(decision.scenarios, decision.passive)
+                if self._seen(subject, decision, opening, now, air, current.humidity):
+                    proof[subject] = PROVEN
+                    decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
+                                      holidays=away, habits=habits, held=held, tried=tried, aired=aired)
+            snap = capture(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
+                           holidays=away, habits=habits, reason=reason, held=held, tried=tried, aired=aired, end_hour=end_hour, hour=local.hour + local.minute / 60,
+                           room=name, when=now.isoformat(), version=home.version)
+            # The local time now: a later gesture says its hour (« Aérez 5 min vers 13 h 50 »), never only its length.
+            words = phrase(decision, end_hour, marks=marks, hour=local.hour + local.minute / 60, reason=reason)
+            # What the shutter closed at bedtime would keep by waking up: a passive advice (advisor/knowing.py).
+            shutter_night = shutter_tonight(twins, current, night_coming, 0 if night else int((bedtime - local).total_seconds() // 60)) \
+                if night_coming else None
+            # A room under its range that its thermostat brings back: when (advisor/knowing.py).
+            idle = decision.paths.get(Gesture("nothing"))
+            back = heating_back(twins, idle, current, comfort.minimum, coming) if idle is not None else None
+            # Its heating off: what turning it on again would give, said as a passive advice only (§ 9.1 bis).
+            off = heating_off(twins, current, coming, comfort, habits.tolerance)
+            # The stove at its lowest in a room warm enough: worth stopping, or the room still warming (passive).
+            stove = stove_idle(twins, current, coming, comfort.minimum, habits.stove_hold) if decision.rule != "overheat" else None
+            night_text = None
+            if night_coming and not night and local >= bedtime - timedelta(hours=habits.tonight_before):
+                night_text = self._tonight(twins, current, local, bedtime, wake, night_coming, comfort, proof, marks, taken, habits)
+            return decision, snap, words, shutter_night, back, off, stove, sun_gain(twins, current, coming), night_text
+
+        decision, snap, words, shutter_night, back, off, stove, sunny, night_text = await hass.async_add_executor_job(think)
         # What the twin gives the windows left open, from the moment they are first seen open; a safety rule that shuts
         # them weighs no scenario (Salon · Cuisine, 4 November at 6 h 26: the advice failed on it), the next step will.
         path = decision.paths.get(Gesture("nothing"))
         if opened and opening and self.opened_seen is None and path is not None:
             self.opened_seen = Opened(opening[0], opening[1], opening[2], tuple(path.air), tuple(path.humidity or ()))
             self.opened_from = (twins, current, coming)
-        snap = capture(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                       holidays=away, habits=habits, reason=reason, held=held, tried=tried, aired=aired, end_hour=end_hour, hour=local.hour + local.minute / 60,
-                       room=name, when=now.isoformat(), version=home.version)
         snap["pas_maintenant"] = sorted(aside)
         same = shown_before is not None and (shown_before.kind, shown_before.after is None) == (decision.gesture.kind, decision.gesture.after is None)
         # A countdown kept goes on from when it was said (`remembered`), not from this step.
@@ -791,26 +830,7 @@ class RoomAdvisor:
             self.trail.append((now, air, walls, acting))
             self.air_trail.append((now, measured_now, acting, coming[0][1]))
             _, self.walls = step(heat, air, walls, acting)
-        marks = {"minimum": comfort.minimum, "maximum": comfort.maximum, "humidity": comfort.humidity, "co2": comfort.co2,
-                 "particles": comfort.particles, "voc": comfort.voc}
-        # The local time now: a later gesture says its hour (« Aérez 5 min vers 13 h 50 »), never only its length.
-        words = phrase(decision, end_hour, marks=marks, hour=local.hour + local.minute / 60, reason=reason)
-        # The coming night, from the evening on: « Cette nuit, pensez à… », misted panes.
-        night_coming = None
-        if night or local >= bedtime - timedelta(hours=habits.mist_before):
-            night_coming = home.coming(now, int((wake - local).total_seconds() // STEP), outdoor, outdoor_rh, house_heat,
-                                       shaded(shut_night), seen(shut_night), opened_index, kept(shut_night))
         coldest = min(u.outdoor for u, _ in night_coming) if night_coming else None
-        # What the shutter closed at bedtime would keep by waking up: a passive advice (advisor/knowing.py).
-        shutter_night = shutter_tonight(twins, current, night_coming, 0 if night else int((bedtime - local).total_seconds() // 60)) \
-            if night_coming else None
-        # A room under its range that its thermostat brings back: when (advisor/knowing.py).
-        idle = decision.paths.get(Gesture("nothing"))
-        back = heating_back(twins, idle, current, comfort.minimum, coming) if idle is not None else None
-        # Its heating off: what turning it on again would give, said as a passive advice only (§ 9.1 bis).
-        off = heating_off(twins, current, coming, comfort, habits.tolerance)
-        # The stove at its lowest in a room warm enough: worth stopping, or the room still warming (passive).
-        stove = stove_idle(twins, current, coming, comfort.minimum, habits.stove_hold) if decision.rule != "overheat" else None
         # The humidity in question: a window open, above its mark, or a gesture for it — then the outside air is said in
         # water, the reason an airing dries the room even at 78 % outside (advisor/knowing.py `outside_water`).
         water = bool(current.opened) or (current.humidity is not None and current.humidity > comfort.humidity) \
@@ -821,12 +841,9 @@ class RoomAdvisor:
         planned = ({"at": local + timedelta(minutes=stat.at), "temperature": stat.then}
                    if stat and stat.at is not None and stat.then is not None and stat.then > stat.target else None)
         good = self._good_to_know(now, air, opening, comfort, current.humidity, coldest, bedtime, night, shutter_night, wake,
-                                  back, off, end_hour, stove, sun_gain(twins, current, coming), outdoor, outdoor_rh, water,
+                                  back, off, end_hour, stove, sunny, outdoor, outdoor_rh, water,
                                   share, planned)
         good_words = [tip_text(t, now=local) for t in good]
-        night_text = None
-        if night_coming and not night and local >= bedtime - timedelta(hours=habits.tonight_before):
-            night_text = self._tonight(twins, current, local, bedtime, wake, night_coming, comfort, proof, marks, taken, habits)
         # « Cette nuit, pensez à refermer » says nothing more than a banner already saying « Refermez ».
         if night_text and decision.gesture.kind != "close":
             good_words.insert(0, night_text)
@@ -836,10 +853,14 @@ class RoomAdvisor:
         trial = decision.gesture.kind == "nothing" and decision.passive is not None and bool(words["try"])
         shown = decision.passive if trial else decision.gesture
         self.asked, followed = follow(self.asked, shown, words["try"] if trial else words["title"], trial, current, now)
+        # Our analysis tools (advisor_home.py `analysis`, PLAN-OPTIMISATION.md point 16): the files the Atelier reads,
+        # written only while they are on. The advice and the learning never read them back.
+        analysing = home.analysis()
         for record in followed:
             if record["suivi"]:
                 self.paused.pop(record["geste"], None)
-            await hass.async_add_executor_job(home.files.feedback, {"heure": now.isoformat(), "piece": name, "type": "suivi", **record})
+            if analysing:
+                await hass.async_add_executor_job(home.files.feedback, {"heure": now.isoformat(), "piece": name, "type": "suivi", **record})
         self.result = {"title": words["title"], "phrase": words["line"], "pourquoi": words["why"],
                        "sujet": words["subject"], "regle": decision.rule, "gain": round(decision.gain, 2),
                        "geste": decision.gesture.kind, "minutes": decision.gesture.minutes, "apres": decision.gesture.after,
@@ -860,9 +881,13 @@ class RoomAdvisor:
                        "pas_maintenant": {k: dt_util.as_local(until).strftime("%H h %M") for k, until in self.paused.items() if k in aside},
                        "douteuses": doubt_text(doubts), "calcule_a": now.isoformat(), "moteur": home.version}
         changed = self.shown != (words["title"], words["try"])
-        await hass.async_add_executor_job(home.files.keep, self.slug, now, local, snap, decision, words, changed)
+        # The situation of this step, kept in memory: « Ce conseil ne va pas » joins it to the report, even with no file.
+        self.snap = snap
+        if analysing:
+            await hass.async_add_executor_job(home.files.keep, self.slug, now, local, snap, decision, words, changed)
         if changed:
             self.shown = (words["title"], words["try"])
+        if changed and analysing:
             await hass.async_add_executor_job(home.files.journal, {
                 "heure": now.isoformat(), "moteur": home.version, "piece": name, "conseil": words["title"], "phrase": words["line"],
                 "pourquoi": words["why"], "a_essayer": words["try"], "preuve": decision.level, "bon_a_savoir": good_words,
@@ -884,7 +909,8 @@ class RoomAdvisor:
             habits = Habits.of(self.home.foyer(), self.room["foyer"])
             until = pause_until(now, habits.not_now)
             self.paused[gesture] = until
-        file = await self.hass.async_add_executor_job(self.home.files.signal, self.slug, dt_util.as_local(now), kind, note, shown)
+        file = await self.hass.async_add_executor_job(self.home.files.signal, self.slug, dt_util.as_local(now), kind, note, shown,
+                                                      getattr(self, "snap", None))
         await self.hass.async_add_executor_job(self.home.files.feedback, {
             "heure": now.isoformat(), "moteur": self.home.version, "piece": self.room["name"], "type": "avis", "avis": kind, "note": note, "geste": gesture,
             "conseil": shown["conseil"], "phrase": shown["phrase"], "fichier": file})

@@ -1,4 +1,5 @@
 """Real HA command wrappers with an isolated registry and connection fixture."""
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -10,7 +11,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar, floor_registry as fr
 from homeassistant.config_entries import ConfigEntries, ConfigEntry, ConfigEntryState
 from custom_components.hestia_comfort.coordinator import ComfortCoordinator
-from custom_components.hestia_comfort.websocket import ws_entries, ws_subscribe
+from custom_components.hestia_comfort.websocket import _texts, ws_entries, ws_subscribe
+
+
+def sent(connection):
+    """The last message sent: already turned into text for a room's view (PLAN-OPTIMISATION.md, point 4), a dict otherwise."""
+    message = connection.send_message.call_args.args[0]
+    return json.loads(message) if isinstance(message, (bytes, str)) else message
 
 
 class WebsocketTests(unittest.IsolatedAsyncioTestCase):
@@ -53,12 +60,12 @@ class WebsocketTests(unittest.IsolatedAsyncioTestCase):
         entry = await self.add("salon")
         coordinator = entry.runtime_data
         ws_subscribe(self.hass, self.conn, {"id": 1, "type": "hestia_comfort/subscribe", "entry_id": entry.entry_id})
-        self.assertEqual(self.conn.send_message.call_args.args[0]["event"]["view"]["area_id"], "salon")
+        self.assertEqual(sent(self.conn)["event"]["view"]["area_id"], "salon")
         self.assertEqual(len(coordinator.stop_listeners), 1)
         coordinator.async_set_update_error(ValueError("fixture unavailable"))
-        self.assertTrue(self.conn.send_message.call_args.args[0]["event"]["unavailable"])
+        self.assertTrue(sent(self.conn)["event"]["unavailable"])
         coordinator.async_stopped()
-        self.assertTrue(self.conn.send_message.call_args.args[0]["event"]["reload"])
+        self.assertTrue(sent(self.conn)["event"]["reload"])
         self.conn.subscriptions[1]()
         self.assertEqual(len(coordinator.stop_listeners), 0)
 
@@ -80,13 +87,13 @@ class WebsocketTests(unittest.IsolatedAsyncioTestCase):
         ar.async_get(self.hass).async_create('Salon')
         floor = fr.async_get(self.hass).async_create('RDC', level=0)
         ws_home_subscribe(self.hass, self.conn, {'id':2,'type':'hestia_comfort/home_subscribe'})
-        self.assertIsNone(self.conn.send_message.call_args.args[0]['event']['home']['floors'][0]['floor_id'])
+        self.assertIsNone(sent(self.conn)['event']['home']['floors'][0]['floor_id'])
         ar.async_get(self.hass).async_update('salon',floor_id=floor.floor_id)
         await self.hass.async_block_till_done()
-        self.assertEqual(self.conn.send_message.call_args.args[0]['event']['home']['floors'][0]['name'],'RDC')
+        self.assertEqual(sent(self.conn)['event']['home']['floors'][0]['name'],'RDC')
         entry.runtime_data.async_set_update_error(ValueError('fixture unavailable'))
         await self.hass.async_block_till_done()
-        event=self.conn.send_message.call_args.args[0]['event']
+        event=sent(self.conn)['event']
         self.assertEqual(len(event['rooms']),1)
         self.assertTrue(event['home']['partial'])
         self.assertEqual(event['home']['floors'][0]['measured'],0)
@@ -95,6 +102,32 @@ class WebsocketTests(unittest.IsolatedAsyncioTestCase):
         fr.async_get(self.hass).async_update(floor.floor_id,name='Renommé')
         await self.hass.async_block_till_done()
         self.assertEqual(self.conn.send_message.call_count,count)
+
+    async def test_the_home_card_gets_every_room_once_then_only_those_that_changed(self):
+        from custom_components.hestia_comfort.websocket import ws_home_subscribe
+        grouped = patch('custom_components.hestia_comfort.websocket.async_call_later',
+                        lambda hass, delay, action: (hass.loop.call_soon(action), lambda: None)[1])
+        grouped.start()
+        self.addCleanup(grouped.stop)
+        salon, cuisine = await self.add('salon'), await self.add('cuisine')
+        ws_home_subscribe(self.hass, self.conn, {'id': 3, 'type': 'hestia_comfort/home_subscribe', 'changes': True})
+        event = sent(self.conn)['event']
+        self.assertEqual(sorted(v['entry_id'] for v in event['changed']), sorted([salon.entry_id, cuisine.entry_id]))
+        self.assertEqual(event['order'], [cuisine.entry_id, salon.entry_id])
+        self.assertNotIn('rooms', event)
+        count = self.conn.send_message.call_count
+        # The salon computed again, its view the same but for its time: nothing goes out.
+        salon.runtime_data.async_set_updated_data({**salon.runtime_data.data, 'computed_at': '2026-11-06T15:00:00+00:00'})
+        await self.hass.async_block_till_done()
+        self.assertEqual(self.conn.send_message.call_count, count)
+        # The salon's advice changed: only the salon goes out, with the order and the synthesis.
+        salon.runtime_data.async_set_updated_data({**salon.runtime_data.data, 'title': 'Salon (nouveau)'})
+        await self.hass.async_block_till_done()
+        event = sent(self.conn)['event']
+        self.assertEqual([v['entry_id'] for v in event['changed']], [salon.entry_id])
+        self.assertEqual(len(event['order']), 2)
+        self.assertIn('home', event)
+        self.conn.subscriptions[3]()
 
     def test_a_refresh_that_changed_nothing_is_not_sent_again_before_the_heartbeat(self):
         from custom_components.hestia_comfort import websocket
@@ -111,6 +144,17 @@ class WebsocketTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(websocket.time, "monotonic", return_value=100.0 + websocket.HEARTBEAT_SECONDS):
             sender({"version": 1, "view": {**view["view"], "assessment": {"action": "ouvrir"}}})
         self.assertEqual(conn.send_message.call_count, 3)
+
+
+class SharedText(unittest.TestCase):
+    def test_a_view_is_converted_once_for_every_card(self):
+        view = {"entry_id": "a", "computed_at": "2026-11-06T12:00:00+00:00", "rooms": [{"computed_at": "x", "t": 20.5}]}
+        first = _texts(view)
+        self.assertIs(_texts(view)[1], first[1])
+        self.assertNotIn(b"computed_at", first[0])
+        self.assertEqual(json.loads(first[1]), view)
+        # The same view computed again a minute later: the cards are told nothing changed.
+        self.assertEqual(_texts({**view, "computed_at": "2026-11-06T12:01:00+00:00"})[0], first[0])
 
 
 if __name__ == "__main__":

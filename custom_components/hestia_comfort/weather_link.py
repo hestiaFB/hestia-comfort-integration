@@ -47,6 +47,15 @@ def listen(hass, entry_id, update):
     return link.add_listener(entry_id, update)
 
 
+def fingerprint(hass, entry_id):
+    """What a room reads of Hestia Weather: its outlook, season, air (without the time of the calculation) and pollens. A
+    Hestia Weather update recomputes the rooms only when it changed (PLAN-OPTIMISATION.md, point 3): it updates every
+    minute, mostly for its wind and pressure, which no room reads."""
+    found = air(hass, entry_id)
+    return (outlook(hass, entry_id), season(hass, entry_id), {k: v for k, v in found.items() if k != "at"} if found else None,
+            pollen(hass, entry_id))
+
+
 def entity(hass, entry_id, key):
     """A Hestia Weather entity by its stable key, or None (absent, disabled or another place)."""
     if not entry_id:

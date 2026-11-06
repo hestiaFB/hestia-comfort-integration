@@ -3,6 +3,7 @@
 The one exception is the coloured light chosen in the hub (« Lumières », light_driver.py), and only under its safeguards."""
 from homeassistant.const import Platform
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN
 from .coordinator import ComfortCoordinator
@@ -57,8 +58,15 @@ async def async_unload_entry(hass, entry):
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
+# What a room keeps of its own in `.storage`: its airings, its twin, the advice followed, the 3.0 advisor's memory.
+ROOM_STORES = ("learning", "twin", "feedback", "advisor")
+
+
 async def async_remove_entry(hass, entry):
-    """With the last room gone, the card's dashboard resource goes too."""
+    """A room removed takes its files with it (PLAN-OPTIMISATION.md, point 17: they stayed in `.storage` before); with the
+    last room gone, the card's dashboard resource goes too."""
+    for kind in ROOM_STORES:
+        await Store(hass, 1, f"{DOMAIN}.{kind}.{entry.entry_id}").async_remove()
     if not [e for e in hass.config_entries.async_entries(DOMAIN) if e.entry_id != entry.entry_id]:
         await async_remove_card(hass, CARD_URL)
 

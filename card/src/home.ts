@@ -53,6 +53,8 @@ export class HestiaComfortHomeCard extends LitElement {
   private unsubscribe?:Unsubscribe;
   private retry?:ReturnType<typeof setTimeout>;
   private generation=0;
+  /** The integration does not know `changes` (older than PLAN-OPTIMISATION.md point 12): every room each time. */
+  private plain=false;
   setConfig(input:HomeConfig){this.config=cleanHomeConfig(input);}
   static getConfigElement(){return document.createElement('hestia-comfort-home-card-editor');}
   static getStubConfig():HomeConfig{return {type:'custom:hestia-comfort-home-card'};}
@@ -76,13 +78,22 @@ export class HestiaComfortHomeCard extends LitElement {
   private connect(){
     const connection=this.hass?.connection;if(!this.isConnected||!connection||!this.config||connection===this.connection)return;
     this.stop();this.connection=connection;const generation=this.generation;
-    connection.subscribeMessage<{version:number;rooms?:unknown[];home?:Home;reload?:boolean}>(event=>{
+    // Every room once, then only the rooms that changed (PLAN-OPTIMISATION.md, point 12); an older Hestia Comfort refuses
+    // `changes` and sends every room each time.
+    const changes=!this.plain,byId=new Map<string,View>();
+    connection.subscribeMessage<{version:number;rooms?:unknown[];changed?:unknown[];order?:string[];home?:Home;reload?:boolean}>(event=>{
       if(generation!==this.generation)return;
       if(event.reload){this.rooms=[];this.home=undefined;this.problem='reload';this.later();return;}
+      if(event.version===1&&event.home&&Array.isArray(event.changed)&&Array.isArray(event.order)){
+        for(const v of event.changed)if(isView(v))byId.set(v.entry_id,v);
+        this.rooms=event.order.map(id=>byId.get(id)).filter((v):v is View=>!!v);this.home=event.home;this.problem=undefined;return;
+      }
       if(event.version!==1||!event.home||!Array.isArray(event.rooms)){this.problem='version';return;}
       this.rooms=event.rooms.filter(isView);this.home=event.home;this.problem=undefined;
-    },{type:'hestia_comfort/home_subscribe'}).then(remove=>{if(generation!==this.generation)void remove();else this.unsubscribe=remove;})
-      .catch((e:{code?:string})=>{if(generation===this.generation){this.problem=e?.code??'connection';this.later();}});
+    },{type:'hestia_comfort/home_subscribe',...(changes?{changes:true}:{})}).then(remove=>{if(generation!==this.generation)void remove();else this.unsubscribe=remove;})
+      .catch((e:{code?:string})=>{if(generation!==this.generation)return;
+        if(changes&&e?.code==='invalid_format'){this.plain=true;this.connection=undefined;this.connect();return;}
+        this.problem=e?.code??'connection';this.later();});
     if((this.config.format??'full')==='full'){
       const read=()=>{this.hass?.callWS<Periods>({type:'hestia_comfort/home_periods'}).then(p=>{if(generation===this.generation&&p?.version===1)this.periods=p;},()=>{});};
       read();this.reader=setInterval(read,15*60000);

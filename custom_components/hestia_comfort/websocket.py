@@ -1,14 +1,16 @@
 """Read-only view v1 for the future Lit card; no command endpoint."""
+from collections import OrderedDict
 import functools
-import json
 import time
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
+from homeassistant.components.websocket_api.messages import construct_event_message
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import callback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers import area_registry as ar, floor_registry as fr
+from homeassistant.helpers.json import json_bytes
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
@@ -41,7 +43,7 @@ def async_setup_websocket(hass):
     websocket_api.async_register_command(hass, ws_periods)
     for command in (ws_configuration, ws_discover, ws_overview, ws_weather, ws_validate, ws_save, ws_remove):
         websocket_api.async_register_command(hass, command)
-    for command in (ws_advice_opinion, ws_atelier, ws_trace, ws_relearn):
+    for command in (ws_advice_opinion, ws_atelier, ws_trace, ws_relearn, ws_analysis):
         websocket_api.async_register_command(hass, command)
 
 
@@ -60,6 +62,26 @@ def _stable(value):
     return value
 
 
+# The last room views turned into text, shared by every card subscribed to them (PLAN-OPTIMISATION.md, point 4): a view
+# is converted once per update, not once per card. {id(view): (view, stable text, text)}: the view is kept, so that its
+# id is not given to another one while it is here.
+_TEXTS = OrderedDict()
+TEXTS_KEPT = 32
+
+
+def _texts(view):
+    """The view as text without its computing times (to tell a refresh that changed nothing), and as sent."""
+    found = _TEXTS.get(id(view))
+    if found is not None and found[0] is view:
+        return found[1], found[2]
+    stable, text = json_bytes(_stable(view)), json_bytes(view)
+    _TEXTS[id(view)] = (view, stable, text)
+    _TEXTS.move_to_end(id(view))
+    while len(_TEXTS) > TEXTS_KEPT:
+        _TEXTS.popitem(last=False)
+    return stable, text
+
+
 class _Sender:
     """Sends a subscription's message when it changed, or as a heartbeat when it did not for HEARTBEAT_SECONDS."""
 
@@ -68,12 +90,16 @@ class _Sender:
         self.last, self.sent_at = None, 0.0
 
     def __call__(self, payload, force=False):
-        stable = json.dumps(_stable(payload), sort_keys=True, default=str, separators=(",", ":"))
+        if set(payload) == {"version", "view"} and isinstance(payload["view"], dict):
+            stable, text = _texts(payload["view"])
+            body = b'{"version":%d,"view":%s}' % (payload["version"], text)
+        else:
+            stable, body = json_bytes(_stable(payload)), json_bytes(payload)
         now = time.monotonic()
         if not force and stable == self.last and now - self.sent_at < HEARTBEAT_SECONDS:
             return
         self.last, self.sent_at = stable, now
-        self.connection.send_message(websocket_api.event_message(self.msg_id, payload))
+        self.connection.send_message(construct_event_message(self.msg_id, body))
 
 
 def loaded_entries(hass):
@@ -135,10 +161,14 @@ def ws_subscribe(hass, connection, msg):
     send()
 
 
-@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/home_subscribe"})
+@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/home_subscribe", vol.Optional("changes", default=False): bool})
 @callback
 def ws_home_subscribe(hass, connection, msg):
-    """The home card: every room view plus the synthesis, refreshed when any room changes."""
+    """The home card: every room view plus the synthesis, refreshed when any room changes.
+
+    With `changes` (PLAN-OPTIMISATION.md, point 12): every room once, then only the rooms that changed, with the rooms'
+    order and the synthesis — 93 ko each time a single room moved before. A card older than this asks without it and
+    gets every room each time; a Hestia Comfort older than this refuses `changes`, and the card asks again without it."""
     entries = loaded_entries(hass)
     if not entries:
         connection.send_error(msg["id"], "not_configured", "Aucune pièce Hestia Comfort chargée")
@@ -146,6 +176,8 @@ def ws_home_subscribe(hass, connection, msg):
     coordinators = [e.runtime_data for e in entries]
     sender = _Sender(connection, msg["id"])
     pending = None
+    # What each room and the synthesis were when last sent, and when (`changes` only).
+    sent = {"rooms": {}, "home": None, "at": 0.0}
 
     @callback
     def soon():
@@ -157,16 +189,31 @@ def ws_home_subscribe(hass, connection, msg):
     def send(_now=None):
         nonlocal pending
         pending = None
-        views = []
+        views, keys = [], {}
         for entry in entries:
             c = entry.runtime_data
-            view = c.data if c.last_update_success and c.data else {
+            live = c.last_update_success and c.data
+            view = c.data if live else {
                 "version": 1, "entry_id": entry.entry_id, "title": entry.title,
                 "area_id": {**entry.data, **entry.options}.get("area_id"),
                 "computed_at": dt_util.utcnow().isoformat(),
                 "observations": {}, "assessment": assess({}).to_dict()}
-            views.append({**view, "floor": room_floor(hass, {**entry.data, **entry.options})})
-        sender({"version": 1, "rooms": views, "home": synthesis(views)})
+            floor = room_floor(hass, {**entry.data, **entry.options})
+            views.append({**view, "floor": floor})
+            if msg.get("changes"):
+                # The room's view as already turned into text for its cards (_texts), and its floor.
+                keys[entry.entry_id] = ((_texts(view)[0] if live else json_bytes(_stable(view))), json_bytes(floor))
+        home = synthesis(views)
+        if not msg.get("changes"):
+            sender({"version": 1, "rooms": views, "home": home})
+            return
+        changed = [v for v in views if keys[v["entry_id"]] != sent["rooms"].get(v["entry_id"])]
+        home_key, now = json_bytes(_stable(home)), time.monotonic()
+        if not changed and home_key == sent["home"] and now - sent["at"] < HEARTBEAT_SECONDS:
+            return
+        sent.update(rooms=keys, home=home_key, at=now)
+        connection.send_message(construct_event_message(msg["id"], json_bytes(
+            {"version": 1, "changed": changed, "order": [v["entry_id"] for v in views], "home": home})))
 
     @callback
     def stopped():
@@ -382,3 +429,14 @@ async def ws_relearn(hass, connection, msg):
         return
     hass.async_create_background_task(home.learn(), "hestia_comfort relearn")
     connection.send_result(msg["id"], {"lance": True})
+
+
+@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/set_analysis", vol.Required("enabled"): bool})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_analysis(hass, connection, msg):
+    """Our analysis tools on or off (configuration.py `set_analysis`): on at the lab, off for everyone else. No page sets it
+    yet: asked by the lab's own scripts."""
+    service = await get_configuration(hass)
+    await service.set_analysis(msg["enabled"])
+    connection.send_result(msg["id"], {"analysis": msg["enabled"]})

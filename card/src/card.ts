@@ -18,10 +18,11 @@ import './home';
 
 // Manrope, the cards' font (the « Trait » style): declared once in the page, as the hub does, from the integration's files.
 if(!document.getElementById('hestia-hub-fonts')){const style=document.createElement('style');style.id='hestia-hub-fonts';
-  style.textContent=[400,500,600,700].map(w=>`@font-face{font-family:Manrope;src:url('/hestia_comfort-assets/manrope-${w}.ttf');font-weight:${w};font-display:swap}`).join('');document.head.append(style);}
+  // woff2: four times lighter than the TTF (PLAN-OPTIMISATION.md, point 15).
+  style.textContent=[400,500,600,700].map(w=>`@font-face{font-family:Manrope;src:url('/hestia_comfort-assets/manrope-${w}.woff2') format('woff2');font-weight:${w};font-display:swap}`).join('');document.head.append(style);}
 // Its light weights, for the large thin figures: the variable font, apart from the hub's, which has none of them.
 if(!document.getElementById('hestia-light-fonts')){const style=document.createElement('style');style.id='hestia-light-fonts';
-  style.textContent="@font-face{font-family:Manrope;src:url('/hestia_comfort-assets/manrope-variable.ttf') format('truetype');font-weight:200 300;font-display:swap}";document.head.append(style);}
+  style.textContent="@font-face{font-family:Manrope;src:url('/hestia_comfort-assets/manrope-variable.woff2') format('woff2');font-weight:200 300;font-display:swap}";document.head.append(style);}
 let instances=0;
 const problems:Record<string,[string,string]>={
   choose_entry:[fr('Choisissez une pièce'),fr('Plusieurs pièces Hestia Comfort sont configurées. Choisissez celle de cette carte dans ses réglages.')],

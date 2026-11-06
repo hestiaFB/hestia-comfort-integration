@@ -121,7 +121,7 @@ class Configuration:
             entries.append({"entry_id": e.entry_id, "title": e.title, "loaded": e.state.value == "loaded", "config": config, "floor": room_floor(self.hass, config)})
         areas = [{"area_id": a.id, "name": a.name, "floor_id": a.floor_id, "outdoor": a.name.strip().casefold() in OUTDOOR_AREAS}
                  for a in ar.async_get(self.hass).areas.values()]
-        return {"version": 1, "revision": self.revision(), "home": {"sources": self.home_sources(), "configured": bool(self.home.get("configured")), "acknowledged": self.home.get("acknowledged", []), "weather": self.home.get("weather"), "alarm": self.home.get("alarm"), "pollen_allergy": bool(self.home.get("pollen_allergy")), "disabled": list(self.home.get("disabled") or []), "lights": self.home.get("lights") or {"mode": "home", "home": None, "rooms": {}}, "foyer": self.home.get("foyer") or {}}, "hestia_weather": weather_link.status(self.hass), "integrations": {"atmofrance": bool(self.hass.config_entries.async_entries("atmofrance"))}, "rooms": entries, "floors": floor_catalog(self.hass), "areas": sorted(areas, key=lambda a: (a["name"].casefold() != "salon", a["name"].casefold()))}
+        return {"version": 1, "revision": self.revision(), "home": {"sources": self.home_sources(), "configured": bool(self.home.get("configured")), "acknowledged": self.home.get("acknowledged", []), "weather": self.home.get("weather"), "alarm": self.home.get("alarm"), "pollen_allergy": bool(self.home.get("pollen_allergy")), "analysis": bool(self.home.get("analysis")), "disabled": list(self.home.get("disabled") or []), "lights": self.home.get("lights") or {"mode": "home", "home": None, "rooms": {}}, "foyer": self.home.get("foyer") or {}}, "hestia_weather": weather_link.status(self.hass), "integrations": {"atmofrance": bool(self.hass.config_entries.async_entries("atmofrance"))}, "rooms": entries, "floors": floor_catalog(self.hass), "areas": sorted(areas, key=lambda a: (a["name"].casefold() != "salon", a["name"].casefold()))}
 
     def discover(self, area_id=None, entry_id=None):
         if area_id and not ar.async_get(self.hass).async_get_area(area_id):
@@ -479,7 +479,9 @@ class Configuration:
                            "answers": self.home.get("answers", {}), "alarm": self.home.get("alarm"),
                            "pollen_allergy": bool(self.home.get("pollen_allergy")), "lights": self.home.get("lights"),
                            # Set on its own page (set_foyer): saving the exterior never drops it.
-                           "foyer": self.home.get("foyer") or {}}
+                           "foyer": self.home.get("foyer") or {},
+                           # Our analysis tools (set_analysis), off for everyone but the lab.
+                           "analysis": bool(self.home.get("analysis"))}
                 await self.store.async_save(updated)
                 self.home = updated
                 for entry in self.entries():
@@ -546,6 +548,17 @@ class Configuration:
                 if entry.state.value == "loaded":
                     await self.hass.config_entries.async_reload(entry.entry_id)
             return self.snapshot()
+
+    async def set_analysis(self, value):
+        """Our analysis tools (PLAN-OPTIMISATION.md, point 16): the advisor's snapshots, its journal, the gestures followed
+        and the nightly reports, written for the Atelier. Off by default: the advice and the learning never read them, and
+        a HA Green writes on an eMMC memory. On at the lab. No room is reloaded: read at each step."""
+        if not isinstance(value, bool):
+            raise ValueError(t("Réglage invalide."))
+        async with self.lock:
+            self.home = {**self.home, "analysis": value}
+            await self.store.async_save(self.home)
+        return self.snapshot()
 
     async def set_foyer(self, value):
         """The household's settings (« Réglages du foyer »), saved at once: only what the person set, the rest keeps its default."""
