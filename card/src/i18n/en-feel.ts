@@ -4,7 +4,7 @@ export const EN_FEEL:Record<string,string>={
  'Murs et vitres':'Walls and panes','{gap} °C d’écart':'{gap} °C apart','dehors comme dedans':'outside as inside',
  '{delta} °C au ressenti':'{delta} °C felt','{delta} °C · volets fermés':'{delta} °C · shutters closed',
  'la nuit, il ne réchauffe pas':'at night it does not warm','volets fermés, il n’entre pas':'shutters closed, it stays out','fenêtres à l’ombre':'windows in the shade',
- 'Poêle':'Stove','Radiateur':'Radiator','Plancher chauffant':'Underfloor heating','Climatisation':'Air conditioning',
+ 'Poêle':'Stove','Poêle à granulés':'Pellet stove','Radiateur':'Radiator','Panneau rayonnant':'Radiant panel','Radiateur à inertie':'Storage radiator','Plancher chauffant':'Underfloor heating','Climatisation':'Air conditioning',
  'en marche':'running','à l’arrêt':'off','ne rayonne pas':'gives no radiant heat','rayonne peu':'little radiant heat',
  'Courant d’air':'Draught','fenêtre ouverte':'window open','aucun':'none','dehors aussi doux':'outside as mild','fenêtres fermées':'windows closed',
  '{delta} °C · fenêtre ouverte':'{delta} °C · window open','{delta} °C · air lourd':'{delta} °C · muggy air',

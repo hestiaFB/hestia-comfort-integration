@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from custom_components.hestia_comfort import advisor_home  # noqa: E402
 from custom_components.hestia_comfort.advisor_store import AdvisorFiles  # noqa: E402
 from custom_components.hestia_comfort.advisor.physics.sunlight import Overhang  # noqa: E402
-from custom_components.hestia_comfort.room.advice import (RoomAdvisor, banner_level, first_twins, house_heaters, leads,  # noqa: E402
+from custom_components.hestia_comfort.room.advice import (RoomAdvisor, banner_level, first_twins, heater_kinds, house_heaters, leads,  # noqa: E402
                                                           room_spec, spec, verdict)
 
 
@@ -65,6 +65,8 @@ class TheRoomFromConfortsSettings(unittest.TestCase):
         houses = house_heaters(coordinator.hass)
         room = spec(coordinator, houses)
         self.assertEqual(houses, {"climate.poele": 8500.0})
+        # The kind of each heating, set in the room it stands in (engine 3.9.5).
+        self.assertEqual(heater_kinds(coordinator.hass), {"climate.poele": "stove", "climate.salon": "radiator"})
         self.assertEqual(room["name"], "Salon · Cuisine")
         self.assertEqual(room["members"], ["salon", "cuisine"])
         # The declared size, then an ordinary one for its kind: a French window 1.8 m² by 2.1 m.

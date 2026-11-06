@@ -77,7 +77,7 @@ function spread(v:View):Said {
 }
 
 // ---------- Ressenti : the warmth, then the humidity, each its word, its trend, the compact scale, what plays on it. ----------
-const HEATERS:Record<string,string>={stove:'Poêle',radiator:'Radiateur',floor:'Plancher chauffant',ac:'Climatisation'};
+const HEATERS:Record<string,string>={stove:'Poêle',pellet:'Poêle à granulés',radiator:'Radiateur',radiant:'Panneau rayonnant',inertia:'Radiateur à inertie',floor:'Plancher chauffant',ac:'Climatisation'};
 function feelPanel(v:View,partners:View[],said:Said,uid:string):TemplateResult|typeof nothing {
   const f=v.feel,a=v.assessment,band=range(v),ti=numeric(v.observations.indoor_temperature),value=f?.feels??ti;
   const h=numeric(v.observations.indoor_humidity),hum=a.features?.humidity,curves=a.features?.trends?.curves;

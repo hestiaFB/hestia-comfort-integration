@@ -423,7 +423,7 @@ export class ComfortSetup extends LitElement {
   ${list.length?listSection(t('La plage suit'),[...list.map(h=>radio(h.entity_id,found(h.entity_id)?.name??h.entity_id,now(h.entity_id))),radio(null,t('Aucun'),t('La plage reste celle des Mesures.'))],
    {help:html`<p>${t('La consigne du thermostat devient le minimum de la pièce. En éco, la pièce est attendue plus fraîche ; en hors-gel, c’est la consigne confort qui compte.')}</p>`}):nothing}
   ${list.length?listSection('',[moreRow(t('Pour aller plus loin'),t('{n} sur {total}',{n:known,total:list.length}),list.map((h,i)=>{const c=found(h.entity_id),fromVt=!!c?.thermostat&&vt;
-   return listRow({label:c?.name??h.entity_id,sub:fromVt?t('Puissance lue dans Versatile Thermostat.'):undefined,value:html`<select aria-label=${t('Type')} @change=${(e:Event)=>set(i,{kind:(e.target as HTMLSelectElement).value||undefined})}><option value="" ?selected=${!h.kind}>${t('Type…')}</option>${[['radiator',t('Radiateur')],['floor',t('Plancher')],['stove',t('Poêle ou insert')],['ac',t('Climatisation')]].map(([v,l])=>html`<option value=${v} ?selected=${h.kind===v}>${l}</option>`)}</select>
+   return listRow({label:c?.name??h.entity_id,sub:fromVt?t('Puissance lue dans Versatile Thermostat.'):undefined,value:html`<select aria-label=${t('Type')} @change=${(e:Event)=>set(i,{kind:(e.target as HTMLSelectElement).value||undefined})}><option value="" ?selected=${!h.kind}>${t('Type…')}</option>${[['radiator',t('Convecteur ou soufflant')],['radiant',t('Panneau rayonnant')],['inertia',t('Radiateur à inertie ou à eau')],['floor',t('Plancher chauffant')],['stove',t('Poêle à bois ou insert')],['pellet',t('Poêle à granulés')],['ac',t('Climatisation réversible')]].map(([v,l])=>html`<option value=${v} ?selected=${h.kind===v}>${l}</option>`)}</select>
     ${fromVt?nothing:html`<input type="number" aria-label=${t('Puissance (W)')} min="100" max="20000" step="50" placeholder="W" .value=${h.power==null?'':String(h.power)} @input=${(e:Event)=>{const raw=(e.target as HTMLInputElement).value;set(i,{power:raw===''?undefined:Number(raw)});}}><span class="nk-unit">W</span>`}`});}))]):nothing}`;}
  /** The room's heatings: the one saved by Confort 2.1 when none is listed yet, a stove proposed for the whole house. */
  private heaters():Heater[]{const d=this.draft!;if(d.heaters?.length)return d.heaters;const id=d.sources.heating;return id?[{entity_id:id,scope:this.looksLikeStove(id)?'house':'room'}]:[];}
@@ -683,7 +683,7 @@ export class ComfortSetup extends LitElement {
  /** A new room starts from the house's range (« Votre maison »); its windows take the rest as they read it. */
  private withHouse(room:RoomConfig):RoomConfig{const p=this.foyer().plage??{};return {...room,settings:{...room.settings,...p}};}
  /** A heating for the whole house in some room: the stove's settings are shown. */
- private hasStove(){return !!this.snapshot?.rooms.some(r=>(r.config.heaters??[]).some(h=>h.scope==='house'||h.kind==='stove'));}
+ private hasStove(){return !!this.snapshot?.rooms.some(r=>(r.config.heaters??[]).some(h=>h.scope==='house'||h.kind==='stove'||h.kind==='pellet'));}
  private async saveFoyer(foyer:Foyer){this.busy=true;this.error='';
   try{this.snapshot=await this.ws<Snapshot>({type:'hestia_comfort/set_foyer',foyer});this.revision=this.snapshot.revision;}
   catch(e){this.error=this.message(e);}finally{this.busy=false;}}

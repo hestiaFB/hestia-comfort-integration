@@ -17,6 +17,7 @@ from .discovery import OUTDOOR, candidate, catalog, overview, suggestions, voc_d
 from .engine.assessment import EXPOSURES, KINDS, Settings
 from .air_references import AIR_DEFAULTS, AIR_REFERENCE_VERSION
 from .foyer import clean_foyer
+from .advisor.physics.heaters import KINDS as HEATER_BEHAVIOURS
 
 DATA_CONFIG = DOMAIN + "_configuration"
 
@@ -31,7 +32,9 @@ ROOM_CHOICES = {"uses": ("bedroom", "living", "kitchen", "bathroom", "office", "
                 "insulation": ("inside", "outside", "none"), "partitions": ("light", "heavy")}
 ROOM_NUMBERS = {"surface": (2, 200), "height": (1.8, 8)}
 SIDES = ("N", "E", "S", "O")
-HEATER_KINDS = ("radiator", "floor", "stove", "ac")
+# The kinds of heating (advisor/physics/heaters.py): convector, radiant panel, radiator with a core, floor, wood stove,
+# pellet stove, heat pump.
+HEATER_KINDS = HEATER_BEHAVIOURS
 FLOWS = {"purifier": (20, 1000), "ventilation_boost": (10, 600)}
 SWITCHABLE = ("versatile_thermostat", "adaptive_cover_pro", "cover_automatic", "cover_extender", "wled", "alarmo")
 # A coloured light that shows the advice (« Lumières »): for the whole home or room by room, one look per state of the banner.

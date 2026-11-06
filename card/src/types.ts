@@ -150,7 +150,7 @@ export interface View {
 export interface Feel {feels:number; air:number; outdoor:number|null; walls:'bien'|'moyenne'|'peu'; glazing:'simple'|'double'|'triple';
   factors:{walls:{delta:number;gap:number|null;wall:number|null;pane:number|null;shutters:boolean};
     sun:{delta:number;wm2:number|null;night:boolean;hidden:boolean};
-    heating:{delta:number;kind:'stove'|'radiator'|'floor'|'ac'|null;on:boolean}|null;
+    heating:{delta:number;kind:'stove'|'pellet'|'radiator'|'radiant'|'inertia'|'floor'|'ac'|null;on:boolean}|null;
     draught:{delta:number;open:boolean;gust:number|null};
     humidity:{delta:number;value:number;dew:number}|null}}
 export interface ViewEvent {version:1; view?:View; reload?:boolean; unavailable?:boolean}

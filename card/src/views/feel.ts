@@ -13,7 +13,7 @@ const nf=(v:number,digits=1)=>new Intl.NumberFormat(currentLocale(),{minimumFrac
 const signed=(v:number)=>`${v>=0?'+':'−'}${nf(Math.abs(v))}`;
 // The walls, as the card's other pictograms are drawn (ui/icons.ts).
 const WALL=html`<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9.3h18M3 14.7h18M9 4v5.3M15 9.3v5.4M9 14.7V20"/></svg>`;
-const HEATERS:Record<string,string>={stove:fr('Poêle'),radiator:fr('Radiateur'),floor:fr('Plancher chauffant'),ac:fr('Climatisation')};
+const HEATERS:Record<string,string>={stove:fr('Poêle'),pellet:fr('Poêle à granulés'),radiator:fr('Radiateur'),radiant:fr('Panneau rayonnant'),inertia:fr('Radiateur à inertie'),floor:fr('Plancher chauffant'),ac:fr('Climatisation')};
 
 interface Factor {ic:TemplateResult;title:string;value:string;effect:string;theme:string;note:string}
 const NONE={effect:fr('sans effet'),theme:'calm'};

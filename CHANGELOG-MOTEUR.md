@@ -13,6 +13,16 @@ Pas encore dans une version de Confort.
 - « Laissez ouvert encore 45 min » descend bien : 40, 35… Il restait bloqué quand Hestia recalculait souvent.
 - « La pluie arrive » ne s'allume et ne s'éteint plus toutes les quelques minutes quand la prévision hésite.
 
+## 3.9.5 — 5 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Nouveautés
+
+- Chaque chauffage a son type : convecteur, panneau rayonnant, radiateur à inertie ou à eau, plancher chauffant, poêle à bois, poêle à granulés, climatisation réversible.
+- Un radiateur à inertie ou un plancher continue de chauffer après l'arrêt et remonte lentement : une aération pendant la chauffe compte ce qu'elle coûte vraiment.
+- Une fenêtre ouverte n'éteint pas un poêle à bois ; une climatisation réversible coûte environ trois fois moins de courant.
+
 ## 3.9.4 — 5 novembre 2026
 
 Pas encore dans une version de Confort.

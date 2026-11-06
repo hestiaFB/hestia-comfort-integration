@@ -26,6 +26,18 @@ Bilan de la nuit du 5 au 6 nov.
 - Chambre M, 5 nov. de 21 h 40 à 21 h 49 : « Laissez ouvert encore 45 min » à chaque pas. `RoomAdvisor.previous` gardait le geste déjà vieilli avec l'heure du pas ; vieilli de nouveau au pas suivant (1 à 2 min plus tard) et arrondi aux 5 min (`aged`), il revenait à 45. → `decide.remembered(shown, at, decided, now)` : un compte à rebours que la décision garde compte depuis le moment où il a été dit ; même chose pour `tried`.
 - Chambre A et Salon, 6 nov. de 8 h 06 à 8 h 36 : « la pluie arrive » allumé, éteint, rallumé (prévision autour de 20 min). → `safety.rain_believed` : une fois dite (`since` posé), la pluie reste « proche » (`RAIN_SOON`) tant que la prévision reste à `RAIN_SOON_KEPT` (40 min) ou moins, dans l'attente de `RAIN_SOON_WAIT` (45 min) ; au-delà de 60 min ou sous la pluie, comme avant. Sans pluviomètre, rien ne change.
 
+### 3.9.5 — 5 novembre 2026
+
+Frank, 5 nov. : « À essayer — Aérez 5 min » à Chambre P à 21 h 22, radiateur en chauffe ; est-ce pertinent selon le type de chauffage ? Proposition validée le 5 nov.
+- Sept types (`advisor/physics/heaters.py`, `HEATERS`), lus dans le réglage « Type » de chaque chauffage (`heaters[].kind`) : `radiator` (convecteur ou soufflant, défaut), `radiant`, `inertia` (inertie fluide, pierre, fonte, radiateur à eau), `floor`, `stove` (bois, insert), `pellet`, `ac` (clim réversible, PAC).
+- La chaleur rendue suit la chaleur demandée avec un délai du premier ordre (`given_off`) : 0 pour convecteur, rayonnant et clim ; 20 min granulés ; 30 min inertie ; 1 h poêle à bois ; 3 h plancher. Le compteur compte la demande (`Path.heating`), la pièce reçoit la chaleur rendue. Départ : la demande actuelle du thermostat, fenêtres telles qu'elles sont ; le poêle part de sa part mesurée (`house_now`).
+- Un poêle à bois n'est pas coupé par une fenêtre ouverte (`Heater.window_cut`), quel que soit son thermostat.
+- Clim réversible : kWh payés = chaleur / 3 (SCOP ordinaire).
+- `Thermostat.kind` (facultatif, gardé dans les instantanés) ; `room/advice.py` `heater_kinds` lit le type dans toutes les pièces (celui d'un poêle est réglé dans sa pièce).
+- Sans type réglé, rien ne change (testé : mêmes trajectoires, même décision).
+- Instantané réel `tests/fixtures/chambre-p-5-novembre-21h22.json` : Aérez 5 min coûte +0,36 kWh avec un convecteur, +0,51 kWh avec l'inertie et reste « À essayer » (moisissure, effet supposé) ; avec un plancher, « Rien à faire ». Tests `tests/test_advisor_heaters.py`.
+- Le délai reste une valeur par type ; l'apprendre pièce par pièce (puissance Versatile × température) est une piste.
+
 ### 3.9.4 — 5 novembre 2026
 
 Soir du 5 nov., deux chambres :

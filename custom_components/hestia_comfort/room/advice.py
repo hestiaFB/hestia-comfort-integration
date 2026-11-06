@@ -151,6 +151,22 @@ def house_heaters(hass) -> dict:
     return found
 
 
+def heater_kinds(hass) -> dict:
+    """{thermostat: kind} of the heaters whose kind is set in any room (« Type » in the room's heating): a stove's is set
+    in the room it stands in, and read by every room it warms."""
+    found = {}
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        for heater in {**entry.data, **entry.options}.get("heaters") or ():
+            if isinstance(heater, dict) and heater.get("entity_id") and heater.get("kind"):
+                found.setdefault(heater["entity_id"], heater["kind"])
+    return found
+
+
+def _kinded(thermostat, kinds: dict, entity_id):
+    """The thermostat with the kind of heating it drives, when it is set."""
+    return replace(thermostat, kind=kinds.get(entity_id)) if thermostat is not None else None
+
+
 def spec(coordinator, houses: dict) -> dict:
     """The room as the advisor reads it, from Confort's settings: the room's own, then those of the rooms sharing its air."""
     hass = coordinator.hass
@@ -615,7 +631,8 @@ class RoomAdvisor:
         # The room's main heating when it is a house heater (the Salon's stove): simulated as its thermostat.
         main = room["thermostat_plage"]
         house_power = houses.get(main, 0.0) if main else 0.0
-        house_stat = home.thermostat(main) if house_power else None
+        kinds = heater_kinds(hass)
+        house_stat = _kinded(home.thermostat(main), kinds, main) if house_power else None
         house_heat = home.house_heat()
         twins = Twins(
             heat=heat, windows=tuple(sizes.values()),
@@ -628,8 +645,8 @@ class RoomAdvisor:
             # The fast speed and the purifier at the shares of their declared flows the room showed (advisor/nightly.py).
             boost=(room["boost"] or (None, 0.0))[1] * learned.get("boost_scale", 1.0),
             purifier=(room["purifier"] or (None, 0.0))[1] * learned.get("purifier_scale", 1.0),
-            thermostat=home.thermostat(room["thermostat"]), shutter_area=glass,
-            idle_thermostat=home.thermostat(room["thermostat"], "off"),
+            thermostat=_kinded(home.thermostat(room["thermostat"]), kinds, room["thermostat"]), shutter_area=glass,
+            idle_thermostat=_kinded(home.thermostat(room["thermostat"], "off"), kinds, room["thermostat"]),
             # The side each window faces, for the air crossing the room (« Ouvrez aussi la porte-fenêtre »).
             bearings=tuple((room["orientations"].get(e) or (None,))[0] for e in sizes),
             house_thermostat=house_stat, house_power=float(house_power) if house_stat else 0.0,

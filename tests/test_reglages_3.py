@@ -66,6 +66,10 @@ class Room(Fixture):
         cleaned, _ = self.service.validate(self.config(heaters=heaters, thermostat_plage="climate.poele"))
         self.assertEqual(cleaned["heaters"], heaters)
         self.assertEqual(cleaned["thermostat_plage"], "climate.poele")
+        # The seven kinds of heating the advisor tells apart (engine 3.9.5).
+        for kind in ("radiator", "radiant", "inertia", "floor", "stove", "pellet", "ac"):
+            kinded = [{**heaters[0], "kind": kind}, heaters[1]]
+            self.assertEqual(self.service.validate(self.config(heaters=kinded, thermostat_plage="climate.poele"))[0]["heaters"], kinded)
         # Confort 2.1 reads one heating: the one the range follows.
         self.assertEqual(cleaned["sources"]["heating"], "climate.poele")
         # « Aucun »: the range stays as set, the 2.1 engine keeps the first heating to read.
@@ -75,6 +79,7 @@ class Room(Fixture):
         for wrong in ({"heaters": heaters, "thermostat_plage": "climate.autre"},
                       {"heaters": [{"entity_id": "climate.poele", "scope": "cuisine"}]},
                       {"heaters": [{"entity_id": "climate.poele", "scope": "room", "power": 50}]},
+                      {"heaters": [{"entity_id": "climate.poele", "scope": "house", "kind": "bois"}]},
                       {"heaters": heaters + [heaters[0]]}):
             with self.assertRaises(ValueError, msg=wrong):
                 self.service.validate(self.config(**wrong))

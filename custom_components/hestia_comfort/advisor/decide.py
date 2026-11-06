@@ -11,6 +11,7 @@ from dataclasses import dataclass, field, replace
 from .household import Habits
 from .physics.air import AirParams, ParticleParams, air_step, particles_step
 from .physics.fit import DEFAULT_RECENT, correction
+from .physics.heaters import Heater, given_off, heater
 from .physics.sunlight import bearing_name
 from .physics.surface import mould_excess
 from .physics.thermal import STEP, Inputs, Params, shutter_insulation, step
@@ -171,6 +172,13 @@ class Thermostat:
     # 17 h, then comfort. None: nothing planned, the target holds over the whole horizon.
     then: float | None = None
     at: float | None = None
+    # The kind of heating it drives (advisor/physics/heaters.py): its heat follows with a delay, a wood stove is not put
+    # out by a window, a heat pump costs a third. None: a convector, as before the kind was read (engine 3.9.5).
+    kind: str | None = None
+
+    @property
+    def heater(self) -> Heater:
+        return heater(self.kind)
 
     def scheduled(self, minutes: float) -> "Thermostat":
         """The thermostat as it runs `minutes` from now: its next slot's set point once that slot has come."""
@@ -180,7 +188,7 @@ class Thermostat:
 
     def power(self, air: float, outdoor: float, windows) -> float:
         """Share of the full power over the next cycle, 0 to 1."""
-        if windows and self.window_off:
+        if windows and self.window_off and self.heater.window_cut:
             return 0.0
         return min(1.0, max(0.0, self.inside * (self.target - air) + self.outside * (self.target - outdoor)))
 
@@ -414,6 +422,11 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
         water = absolute(now.air, now.humidity)
         reserve = now.reserve if now.reserve is not None else water
     co2, particles, voc = now.co2, now.particles, now.voc
+    # The heat the room's heater and the stove give off now: what their thermostats ask, the windows as they are (a
+    # window open now finds the core cooled), the stove's as measured.
+    given = (twins.thermostat.power(now.air, coming[0][0].outdoor, now.opened)
+             if twins.thermostat is not None and coming else 0.0)
+    house_given = twins.house_now
     for k, (u, outdoor_water) in enumerate(coming):
         windows = _open(gesture, now, twins, k)
         boost = twins.boost if _running(gesture, "boost", now.boosting, k) else 0.0
@@ -425,13 +438,18 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
                                              cross=cross), k)
         felt = path.air[-1] if path.air else now.air
         if (thermostat := _thermostat(gesture, twins, k)) is not None:
-            # The thermostat reads the room as it is, the twin's trend included.
-            u = replace(u, heating=thermostat.power(felt, u.outdoor, windows))
-            path.heating += twins.heat.heat * u.heating * HOURS / 1000
+            # The thermostat reads the room as it is, the twin's trend included. The meter counts what it asks; the room
+            # gets what the heater gives off, late by its kind's delay (a radiator's core, a heated floor).
+            asked = thermostat.power(felt, u.outdoor, windows)
+            path.heating += twins.heat.heat * asked * HOURS / 1000 / thermostat.heater.efficiency
+            given = given_off(given, asked, thermostat.heater.lag, STEP)
+            u = replace(u, heating=given)
         if twins.house_thermostat is not None:
             # The stove follows the room too; the other house heaters stay as they are.
+            stove = twins.house_thermostat.heater
             running = 0.0 if gesture.kind == "heat_stop" else twins.house_thermostat.power(felt, u.outdoor, windows)
-            u = replace(u, house_heat=max(0.0, u.house_heat + twins.house_power * (running - twins.house_now)))
+            house_given = given_off(house_given, running, stove.lag, STEP)
+            u = replace(u, house_heat=max(0.0, u.house_heat + twins.house_power * (house_given - twins.house_now)))
         before = air
         air, walls = step(twins.heat, air, walls, u)
         path.air.append(air + correction(DEFAULT_RECENT, now.missed, k))

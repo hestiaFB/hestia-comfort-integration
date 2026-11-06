@@ -25,8 +25,9 @@ COVER_SHUT = 20
 # The sun through a pane, on the surfaces the body sees: four tenths of a degree per hundred W/m², three degrees at most
 # (halved in the ressenti): the body is seldom in the sun's patch itself.
 SUN_GAIN, SUN_MOST = 0.004, 3.0
-# A running heating warms the surfaces around: a stove radiates, a floor too, a radiator a little, air conditioning not.
-RADIANT = {"stove": 2.4, "floor": 1.2, "radiator": 0.6, "ac": 0.0}
+# A running heating warms the surfaces around: a stove radiates, a floor and a radiant panel too, a radiator with a core
+# a little more than a convector, air conditioning not.
+RADIANT = {"stove": 2.4, "pellet": 1.8, "floor": 1.2, "radiant": 1.2, "inertia": 0.9, "radiator": 0.6, "ac": 0.0}
 # A draught: colder air moving past the body. Fuller with the gusts (km/h) and the gap to outside, 2.5 °C at most.
 DRAUGHT_BASE, DRAUGHT_GUST, DRAUGHT_MOST, DRAUGHT_GAP = 0.3, 0.04, 2.5, 8.0
 # Damp air only weighs once it is warm: from 24 °C, above 55 %, three tenths of a degree per ten points.
