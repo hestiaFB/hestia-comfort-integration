@@ -15,6 +15,7 @@ from .air_references import apply_air_references, apply_freshness
 from .api import API_KEY, HestiaComfortApi
 from .entities import async_clean, home_clean
 from .domain_migration import async_setup_migration
+from .marketplace_link import async_setup_marketplace_link
 from .light_driver import async_start_lights
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
@@ -28,6 +29,8 @@ async def async_setup(hass, config):
     # What Hestia Confort publishes for the other bricks (the rooms and what their twins learned).
     hass.data.setdefault(API_KEY, HestiaComfortApi(hass))
     async_setup_websocket(hass)
+    # After the change of name, the Marketplace may no longer follow Hestia Confort: a repair says so and mends it.
+    async_setup_marketplace_link(hass)
     configuration = await get_configuration(hass)
     await async_setup_panel(hass)
     await async_start_lights(hass, configuration)
