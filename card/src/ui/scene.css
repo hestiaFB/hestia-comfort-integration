@@ -3,7 +3,10 @@
 .nsc { --nsc-frame:color-mix(in srgb, var(--nw-fg) 70%, transparent); --nsc-sash:color-mix(in srgb, var(--nw-fg) 72%, var(--nw-bg));
   --nsc-shade:color-mix(in srgb, var(--nw-fg) 22%, transparent); --nsc-ease:cubic-bezier(.23,1,.32,1);
   position:relative; width:108px; height:116px; flex:none; perspective:460px; color:var(--nw-fg); }
-.nc-b.compact .nsc { zoom:.82; }
+/* The window well inside its glass frame, with room around it (5 November: it filled the frame edge to edge),
+   compact cards smaller still. */
+.nsc { zoom:.74; margin:8px 10px 8px 6px; }
+.nc-b.compact .nsc { zoom:.61; }
 .nsc-obj { position:absolute; left:6px; right:6px; top:4px; bottom:4px; transform:rotateY(-10deg); transform-style:preserve-3d; }
 .nsc-fr { border-radius:6px; box-shadow:0 0 0 2px var(--nsc-frame), 3px 3px 0 2px color-mix(in srgb, var(--nw-fg) 8%, transparent); }
 /* Le ciel, repris de Hestia Weather */

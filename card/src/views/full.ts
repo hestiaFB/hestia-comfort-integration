@@ -1,5 +1,6 @@
 import {html,svg,nothing,type TemplateResult} from 'lit';
-import type {Config,View,Horizon} from '../types';
+import {trial3} from './advisor3';
+import {nowBlocks,type Config,type View,type Horizon} from '../types';
 import {numeric,number} from '../view';
 import {icon} from '../ui/icons';
 import {echelle} from '../ui/hestia-echelle';
@@ -57,8 +58,9 @@ function spread(v:View):Said {
   const out:Said={humidity:[],air:[],warmth:[],coming:[],rest:[],doubts:[],tryIt:''};
   const a=v.advisor?.attributes;
   if(!a)return out;
-  // The engine writes « À essayer — … »: the heading is the card's.
-  out.tryIt=str(a.a_essayer).replace(/^À essayer\s*[—:–-]\s*/,'');
+  // The engine writes « À essayer — … »: the heading is the card's. With no other gesture the trial is the banner's advice
+  // (advisor3.ts trial3): said there, not twice.
+  out.tryIt=trial3(a)?'':str(a.a_essayer).replace(/^À essayer\s*[—:–-]\s*/,'');
   const night=str(a.cette_nuit);
   if(night){const d=new Date();d.setHours(22,30,0,0);out.coming.push({when:d.getTime(),at:t('Cette nuit'),ic:'moon',text:night,tone:'act'});}
   const aside=a.pas_maintenant&&typeof a.pas_maintenant==='object'?Object.entries(a.pas_maintenant as Record<string,string>):[];
@@ -78,11 +80,18 @@ function spread(v:View):Said {
 
 // ---------- Ressenti : the warmth, then the humidity, each its word, its trend, the compact scale, what plays on it. ----------
 const HEATERS:Record<string,string>={stove:'Poêle',pellet:'Poêle à granulés',radiator:'Radiateur',radiant:'Panneau rayonnant',inertia:'Radiateur à inertie',floor:'Plancher chauffant',ac:'Climatisation'};
-function feelPanel(v:View,partners:View[],said:Said,uid:string):TemplateResult|typeof nothing {
-  const f=v.feel,a=v.assessment,band=range(v),ti=numeric(v.observations.indoor_temperature),value=f?.feels??ti;
-  const h=numeric(v.observations.indoor_humidity),hum=a.features?.humidity,curves=a.features?.trends?.curves;
+const tap=(id:string|undefined,title:string)=>id?{onValue:(e:Event)=>moreInfo(e,id),valueTitle:title}:{};
+const fxTop=(body:TemplateResult,id:string|undefined,title:string)=>id
+  ?html`<button type="button" class="nc-fx-top nc-hit" title=${title} @click=${(e:Event)=>moreInfo(e,id)}>${body}</button>`
+  :html`<div class="nc-fx-top">${body}</div>`;
+/** `only` keeps one half: the warmth or the humidity alone, for the cards « Température » and « Humidité » (6 November). */
+function feelPanel(v:View,partners:View[],said:Said,uid:string,only?:'warmth'|'humidity',src?:string):TemplateResult|typeof nothing {
+  const f=v.feel,a=v.assessment,band=range(v),ti=numeric(v.observations.indoor_temperature),value=only==='humidity'?null:f?.feels??ti;
+  const h=only==='warmth'?null:numeric(v.observations.indoor_humidity),hum=a.features?.humidity,curves=a.features?.trends?.curves;
   if(value===null&&h===null)return nothing;
   const ask=asking(v),needs=a.needs;
+  // A tap on the word or on the bubble opens the sensor's details in Home Assistant.
+  const tempId=v.observations.indoor_temperature?.source??undefined,humId=v.observations.indoor_humidity?.source??undefined;
   let warmth:TemplateResult|typeof nothing=nothing;
   if(value!==null){
     const [mn,mx]=band??[19,24],lo=Math.floor(Math.min(mn-3,value-1)),hi=Math.ceil(Math.max(mx+3,value+1));
@@ -96,8 +105,8 @@ function feelPanel(v:View,partners:View[],said:Said,uid:string):TemplateResult|t
       ...(f.factors.humidity&&f.factors.humidity.delta>=.05?[[t('Air lourd'),f.factors.humidity.delta]]:[])] as [string,number][]:[];
     const line=[...causes.map(([k,d])=>html`<span>${k} <b>${signed(d)} °C</b></span>`),...said.warmth.map(x=>html`<span>${x}</span>`)];
     warmth=html`<div class="nc-fx-row"><span class="nw-label">${t('Chaleur')}</span>
-      <div class="nc-fx-top"><b class="nc-fx-word" style=${`--c:${C[tone]}`}>${word}</b>${trendLine(trendOf(v,'temperature',out,band),curves?.temperature?.slope,'°C',1)}</div>
-      ${echelle({lo,hi,value,valueText:`${nf(value)} °C`,label:t('Ressenti {t} °C',{t:nf(value)}),degree:()=>'',compact:true,
+      ${fxTop(html`<b class="nc-fx-word" style=${`--c:${C[tone]}`}>${word}</b>${trendLine(trendOf(v,'temperature',out,band),curves?.temperature?.slope,'°C',1)}`,tempId,t('Détails de la température'))}
+      ${echelle({lo,hi,value,valueText:`${nf(value)} °C`,label:t('Ressenti {t} °C',{t:nf(value)}),degree:()=>'',compact:true,...tap(tempId,t('Détails de la température')),
         parts:[{from:lo,to:mn,word:t('Frais'),tone:'color-mix(in oklab,var(--nw-cold) 45%,var(--nw-calm))'},{from:mn,to:mx,word:t('Agréable'),tone:'var(--nw-calm)'},{from:mx,to:hi,word:t('Chaud'),tone:'var(--nw-level2)'}]})}
       ${line.length?html`<p class="nc-fx-line">${line.map((x,i)=>html`${i?' · ':''}${x}`)}</p>`:nothing}</div>`;
   }
@@ -110,22 +119,22 @@ function feelPanel(v:View,partners:View[],said:Said,uid:string):TemplateResult|t
     const others=partners.map(p=>({room:p.title,h:numeric(p.observations.indoor_humidity)})).filter(x=>x.h!==null);
     const note=[...others.map(x=>t('{room} {value} %',{room:x.room,value:Math.round(x.h!)})),...said.humidity];
     humidity=html`<div class="nc-fx-row"><span class="nw-label">${partners.length?t('Humidité · {room}',{room:v.title}):t('Humidité')}</span>
-      <div class="nc-fx-top"><b class="nc-fx-word" style=${`--c:${C[tone]}`}>${word}</b>${trendLine(trendOf(v,'humidity',out,[hmin,hmax]),curves?.humidity?.slope,'%',0)}</div>
-      ${echelle({lo:20,hi:90,value:h,valueText:`${Math.round(h)} %`,label:t('Humidité {n} %',{n:Math.round(h)}),degree:()=>'',compact:true,
+      ${fxTop(html`<b class="nc-fx-word" style=${`--c:${C[tone]}`}>${word}</b>${trendLine(trendOf(v,'humidity',out,[hmin,hmax]),curves?.humidity?.slope,'%',0)}`,humId,t('Détails de l’humidité'))}
+      ${echelle({lo:20,hi:90,value:h,valueText:`${Math.round(h)} %`,label:t('Humidité {n} %',{n:Math.round(h)}),degree:()=>'',compact:true,...tap(humId,t('Détails de l’humidité')),
         parts:[{from:20,to:hmin,word:t('Sec'),tone:'color-mix(in oklab,var(--nw-level1) 60%,var(--nw-calm))'},{from:hmin,to:hmax,word:t('Agréable'),tone:'var(--nw-calm)'},
           {from:hmax,to:very,word:t('Humide'),tone:'color-mix(in oklab,var(--nw-rain) 55%,var(--nw-calm))'},{from:very,to:90,word:t('Très'),tone:'var(--nw-rain)'}]})}
       ${note.length?html`<p class="nc-fx-line">${note.join(' · ')}</p>`:nothing}</div>`;
   }
   // At the foot, the rooms of the same air and outside: said once.
   const te=f?.outdoor??numeric(v.observations.outdoor_temperature);
-  const foot=[...partners.filter(p=>p.feel).map(p=>html`${t('{room} · ressenti',{room:p.title})} <b>${nf(p.feel!.feels)} °C</b>`),...(te!==null?[html`${t('Dehors')} <b>${nf(te)} °C</b>`]:[])];
+  const foot=value===null?[]:[...partners.filter(p=>p.feel).map(p=>html`${t('{room} · ressenti',{room:p.title})} <b>${nf(p.feel!.feels)} °C</b>`),...(te!==null?[html`${t('Dehors')} <b>${nf(te)} °C</b>`]:[])];
   const toggle=(e:Event)=>{const b=e.currentTarget as HTMLElement,why=b.closest('section')?.querySelector<HTMLElement>('.nw-feel-why');
     if(why){why.hidden=!why.hidden;b.setAttribute('aria-expanded',String(!why.hidden));}};
   const gap=f?f.feels-f.air:0;
   return html`<section class="nc-mod nw-panel nc-fx" data-piece="temperature" aria-label=${value!==null?t('Ressenti'):t('Humidité')}>
     <div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon(value!==null?'temp':'drop')}</span><h3>${value!==null?t('Ressenti'):t('Humidité')}</h3>
-      ${f?html`<button type="button" class="nw-info" aria-label=${t('Qu’est-ce que le ressenti ?')} aria-controls=${uid+'-why'} aria-expanded="false" @click=${toggle}></button>`:nothing}</div>
-    ${f?html`<div class="nw-feel-why" id=${uid+'-why'} hidden><p>${t('C’est la température que le corps perçoit dans la pièce. Le thermomètre ne mesure que l’air : des murs et des vitres froids, un courant d’air la font baisser, le soleil et le chauffage qui rayonne la font monter.')}</p>
+      ${f&&value!==null?html`<button type="button" class="nw-info" aria-label=${t('Qu’est-ce que le ressenti ?')} aria-controls=${uid+'-why'} aria-expanded="false" @click=${toggle}></button>`:nothing}${src?html`<span class="aside nc-src">${src}</span>`:nothing}</div>
+    ${f&&value!==null?html`<div class="nw-feel-why" id=${uid+'-why'} hidden><p>${t('C’est la température que le corps perçoit dans la pièce. Le thermomètre ne mesure que l’air : des murs et des vitres froids, un courant d’air la font baisser, le soleil et le chauffage qui rayonne la font monter.')}</p>
       <p class="ex">${t('En ce moment : {air} °C d’air se ressentent comme {feels} °C.',{air:nf(f.air),feels:nf(f.feels)})} ${Math.abs(gap)<.1?'':t('{gap} °C par rapport au thermomètre.',{gap:signed(gap)})}</p>
       ${band?html`<p>${t('Votre plage : {low} à {high} °C · humidité {hlow} à {hhigh} %.',{low:nf(band[0],band[0]%1?1:0),high:nf(band[1],band[1]%1?1:0),hlow:Math.round(hum?.minimum??40),hhigh:Math.round(hum?.maximum??60)})}</p>`:nothing}</div>`:nothing}
     ${warmth}${humidity}
@@ -157,7 +166,7 @@ function airRows(v:View,partners:View[],config:Config):AirRow[] {
 }
 const arc=(r:number,f:number)=>{const L=270,a0=135*Math.PI/180,a1=(135+L*f)*Math.PI/180;
   return `M${(60+r*Math.cos(a0)).toFixed(1)} ${(60+r*Math.sin(a0)).toFixed(1)} A${r} ${r} 0 ${L*f>180?1:0} 1 ${(60+r*Math.cos(a1)).toFixed(1)} ${(60+r*Math.sin(a1)).toFixed(1)}`;};
-function airPanel(v:View,partners:View[],config:Config,said:Said):TemplateResult|typeof nothing {
+function airPanel(v:View,partners:View[],config:Config,said:Said,src?:string):TemplateResult|typeof nothing {
   const rows=airRows(v,partners,config);
   // Without an air sensor, no panel: a ventilation or a purifier stays in « Appareils ».
   if(!rows.length)return nothing;
@@ -174,7 +183,7 @@ function airPanel(v:View,partners:View[],config:Config,said:Said):TemplateResult
   const name=(r:AirRow)=>html`<span class="nc-ring-n">${tx(r.label)}${r.room?html` <small>${r.room}</small>`:nothing}</span>`;
   const open=(r:AirRow)=>(e:Event)=>{if(r.tile.entity)moreInfo(e,r.tile.entity);};
   const notes=said.air.length?html`<p class="nc-fx-line">${said.air.join(' · ')}</p>`:nothing;
-  const head=html`<div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon('air')}</span><h3>${t('Air')}</h3></div>`;
+  const head=html`<div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon('air')}</span><h3>${t('Air')}</h3>${src?html`<span class="aside nc-src">${src}</span>`:nothing}</div>`;
   // One measure: its value in the ring, its word, way and note beside it.
   if(rows.length===1&&live.length===1){const r=live[0],l=look(r);
     return html`<section class="nc-mod nw-panel nc-air" data-piece="air">${head}<div class="nc-rings one">
@@ -182,13 +191,17 @@ function airPanel(v:View,partners:View[],config:Config,said:Said):TemplateResult
         <span class="nc-ring-c"><b class="nc-ring-v">${number(r.value!)}</b><small>${r.unit}</small></span></button>
       <div class="nc-ring-side">${name(r)}<b class="nc-fx-word" style=${`--c:${C[l.tone]}`}>${l.word}</b>${rate(r)}</div></div>${notes}</section>`;}
   // One ring per kind of measure (CO₂, particles, VOC), drawn for the room where it is most at stake; every room in the list.
-  const R=[50,38,26],W=8,kinds=(['co2','pm25','voc'] as const).map(k=>live.filter(r=>r.key===k).sort((a,b)=>RANK[look(b).tone]-RANK[look(a).tone]||look(b).x-look(a).x)[0]).filter((r):r is AirRow=>!!r);
+  // A wider hole in the middle (6 November): the verdict fits inside the innermost ring.
+  const R=[50,39,28],W=8,kinds=(['co2','pm25','voc'] as const).map(k=>live.filter(r=>r.key===k).sort((a,b)=>RANK[look(b).tone]-RANK[look(a).tone]||look(b).x-look(a).x)[0]).filter((r):r is AirRow=>!!r);
+  // The legend (6 November): each line's mark is the rings in small, its own ring in its colour, the others faint.
+  const key=(r:AirRow,color:string)=>{const at=kinds.findIndex(k=>k.key===r.key);
+    return at<0?html`<i class="nc-ring-dot"></i>`:html`<svg class="nc-ring-g" viewBox="0 0 120 120" aria-hidden="true">${kinds.map((_,i)=>svg`<path d=${arc([52,36,20][i],.999)} style=${i===at&&color?`stroke:${color}`:''} class=${i===at?'on':''}></path>`)}</svg>`;};
   return html`<section class="nc-mod nw-panel nc-air" data-piece="air">${head}<div class="nc-rings">
     <div class="nc-ring"><svg viewBox="0 0 120 120" role="img" aria-label=${t('Air : {word}',{word:center})}>${kinds.map((r,i)=>fill(r,R[i],W))}</svg>
       <span class="nc-ring-c"><b style=${`--c:${C[lead?look(lead).tone:'none']}`}>${center}</b></span></div>
     <div class=${'nc-ring-list'+(rows.length>=3?' cols2':'')}>${rows.map(r=>{const l=look(r);
       return html`<button type="button" class=${'nc-ring-row'+(l.muted?' mute':'')} @click=${open(r)} title=${t('Détails : {label}',{label:tx(r.label)})}>
-        <i class="nc-ring-dot" style=${l.muted?'':`background:${l.color}`}></i>${name(r)}<b>${l.muted?'—':html`${number(r.value!)}${r.unit?html`<small> ${r.unit}</small>`:nothing}`}</b>
+        ${key(r,l.muted?'':l.color)}${name(r)}<b>${l.muted?'—':html`${number(r.value!)}${r.unit?html`<small> ${r.unit}</small>`:nothing}`}</b>
         ${l.muted?html`<span class="nc-ring-w mute">${t('à vérifier · {why}',{why:tx(r.tile.note)})}</span>`:html`<span class="nc-ring-w" style=${`--c:${C[l.tone]}`}>${l.word}</span>${rate(r)}`}</button>`;})}</div>
   </div>${notes}</section>`;
 }
@@ -229,7 +242,7 @@ function crossing(h:Horizon,[mn,mx]:[number,number]):Coming|null {
 }
 
 // ---------- Appareils : one line, each device as it stands, a tap opens it. ----------
-function devices(v:View,partners:View[],config:Config):TemplateResult|typeof nothing {
+function devices(v:View,partners:View[],config:Config,src?:string):TemplateResult|typeof nothing {
   const seen=new Set<string>(),chips:{ic:string;text:string;tone:Tone;entity?:string}[]=[];
   for(const r of [v,...partners])for(const x of tiles(r,config)){
     if(!['Fenêtres','Volet','Chauffage','Purificateur','Ventilation'].includes(x.label))continue;
@@ -241,27 +254,53 @@ function devices(v:View,partners:View[],config:Config):TemplateResult|typeof not
     else if(x.label==='Chauffage')chips.push({ic:x.ic,text:[t('Chauffage'),tx(x.value).toLowerCase()+(x.unit?` ${x.unit}`:''),x.note?tx(x.note):''].filter(Boolean).join(' · '),tone:'none',entity:x.entity});
     else chips.push({ic:x.ic,text:`${x.label==='Ventilation'?t('VMC'):t('Purificateur')} ${tx(x.value).toLowerCase()}`,tone:x.out?'benefit':'none',entity:x.entity});
   }
-  return chips.length?html`<section class="nc-fx-devices"><div class="nw-label">${t('Appareils')}</div><div class="nw-chips">${chips.map(c=>{
+  return chips.length?html`<section class="nc-fx-devices"><div class="nc-dev-h"><span class="nw-label">${t('Appareils')}</span>${src?html`<span class="nc-src">${src}</span>`:nothing}</div><div class="nw-chips">${chips.map(c=>{
     const body=html`${icon(c.ic)}${c.text}`,cls='nw-chip'+(c.tone==='none'?' nc-plain':'');
     return c.entity?html`<button type="button" class=${cls} style=${`--c:${C[c.tone]}`} @click=${(e:Event)=>moreInfo(e,c.entity!)}>${body}</button>`:html`<span class=${cls} style=${`--c:${C[c.tone]}`}>${body}</span>`;})}</div></section>`:nothing;
 }
 
-/** Everything below the banner of the full card. */
-export function fullBody(v:View,config:Config,st:CardState,partners:View[]):TemplateResult {
-  const said=spread(v),hum=v.assessment.features?.humidity,season=v.assessment.features?.season;
-  const plage=(s:'temperature'|'humidity'):[number,number]|null=>s==='humidity'?(hum?.minimum!=null&&hum?.maximum!=null?[hum.minimum,hum.maximum]:null):(season?[season.minimum,season.maximum]:null);
-  const feel=config.show_measures===false?nothing:feelPanel(v,partners,said,st.uid),air=config.show_measures===false?nothing:airPanel(v,partners,config,said);
-  const next=config.show_horizon===false?[]:coming(v,said,plage);
+/** « À venir » in its panel: what will change, dated, each with its source; nothing to say, nothing. */
+function comingList(next:Coming[]):TemplateResult {
+  return html`<ol class="nc-mod nw-panel nc-coming">${next.map(e=>html`<li class="nc-ev" style=${`--c:${C[e.tone]}`}><span class="nc-ev-at">${e.at}</span><span class="nc-ev-dot" aria-hidden="true"></span>
+    <div class="nc-ev-body"><b><span class="nc-ev-ic">${icon(e.ic)}</span>${e.text}</b>${e.note?html`<small>${e.note}</small>`:nothing}${e.chart?html`<div class="nc-ev-chart nc-horizon">${e.chart}</div>`:nothing}</div></li>`)}</ol>`;
+}
+const plageOf=(v:View)=>(s:'temperature'|'humidity'):[number,number]|null=>{const hum=v.assessment.features?.humidity,season=v.assessment.features?.season;
+  return s==='humidity'?(hum?.minimum!=null&&hum?.maximum!=null?[hum.minimum,hum.maximum]:null):(season?[season.minimum,season.maximum]:null);};
+
+/** The full card's pieces, one card each (6 November): every format draws the full card's own pieces, never older ones.
+ *  « temperature » and « humidity » are the Ressenti's two halves, « air » the rings, « devices » the line of devices,
+ *  « horizon » the dated « À venir », « measures » the whole « En ce moment » with the devices. Nothing to show: nothing. */
+export function fullPiece(kind:'feel'|'temperature'|'humidity'|'air'|'devices'|'horizon'|'measures',v:View,config:Config,st:CardState,partners:View[],name=v.title):TemplateResult|typeof nothing {
+  const said=spread(v);
+  if(kind==='feel')return feelPanel(v,partners,said,st.uid,undefined,name);
+  if(kind==='temperature'||kind==='humidity')return feelPanel(v,partners,said,st.uid,kind==='temperature'?'warmth':'humidity',name);
+  if(kind==='air')return airPanel(v,partners,config,said,name);
+  if(kind==='devices'){const d=devices(v,partners,config,name);return d===nothing?nothing:html`<div class="nc-mod nw-panel nc-devices-card">${d}</div>`;}
+  if(kind==='horizon'){const next=coming(v,said,plageOf(v));
+    return next.length?html`<section class="nc-part"><header class="nc-part-h nw-section-head"><h2>${t('À venir')}</h2><span class="nw-sum">${name}</span></header>${comingList(next)}</section>`:nothing;}
+  const {feel,air,devs}=now(v,config,said,st.uid,partners);
+  return feel===nothing&&air===nothing&&devs===nothing?nothing:html`<div class="nc-body nc-sections nc-full">${feel!==nothing||air!==nothing?html`<div class="nc-mods">${feel}${air}</div>`:nothing}${devs}</div>`;
+}
+/** « En ce moment » as the card's settings choose it: the Ressenti's halves, the air, the devices. */
+function now(v:View,config:Config,said:Said,uid:string,partners:View[]){
+  const b=nowBlocks(config),warm=b.includes('warmth'),hum=b.includes('humidity');
+  return {feel:warm||hum?feelPanel(v,partners,said,uid,warm&&hum?undefined:warm?'warmth':'humidity'):nothing,
+    air:b.includes('air')?airPanel(v,partners,config,said):nothing,devs:b.includes('devices')?devices(v,partners,config):nothing};
+}
+
+/** Everything below the banner of the full card; the unfolded tile shows the same, its blocks chosen in its settings. */
+export function fullBody(v:View,config:Config,st:CardState,partners:View[],blocks?:readonly string[]):TemplateResult {
+  const said=spread(v),plage=plageOf(v),show=(b:string)=>!blocks||blocks.includes(b);
+  const parts=show('measures')?now(v,config,said,st.uid,partners):{feel:nothing,air:nothing,devs:nothing},{feel,air}=parts;
+  const next=config.show_horizon===false||!show('horizon')?[]:coming(v,said,plage);
   const sensors=new Set([v,...partners].flatMap(r=>Object.values(r.observations).map(o=>o?.source).filter((x):x is string=>!!x))).size;
   const rows=[...details(v,config),...said.rest.map(x=>html`<li><b>${t('Bon à savoir')}</b><span> · ${x}</span></li>`),...said.doubts.map(x=>html`<li><b>${t('À vérifier')}</b><span> · ${x}</span></li>`)];
   return html`<div class="nc-body nc-sections nc-full">
     ${said.tryIt?html`<p class="nc-try"><b>${t('À essayer')}</b> · ${said.tryIt}</p>`:nothing}
     ${feel!==nothing||air!==nothing?html`<section class="nc-part"><header class="nc-part-h nw-section-head"><h2>${t('En ce moment')}</h2></header><div class="nc-mods">${feel}${air}</div></section>`:nothing}
-    ${next.length?html`<section class="nc-part"><header class="nc-part-h nw-section-head"><h2>${t('À venir')}</h2><span class="nw-sum">${t('ce qui va changer')}</span></header>
-      <ol class="nc-mod nw-panel nc-coming">${next.map(e=>html`<li class="nc-ev" style=${`--c:${C[e.tone]}`}><span class="nc-ev-at">${e.at}</span><span class="nc-ev-dot" aria-hidden="true"></span>
-        <div class="nc-ev-body"><b><span class="nc-ev-ic">${icon(e.ic)}</span>${e.text}</b>${e.note?html`<small>${e.note}</small>`:nothing}${e.chart?html`<div class="nc-ev-chart nc-horizon">${e.chart}</div>`:nothing}</div></li>`)}</ol></section>`:nothing}
-    ${devices(v,partners,config)}
-    ${config.show_details===false?nothing:fold({label:t('Détails'),summary:html`${t('{n} capteurs',{n:sensors})}${said.doubts.length?html` · <b>${t('{n} à vérifier',{n:said.doubts.length})}</b>`:nothing}`,open:st.detailsOpen,onToggle:()=>st.toggle('detailsOpen'),id:st.uid+'-details',
+    ${next.length?html`<section class="nc-part"><header class="nc-part-h nw-section-head"><h2>${t('À venir')}</h2><span class="nw-sum">${t('ce qui va changer')}</span></header>${comingList(next)}</section>`:nothing}
+    ${parts.devs}
+    ${config.show_details===false||!show('details')?nothing:fold({label:t('Détails'),summary:html`${t('{n} capteurs',{n:sensors})}${said.doubts.length?html` · <b>${t('{n} à vérifier',{n:said.doubts.length})}</b>`:nothing}`,open:st.detailsOpen,onToggle:()=>st.toggle('detailsOpen'),id:st.uid+'-details',
       body:html`<ul class="nc-list">${rows}</ul>${st.configure?html`<button class="nw-badge nc-configure" @click=${st.configure}>${icon('settings')}${t('Configurer cette pièce')}</button>`:nothing}`})}
   </div>`;
 }

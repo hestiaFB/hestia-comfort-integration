@@ -401,21 +401,19 @@ button.nc-mod-v, button.nc-mod-row { cursor:pointer; }
 .nc-b-name h2 { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .nc-b-name .nw-info { min-height:0; }
 .nc-b-name .nc-level { margin:0 0 0 4px; }
+/* The state's pill under the name, as on the home card (5 November): an empty full-width item breaks the line before it. */
+.nc-b-name { row-gap:0; }
+.nc-b-name::after { content:''; order:2; flex-basis:100%; height:0; }
+.nc-b-name .nc-level { order:3; margin:8px 0 0; }
 .nc-b-sub { font-size:var(--nw-fs-small); color:var(--nw-fg2); }
 /* « En ce moment », top right as in Hestia Weather: the temperature large, its day under it. */
 .nc-b-now { display:flex; flex-direction:column; align-items:flex-end; gap:2px; text-align:right; flex:none; }
 .nc-b-main { margin-top:10px; }
 .nc-b.compact .nc-b-main { margin-top:6px; }
-.nc-bt { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:18px; align-items:center; }
-.nc-bt-kicker { font-size:var(--nw-fs-small); font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:color-mix(in oklab, var(--c) 55%, var(--nw-fg)); }
-.nc-bt .nc-advice { margin:3px 0 2px; }
-.nc-b.compact .nc-advice { font-size:var(--nw-fs-value); letter-spacing:-.6px; }
-.nc-bt .nc-line { color:var(--nw-fg2); } .nc-bt .nc-line b { color:var(--nw-fg); }
 /* What helps to act: « ouvert depuis 95 min », the window to open, as a small tag with its pictogram. */
 .nc-bt-tag { display:inline-flex; align-items:center; gap:6px; margin-top:10px; padding:4px 11px 4px 8px; border-radius:var(--nw-radius-pill); font-size:var(--nw-fs-small); font-weight:600;
   border:1px solid color-mix(in oklab, var(--c) 30%, var(--nw-line)); background:color-mix(in oklab, var(--c) 10%, var(--nw-bg)); color:color-mix(in oklab, var(--c) 40%, var(--nw-fg)); }
 .nc-bt-tag .icon { width:14px; height:14px; }
-.nc-bt-icons { margin-right:6px; }
 /* The round: a clean disk of the advice's colour, a thin ring of light that turns slowly; a gesture sends one soft wave now and then.
    Between the old animated disk and a flat icon: no heavy shadow, no thick rings. */
 .nc-orb { position:relative; width:76px; height:76px; border-radius:50%; display:grid; place-items:center; flex:none;
@@ -443,7 +441,7 @@ button.nc-mod-v, button.nc-mod-row { cursor:pointer; }
 .nc-b .nc-chips { margin-top:14px; }
 .nc-b .nc-why { position:relative; }
 @container (max-width:440px) {
-  .nc-b { padding:16px 16px 6px; } .nc-bt { gap:12px; } .nc-orb { width:58px; height:58px; } .nc-orb .icon { width:26px; height:26px; } .nc-advice { font-size:var(--nw-fs-value); }
+  .nc-b { padding:16px 16px 6px; } .nc-orb { width:58px; height:58px; } .nc-orb .icon { width:26px; height:26px; } .nc-advice { font-size:var(--nw-fs-value); }
 }
 /* Sections of the full card, always open: a quiet title, what it counts, then the content. */
 .nc-sections { gap:22px; }
@@ -475,9 +473,6 @@ ha-card.nc-alert-card { display:flex; align-items:center; gap:14px; padding:10px
 .nc-al-t small { font-size:var(--nw-fs-small); font-weight:500; color:var(--nw-fg2); }
 .nc-mod .nc-spark { height:20px; margin:4px 0 0; }
 /* The round on the left of the advice, on the full card and on the tile alike (Frank, 30 October evening). */
-.nc-b .nc-bt { grid-template-columns:auto minmax(0,1fr); }
-.nc-b .nc-bt-icons { order:-1; margin:0 4px 0 2px; }
-.nc-b.compact .nc-bt { gap:14px; }
 .nc-b.compact .nc-orb { width:52px; height:52px; } .nc-b.compact .nc-orb .icon { width:24px; height:24px; }
 /* The « i » opens under the title line: three plain rows, each with its pictogram. */
 .nc-b-why { margin-top:10px; display:grid; gap:6px; }
@@ -510,7 +505,6 @@ ha-card.nc-alert-card { display:flex; align-items:center; gap:14px; padding:10px
   background:var(--nw-bg); color:color-mix(in oklab, var(--nw-benefit) 70%, var(--nw-fg)); box-shadow:0 0 0 2px color-mix(in oklab, var(--nw-benefit) 45%, var(--nw-bg)); }
 .nc-orb-learned .icon { width:14px; height:14px; }
 .nc-orb.small .nc-orb-learned { width:16px; height:16px; right:-5px; bottom:-4px; } .nc-orb.small .nc-orb-learned .icon { width:10px; height:10px; }
-.nc-bt .nc-tk-head { gap:10px; }
 .nc-bt-learned { display:inline-flex; align-items:center; gap:4px; font-size:var(--nw-fs-small); font-weight:600; color:color-mix(in oklab, var(--nw-benefit) 60%, var(--nw-fg)); }
 .nc-bt-learned .icon { width:13px; height:13px; }
 .nc-flame { display:inline-grid; place-items:center; color:var(--nw-heat); } .nc-flame .icon { width:15px; height:15px; }
@@ -590,6 +584,7 @@ button.nc-mrow { cursor:pointer; }
 .nc-fx-row + .nc-fx-row { margin-top:4px; padding-top:16px; border-top:1px solid var(--nw-line-soft); }
 .nc-fx-row { display:grid; gap:2px; min-width:0; }
 .nc-fx-top { display:flex; align-items:center; flex-wrap:wrap; gap:2px 10px; }
+button.nc-fx-top { width:100%; margin:0; border:0; background:none; text-align:start; }
 .nc-fx-word { font-size:var(--nw-fs-case); font-weight:600; letter-spacing:-.015em; line-height:1.2; color:color-mix(in oklab, var(--c) 40%, var(--nw-fg)); }
 .nc-fx-trend { margin-left:auto; display:inline-flex; align-items:center; gap:5px; font-size:var(--nw-fs-small); font-weight:600; white-space:nowrap;
   color:color-mix(in oklab, var(--t, var(--nw-fg2)) 55%, var(--nw-fg2)); }
@@ -628,6 +623,16 @@ button.nc-mrow { cursor:pointer; }
 .nc-ring-row .nc-fx-trend { grid-column:3; justify-self:end; }
 .nc-ring-row.mute .nc-ring-n, .nc-ring-w.mute { color:var(--nw-fg2); font-weight:500; }
 .nc-ring-w.mute { grid-column:2 / -1; }
+/* The legend (6 November): each line's mark is the rings in small, its own ring in its colour, so that one reads which ring is which. */
+/* The devices' heading on their own card: the room's name on the right (6 November). */
+.nc-dev-h { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.nc-dev-h .nc-src { font-size:var(--nw-fs-small); color:var(--nw-fg2); }
+/* The verdict inside the innermost ring, never over it: it wraps on two lines rather than overflow. */
+.nc-rings:not(.one) .nc-ring, .nc-rings:not(.one) .nc-ring svg { width:150px; height:150px; }
+.nc-rings:not(.one) .nc-ring-c { padding:0 44px; }
+.nc-ring-g { width:22px; height:22px; align-self:center; overflow:visible; }
+.nc-ring-g path { fill:none; stroke-width:12; stroke-linecap:round; stroke:color-mix(in srgb, var(--nw-fg) 24%, transparent); }
+.nc-ring-g path.on { stroke:var(--nw-fg2); }
 @container (max-width:460px) { .nc-rings:not(.one) { grid-template-columns:1fr; justify-items:center; } .nc-ring-list { width:100%; } }
 @container (min-width:461px) { .nc-rings { grid-template-columns:150px minmax(0,1fr); gap:24px; } .nc-ring, .nc-ring svg { width:150px; height:150px; }
   .nc-ring-c { padding:0 42px; } .nc-ring-c b { font-size:var(--nw-fs-text); } .nc-ring-list { align-content:center; max-width:520px; }

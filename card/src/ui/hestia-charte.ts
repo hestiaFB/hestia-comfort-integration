@@ -139,6 +139,37 @@ ha-card { font-family:Manrope, var(--ha-font-family-body, Roboto), system-ui, sa
 .nw-glass.nw-glass-solid { background:color-mix(in srgb, var(--nw-bg) 68%, transparent); }
 :host([flat]) { --nw-blur:none; --nw-frost:none; --nw-glass-clear:var(--nw-bg); --nw-glass-strong:var(--nw-bg); }
 
+/* ---------- Le bandeau (5 novembre, carte « Mon logement ») : le geste du moment, le même dans toutes les cartes. ----------
+   Le cadre (.nw-band, posé avec .nw-glass) prend la couleur de son état par data-level ; dedans, une rangée (.nw-band-row) :
+   la scène ou le pictogramme à gauche (.nw-band-pic), puis le texte (.nw-band-text) : au-dessus, la pièce ou le moment
+   (.nw-band-kicker) ; le geste en 34 (.nw-band-title), coloré quand il y a un geste à faire ; pourquoi (.nw-band-line) ;
+   une note grise (.nw-band-note : « Puis refermez », la preuve). Plusieurs conseils : des barres en bas du cadre (.nw-band-bars). */
+.nw-band { --c:var(--nw-ok); position:relative; box-sizing:border-box; min-width:0; padding:16px; }
+.nw-band[data-level="benefit"] { --c:var(--nw-benefit); } .nw-band[data-level="action"] { --c:var(--nw-act); } .nw-band[data-level="urgent"] { --c:var(--nw-alert); }
+.nw-band[data-level="neutral"] { --c:color-mix(in srgb, var(--nw-fg) 25%, transparent); }
+.nw-band:has(.nw-band-bars) { padding-bottom:26px; }
+.nw-band-row { display:flex; align-items:center; gap:16px; min-width:0; }
+.nw-band-pic { display:grid; place-items:center; flex:none; order:-1; }
+/* Sans scène (mesures en chargement, capteurs muets) : le pictogramme dans un carré teinté. */
+.nw-band-pic.box { width:60px; height:72px; border-radius:10px; background:color-mix(in srgb, var(--c) 34%, transparent); color:var(--nw-fg); }
+.nw-band-pic.box svg, .nw-band-pic.box ha-icon { width:34px; height:34px; --mdc-icon-size:34px; }
+.nw-band-text { flex:1; min-width:0; }
+.nw-band-text p { margin:0; }
+.nw-band-kicker { display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; margin-bottom:4px; font-size:var(--nw-fs-label); line-height:14px; font-weight:650;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--nw-fg); }
+.nw-band-kicker i { font-style:normal; font-weight:600; letter-spacing:0; text-transform:none; color:var(--nw-fg2); }
+.nw-band-title { font-size:var(--nw-fs-value); font-weight:650; letter-spacing:-.03em; line-height:1.1; text-wrap:balance; }
+/* Coloré pour un geste seulement : un « Rien à faire » qui garde quelque chose « à saisir » ne s'écrit jamais en vert (5 novembre). */
+.nw-band:is([data-level="action"], [data-level="urgent"]) .nw-band-title { color:color-mix(in oklab, var(--c) 45%, var(--nw-fg)); }
+.nw-band-line { margin-top:6px !important; font-size:var(--nw-fs-text); line-height:1.5; color:var(--nw-fg2); }
+.nw-band-line b { color:var(--nw-fg); font-weight:650; }
+.nw-band-note { display:flex; align-items:center; gap:6px; margin-top:6px !important; font-size:var(--nw-fs-small); color:var(--nw-fg2); }
+.nw-band-note svg, .nw-band-note ha-icon { width:13px; height:13px; flex:none; --mdc-icon-size:13px; }
+.nw-band-bars { position:absolute; left:16px; right:16px; bottom:6px; display:flex; gap:6px; }
+.nw-band-bars button { flex:1; min-height:0; margin:0; padding:6px 0; border:0; background:none; cursor:pointer; }
+.nw-band-bars span { display:block; height:3px; border-radius:2px; background:color-mix(in srgb, var(--nw-fg) 16%, transparent); }
+.nw-band-bars button[aria-current="true"] span { background:color-mix(in oklab, var(--c) 70%, var(--nw-fg)); }
+
 /* ---------- Le petit rond de valeur (3 novembre) : la valeur sur une piste (échelles) et la bulle affichée du fil. ---------- */
 .nw-dot { position:absolute; z-index:3; width:8px; height:8px; margin-left:-4px; border-radius:50%; background:var(--nw-fg); box-shadow:0 0 0 1.5px var(--nw-bg); }
 .nw-dot::after { content:''; position:absolute; inset:-2px; border-radius:50%; border:1.5px solid var(--nw-fg);

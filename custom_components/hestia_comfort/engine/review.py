@@ -229,7 +229,8 @@ def home_advice(rooms):
         found.append({"key": "open_at_night", "theme": "warmth", "level": "benefit", "share": None,
                       "gap": round(mean(g for _, g in warm), 1)})
     # The air measured in fewer than half the rooms: a CO₂ sensor where people sleep says more than any rule.
-    measured = sum(1 for r in rooms if (r["themes"].get("air") or {}).get("score") is not None)
+    # Counted by sensor, graded or not yet: a CO₂ sensor too new for a grade is already there.
+    measured = sum(1 for r in rooms if r["themes"].get("air"))
     if rooms and measured * 2 < len(rooms):
         found.append({"key": "add_co2", "theme": "air", "level": "neutral", "share": None, "rooms": measured})
     return found

@@ -1,124 +1,165 @@
-import {t,t as tr,fr,currentLocale} from './i18n';
+import {t,currentLocale} from './i18n';
 import {LitElement,html,svg,css,unsafeCSS,nothing,type PropertyValues} from 'lit';
 import {hassMatters} from './hass-change';
 import {property,state} from 'lit/decorators.js';
+import charte from './ui/hestia-charte.css';
+import {icon} from './ui/icons';
 
-/** The comfort review (review_source.py): the home's dashboard, then one room's sheet. Graded on EN 16798-1. */
+/** The comfort review (review_source.py): the home's review, then one room's sheet. Graded on EN 16798-1.
+    Drawn with the common charter (maquettes/maquette-bilan.html, chosen on 6 November 2026): the letters A to E in grey,
+    the colour on the gauge — blue within your range, amber outside —, the advice in the charter's banner. */
 type Month={month:string};
 type Grade={score:number|null;letter:string|null;comfortable:number|null;hours:number};
 type Warmth=Grade&{monthly:(Month&{min:number;mean:number;max:number;cold:number;hot:number;comfortable:number;low:number;high:number})[];
+ chilly?:number|null;chilly_below?:number;
  coldest:{value:number;month:string}|null;hottest:{value:number;month:string}|null;day:{winter:(number|null)[];summer:(number|null)[];outdoor_winter:(number|null)[];outdoor_summer:(number|null)[]}};
-type Humidity=Grade&{dry:number;humid:number;monthly:(Month&{mean:number;humid:number})[]};
+type Humidity=Grade&{dry:number;humid:number;damp?:number;monthly:(Month&{mean:number;humid:number})[]};
 type Air=Grade&{split:number[];day:(number|null)[];monthly:(Month&{median:number})[]};
 type Advice={key:string;theme:'warmth'|'humidity'|'air';level:'action'|'benefit'|'neutral';share:number|null;below?:number;hour?:number;gap?:number;rooms?:number;room?:string;entry_id?:string};
 type RoomReview={entry_id:string;title:string;score:number|null;letter:string|null;themes:{warmth?:Warmth;humidity?:Humidity;air?:Air};advice?:Advice[]};
-type ThemeGrade={score:number|null;letter:string|null;rooms:number};
-export type Review={version:number;computed_at:string;start:string;outdoor:boolean;home:{score:number|null;letter:string|null;themes:Record<'warmth'|'humidity'|'air',ThemeGrade>;advice?:Advice[]};rooms:RoomReview[]};
+type ThemeGrade={score:number|null;letter:string|null;rooms?:number};
+type ThemeKey='warmth'|'humidity'|'air';
+export type Review={version:number;computed_at:string;start:string;outdoor:boolean;home:{score:number|null;letter:string|null;themes:Record<ThemeKey,ThemeGrade>;advice?:Advice[]};rooms:RoomReview[]};
 type Hass={callWS:<T>(m:object)=>Promise<T>};
 
 // « 2026-03 » as « mars » (« March »), short or long, in the user's language.
 const month=(m:string,style:'short'|'long')=>{const n=Number(m.slice(5,7));return n>=1&&n<=12?new Date(2026,n-1,15).toLocaleDateString(currentLocale(),{month:style}):m;};
-const monthName=(m:string)=>month(m,'short');
+const shortMonth=(m:string)=>month(m,'short').replace('.','');
 const longMonth=(m:string)=>month(m,'long');
 const num=(v:number,d=1)=>v.toLocaleString(currentLocale(),{maximumFractionDigits:d});
-const good=(l:string|null)=>l==='A'||l==='B';
-const BLUE='#378ADD',BLUE_LIGHT='#85B7EB',AMBER='#EF9F27',AMBER_LIGHT='#FAC775',GREY='#888780';
-const CSS_BLUE=unsafeCSS(BLUE),CSS_AMBER=unsafeCSS(AMBER);
-const HEATING=[11,12,1,2,3,4],WINTER=[12,1,2],SUMMER=[6,7,8];
+const good=(l:string|null|undefined)=>l==='A'||l==='B';
+const HEATING=[11,12,1,2,3,4],SUMMER=[6,7,8];
 const inMonths=(m:string,months:number[])=>months.includes(Number(m.slice(5,7)));
 const avg=(v:number[])=>v.length?v.reduce((a,b)=>a+b,0)/v.length:0;
+const THEMES:ThemeKey[]=['warmth','humidity','air'];
+const names=()=>({warmth:t('Chaleur'),humidity:t('Humidité'),air:t('Air')});
+const ORDER={action:0,benefit:1,neutral:2};
+const byLevel=(list:Advice[]|undefined)=>[...(list??[])].sort((a,b)=>ORDER[a.level]-ORDER[b.level]);
+const word=(s:number)=>s>=85?t('Très bon'):s>=70?t('Bon dans l’ensemble'):s>=55?t('Correct'):t('À améliorer');
 
 /** One gesture and the measured fact behind it (engine/review.py advice): never a cause the sensors cannot prove. */
-function adviceText(a:Advice):[string,string]{
+function adviceText(a:Advice):[string,string,string]{
  const share=a.share==null?'':num(a.share,0)+' %';
  switch(a.key){
-  case 'heat_more':return [t('Chauffez-la davantage l’hiver'),t('Sous {below} °C {share} du temps, de novembre à avril',{share,below:num(a.below??18,0)})];
-  case 'run_ventilation':return [t('Faites tourner la VMC plus longtemps'),t('Au-dessus de 70 % d’humidité {share} du temps',{share})];
-  case 'air_daily':return [t('Aérez 10 minutes chaque jour'),t('Au-dessus de 70 % d’humidité {share} du temps',{share})];
-  case 'air_at':return [t('Aérez 10 minutes vers {h} h',{h:a.hour??''}),t('Air à renouveler {share} du temps, surtout vers {h} h',{share,h:a.hour??''})];
-  case 'open_at_night':return [t('L’été, ouvrez en grand la nuit'),t('À l’aube, dehors est {gap} °C plus frais que la maison',{gap:num(a.gap??0)})];
-  case 'add_co2':return [t('Ajoutez un capteur de CO₂ dans une chambre'),(a.rooms??0)>1?t('L’air n’est mesuré que dans {n} pièces',{n:a.rooms??0}):t('L’air n’est mesuré que dans {n} pièce',{n:a.rooms??0})];
-  default:return [a.key,''];
+  case 'heat_more':return [t('Chauffez-la davantage l’hiver'),t('Sous {below} °C {share} du temps, de novembre à avril',{share,below:num(a.below??18,0)}),'flame'];
+  case 'run_ventilation':return [t('Faites tourner la VMC plus longtemps'),t('Au-dessus de 70 % d’humidité {share} du temps',{share}),'fan'];
+  case 'air_daily':return [t('Aérez 10 minutes chaque jour'),t('Au-dessus de 70 % d’humidité {share} du temps',{share}),'window'];
+  case 'air_at':return [t('Aérez 10 minutes vers {h} h',{h:a.hour??''}),t('Air à renouveler {share} du temps, surtout vers {h} h',{share,h:a.hour??''}),'window'];
+  case 'open_at_night':return [t('L’été, ouvrez en grand la nuit'),t('À l’aube, dehors est {gap} °C plus frais que la maison',{gap:num(a.gap??0)}),'window'];
+  case 'add_co2':return [t('Ajoutez un capteur de CO₂ dans une chambre'),!a.rooms?t('L’air n’est mesuré dans aucune pièce'):a.rooms>1?t('L’air n’est mesuré que dans {n} pièces',{n:a.rooms}):t('L’air n’est mesuré que dans {n} pièce',{n:a.rooms}),'air'];
+  default:return [a.key,'','info'];
  }
 }
 
-/** A small SVG chart: `n` slots across, values scaled between `lo` and `hi`. */
-function frame(n:number,lo:number,hi:number,w=320,h=140){
- const pad={l:34,r:6,t:8,b:20},slot=(w-pad.l-pad.r)/n;
- return {w,h,pad,slot,x:(i:number)=>pad.l+(i+.5)*slot,y:(v:number)=>pad.t+(1-(v-lo)/(hi-lo))*(h-pad.t-pad.b)};
-}
-type Frame=ReturnType<typeof frame>;
-// A room's sheet spreads its charts across the page: wider, not taller.
-const WIDE=720,TALL=190;
-function axes(f:Frame,ticks:number[],unit:string,labels:string[],every=1){
- return svg`${ticks.map(t=>svg`<line x1=${f.pad.l} x2=${f.w-f.pad.r} y1=${f.y(t)} y2=${f.y(t)} class="grid"/><text x=${f.pad.l-4} y=${f.y(t)+3} text-anchor="end" class="tick">${num(t,0)}${unit}</text>`)}
-  ${labels.map((l,i)=>i%every?nothing:svg`<text x=${f.x(i)} y=${f.h-6} text-anchor="middle" class="tick">${l}</text>`)}`;
-}
-const line=(f:Frame,values:(number|null)[])=>values.map((v,i)=>v==null?null:`${f.x(i)},${f.y(v)}`).filter(Boolean).join(' ');
-const band=(f:Frame,low:number[],high:number[])=>[...high.map((v,i)=>`${f.x(i)},${f.y(v)}`),...low.map((v,i)=>`${f.x(i)},${f.y(v)}`).reverse()].join(' ');
-
 export class ComfortReview extends LitElement {
  @property({attribute:false}) hass?:Hass;
- /** The room whose sheet is shown; none for the home's dashboard. */
+ /** The room whose sheet is shown; none for the home's review. */
  @property({attribute:false}) room?:string;
- /** « summary »: the note, the four themes and the most pressing piece of advice, for a dashboard card. */
- @property() mode:'page'|'summary'='page';
+ /** « summary »: the note, the three themes and the advice, for a dashboard card; « page »: the whole review. */
+ @property({reflect:true}) mode:'page'|'summary'='page';
+ /** The title of the home's review (« Votre maison » in the hub, the card's title on a dashboard). */
+ @property() heading?:string;
+ /** A card set on one room: no way back to the home's review. */
+ @property({type:Boolean}) pinned=false;
  @state() private data?:Review;
  @state() private error='';
  @state() private season:'winter'|'summer'='winter';
+ @state() private slide=0;
+ @state() private how=false;
  private asked=false;
- static styles=css`
-  :host{display:block;--rv-surface:var(--nc-surface,var(--card-background-color,#222932));--rv-muted:var(--nc-muted,var(--secondary-text-color,#bdc5d1));--rv-border:var(--nc-border,var(--divider-color,#657386))}
-  h1{margin:0;font-size:var(--nw-fs-case,21px);font-weight:600}h2{margin:0;font-size:var(--nw-fs-title,17px);font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px}
-  .muted{color:var(--rv-muted);font-size:var(--nw-fs-text,14px)}.small{font-size:var(--nw-fs-small,12px)}
-  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px}
-  .note{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:16px;border-radius:14px;background:var(--rv-surface)}
-  .scale{display:flex;align-items:center;gap:4px}.scale span{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:600;background:color-mix(in srgb,var(--rv-muted) 14%,transparent);color:var(--rv-muted)}
-  .scale span.on{width:46px;height:46px;font-size:var(--nw-fs-case,21px)}
-  .scale span.on.good{background:color-mix(in srgb,${CSS_BLUE} 30%,transparent);color:var(--nc-accent,#a1c9e8)}.scale span.on.bad{background:color-mix(in srgb,${CSS_AMBER} 30%,transparent);color:var(--nc-todo,#f2a65a)}
-  .letter{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:8px;font-weight:600}
-  .letter.big{min-width:46px;height:46px;font-size:var(--nw-fs-case,21px);border-radius:12px}
-  .good{background:color-mix(in srgb,${CSS_BLUE} 24%,transparent);color:var(--nc-accent,#a1c9e8)}.bad{background:color-mix(in srgb,${CSS_AMBER} 26%,transparent);color:var(--nc-todo,#f2a65a)}
-  .none{background:color-mix(in srgb,var(--rv-muted) 14%,transparent);color:var(--rv-muted);font-size:var(--nw-fs-small,12px);padding:0 8px;font-weight:500}
-  .panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px;margin-top:16px}
-  .panel{background:var(--rv-surface);border-radius:14px;padding:14px 16px}
-  .headline{font-size:var(--nw-fs-title,17px);font-weight:600;margin:6px 0 2px}
-  .rooms{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px}
-  .room{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--rv-surface);border:1px solid transparent;border-radius:12px;padding:10px 12px;cursor:pointer;color:inherit;font:inherit;text-align:left}
-  .room:hover,.room:focus-visible{border-color:var(--rv-border)}
-  section.theme{border-top:1px solid color-mix(in srgb,var(--rv-border) 50%,transparent);padding:18px 0 6px;margin-top:12px}
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:10px 0}
-  .stat{background:var(--rv-surface);border-radius:10px;padding:8px 10px}.stat b{display:block;font-size:var(--nw-fs-case,21px);font-weight:600}
-  .chips{display:flex;gap:6px;flex-wrap:wrap}.chip{font-size:var(--nw-fs-small,12px);padding:3px 10px;border-radius:999px}
-  .back{background:none;border:none;color:var(--nc-accent,#a1c9e8);font:inherit;font-size:var(--nw-fs-text,14px);cursor:pointer;padding:0;margin-bottom:10px}
-  .seg{display:flex;gap:4px}.seg button{font:inherit;font-size:var(--nw-fs-small,12px);padding:3px 10px;border-radius:999px;border:1px solid var(--rv-border);background:none;color:inherit;cursor:pointer}.seg button.on{background:color-mix(in srgb,${CSS_BLUE} 25%,transparent)}
-  svg{width:100%;height:auto;display:block;margin-top:6px}svg .grid{stroke:color-mix(in srgb,var(--rv-muted) 22%,transparent);stroke-width:.5}svg .tick{fill:var(--rv-muted);font-size:9px}
-  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:var(--nw-fs-small,12px);color:var(--rv-muted);margin-top:4px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-  details{margin-top:10px;font-size:var(--nw-fs-text,14px)}summary{cursor:pointer;color:var(--rv-muted)}details p{color:var(--rv-muted);line-height:1.6}
-  .notice{padding:12px 14px;border-radius:12px;background:var(--rv-surface)}
-  .advice{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px}
-  .tip{display:block;text-align:left;font:inherit;color:inherit;background:var(--rv-surface);border:1px solid transparent;border-radius:12px;padding:10px 12px}
-  .tip.action{border-color:color-mix(in srgb,${CSS_AMBER} 55%,transparent)}.tip.benefit{border-color:color-mix(in srgb,#639922 60%,transparent)}
-  button.tip{cursor:pointer}button.tip:hover{background:color-mix(in srgb,var(--rv-surface) 80%,var(--rv-border))}
-  .tip b{display:block;font-size:var(--nw-fs-text,14px);font-weight:600;margin:2px 0}
-  .sheet{max-width:900px}
-  /* Animations on arrival: bars grow, lines draw, the grade and the panels rise; none when the system asks for less motion. */
-  @keyframes rv-rise{from{opacity:0;transform:translateY(8px)}}@keyframes rv-grow-y{from{transform:scaleY(0)}}@keyframes rv-grow-x{from{transform:scaleX(0)}}
-  @keyframes rv-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}@keyframes rv-fade{from{opacity:0}}@keyframes rv-pop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.08)}}
-  @keyframes rv-turn{from{opacity:0;transform:rotate(-90deg)}}
-  @media (prefers-reduced-motion:no-preference){
-   .note,.panel,.room,.tip,section.theme,.stat{animation:rv-rise .45s ease-out both}
-   .panel:nth-child(2),.room:nth-child(2),.tip:nth-child(2),.stat:nth-child(2){animation-delay:.06s}.panel:nth-child(3),.room:nth-child(3),.tip:nth-child(3),.stat:nth-child(3){animation-delay:.12s}
-   .panel:nth-child(4),.room:nth-child(4),.tip:nth-child(4),.stat:nth-child(4){animation-delay:.18s}.panel:nth-child(n+5),.room:nth-child(n+5),.tip:nth-child(n+5),.stat:nth-child(n+5){animation-delay:.24s}
-   .scale span.on,.letter.big{animation:rv-pop .5s .15s ease-out both}
-   svg .bar{transform-box:fill-box;transform-origin:bottom;animation:rv-grow-y .7s .1s cubic-bezier(.2,.8,.2,1) both}
-   svg .hbar{transform-box:fill-box;transform-origin:left;animation:rv-grow-x .7s .1s cubic-bezier(.2,.8,.2,1) both}
-   svg .draw{stroke-dasharray:1;animation:rv-draw 1.1s .15s ease-out both}
-   svg .fade,svg .dot{animation:rv-fade .5s .7s both}
-   svg .ring{transform-box:view-box;transform-origin:50% 50%;animation:rv-turn .8s ease-out both}
-  }
-  button.summary{display:block;width:100%;text-align:left;font:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
- `;
+ static styles=[unsafeCSS(charte),css`
+  :host{display:block;container-type:inline-size;font-family:Manrope,var(--ha-font-family-body,Roboto),system-ui,sans-serif;line-height:1.5;color:var(--nw-fg);
+   --nw-surface:color-mix(in srgb,var(--nw-fg) 3.5%,var(--nw-bg))}
+  .rv{display:grid;gap:16px;min-width:0}
+  :host([mode="page"]) .rv{max-width:760px}
+  .muted{color:var(--nw-fg2);font-size:var(--nw-fs-text)}
+  .notice{margin:0;padding:12px 14px;border-radius:14px;background:var(--nw-surface)}
+  .notice button{margin-left:6px}
+  /* The title line: the title and one sentence, the note large on the right with its grey letter. */
+  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .top .l{display:grid;gap:6px;justify-items:start;min-width:0}.top h1{display:flex;align-items:center;gap:8px}
+  .sub{font-size:var(--nw-fs-small);color:var(--nw-fg2)}
+  .grade{display:grid;justify-items:end;flex:none}
+  .g-row{display:flex;align-items:center;gap:8px}.grade .nw-temp{line-height:1}
+  .g-side{display:grid;justify-items:center;gap:4px}.g-side small{font-size:var(--nw-fs-small);color:var(--nw-fg2);font-weight:500;white-space:nowrap}
+  .grade .nw-range{font-size:var(--nw-fs-small);color:var(--nw-fg2);margin-top:4px}
+  .lt{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:9px;background:color-mix(in srgb,var(--nw-fg) 7%,transparent);
+   color:color-mix(in srgb,var(--nw-fg) 78%,transparent);font-size:var(--nw-fs-text);font-weight:700;line-height:1}
+  .lt.none{color:var(--nw-fg2);font-weight:500}
+  .howto{margin:0;font-size:var(--nw-fs-small);color:var(--nw-fg2);line-height:1.6}
+  /* The three themes in small cases; the letter beside the gauge, which carries the colour. */
+  .cases{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .case{display:grid;gap:2px;align-content:start;padding:12px;border-radius:14px;background:var(--nw-surface);min-width:0}
+  .case .nw-value{flex-wrap:wrap;column-gap:4px}
+  .cw{font-size:var(--nw-fs-small);color:var(--nw-fg2);line-height:1.35;min-height:2.7em}
+  .cm{display:flex;align-items:center;gap:8px;margin-top:6px}.cm .meter{flex:1}
+  .cm .lt{width:22px;height:22px;border-radius:7px;font-size:var(--nw-fs-small)}
+  .meter{display:block;height:4px;border-radius:2px;background:color-mix(in srgb,var(--nw-fg) 8%,transparent);overflow:hidden}
+  .meter i{display:block;height:100%;border-radius:2px;background:color-mix(in oklab,var(--c) 85%,transparent);transform-origin:left;animation:nw-grow .6s var(--nw-ease) both}
+  .open{cursor:pointer;display:grid;gap:16px}
+  .more{display:flex;align-items:center;justify-content:center;gap:4px;border:0;background:none;padding:2px;font-size:var(--nw-fs-small);font-weight:650;color:var(--nw-fg2);cursor:pointer}
+  .more:hover{color:var(--nw-fg)}
+  /* Side by side when the review has the room (the hub's page); one column on a card. */
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px 20px;align-items:start}
+  .nw-band-pic.box svg{width:34px;height:34px}
+  /* Sections */
+  .part{display:grid;gap:10px;min-width:0}
+  .nw-panel{display:grid;gap:12px}.nw-panel .nw-stats{margin-top:0}
+  .nw-panel-head h3{margin-right:auto}
+  .nw-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:var(--nw-fs-small);color:var(--nw-fg2)}.nw-legend span{display:inline-flex;align-items:center;gap:6px}
+  .nw-legend.col{flex-direction:column;gap:6px}.nw-legend small{font-size:var(--nw-fs-small);color:var(--nw-fg2);margin-top:2px}
+  .nw-legend i{display:inline-block;flex:none}
+  .k-ok{width:12px;height:10px;border-radius:3px;background:color-mix(in oklab,var(--nw-ok) 80%,transparent)}
+  .k-cold{width:12px;height:10px;border-radius:3px;background:color-mix(in oklab,var(--nw-watch) 85%,transparent)}
+  .k-hot{width:12px;height:10px;border-radius:3px;background:repeating-linear-gradient(45deg,var(--nw-watch) 0 2px,color-mix(in oklab,var(--nw-watch) 30%,transparent) 2px 4px)}
+  .k-mean{width:16px;border-top:2px solid var(--nw-fg)}.k-out{width:16px;border-top:2px dashed var(--nw-fg2)}
+  .k-area{width:14px;height:8px;border-radius:2px;background:color-mix(in srgb,var(--nw-fg) 14%,transparent)}
+  .k-lim{width:16px;border-top:2px dotted color-mix(in oklab,var(--nw-ok) 80%,var(--nw-fg))}.k-colddot{width:8px;height:8px;border-radius:50%;background:var(--nw-watch)}
+  .k-rok{width:10px;height:10px;border-radius:50%;background:color-mix(in oklab,var(--nw-ok) 85%,transparent)}
+  .k-rmid{width:10px;height:10px;border-radius:50%;background:color-mix(in oklab,var(--nw-watch) 45%,transparent)}.k-rbad{width:10px;height:10px;border-radius:50%;background:var(--nw-watch)}
+  /* Charts */
+  svg.chart{width:100%;height:auto;display:block;overflow:visible}
+  .tk{font-size:10px;fill:var(--nw-fg2);font-family:Manrope,system-ui,sans-serif}.grid{stroke:color-mix(in srgb,var(--nw-fg) 7%,transparent);stroke-width:1}
+  .b-track{fill:color-mix(in srgb,var(--nw-fg) 6%,transparent)}
+  .b-ok{fill:color-mix(in oklab,var(--nw-ok) 80%,transparent)}.b-cold,.b-wet{fill:color-mix(in oklab,var(--nw-watch) 85%,transparent)}.b-hot{fill:url(#rv-hatch)}
+  .h-bg{fill:color-mix(in oklab,var(--nw-watch) 30%,transparent)}.h-ln{stroke:var(--nw-watch);stroke-width:2.4}
+  .bars rect{transform-box:fill-box;transform-origin:bottom;animation:rv-grow-y .7s var(--nw-ease) both}
+  @keyframes rv-grow-y{from{transform:scaleY(0)}}
+  .c-area{fill:color-mix(in srgb,var(--nw-fg) 9%,transparent)}.c-mean{fill:none;stroke:var(--nw-fg);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+  .c-lim{fill:none;stroke:color-mix(in oklab,var(--nw-ok) 80%,var(--nw-fg));stroke-width:1.3;stroke-dasharray:3 4}
+  .c-out{fill:none;stroke:var(--nw-fg2);stroke-width:1.5;stroke-dasharray:4 4}
+  .c-dot{fill:var(--nw-fg);stroke:var(--nw-surface);stroke-width:2}.c-dot.cold{fill:var(--nw-watch)}
+  .g-top{stop-color:var(--nw-fg);stop-opacity:.16}.g-bot{stop-color:var(--nw-fg);stop-opacity:0}
+  .say{margin:0;font-size:var(--nw-fs-small);color:var(--nw-fg2)}
+  /* Humidity room by room, the rooms list */
+  .hl{display:grid;gap:8px}.hrow{display:grid;grid-template-columns:96px minmax(0,1fr) 30px;column-gap:10px;align-items:center}
+  .hrow small{grid-column:2/-1;font-size:var(--nw-fs-small);color:var(--nw-fg2);margin-top:-2px}
+  .fn{font-size:var(--nw-fs-small);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rl{display:grid;padding-top:4px;padding-bottom:4px}
+  .rrow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(40px,1fr) 30px 28px 16px;gap:10px;align-items:center;padding:9px 0;border:0;
+   border-bottom:1px solid var(--nw-line-soft);background:none;text-align:left;width:100%;cursor:pointer;color:inherit;font:inherit}
+  .rrow:last-child{border-bottom:0}.rrow:hover .rm b{text-decoration:underline}
+  .go-c{color:var(--nw-fg2);display:grid}
+  .rm{display:grid;min-width:0}.rm b{font-size:var(--nw-fs-text);font-weight:650;line-height:1.3}.rm small{font-size:var(--nw-fs-small);color:var(--nw-fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rs{font-size:var(--nw-fs-text);font-weight:650;text-align:right;font-variant-numeric:tabular-nums}
+  /* The air in a ring */
+  .airw{display:flex;align-items:center;gap:18px}
+  .ring{width:108px;flex:none}.ring circle{fill:none;stroke-width:12}.r-track{stroke:color-mix(in srgb,var(--nw-fg) 6%,transparent)}
+  .r-ok{stroke:color-mix(in oklab,var(--nw-ok) 85%,transparent)}.r-mid{stroke:color-mix(in oklab,var(--nw-watch) 45%,transparent)}.r-bad{stroke:var(--nw-watch)}
+  .r-v{font-size:16px;font-weight:600;fill:var(--nw-fg);font-family:Manrope,system-ui,sans-serif}
+  /* A room's advice, as « À venir » on the room card */
+  .tip{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start;padding:12px 14px;border-radius:14px;background:color-mix(in oklab,var(--c) 10%,var(--nw-surface))}
+  .tip b{display:block;font-size:var(--nw-fs-text);font-weight:650;color:color-mix(in oklab,var(--c) 45%,var(--nw-fg))}.tip small{font-size:var(--nw-fs-small);color:var(--nw-fg2)}
+  .ev-ic{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:color-mix(in oklab,var(--c) 26%,transparent);color:color-mix(in oklab,var(--c) 40%,var(--nw-fg))}
+  .ev-ic svg{width:15px;height:15px}
+  .fine{display:flex;align-items:center;gap:8px;margin:0;font-size:var(--nw-fs-small);color:color-mix(in oklab,var(--nw-ok) 50%,var(--nw-fg))}.fine svg{width:14px;height:14px}
+  .back{display:inline-flex;align-items:center;gap:6px;justify-self:start;border:0;background:none;padding:0;font-size:var(--nw-fs-small);font-weight:650;color:var(--nw-fg2);cursor:pointer;margin-bottom:-6px}
+  .seg2{display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:color-mix(in srgb,var(--nw-fg) 5%,transparent)}
+  .seg2 button{border:0;background:none;border-radius:999px;padding:3px 10px;font-size:var(--nw-fs-small);color:var(--nw-fg2);cursor:pointer}
+  .seg2 button[aria-pressed="true"]{background:color-mix(in srgb,var(--nw-fg) 12%,transparent);color:var(--nw-fg);font-weight:650}
+  @container (max-width:380px){.grade .nw-temp{font-size:44px}.case{padding:10px}}
+  @media (prefers-reduced-motion:reduce){.meter i,.bars rect{animation:none}}
+ `];
  connectedCallback(){super.connectedCallback();if(this.hass&&!this.asked)void this.load();}
  protected shouldUpdate(changed:PropertyValues){return hassMatters(changed,this.hass);}
  protected updated(){if(this.hass&&!this.asked)void this.load();}
@@ -127,170 +168,196 @@ export class ComfortReview extends LitElement {
   catch(e){this.error=typeof e==='object'&&e&&'message' in e?String((e as {message:string}).message):t('connexion indisponible');}
  }
  private go(room?:string){this.room=room;this.dispatchEvent(new CustomEvent('review-navigate',{detail:room?'bilan/'+room:'bilan',bubbles:true,composed:true}));}
- private letter(l:string|null,big=false){return l?html`<span class=${'letter '+(big?'big ':'')+(good(l)?'good':'bad')}>${l}</span>`:html`<span class="letter none">${t('sans note')}</span>`;}
- private period(){const d=this.data!;return t('De {from} à {to}',{from:`${longMonth(d.start.slice(0,7))} ${d.start.slice(0,4)}`,to:`${longMonth(d.computed_at.slice(0,7))} ${d.computed_at.slice(0,4)}`});}
- private how(){return html`<details><summary>${t('Comment est calculée la note ?')}</summary><p>${t('Chaque heure est classée selon la norme européenne EN 16798-1 et reçoit des points : 100 en confort élevé, 75 en confort normal, 50 en confort modéré, 0 en dehors. La note est la moyenne, de 0 à 100 : A dès 85, B dès 70, C dès 55, D dès 40, E en dessous. Une pièce est notée sur ce qu’elle mesure, le logement sur la moyenne de ses pièces. Il faut deux semaines de mesures pour noter un thème.')}</p></details>`;}
-
+ private open(){this.dispatchEvent(new CustomEvent('review-open',{bubbles:true,composed:true}));}
  render(){
   if(this.error)return html`<p class="notice" role="alert">${t('Le bilan n’a pas pu être chargé : {error}.',{error:this.error})} <button @click=${()=>this.load()}>${t('Réessayer')}</button></p>`;
   if(!this.data)return html`<p class="muted" role="status">${t('Calcul du bilan sur les douze derniers mois…')}</p>`;
   if(this.mode==='summary')return this.summary();
+  if(!this.data.rooms.length)return html`<p class="notice">${t('Aucune pièce Hestia Confort chargée.')}</p>`;
   const room=this.room?this.data.rooms.find(r=>r.entry_id===this.room):undefined;
   return room?this.sheet(room):this.dashboard();
  }
 
- /** The dashboard card's summary: the note, a letter per theme, the most pressing advice; « review-open » asks for the rest. */
+ // ---------- Common pieces ----------
+ private lt(l:string|null|undefined){return l?html`<span class="lt" aria-label=${t('Note {letter}',{letter:l})}>${l}</span>`:html`<span class="lt none" aria-label=${t('Pas encore de note')}>–</span>`;}
+ private meter(v:number|null|undefined,l:string|null|undefined){return html`<span class="meter" style=${`--c:${l==null?'color-mix(in srgb,var(--nw-fg) 30%,transparent)':good(l)?'var(--nw-ok)':'var(--nw-watch)'}`}><i style=${`width:${v??0}%`}></i></span>`;}
+ private grade(score:number|null,letter:string|null,sub:string){
+  return html`<div class="grade"><div class="g-row"><span class="nw-temp">${score??'–'}</span><span class="g-side">${this.lt(letter)}<small>/ 100</small></span></div><div class="nw-range">${sub}</div></div>`;
+ }
+ private top(title:string,sub:string,score:number|null,letter:string|null,under:string){
+  return html`<div class="top"><div class="l"><h1 class="nw-title">${title} <button class="nw-info" aria-label=${t('Comment est calculée la note ?')} aria-expanded=${this.how}
+    @click=${(e:Event)=>{e.stopPropagation();this.how=!this.how;}}></button></h1><span class="sub">${sub}</span></div>${this.grade(score,letter,under)}</div>
+   ${this.how?html`<p class="howto">${this.howText()}</p>`:nothing}`;
+ }
+ private howText(){return t('Chaque heure est classée selon la norme européenne EN 16798-1 et reçoit des points : 100 en confort élevé, 75 en confort normal, 50 en confort modéré, 0 en dehors. La note est la moyenne, de 0 à 100 : A dès 85, B dès 70, C dès 55, D dès 40, E en dessous. Une pièce est notée sur ce qu’elle mesure, le logement sur la moyenne de ses pièces. Il faut deux semaines de mesures pour noter un thème.');}
+ /** The three themes in small cases: the score, one line, the gauge and its letter. */
+ private cases(themes:Partial<Record<ThemeKey,{score:number|null;letter:string|null}>>,say:Partial<Record<ThemeKey,string>>){
+  const n=names();
+  return html`<div class="nw-cases cases">${THEMES.filter(k=>themes[k]).map(k=>{const g=themes[k]!;
+   return html`<div class="case"><span class="nw-label">${n[k]}</span><div class="nw-value"><b>${g.score??'–'}</b><span>/ 100</span></div>
+    <span class="cw">${g.score==null?t('pas encore de note'):say[k]??''}</span><div class="cm">${this.meter(g.score,g.letter)}${this.lt(g.letter)}</div></div>`;})}</div>`;
+ }
+ /** The charter's banner: the most pressing piece of advice, the others behind its bars. */
+ private band(list:Advice[]){
+  if(!list.length)return html`<div class="nw-band nw-glass" data-level="ok"><div class="nw-band-row"><span class="nw-band-pic box">${icon('check')}</span>
+   <div class="nw-band-text"><p class="nw-band-kicker">${t('Toute la maison')}</p><p class="nw-band-title">${t('Rien à changer')}</p><p class="nw-band-line">${t('Aucun problème qui dure dans vos pièces.')}</p></div></div></div>`;
+  const n=list.length,i=this.slide%n,a=list[i],[title,why,pic]=adviceText(a);
+  return html`<div class="nw-band nw-glass" data-level=${a.level}><div class="nw-band-row"><span class="nw-band-pic box">${icon(pic)}</span>
+   <div class="nw-band-text"><p class="nw-band-kicker">${a.room??t('Toute la maison')}${n>1?html`<i>${t('{i} sur {n}',{i:i+1,n})}</i>`:nothing}</p>
+    <p class="nw-band-title">${title}</p><p class="nw-band-line">${why}</p></div></div>
+   ${n>1?html`<div class="nw-band-bars">${list.map((_,k)=>html`<button aria-label=${t('Conseil {n}',{n:k+1})} aria-current=${k===i} @click=${(e:Event)=>{e.stopPropagation();this.slide=k;}}><span></span></button>`)}</div>`:nothing}</div>`;
+ }
+ private section(title:string,sum:string,body:unknown){return html`<section class="part"><div class="nw-section-head"><h2>${title}</h2><span class="nw-sum">${sum}</span></div>${body}</section>`;}
+ private homeLine(){
+  const d=this.data!,h=d.home;if(h.score==null)return t('Pas encore de note : il faut deux semaines de mesures');
+  const warm=d.rooms.map(r=>r.themes.warmth).filter((w):w is Warmth=>!!w&&w.score!=null);
+  const weak=THEMES.filter(k=>h.themes[k].score!=null).sort((a,b)=>h.themes[a].score!-h.themes[b].score!)[0];
+  const winterCold=avg(warm.flatMap(w=>w.monthly.filter(m=>inMonths(m.month,HEATING)).map(m=>m.cold)));
+  const point=weak==='warmth'?(winterCold>=30?t('l’hiver est le point faible'):t('la chaleur est le point faible')):weak==='humidity'?t('l’humidité est le point faible'):t('l’air est le point faible');
+  return `${word(h.score)} · ${point}`;
+ }
+ private period(){const d=this.data!;return `${longMonth(d.start.slice(0,7))} ${d.start.slice(0,4)} – ${longMonth(d.computed_at.slice(0,7))} ${d.computed_at.slice(0,4)}`;}
+ private graded(n:number|undefined){return n==null?'':n>1?t('{n} pièces notées',{n}):t('{n} pièce notée',{n});}
+
+ // ---------- The dashboard card's summary (« Bulletin ») ----------
  private summary(){
-  const h=this.data!.home,names={warmth:t('Chaleur'),humidity:t('Humidité'),air:t('Air')},order={action:0,benefit:1,neutral:2};
-  const first=[...(h.advice??[])].sort((a,b)=>order[a.level]-order[b.level])[0],[title,why]=first?adviceText(first):['',''];
-  const open=()=>this.dispatchEvent(new CustomEvent('review-open',{bubbles:true,composed:true}));
-  return html`<button class="summary" @click=${open} aria-label=${t('Ouvrir le bilan du logement')}>
-   <div class="note"><div class="scale">${['A','B','C','D','E'].map(l=>html`<span class=${l===h.letter?'on '+(good(l)?'good':'bad'):''}>${l}</span>`)}</div>
-    <div><div class="headline">${h.score==null?t('Pas encore de note'):t('Confort : {score} / 100',{score:h.score})}</div><div class="muted small">${t('Sur les douze derniers mois')}</div></div></div>
-   <div class="chips" style="margin-top:10px">${(['warmth','humidity','air'] as const).map(k=>h.themes[k].letter?html`<span class=${'chip '+(good(h.themes[k].letter)?'good':'bad')}>${names[k]} ${h.themes[k].letter}</span>`:html`<span class="chip none">${names[k]} · ${t('sans note')}</span>`)}</div>
-   ${first?html`<div class=${'tip '+first.level} style="margin-top:10px"><span class="muted small">${first.room??t('Toute la maison')}</span><b>${title}</b><span class="muted small">${why}</span></div>`:html`<p class="muted">${t('Rien à signaler : aucun problème qui dure.')}</p>`}
-  </button>`;
+  const room=this.room?this.data!.rooms.find(r=>r.entry_id===this.room):undefined;
+  if(room)return this.roomSummary(room);
+  const h=this.data!.home,say=Object.fromEntries(THEMES.map(k=>[k,this.graded(h.themes[k].rooms)]));
+  return html`<div class="rv"><div class="open" @click=${()=>this.open()}>${this.top(this.heading??t('Bilan du logement'),this.homeLine(),h.score,h.letter,t('sur douze mois'))}
+   ${this.cases(h.themes,say)}</div>${this.band(byLevel(h.advice))}
+   <button class="more" @click=${()=>this.open()}>${t('Voir le bilan complet')} <i class="nw-chev"></i></button></div>`;
  }
 
- // The home: its note, one panel per theme, its rooms.
+ /** One room's summary (6 November): its note, its themes, its own advice; a tap opens its sheet. */
+ private roomSummary(r:RoomReview){
+  const th=r.themes,share=(v:number|null|undefined,air=false)=>v==null?'':air?t('{n} % air frais',{n:v}):t('{n} % dans votre plage',{n:v});
+  const own=byLevel(r.advice);
+  return html`<div class="rv"><div class="open" @click=${()=>this.open()}>${this.top(this.heading??r.title,r.score==null?t('Pas encore assez de mesures pour une note'):word(r.score),r.score,r.letter,t('sur douze mois'))}
+   ${this.cases(th,{warmth:share(th.warmth?.comfortable),humidity:share(th.humidity?.comfortable),air:share(th.air?.comfortable,true)})}</div>
+   ${own.length?this.band(own.map(a=>({...a,room:a.room??r.title}))):html`<p class="fine">${icon('check')}${t('Rien à changer dans cette pièce.')}</p>`}
+   <button class="more" @click=${()=>this.open()}>${t('Voir la fiche de la pièce')} <i class="nw-chev"></i></button></div>`;
+ }
+
+ // ---------- The home's review ----------
  private dashboard(){
-  const d=this.data!,h=d.home;
-  if(!d.rooms.length)return html`<p class="notice">${t('Aucune pièce Hestia Confort chargée.')}</p>`;
-  const warm=d.rooms.map(r=>r.themes.warmth).filter((w):w is Warmth=>!!w&&w.score!=null);
-  return html`<div class="top"><div><h1>${t('Votre maison')}</h1><p class="muted">${this.period()}</p></div></div>
-   <div class="note"><div class="scale">${['A','B','C','D','E'].map(l=>html`<span class=${l===h.letter?'on '+(good(l)?'good':'bad'):''}>${l}</span>`)}</div>
-    <div><div class="headline">${h.score==null?t('Pas encore de note'):t('Confort : {score} / 100',{score:h.score})}</div><div class="muted">${this.homeLine(warm)}</div><div class="muted small">${t('Selon la norme européenne EN 16798-1')}</div></div></div>
-   ${this.how()}
-   <div class="panels">${this.warmthPanel(warm)}${this.humidityPanel()}${this.airPanel()}${this.energyPanel()}</div>
-   ${this.adviceList(h.advice??[],true)}
-   <h2 style="margin-top:20px">${t('Vos pièces')}</h2>
-   <div class="rooms">${[...d.rooms].sort((a,b)=>(b.score??-1)-(a.score??-1)).map(r=>html`<button class="room" @click=${()=>this.go(r.entry_id)}><span>${r.title}<br><span class="muted small">${r.score==null?t('pas encore assez de mesures'):r.score+' / 100'}</span></span>${this.letter(r.letter)}</button>`)}</div>`;
+  const d=this.data!,h=d.home,w=this.warmth(),hu=this.humidity(),air=this.air();
+  const say={warmth:w.say,humidity:hu.say,air:good(h.themes.air.letter)?t('air sain'):t('à renouveler plus souvent')};
+  const rooms=[...d.rooms].sort((a,b)=>(b.score??-1)-(a.score??-1)),n=names();
+  const list=html`<div class="nw-panel rl">${rooms.map(r=>html`<button class="rrow" @click=${()=>this.go(r.entry_id)}><div class="rm"><b>${r.title}</b>
+   <small>${THEMES.filter(k=>r.themes[k]).map(k=>n[k]).join(' · ')}</small></div>${this.meter(r.score,r.letter)}<b class="rs">${r.score??'–'}</b>${this.lt(r.letter)}<span class="go-c"><i class="nw-chev"></i></span></button>`)}</div>`;
+  return html`<div class="rv">${this.top(this.heading??t('Votre maison'),this.period(),h.score,h.letter,h.score==null?t('pas encore de note'):word(h.score).toLowerCase())}
+   ${this.band(byLevel(h.advice))}${this.cases(h.themes,say)}
+   <div class="grid2">${w.body?this.section(n.warmth,w.say,html`<div class="nw-panel">${w.body}</div>`):nothing}
+   ${hu.body?this.section(n.humidity,hu.say,html`<div class="nw-panel">${hu.body}</div>`):nothing}
+   ${air?this.section(n.air,say.air,html`<div class="nw-panel">${air}</div>`):nothing}
+   ${this.section(t('Vos pièces'),t('{n} pièces · de la meilleure note à la moins bonne',{n:d.rooms.length}),list)}</div>
+   <section class="part"><button class="nw-fold-head" aria-expanded=${this.how} @click=${()=>{this.how=!this.how;}}><span class="nw-label">${t('Comment est calculée la note ?')}</span><span class="nw-sum"></span><span class="nw-chevron"><i class="nw-chev"></i></span></button></section></div>`;
  }
- /** The pieces of advice, as cards: on the home's page each names its room and opens its sheet. */
- private adviceList(list:Advice[],home=false){
-  if(!list.length)return home?html`<h2 style="margin-top:20px">${t('Nos conseils')}</h2><p class="muted">${t('Rien à signaler : aucun problème qui dure dans vos pièces.')}</p>`:nothing;
-  const order={action:0,benefit:1,neutral:2};
-  return html`${home?html`<h2 style="margin-top:20px">${t('Nos conseils')}</h2>`:nothing}<div class="advice">${[...list].sort((a,b)=>order[a.level]-order[b.level]).map(a=>{const [title,why]=adviceText(a);
-   const body=html`<span class="muted small">${a.room??t('Toute la maison')}</span><b>${title}</b><span class="muted small">${why}</span>`;
-   return home&&a.entry_id?html`<button class=${'tip '+a.level} @click=${()=>this.go(a.entry_id)}>${body}</button>`:html`<div class=${'tip '+a.level}>${home?body:html`<b>${title}</b><span class="muted small">${why}</span>`}</div>`;})}</div>`;
- }
- private homeLine(warm:Warmth[]){
-  const h=this.data!.home;if(h.score==null)return '';
-  const weak=(['warmth','humidity','air'] as const).filter(k=>h.themes[k].score!=null).sort((a,b)=>h.themes[a].score!-h.themes[b].score!)[0];
-  const winterCold=avg(warm.flatMap(w=>w.monthly.filter(m=>inMonths(m.month,HEATING)).map(m=>m.cold)));
-  const label=h.score>=85?t('Très bon'):h.score>=70?t('Bon dans l’ensemble'):h.score>=55?t('Correct'):t('À améliorer');
-  const point=weak==='warmth'?(winterCold>=30?t('l’hiver est le point faible'):t('la chaleur est le point faible')):weak==='humidity'?t('l’humidité est le point faible'):t('l’air est le point faible');
-  return `${label} · ${point}`;
- }
- /** Month by month, the mean over the graded rooms of the time too cold, comfortable and too hot. */
- private warmthPanel(warm:Warmth[]){
-  const t=this.data!.home.themes.warmth;
+ /** Month by month, the mean over the graded rooms of the time too cold, within the range and too hot. */
+ private warmth(){
+  const warm=this.data!.rooms.map(r=>r.themes.warmth).filter((w):w is Warmth=>!!w&&w.score!=null);
   const months=[...new Set(warm.flatMap(w=>w.monthly.map(m=>m.month)))].sort().slice(-12);
+  if(!months.length)return {say:t('pas encore de note'),body:null};
   const at=(m:string,k:'cold'|'comfortable'|'hot')=>avg(warm.flatMap(w=>w.monthly.filter(x=>x.month===m).map(x=>x[k])));
   const winter=avg(months.filter(m=>inMonths(m,HEATING)).map(m=>at(m,'cold'))),summer=avg(months.filter(m=>inMonths(m,SUMMER)).map(m=>at(m,'hot')));
-  const headline=winter>=30&&summer>=30?tr('frais l’hiver, chaud l’été'):winter>=30?tr('un peu frais l’hiver'):summer>=30?tr('chaud l’été'):tr('confortable toute l’année');
-  const f=frame(months.length||1,0,100);
-  return html`<div class="panel"><h2><span>${tr('Chaleur')}</span>${this.letter(t.letter)}</h2>
-   <div class="headline">${t.score==null?tr('Pas encore de note'):`${t.score} / 100 · ${headline}`}</div><div class="muted small">${tr('Part du temps, pièces chauffées, mois par mois')}</div>
-   <svg viewBox="0 0 ${f.w} ${f.h}" role="img" aria-label=${tr('Part du temps trop frais, confortable et trop chaud, mois par mois')}>${axes(f,[0,50,100],' %',months.map(monthName))}
-    ${months.map((m,i)=>{const c=at(m,'cold'),o=at(m,'comfortable'),hot=at(m,'hot'),x=f.x(i)-f.slot*.32,w=f.slot*.64;
-     return svg`<rect class="bar" x=${x} width=${w} y=${f.y(c)} height=${f.y(0)-f.y(c)} fill=${BLUE_LIGHT}/><rect class="bar" x=${x} width=${w} y=${f.y(c+o)} height=${f.y(c)-f.y(c+o)} fill=${BLUE}/><rect class="bar" x=${x} width=${w} y=${f.y(c+o+hot)} height=${f.y(c+o)-f.y(c+o+hot)} fill=${AMBER}/>`;})}</svg>
-   <div class="legend"><span><i style="background:${BLUE_LIGHT}"></i>${tr('trop frais')}</span><span><i style="background:${BLUE}"></i>${tr('confortable')}</span><span><i style="background:${AMBER}"></i>${tr('trop chaud')}</span></div></div>`;
+  const say=winter>=30&&summer>=30?t('frais l’hiver, chaud l’été'):winter>=30?t('un peu frais l’hiver'):summer>=30?t('chaud l’été'):t('confortable toute l’année');
+  const W=340,H=120,slot=W/months.length,bw=slot*.58,y=(v:number)=>H*(1-v/100);
+  const body=html`<svg class="chart" viewBox="0 0 ${W} ${H+20}" role="img" aria-label=${t('Part du temps trop frais, confortable et trop chaud, mois par mois')}>
+   <defs><pattern id="rv-hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" class="h-bg"/><line x1="0" y1="0" x2="0" y2="5" class="h-ln"/></pattern></defs>
+   ${months.map((m,i)=>{const c=at(m,'cold'),o=at(m,'comfortable'),h=at(m,'hot'),x=i*slot+(slot-bw)/2;
+    return svg`<g class="bars"><rect class="b-track" x=${x} width=${bw} y="0" height=${H} rx="2"/><rect class="b-cold" x=${x} width=${bw} y=${y(c)} height=${H*c/100} rx="2"/>
+     <rect class="b-ok" x=${x} width=${bw} y=${y(c+o)} height=${H*o/100} rx="2"/><rect class="b-hot" x=${x} width=${bw} y=${y(c+o+h)} height=${H*h/100} rx="2"/></g>
+     <text class="tk" x=${i*slot+slot/2} y=${H+15} text-anchor="middle">${shortMonth(m)}</text>`;})}</svg>
+   <div class="nw-legend"><span><i class="k-ok"></i>${t('dans votre plage')}</span><span><i class="k-cold"></i>${t('trop frais')}</span><span><i class="k-hot"></i>${t('trop chaud')}</span></div>`;
+  return {say,body};
  }
- private humidityPanel(){
-  const t=this.data!.home.themes.humidity,rows=this.data!.rooms.filter(r=>r.themes.humidity?.score!=null).sort((a,b)=>b.themes.humidity!.score!-a.themes.humidity!.score!);
+ private humidity(){
+  const rows=this.data!.rooms.filter(r=>r.themes.humidity?.score!=null).sort((a,b)=>a.themes.humidity!.score!-b.themes.humidity!.score!);
+  if(!rows.length)return {say:t('pas encore de note'),body:null};
   const worst=[...rows].sort((a,b)=>b.themes.humidity!.humid-a.themes.humidity!.humid)[0];
-  const headline=worst&&worst.themes.humidity!.humid>=30?tr('{room} trop humide',{room:worst.title}):tr('bonne dans les pièces');
-  const h=Math.max(40,rows.length*22+8);
-  return html`<div class="panel"><h2><span>${tr('Humidité')}</span>${this.letter(t.letter)}</h2>
-   <div class="headline">${t.score==null?tr('Pas encore de note'):`${t.score} / 100 · ${headline}`}</div><div class="muted small">${tr('Note de chaque pièce sur 100')}</div>
-   <svg viewBox="0 0 320 ${h}" role="img" aria-label=${tr('Note d’humidité de chaque pièce')}>${rows.map((r,i)=>{const s=r.themes.humidity!.score!,y=6+i*22;
-    return svg`<text x="0" y=${y+11} class="tick" style="font-size:10px">${r.title}</text><rect x="96" y=${y} width="200" height="14" rx="4" fill=${GREY} fill-opacity=".18"/><rect class="hbar" x="96" y=${y} width=${2*s} height="14" rx="4" fill=${s>=70?BLUE:AMBER_LIGHT}/><text x="302" y=${y+11} class="tick" style="font-size:10px">${s}</text>`;})}</svg></div>`;
+  return {say:worst.themes.humidity!.humid>=25?t('{room} souvent trop humide',{room:worst.title}):t('bonne dans les pièces'),
+   body:html`<div class="hl">${rows.map(r=>{const h=r.themes.humidity!;return html`<div class="hrow"><span class="fn">${r.title}</span>${this.meter(h.score,h.letter)}<b class="rs">${h.score}</b>
+    <small>${t('{n} % trop humide',{n:num(h.humid,0)})}</small></div>`;})}</div>`};
  }
- private airPanel(){
-  const t=this.data!.home.themes.air,rooms=this.data!.rooms.filter(r=>r.themes.air?.score!=null);
-  if(!rooms.length)return html`<div class="panel"><h2><span>${tr('Air')}</span>${this.letter(null)}</h2><div class="headline">${tr('Pas de capteur de CO₂')}</div><div class="muted small">${tr('Un capteur de CO₂ dans une pièce suffit à noter son air.')}</div></div>`;
-  const split=[0,1,2].map(i=>avg(rooms.map(r=>r.themes.air!.split[i])));
-  return html`<div class="panel"><h2><span>${tr('Air')}</span>${this.letter(t.letter)}</h2>
-   <div class="headline">${t.score} / 100 · ${good(t.letter)?tr('air sain'):tr('à renouveler plus souvent')}</div><div class="muted small">${tr('CO₂, part du temps')} · ${rooms.map(r=>r.title).join(', ')}${rooms.length<this.data!.rooms.length?(rooms.length>1?tr(', seules pièces équipées'):tr(', seule pièce équipée')):''}</div>
-   <div style="display:flex;align-items:center;gap:16px">${this.donut(split)}<div class="legend" style="flex-direction:column;gap:4px;font-size:var(--nw-fs-small,12px)">
-    <span><i style="background:${BLUE}"></i>${tr('{n} % très bon',{n:num(split[0],0)})}</span><span><i style="background:${AMBER_LIGHT}"></i>${tr('{n} % correct',{n:num(split[1],0)})}</span><span><i style="background:${AMBER}"></i>${tr('{n} % à renouveler',{n:num(split[2],0)})}</span></div></div></div>`;
+ private ring(split:number[]){
+  const r=40,c=2*Math.PI*r,cls=['r-ok','r-mid','r-bad'];let at=0;
+  return html`<svg class="ring" viewBox="0 0 100 100" role="img" aria-label=${t('Répartition du temps selon la qualité de l’air')}><circle cx="50" cy="50" r=${r} class="r-track"/>
+   ${split.map((p,i)=>{const s=svg`<circle cx="50" cy="50" r=${r} class=${cls[i]} stroke-dasharray=${`${c*p/100} ${c}`} stroke-dashoffset=${c/4-c*at/100}/>`;at+=p;return s;})}
+   <text x="50" y="54" text-anchor="middle" class="r-v">${num(split[0],0)} %</text></svg>`;
  }
- private donut(parts:number[]){
-  let at=0;const r=40,c=2*Math.PI*r,colors=[BLUE,AMBER_LIGHT,AMBER];
-    // Each part starts at the top by its offset (a quarter turn back), not by a rotate attribute: the animation turns the
-  // whole group, and a CSS rotation would replace the attribute and swing the parts around another centre.
-  return svg`<svg viewBox="0 0 100 100" style="width:110px;flex:none" role="img" aria-label=${t('Répartition du temps selon la qualité de l’air')}><g class="ring">${parts.map((p,i)=>{const seg=svg`<circle cx="50" cy="50" r=${r} fill="none" stroke=${colors[i]} stroke-width="14" stroke-dasharray=${`${c*p/100} ${c}`} stroke-dashoffset=${c/4-c*at/100}/>`;at+=p;return seg;})}</g></svg>`;
+ private ringLegend(split:number[]){
+  return html`<span><i class="k-rok"></i>${t('{n} % très bon',{n:num(split[0],0)})}</span><span><i class="k-rmid"></i>${t('{n} % correct',{n:num(split[1],0)})}</span><span><i class="k-rbad"></i>${t('{n} % à renouveler',{n:num(split[2],0)})}</span>`;
  }
- private energyPanel(){
-  return html`<div class="panel"><h2><span>${t('Énergie')}</span><span class="letter none">${t('sans note')}</span></h2><div class="headline">${t('Bientôt')}</div><div class="muted small">${t('La consommation du chauffage, comparée à la météo de chaque mois.')}</div></div>`;
+ private air(){
+  const rooms=this.data!.rooms.filter(r=>r.themes.air?.score!=null);if(!rooms.length)return null;
+  const split=[0,1,2].map(i=>avg(rooms.map(r=>r.themes.air!.split[i]??0))),where=rooms.map(r=>r.title).join(', ');
+  return html`<div class="airw">${this.ring(split)}<div class="nw-legend col">${this.ringLegend(split)}
+   <small>${rooms.length<this.data!.rooms.length?t('Mesuré dans {rooms} seulement',{rooms:where}):t('Mesuré dans {rooms}',{rooms:where})}</small></div></div>`;
  }
 
- // One room: its note, then each theme it measures.
+ // ---------- One room's sheet ----------
  private sheet(r:RoomReview){
-  const th=r.themes,names={warmth:t('Chaleur'),humidity:t('Humidité'),air:t('Air')};
-  const chips=(['warmth','humidity','air'] as const).map(k=>th[k]?.score!=null?html`<span class=${'chip '+(good(th[k]!.letter)?'good':'bad')}>${names[k]} ${th[k]!.letter} · ${th[k]!.score}</span>`
-   :html`<span class="chip none">${names[k]} · ${th[k]?t('pas encore assez de mesures'):k==='warmth'?t('non notée'):t('pas de capteur')}</span>`);
-  const best=this.data!.rooms.filter(x=>x.score!=null).sort((a,b)=>b.score!-a.score!)[0];
-  return html`<div class="sheet"><button class="back" @click=${()=>this.go()}><i class="nw-chev" style="--r:180deg"></i> ${t('Votre maison')}</button>
-   <div class="top"><div><h1>${r.title}</h1><p class="muted">${r.score==null?t('Pas encore assez de mesures pour une note'):t('Confort : {score} / 100',{score:r.score})+(best?.entry_id===r.entry_id&&this.data!.rooms.length>1?' · '+t('la plus confortable de la maison'):'')}</p></div>${this.letter(r.letter,true)}</div>
-   <div class="chips">${chips}</div>
-   ${th.warmth?this.warmthSection(th.warmth,this.tips(r,'warmth')):nothing}${th.humidity?this.humiditySection(th.humidity,this.tips(r,'humidity')):nothing}${th.air?this.airSection(th.air,this.tips(r,'air')):nothing}</div>`;
+  const th=r.themes,n=names(),best=this.data!.rooms.filter(x=>x.score!=null).sort((a,b)=>b.score!-a.score!)[0];
+  const sub=best?.entry_id===r.entry_id&&this.data!.rooms.length>1?t('la plus confortable de la maison'):r.score==null?t('Pas encore assez de mesures pour une note'):word(r.score);
+  const share=(v:number|null|undefined,air=false)=>v==null?'':air?t('{n} % air frais',{n:v}):t('{n} % dans votre plage',{n:v});
+  const sum=(g:Grade)=>g.score==null?t('pas encore de note'):`${g.score} / 100`;
+  return html`<div class="rv">${this.pinned?nothing:html`<button class="back" @click=${()=>this.go()}><i class="nw-chev" style="--r:180deg"></i>${t('Votre maison')}</button>`}
+   ${this.top(this.pinned&&this.heading?this.heading:r.title,sub,r.score,r.letter,t('sur douze mois'))}
+   ${this.cases(th,{warmth:share(th.warmth?.comfortable),humidity:share(th.humidity?.comfortable),air:share(th.air?.comfortable,true)})}
+   <div class="grid2">${th.warmth?this.section(n.warmth,sum(th.warmth),html`${this.tips(r,'warmth')}${this.warmthSheet(th.warmth)}`):nothing}
+   ${th.humidity?this.section(n.humidity,sum(th.humidity),html`${this.tips(r,'humidity')}${this.humiditySheet(th.humidity)}`):nothing}
+   ${th.air?this.section(n.air,sum(th.air),html`${this.tips(r,'air')}<div class="nw-panel"><div class="airw">${this.ring(th.air.split)}<div class="nw-legend col">${this.ringLegend(th.air.split)}</div></div></div>`):nothing}</div></div>`;
  }
- /** A theme's advice in a room's sheet; « Rien à faire » in blue when its grade is good and nothing is advised. */
- private tips(r:RoomReview,theme:Advice['theme']){
+ /** A theme's advice first; « Rien à changer » in blue when its grade is good and nothing is advised. */
+ private tips(r:RoomReview,theme:ThemeKey){
   const list=(r.advice??[]).filter(a=>a.theme===theme);
-  if(list.length)return this.adviceList(list);
-  return good(r.themes[theme]?.letter??null)?html`<p class="tip" style="background:color-mix(in srgb,${BLUE} 18%,transparent);color:var(--nc-accent,#a1c9e8)">${theme==='warmth'?t('Rien à faire, la chaleur est bonne'):theme==='humidity'?t('Rien à faire, l’humidité est bonne'):t('Rien à faire, l’air est sain')}</p>`:nothing;
+  if(list.length)return list.map(a=>{const [title,why,pic]=adviceText(a);return html`<div class="tip" style=${`--c:${a.level==='action'?'var(--nw-act)':a.level==='benefit'?'var(--nw-benefit)':'color-mix(in srgb,var(--nw-fg) 30%,transparent)'}`}>
+   <span class="ev-ic">${icon(pic)}</span><div><b>${title}</b><small>${why}</small></div></div>`;});
+  return good(r.themes[theme]?.letter)?html`<p class="fine">${icon('check')}${theme==='warmth'?t('Rien à changer : la chaleur est bonne'):theme==='humidity'?t('Rien à changer : l’humidité est bonne'):t('Rien à changer : l’air est sain')}</p>`:nothing;
  }
- private stat(label:string,value:string,note:string){return html`<div class="stat"><span class="muted small">${t(label)}</span><b>${value}</b><span class="muted small">${note}</span></div>`;}
- private warmthSection(w:Warmth,tips:unknown=nothing){
+ private warmthSheet(w:Warmth){
   const m=w.monthly.slice(-12);if(!m.length)return nothing;
-  const lo=Math.floor(Math.min(...m.map(x=>Math.min(x.min,x.low))))-1,hi=Math.ceil(Math.max(...m.map(x=>Math.max(x.max,x.high))))+1,f=frame(m.length,lo,hi,WIDE,TALL);
-  return html`<section class="theme"><h2><span>${t('Chaleur')}</span>${this.letter(w.letter)}</h2>
-   <div class="stats">${this.stat(fr('Confortable'),w.comfortable==null?'—':w.comfortable+' %',t('du temps, selon la norme'))}
-    ${w.coldest?this.stat(fr('Au plus froid'),num(w.coldest.value)+' °C',t('en {month}',{month:longMonth(w.coldest.month)})):nothing}${w.hottest?this.stat(fr('Au plus chaud'),num(w.hottest.value)+' °C',t('en {month}',{month:longMonth(w.hottest.month)})):nothing}</div>
-   <div class="muted small">${t('Mois par mois · le plus bas, la moyenne et le plus haut · bande bleue = zone de la norme')}</div>
-   <svg viewBox="0 0 ${f.w} ${f.h}" role="img" aria-label=${t('Température mois par mois et zone de confort de la norme')}>${axes(f,[lo+1,Math.round((lo+hi)/2),hi-1],'°',m.map(x=>monthName(x.month)))}
-    <polygon points=${band(f,m.map(x=>x.low),m.map(x=>x.high))} fill=${BLUE} fill-opacity=".14"/>
-    ${m.map((x,i)=>svg`<rect class="bar" x=${f.x(i)-f.slot*.18} width=${f.slot*.36} y=${f.y(x.max)} height=${f.y(x.min)-f.y(x.max)} rx="3" fill=${GREY} fill-opacity=".35"/>`)}
-    <polyline class="draw" pathLength="1" points=${line(f,m.map(x=>x.mean))} fill="none" stroke=${BLUE} stroke-width="2.5"/>${m.map((x,i)=>svg`<circle class="dot" cx=${f.x(i)} cy=${f.y(x.mean)} r="2.5" fill=${BLUE}/>`)}</svg>
-   <p class="muted small">${t('La zone s’élargit l’été : sans climatisation, la norme accepte plus de chaleur après des jours chauds.')}</p>
-   ${this.day(w)}${tips}</section>`;
+  const W=340,H=130,n=m.length;
+  const lo=Math.floor(Math.min(...m.map(x=>Math.min(x.min,x.low))))-1,hi=Math.ceil(Math.max(...m.map(x=>Math.max(x.max,x.high))))+1;
+  const x=(i:number)=>n>1?8+i*(W-16)/(n-1):W/2,y=(v:number)=>H*(hi-v)/(hi-lo);
+  const path=(k:'mean'|'low'|'high')=>m.map((p,i)=>`${i?'L':'M'}${x(i)} ${y(p[k])}`).join(' ');
+  const area=[...m.map((p,i)=>`${x(i)},${y(p.max)}`),...m.map((p,i)=>`${x(i)},${y(p.min)}`).reverse()].join(' ');
+  const ticks:number[]=[];for(let v=Math.ceil(lo/5)*5;v<=hi;v+=5)ticks.push(v);
+  const s=this.season,seg=html`<span class="seg2" role="group" aria-label=${t('Saison')}><button aria-pressed=${s==='winter'} @click=${()=>{this.season='winter';}}>${t('Hiver')}</button><button aria-pressed=${s==='summer'} @click=${()=>{this.season='summer';}}>${t('Été')}</button></span>`;
+  return html`<div class="nw-panel"><svg class="chart" viewBox="0 0 ${W} ${H+20}" role="img" aria-label=${t('Température mois par mois : mini, moyenne, maxi et votre plage')}>
+    ${ticks.map(v=>svg`<line class="grid" x1="0" x2=${W} y1=${y(v)} y2=${y(v)}/><text class="tk" x=${W} y=${y(v)-3} text-anchor="end">${v}°</text>`)}
+    <polygon class="c-area" points=${area}/><path class="c-lim" d=${path('low')}/><path class="c-lim" d=${path('high')}/><path class="c-mean" d=${path('mean')}/>
+    ${m.map((p,i)=>svg`<circle class=${'c-dot'+(p.cold>=30?' cold':'')} cx=${x(i)} cy=${y(p.mean)} r="3"/><text class="tk" x=${x(i)} y=${H+15} text-anchor="middle">${shortMonth(p.month)}</text>`)}</svg>
+   <div class="nw-legend"><span><i class="k-mean"></i>${t('moyenne')}</span><span><i class="k-area"></i>${t('mini–maxi')}</span><span><i class="k-lim"></i>${t('votre plage')}</span><span><i class="k-colddot"></i>${t('trop frais ≥ 30 % du mois')}</span></div>
+   <div class="nw-stats" style="--n:3">${w.coldest?html`<div><span>${t('Le plus froid')}</span><b>${num(w.coldest.value)} °C · ${longMonth(w.coldest.month)}</b></div>`:nothing}
+    ${w.hottest?html`<div><span>${t('Le plus chaud')}</span><b>${num(w.hottest.value)} °C · ${longMonth(w.hottest.month)}</b></div>`:nothing}
+    ${w.chilly!=null?html`<div><span>${t('Sous {n} °C l’hiver',{n:num(w.chilly_below??18,0)})}</span><b>${t('{n} % du temps',{n:num(w.chilly,0)})}</b></div>`:nothing}</div></div>
+   <div class="nw-panel"><div class="nw-panel-head"><h3>${t('Une journée type')}</h3>${seg}</div>${this.day(w)}</div>`;
  }
  private day(w:Warmth){
-  const s=this.season,room=s==='winter'?w.day.winter:w.day.summer,out=s==='winter'?w.day.outdoor_winter:w.day.outdoor_summer;
-  const known=room.filter((v):v is number=>v!=null);
-  const months=w.monthly.filter(x=>inMonths(x.month,s==='winter'?WINTER:SUMMER)),low=months.length?avg(months.map(x=>x.low)):20,high=months.length?avg(months.map(x=>x.high)):25;
-  const values=[...known,...out.filter((v):v is number=>v!=null)],lo=Math.floor(Math.min(low,...values))-1,hi=Math.ceil(Math.max(high,...values))+1,f=frame(24,lo,hi,WIDE,TALL);
+  const s=this.season,ins=s==='winter'?w.day.winter:w.day.summer,outs=s==='winter'?w.day.outdoor_winter:w.day.outdoor_summer;
+  const known=ins.filter((v):v is number=>v!=null),out=outs.filter((v):v is number=>v!=null);
+  if(!known.length)return html`<p class="say">${s==='winter'?t('Pas encore de mesures cet hiver.'):t('Pas encore de mesures cet été.')}</p>`;
+  const lo=Math.floor(Math.min(...known,...out))-1,hi=Math.ceil(Math.max(...known,...out))+1,W=340,H=110;
+  const x=(i:number)=>i*W/23,y=(v:number)=>H*(hi-v)/(hi-lo);
+  const path=(a:(number|null)[])=>a.map((v,i)=>v==null?'':`${i&&a[i-1]!=null?'L':'M'}${x(i)} ${y(v)}`).join(' ');
   const min=Math.min(...known),max=Math.max(...known);
-  return html`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:8px;flex-wrap:wrap"><span class="muted small">${t('Une journée type · la pièce et dehors')}</span>
-    <span class="seg"><button class=${s==='winter'?'on':''} @click=${()=>this.season='winter'}>${t('Hiver')}</button><button class=${s==='summer'?'on':''} @click=${()=>this.season='summer'}>${t('Été')}</button></span></div>
-   ${known.length?html`<svg viewBox="0 0 ${f.w} ${f.h}" role="img" aria-label=${t('Température heure par heure, une journée type')}>${axes(f,[lo+1,Math.round((lo+hi)/2),hi-1],'°',Array.from({length:24},(_,i)=>t('{n} h',{n:i})),4)}
-    <rect x=${f.pad.l} width=${f.w-f.pad.l-f.pad.r} y=${f.y(high)} height=${f.y(low)-f.y(high)} fill=${BLUE} fill-opacity=".14"/>
-    <polyline class="fade" points=${line(f,out)} fill="none" stroke=${GREY} stroke-width="1.5" stroke-dasharray="4 3"/><polyline class="draw" pathLength="1" points=${line(f,room)} fill="none" stroke=${BLUE} stroke-width="2.5"/></svg>
-   <div class="legend"><span><i style="background:${BLUE}"></i>${t('la pièce')}</span><span><i style="background:${GREY}"></i>${t('dehors')}</span></div>
-   <p class="muted small">${s==='winter'?t('L’hiver, la pièce descend vers {min} °C à {at} h et monte vers {max} °C à {top} h.',{min:num(min),at:room.indexOf(min),max:num(max),top:room.indexOf(max)}):t('L’été, la pièce reste entre {min} et {max} °C au fil de la journée.',{min:num(min),max:num(max)})}</p>`
-   :html`<p class="muted small">${s==='winter'?t('Pas encore de mesures cet hiver.'):t('Pas encore de mesures cet été.')}</p>`}`;
+  return html`<svg class="chart" viewBox="0 0 ${W} ${H+20}" role="img" aria-label=${t('Une journée type, dedans et dehors')}>
+    <defs><linearGradient id="rv-day" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="g-top"/><stop offset="1" class="g-bot"/></linearGradient></defs>
+    ${ins.every(v=>v!=null)?svg`<path d=${`${path(ins)} L${W} ${H} L0 ${H} Z`} fill="url(#rv-day)"/>`:nothing}<path class="c-out" d=${path(outs)}/><path class="c-mean" d=${path(ins)}/>
+    ${[0,6,12,18,23].map(h=>svg`<text class="tk" x=${x(h)} y=${H+15} text-anchor=${h===0?'start':h===23?'end':'middle'}>${t('{n} h',{n:h})}</text>`)}</svg>
+   <div class="nw-stats" style="--n:3"><div><span>${t('Dedans')}</span><b>${num(min)} – ${num(max)} °C</b></div><div><span>${t('Le plus frais')}</span><b>${t('vers {n} h',{n:ins.indexOf(min)})}</b></div>
+    ${out.length?html`<div><span>${t('Dehors')}</span><b>${num(Math.min(...out))} – ${num(Math.max(...out))} °C</b></div>`:nothing}</div>
+   <div class="nw-legend"><span><i class="k-mean"></i>${t('dedans')}</span><span><i class="k-out"></i>${t('dehors')}</span></div>`;
  }
- private humiditySection(h:Humidity,tips:unknown=nothing){
+ private humiditySheet(h:Humidity){
   const m=h.monthly.slice(-12);if(!m.length)return nothing;
-  const f=frame(m.length,20,90,WIDE,TALL),inside=Math.round(100-h.dry-h.humid);
-  return html`<section class="theme"><h2><span>${t('Humidité')}</span>${this.letter(h.letter)}</h2>
-   <div class="stats">${this.stat(fr('Bonne'),inside+' %',t('entre 25 et 60 %'))}${this.stat(fr('Trop sec'),num(h.dry,0)+' %',t('sous 25 %'))}${this.stat(fr('Trop humide'),num(h.humid,0)+' %',t('au-dessus de 60 %'))}</div>
-   <div class="muted small">${t('Humidité moyenne, mois par mois · bande bleue = zone de la norme')}</div>
-   <svg viewBox="0 0 ${f.w} ${f.h}" role="img" aria-label=${t('Humidité moyenne mois par mois')}>${axes(f,[30,60,90],' %',m.map(x=>monthName(x.month)))}
-    <rect x=${f.pad.l} width=${f.w-f.pad.l-f.pad.r} y=${f.y(60)} height=${f.y(25)-f.y(60)} fill=${BLUE} fill-opacity=".14"/>
-    <polyline class="draw" pathLength="1" points=${line(f,m.map(x=>x.mean))} fill="none" stroke=${BLUE} stroke-width="2.5"/>${m.map((x,i)=>svg`<circle class="dot" cx=${f.x(i)} cy=${f.y(x.mean)} r="2.5" fill=${x.mean>60?AMBER:BLUE}/>`)}</svg>${tips}</section>`;
- }
- private airSection(a:Air,tips:unknown=nothing){
-  const known=a.day.filter((v):v is number=>v!=null);if(!known.length)return nothing;
-  const peak=Math.max(...known),worst=a.day.indexOf(peak),hi=Math.max(900,Math.ceil(peak/100)*100+100),f=frame(24,400,hi,WIDE,TALL);
-  return html`<section class="theme"><h2><span>${t('Air')}</span>${this.letter(a.letter)}</h2>
-   <div class="stats">${this.stat(fr('Très bon'),num(a.split[0],0)+' %',t('du temps'))}${this.stat(fr('Le moins bon'),t('{n} h',{n:worst}),t('en moyenne'))}${this.stat(fr('À renouveler'),num(a.split[2],0)+' %',t('du temps'))}</div>
-   <div class="muted small">${t('CO₂ moyen selon l’heure de la journée')}</div>
-   <svg viewBox="0 0 ${f.w} ${f.h}" role="img" aria-label=${t('CO₂ moyen heure par heure')}>${axes(f,[400,Math.round((400+hi)/200)*100,hi],'',Array.from({length:24},(_,i)=>t('{n} h',{n:i})),4)}
-    ${a.day.map((v,i)=>v==null?nothing:svg`<rect class="bar" x=${f.x(i)-f.slot*.35} width=${f.slot*.7} y=${f.y(v)} height=${f.y(400)-f.y(v)} rx="2" fill=${v>=950?AMBER:v>=700?AMBER_LIGHT:BLUE_LIGHT}/>`)}</svg>${tips}</section>`;
+  const W=340,H=90,slot=W/m.length,bw=slot*.5;
+  return html`<div class="nw-panel"><svg class="chart" viewBox="0 0 ${W} ${H+20}" role="img" aria-label=${t('Part du temps trop humide, mois par mois')}>
+    ${m.map((p,i)=>{const x=i*slot+(slot-bw)/2,hh=H*p.humid/100;return svg`<g class="bars"><rect class="b-track" x=${x} width=${bw} y="0" height=${H} rx="3"/><rect class=${p.humid>=30?'b-wet':'b-ok'} x=${x} width=${bw} y=${H-hh} height=${hh} rx="3"/></g>
+     <text class="tk" x=${i*slot+slot/2} y=${H+15} text-anchor="middle">${shortMonth(p.month)}</text>`;})}</svg>
+   <div class="nw-stats" style="--n:3"><div><span>${t('Trop humide')}</span><b>${t('{n} % du temps',{n:num(h.humid,0)})}</b></div><div><span>${t('Très humide')}</span><b>${num(h.damp??0,0)} %</b></div><div><span>${t('Trop sec')}</span><b>${num(h.dry,0)} %</b></div></div></div>`;
  }
 }
 

@@ -126,7 +126,7 @@ export const EN_ROOM:Record<string,string>={"Puissance de chauffe, dernière dem
  'Besoins':'Needs','aucun parmi les mesures connues':'none among the known measures','Contraintes':'Constraints','aucune confirmée':'none confirmed','Bilan':'Check',
  // The card's frame
  'Pourquoi ce conseil ?':'Why this advice?','{n} conseils':'{n} pieces of advice','Conseils':'Advice','État':'State','Action à faire':'Action to take','Conseil':'Advice','{i} sur {n}':'{i} of {n}',
- 'Conseil {n} : {title}':'Advice {n}: {title}','Détails : dehors':'Details: outside','Détails de la température dehors':'Outdoor temperature details','Détails : {label}':'Details: {label}','Détails de la température':'Temperature details',
+ 'Conseil {n} : {title}':'Advice {n}: {title}','Détails : dehors':'Details: outside','Détails de la température dehors':'Outdoor temperature details','Détails : {label}':'Details: {label}','Détails de la température':'Temperature details','Détails de l’humidité':'Humidity details',
  'dehors {value}':'outside {value}','Maintenant {value}':'Now {value}','plage {low} à {high}':'range {low} to {high}','votre plage':'your range','min–max 24 h':'min–max 24 h','pièces':'rooms','dehors':'outside',
  '{n} mesure':'{n} measure','{n} mesures':'{n} measures','Aucune mesure':'No measure','{n} pièce':'{n} room','{n} pièces':'{n} rooms','Aucune pièce':'No room','{n} à surveiller':'{n} to watch',
  '{n} en attente':'{n} waiting','{n} muette':'{n} silent','{n} muettes':'{n} silent','rien à signaler':'nothing to report','Détails':'Details','Configurer cette pièce':'Set up this room',

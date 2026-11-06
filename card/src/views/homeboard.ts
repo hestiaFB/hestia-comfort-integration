@@ -1,6 +1,7 @@
 import {css,html,nothing,svg,type TemplateResult} from 'lit';
 import {number} from '../view';
 import {icon} from '../ui/icons';
+import {scene} from '../ui/scene';
 import {pills,type Slide} from './room';
 import type {Level} from '../types';
 import {t,t as tr,tx,tl,fr,currentLocale} from '../i18n';
@@ -23,15 +24,21 @@ export const FOLDED_SECTIONS:Section[]=['curve','rooms','details'];
 
 const KIND:Partial<Record<Level,string>>={action:fr('Geste conseillé'),urgent:fr('Attention'),benefit:fr('À saisir')};
 
-/** The banner: one advice at a time, the room named first, bars to pick one. */
-export function band(o:{slides:Slide[];index:number;pick:(i:number)=>void;title:string}):TemplateResult {
-  const s=o.slides[o.index%o.slides.length],many=o.slides.length>1,asking=!!KIND[s.level];
-  return html`<div class="nh-band" data-level=${s.level}>
-    <div class="nh-band-top"><span class="nh-room">${asking?tx(s.pill):o.title}</span>${asking?html`<span class="nh-kind">${t(KIND[s.level]!)}</span>`:html`<span class="nh-kind">${tx(s.pill??pills[s.level])}</span>`}
-      ${many?html`<span class="nh-pos">${t('{i} sur {n}',{i:o.index%o.slides.length+1,n:o.slides.length})}</span>`:nothing}</div>
-    <div class="nh-band-main"><span class="nh-disk">${icon(s.disk??'check')}</span>
-      <div class="nh-band-text"><p class="nh-title">${tx(s.title)}</p>${s.line?html`<p class="nh-line">${tl(s.line)}</p>`:nothing}${s.cap?html`<p class="nh-cap">${tx(s.cap)}</p>`:nothing}</div></div>
-    ${many?html`<div class="nh-bars">${o.slides.map((x,k)=>html`<button type="button" aria-label=${t('Conseil {n} : {title}',{n:k+1,title:tx(x.pill)})} aria-current=${k===o.index%o.slides.length?'true':'false'} data-level=${x.level} @click=${()=>o.pick(k)}><span></span></button>`)}</div>`:nothing}
+/** The banner, the charter's (.nw-band): a glass frame, the gesture's scene (the room's window, VMC or radiator; the pictogram
+ *  in a tinted box only when there is none, sensors loading or silent), the room named above the
+ *  gesture, the line and how sure the effect is under it; bars to pick another room's advice. */
+export function band(o:{slides:Slide[];index:number;pick:(i:number)=>void}):TemplateResult {
+  const n=o.slides.length,k=o.index%n,s=o.slides[k],many=n>1,asking=!!KIND[s.level];
+  return html`<div class="nw-band nw-glass" data-level=${s.level}>
+    <div class="nw-band-row">
+      ${s.scene?html`<span class="nw-band-pic" aria-hidden="true">${scene(s.scene)}</span>`:html`<span class="nw-band-pic box">${icon(s.disk??'check')}</span>`}
+      <div class="nw-band-text">
+        ${asking||many?html`<span class="nw-band-kicker">${asking?tx(s.pill):tx(s.pill??pills[s.level])}${many?html`<i>${t('{i} sur {n}',{i:k+1,n})}</i>`:nothing}</span>`:nothing}
+        <p class="nw-band-title">${tx(s.title)}</p>${s.line?html`<p class="nw-band-line">${tl(s.line)}</p>`:nothing}${s.cap?html`<p class="nw-band-note">${tx(s.cap)}</p>`:nothing}
+        ${s.learned?html`<p class="nw-band-note">${icon('flask')}<span>${tx(s.learned)}</span></p>`:nothing}
+      </div>
+    </div>
+    ${many?html`<div class="nw-band-bars">${o.slides.map((x,j)=>html`<button type="button" aria-label=${t('Conseil {n} : {title}',{n:j+1,title:tx(x.pill)})} aria-current=${j===k?'true':'false'} @click=${()=>o.pick(j)}><span></span></button>`)}</div>`:nothing}
   </div>`;
 }
 
@@ -41,21 +48,30 @@ export function tabs(period:Period,pick:(p:Period)=>void):TemplateResult {
 
 /** A value not known yet. */
 const DASH='—';
-const goodness=(l:string|null)=>l==='A'||l==='B'?'calm':l==='C'?'neutral':l?'action':'neutral';
 const comfortWord=(s:number)=>s>=85?fr('Très bon'):s>=70?fr('Bon dans l’ensemble'):s>=55?fr('Correct'):fr('À améliorer');
 const PERIOD_WORD:Record<Period,string>={day:fr('sur 24 h'),week:fr('sur 7 jours'),month:fr('sur 30 jours')};
+export const periodWord=(p:Period)=>t(PERIOD_WORD[p]);
 
-/** The review's four themes over the period: a letter each, and the figure behind it. */
+/** The review's four themes over the period, in four small cases: the figure said the right way round (time in range),
+ *  the engine's letter A to E in grey at the corner, and a gauge carrying the colour: blue when the letter is A or B,
+ *  amber below (out of range too often, no gesture asked). The letters keep no colour of their own: the brown and grey
+ *  of the old card mixed with the state colours (5 November, card E of maquette-carte-logement.html). */
 export function themes(d:PeriodData|undefined,period:Period):TemplateResult {
   const th=d?.themes,none=fr('pas assez de mesures');
-  const tiles:[string,Grade|undefined,string,string,string][]=[
-    [fr('Confort'),th?.comfort,th?.comfort.score!=null?String(th.comfort.score):'—',' / 100',th?.comfort.score!=null?comfortWord(th.comfort.score):none],
-    [fr('Chaleur'),th?.warmth,th?.warmth.share!=null?String(th.warmth.share):'—',' %',th?.warmth.share!=null?fr('du temps confortable'):fr('aucune pièce chauffée mesurée')],
-    [fr('Humidité'),th?.humidity,th?.humidity.share!=null?String(th.humidity.share):'—',' %',th?.humidity.share!=null?fr('du temps trop humide'):fr('pas de capteur d’humidité')],
-    [fr('Air'),th?.air,th?.air.share!=null?String(th.air.share):'—',' %',th?.air.share!=null?fr('du temps air correct'):fr('pas de capteur de CO₂')]];
-  return html`<div class="nh-themes" aria-label=${t('Bilan {period}',{period:t(PERIOD_WORD[period])})}>${tiles.map(([label,g,value,unit,note])=>html`<div class="nh-theme">
-    <span class="nw-label">${t(label)}</span><span class="nh-letter" data-level=${goodness(g?.letter??null)}>${g?.letter??'–'}</span>
-    <b>${d?value:'…'}${d&&value!=='—'?html`<small>${unit}</small>`:nothing}</b><span class="nh-note">${d?t(g?.letter||value!==DASH?note:none):t('chargement')}</span></div>`)}</div>`;
+  const share=(g:Grade|undefined,flip=false)=>g?.share==null?null:flip?100-g.share:g.share;
+  const tiles:[string,Grade|undefined,number|null,string,string,string][]=[
+    [fr('Confort'),th?.comfort,th?.comfort.score??null,'/ 100',th?.comfort.score!=null?comfortWord(th.comfort.score):none,none],
+    [fr('Chaleur'),th?.warmth,share(th?.warmth),'%',fr('du temps confortable'),fr('aucune pièce chauffée mesurée')],
+    // The engine counts the hours too humid: the card says the others, like the three other cases.
+    [fr('Humidité'),th?.humidity,share(th?.humidity,true),'%',fr('du temps pas trop humide'),fr('pas de capteur d’humidité')],
+    [fr('Air'),th?.air,share(th?.air),'%',fr('du temps air correct'),fr('pas de capteur de CO₂')]];
+  return html`<div class="nh-themes" aria-label=${t('Bilan {period}',{period:periodWord(period)})}>${tiles.map(([label,g,value,unit,note,missing])=>{
+    const tone=!g?.letter?'none':g.letter==='A'||g.letter==='B'?'ok':'watch';
+    return html`<div class="nh-theme" data-tone=${tone}>
+    <span class="nw-label">${t(label)}</span>${g?.letter?html`<span class="nh-letter" aria-label=${t('Note {letter}',{letter:g.letter})}>${g.letter}</span>`:nothing}
+    <div class="nw-value"><b>${d?value??DASH:'…'}</b>${d&&value!=null?html`<span>${unit}</span>`:nothing}</div>
+    <span class="nh-note">${d?t(value!=null?note:missing):t('chargement')}</span>
+    <span class="nh-meter" aria-hidden="true"><i style=${`width:${value==null?0:Math.max(0,Math.min(100,value))}%`}></i></span></div>`;})}</div>`;
 }
 
 export interface ChartRoom {entry_id:string;title:string;level:Level|'neutral';now:number|null;
@@ -83,13 +99,14 @@ export function roomsChart(o:{floors:ChartFloor[];data:PeriodData|undefined;peri
       ${l.dot!=null?html`<i class="nh-dot" style=${`left:${at(l.dot)}`}></i>`:nothing}</span>
     <span class="nh-val">${l.dot!=null?number(Math.round(l.dot*10)/10)+'°':'—'}</span></div>`;
   let i=0;
-  return html`<div class="nh-chart">
-    <div class="nh-chart-head"><span class="nw-label">${t('Températures {period}',{period:t(PERIOD_WORD[o.period])})}</span>
-      <span class="nh-legend">${bands.length?html`<span><i class="nh-key-band"></i>${t('votre plage')}</span>`:nothing}<span><i class="nh-key-range"></i>${t('mini–maxi')}</span><span><i class="nh-key-dot"></i>${o.period==='day'?t('maintenant'):t('moyenne')}</span></span></div>
+  return html`<section class="nh-part"><div class="nw-section-head"><h2>${t('Températures')}</h2><span class="nw-sum">${periodWord(o.period)}</span></div>
+    <div class="nw-panel nh-chart">
     <div class="nh-row nh-axis"><span></span><span class="nh-track">${ticks.map(t=>html`<em class=${same&&t>=same[0]&&t<=same[1]?'in':''} style=${`left:${at(t)}`}>${t}°</em>`)}</span><span></span></div>
     ${o.floors.map(f=>{const rows=lines.slice(i,i+=f.rooms.length);
       return html`${o.floors.length>1?html`<div class="nh-floor"><span class="nw-label">${f.name}</span><span>${f.mean!=null?number(f.mean)+'°':''}</span></div>`:nothing}${rows.map(row)}`;})}
     ${outValue!=null?html`<div class="nh-row nh-out"><span class="nh-name">${t('Dehors')}</span><span class="nh-out-text">${out?html`${number(out.min)} – ${number(out.max)} °C`:nothing}</span><span class="nh-val">${number(Math.round(outValue*10)/10)}°</span></div>`:nothing}
+    <div class="nw-legend nh-legend">${bands.length?html`<span><i class="nh-key-band"></i>${t('votre plage')}</span>`:nothing}<span><i class="nh-key-range"></i>${t('mini–maxi')}</span><span><i class="nh-key-dot"></i>${o.period==='day'?t('maintenant'):t('moyenne')}</span></div>
+    </div></section>
   </div>`;
 }
 
@@ -113,72 +130,86 @@ export function curve(d:PeriodData|undefined,period:Period,band:[number,number]|
 }
 
 export const homeboardStyles=css`
-  .nh-band { --c:var(--nw-ok); padding:16px 20px 12px; display:flex; flex-direction:column; gap:10px;
-    background:linear-gradient(180deg, color-mix(in oklab, var(--c) 24%, transparent), color-mix(in oklab, var(--c) 7%, transparent)); }
-  .nh-band[data-level="action"] { --c:var(--nw-act); } .nh-band[data-level="urgent"] { --c:var(--nw-alert); } .nh-band[data-level="benefit"] { --c:var(--nw-benefit); }
-  .nh-band[data-level="neutral"] { --c:color-mix(in srgb, var(--nw-fg) 45%, transparent); }
-  .nh-band-top { display:flex; align-items:center; gap:8px; min-width:0; }
-  .nh-room { padding:3px 10px; border-radius:var(--nw-radius-pill); background:var(--c); color:#1f232b; font-size:var(--nw-fs-small); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .nh-kind { font-size:var(--nw-fs-label); font-weight:600; letter-spacing:var(--nw-label-spacing); text-transform:uppercase; color:color-mix(in oklab, var(--c) 70%, var(--nw-fg)); white-space:nowrap; }
-  .nh-pos { margin-left:auto; font-size:var(--nw-fs-small); opacity:.75; white-space:nowrap; }
-  .nh-band-main { display:flex; align-items:center; gap:14px; min-width:0; }
-  .nh-disk { flex:none; display:grid; place-items:center; width:46px; height:46px; border-radius:50%; border:2px solid var(--c); color:var(--c); }
-  .nh-disk svg { width:22px; height:22px; }
-  .nh-band-text { min-width:0; } .nh-band-text p { margin:0; }
-  .nh-title { font-size:var(--nw-fs-value); font-weight:700; line-height:1.2; }
-  .nh-line, .nh-cap { font-size:var(--nw-fs-small); opacity:.85; margin-top:3px !important; }
-  .nh-cap { opacity:.7; }
-  .nh-bars { display:flex; gap:6px; }
-  .nh-bars button { flex:1; height:16px; padding:6px 0; border:0; background:none; cursor:pointer; }
-  .nh-bars span { display:block; height:4px; border-radius:2px; background:color-mix(in srgb, var(--nw-fg) 18%, transparent); }
-  .nh-bars button[aria-current="true"] span { background:var(--c); }
-  .nh-body { padding:16px 20px 18px; display:flex; flex-direction:column; gap:18px; }
-  .nh-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-  .nh-head h2 { margin:0; font-size:var(--nw-fs-title); font-weight:600; }
-  .nh-tabs { display:flex; padding:3px; border-radius:var(--nw-radius-pill); background:color-mix(in srgb, var(--nw-fg) 7%, transparent); }
-  .nh-tabs button { min-height:32px; padding:0 14px; border:0; border-radius:var(--nw-radius-pill); background:none; color:inherit; font:inherit; font-size:var(--nw-fs-small); font-weight:600; opacity:.8; cursor:pointer; }
-  .nh-tabs button[aria-pressed="true"] { background:var(--nw-fg); color:var(--nw-bg); opacity:1; }
+  /* The small formats as card E (6 November): the list's rows, the mini line, the alert's banner, the tile's handle. */
+  .nh-rows { display:grid; padding-top:4px; padding-bottom:4px; }
+  .nh-line { all:unset; box-sizing:border-box; width:100%; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid var(--nw-line-soft); cursor:pointer; }
+  .nh-line:last-child { border-bottom:0; } .nh-line:focus-visible { outline:2px solid var(--nw-accent); outline-offset:2px; border-radius:8px; }
+  .nh-row-n { display:grid; min-width:0; } .nh-row-n b { font-size:var(--nw-fs-text); font-weight:650; line-height:1.3; }
+  .nh-row-n small { font-size:var(--nw-fs-small); color:var(--nw-fg2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .nh-line:is([data-level="action"],[data-level="urgent"]) .nh-row-n small { font-weight:600; color:color-mix(in oklab, var(--nw-act) 45%, var(--nw-fg)); }
+  .nh-row-t { font-size:var(--nw-fs-text); font-weight:650; font-variant-numeric:tabular-nums; } .nh-row-t small { font-weight:500; color:var(--nw-fg2); }
+  .nh-mini { display:flex; align-items:center; gap:12px; padding:10px 14px; }
+  .nh-mini-pic { padding:0; background:none; border:0; } .nh-mini-pic .nw-band-pic.box { width:36px; height:36px; border-radius:9px; }
+  .nh-mini-pic .nw-band-pic.box svg { width:20px; height:20px; }
+  .nh-mini-text { display:grid; flex:1; min-width:0; } .nh-mini-text b { font-size:var(--nw-fs-text); font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .nh-mini-t { font-size:var(--nw-fs-case); font-weight:300; font-variant-numeric:tabular-nums; } .nh-mini-t small { font-size:var(--nw-fs-text); color:var(--nw-fg2); }
+  .nh-alert { padding:12px; } .nh-alert .nw-band-title { font-size:var(--nw-fs-case); }
+  .nh-body > .nc-handle { align-self:center; }
+  /* The card: the title line (title, pill, outside temperature), the banner, then the review — card E, 5 November. */
+  .nh-body { padding:18px; display:flex; flex-direction:column; gap:16px; }
+  .nh-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+  .nh-top-l { display:grid; gap:8px; justify-items:start; min-width:0; }
+  .nh-top-l .nw-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+  .nh-top .nc-level { margin:0; }
+  .nh-part { display:grid; gap:10px; min-width:0; }
+  .nh-part .nw-section-head .nh-tabs { margin-left:auto; }
+  /* The banner is the charter's (.nw-band, hestia-charte.css, 5 November). */
+  /* The room card's halo: the advice's colour, soft from the top right, behind the title line and the banner only. */
+  .nh-hero { position:relative; isolation:isolate; z-index:0; display:flex; flex-direction:column; gap:16px; }
+  /* The light reaches the card's edges, past the body's padding. */
+  .nh-hero > .nc-b-light { left:-18px; right:-18px; top:-18px; }
+  /* Day, week, month: the charter's small switch. */
+  .nh-tabs { display:inline-flex; gap:2px; padding:3px; border-radius:var(--nw-radius-pill); background:var(--nw-surface); }
+  .nh-tabs button { min-height:0; padding:4px 11px; border:0; border-radius:var(--nw-radius-pill); background:none; color:var(--nw-fg2); font:inherit; font-size:var(--nw-fs-small); cursor:pointer; }
+  .nh-tabs button[aria-pressed="true"] { background:color-mix(in srgb, var(--nw-fg) 12%, transparent); color:var(--nw-fg); font-weight:650; }
+  /* The four themes: small cases, the letter neutral at the corner, the colour on the gauge. */
   .nh-themes { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
-  .nh-theme { display:grid; grid-template-columns:1fr auto; align-items:center; gap:2px 10px; padding:12px 14px; border-radius:14px; background:color-mix(in srgb, var(--nw-fg) 5%, transparent); }
-  .nh-theme b { font-size:var(--nw-fs-value); } .nh-theme b small { font-size:var(--nw-fs-small); font-weight:500; opacity:.7; }
-  .nh-note { font-size:var(--nw-fs-small); opacity:.8; }
-  .nh-letter { grid-column:2; grid-row:1 / span 3; display:grid; place-items:center; width:40px; height:40px; border-radius:12px; font-size:var(--nw-fs-value); font-weight:700;
-    --c:color-mix(in srgb, var(--nw-fg) 45%, transparent); background:color-mix(in oklab, var(--c) 35%, transparent); color:color-mix(in oklab, var(--c) 45%, var(--nw-fg)); }
-  .nh-letter[data-level="calm"] { --c:var(--nw-ok); } .nh-letter[data-level="action"] { --c:var(--nw-act); }
+  @container (min-width:560px) { .nh-themes { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
+  .nh-theme { --c:var(--nw-fg2); position:relative; display:grid; gap:2px; align-content:start; min-width:0; padding:12px 14px; border-radius:14px; background:var(--nw-surface); }
+  .nh-theme[data-tone="ok"] { --c:var(--nw-ok); } .nh-theme[data-tone="watch"] { --c:var(--nw-watch); }
+  .nh-theme .nw-value b { font-size:var(--nw-fs-case); font-weight:600; letter-spacing:-.015em; line-height:1.2; }
+  .nh-note { font-size:var(--nw-fs-small); color:var(--nw-fg2); }
+  .nh-letter { position:absolute; top:10px; right:10px; display:grid; place-items:center; width:30px; height:30px; border-radius:9px;
+    background:color-mix(in srgb, var(--nw-fg) 7%, transparent); color:color-mix(in srgb, var(--nw-fg) 78%, transparent); font-size:var(--nw-fs-text); font-weight:700; line-height:1; }
+  .nh-meter { display:block; height:4px; margin-top:8px; border-radius:2px; overflow:hidden; background:color-mix(in srgb, var(--nw-fg) 8%, transparent); }
+  .nh-meter i { display:block; height:100%; border-radius:2px; background:color-mix(in oklab, var(--c) 85%, transparent); transform-origin:left; animation:nw-grow .6s var(--nw-ease) both; }
+  @media (prefers-reduced-motion:reduce) { .nh-meter i { animation:none; } }
   .nh-chart, .nh-curve { display:flex; flex-direction:column; gap:2px; }
   .nh-chart-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; padding-bottom:6px; }
-  .nh-legend { display:flex; gap:12px; font-size:var(--nw-fs-label); opacity:.8; }
-  .nh-legend span { display:flex; align-items:center; gap:5px; }
-  .nh-key-range { width:18px; height:6px; border-radius:3px; background:color-mix(in oklab, var(--nw-ok) 45%, transparent); }
-  .nh-key-dot { width:9px; height:9px; border-radius:50%; background:var(--nw-ok); }
-  .nh-key-in, .nh-key-out { width:14px; height:3px; border-radius:2px; background:var(--nw-ok); } .nh-key-out { background:color-mix(in srgb, var(--nw-fg) 45%, transparent); }
-  .nh-row { --c:var(--nw-ok); display:grid; grid-template-columns:minmax(90px, 30%) 1fr 46px; gap:10px; align-items:center; min-height:32px; }
-  .nh-row[data-level="action"], .nh-row[data-level="urgent"] { --c:var(--nw-act); }
-  .nh-row[data-level="neutral"] { --c:color-mix(in srgb, var(--nw-fg) 45%, transparent); }
-  .nh-row[data-level="action"] .nh-name, .nh-row[data-level="action"] .nh-val { color:color-mix(in oklab, var(--nw-act) 60%, var(--nw-fg)); font-weight:600; }
-  .nh-name { font-size:var(--nw-fs-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .nh-val { font-size:var(--nw-fs-small); font-weight:600; text-align:right; white-space:nowrap; }
-  .nh-track { position:relative; height:32px; }
+  .nh-chart-head .nh-legend { margin-top:0; display:flex; gap:12px; font-size:var(--nw-fs-label); color:var(--nw-fg2); }
+  .nh-chart-head .nh-legend span { display:flex; align-items:center; gap:5px; }
+  .nh-chart { display:flex; flex-direction:column; gap:2px; }
+  .nh-legend { margin-top:8px; }
+  .nh-legend i { display:inline-block; }
+  .nh-key-range { width:14px; height:4px; border-radius:2px; background:color-mix(in srgb, var(--nw-fg) 40%, transparent); }
+  .nh-key-dot { width:8px; height:8px; border-radius:50%; background:var(--nw-fg); }
+  .nh-key-band { width:14px; height:8px; border-radius:4px; background:color-mix(in oklab, var(--nw-ok) 40%, transparent); }
+  .nh-key-in, .nh-key-out { width:14px; height:3px; border-radius:2px; background:var(--nw-fg); } .nh-key-out { background:color-mix(in srgb, var(--nw-fg) 45%, transparent); }
+  .nh-row { --c:var(--nw-ok); display:grid; grid-template-columns:minmax(86px, 30%) 1fr 44px; gap:10px; align-items:center; min-height:24px; }
+  .nh-row[data-level="action"], .nh-row[data-level="urgent"] { --c:var(--nw-act); } .nh-row[data-level="benefit"] { --c:var(--nw-benefit); }
+  .nh-row[data-level="neutral"] { --c:var(--nw-fg2); }
+  .nh-name { font-size:var(--nw-fs-small); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .nh-val { font-size:var(--nw-fs-small); font-weight:650; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .nh-track { position:relative; height:16px; }
   .nh-track i { position:absolute; }
-  .nh-track::before { content:''; position:absolute; left:0; right:0; top:15px; height:2px; background:var(--nw-line-soft); }
-  .nh-band-zone { top:0; bottom:0; background:color-mix(in oklab, var(--nw-calm) 14%, transparent); }
-  .nh-key-band { width:12px; height:10px; border-radius:2px; background:color-mix(in oklab, var(--nw-calm) 35%, transparent); }
-  .nh-range { top:12px; height:8px; border-radius:4px; background:color-mix(in oklab, var(--c) 45%, transparent); }
-  .nh-dot { top:9px; width:14px; height:14px; margin-left:-7px; border-radius:50%; box-sizing:border-box; border:2px solid var(--nw-bg); background:var(--c); }
-  .nh-axis { min-height:16px; } .nh-axis .nh-track { height:16px; } .nh-axis .nh-track::before { display:none; }
-  .nh-axis em { position:absolute; transform:translateX(-50%); font-style:normal; font-size:var(--nw-fs-label); opacity:.7; }
-  .nh-axis em.in { color:var(--nw-calm); opacity:1; }
-  .nh-floor { display:flex; justify-content:space-between; padding:10px 0 2px; font-size:var(--nw-fs-label); opacity:.85; }
-  .nh-out { margin-top:6px; border-top:1px dashed var(--nw-line); }
-  .nh-out .nh-name, .nh-out-text { font-size:var(--nw-fs-small); opacity:.8; }
+  .nh-track::before { content:''; position:absolute; left:0; right:0; top:7px; height:2px; border-radius:1px; background:color-mix(in srgb, var(--nw-fg) 9%, transparent); }
+  .nh-band-zone { top:2px; height:12px; border-radius:6px; background:color-mix(in oklab, var(--nw-ok) 34%, transparent); }
+  .nh-range { top:6px; height:4px; border-radius:2px; background:color-mix(in srgb, var(--nw-fg) 40%, transparent); }
+  .nh-dot { top:3px; width:10px; height:10px; margin-left:-5px; border-radius:50%; background:color-mix(in oklab, var(--c) 75%, var(--nw-fg)); box-shadow:0 0 0 2px var(--nw-surface); }
+  .nh-axis { min-height:16px; } .nh-axis .nh-track::before { display:none; }
+  .nh-axis em { position:absolute; transform:translateX(-50%); font-style:normal; font-size:var(--nw-fs-label); color:var(--nw-fg2); }
+  .nh-axis em.in { color:var(--nw-fg); }
+  .nh-floor { display:flex; justify-content:space-between; padding:8px 0 2px; font-size:var(--nw-fs-label); color:var(--nw-fg2); }
+  .nh-out { margin-top:6px; padding-top:6px; border-top:1px dashed var(--nw-line); }
+  /* Outside in words: the scale is the rooms', a winter outside would sit flat against its edge (labo, 5 November). */
+  .nh-out-text { font-size:var(--nw-fs-small); color:var(--nw-fg2); font-variant-numeric:tabular-nums; }
   .nh-curve { position:relative; }
   .nh-curve svg { width:100%; height:120px; display:block; overflow:visible; }
   .nh-yaxis { position:absolute; right:0; top:28px; height:120px; display:flex; flex-direction:column; justify-content:space-between; font-size:var(--nw-fs-label); opacity:.6; pointer-events:none; }
-  .nh-c-band { fill:color-mix(in oklab, var(--nw-calm) 14%, transparent); }
+  .nh-c-band { fill:color-mix(in oklab, var(--nw-ok) 24%, transparent); }
   .nh-c-in, .nh-c-out { fill:none; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
   .nh-c-in { stroke:var(--nw-ok); stroke-width:2.5; } .nh-c-out { stroke:color-mix(in srgb, var(--nw-fg) 45%, transparent); stroke-width:2; }
   .nh-ticks { display:flex; justify-content:space-between; font-size:var(--nw-fs-label); opacity:.7; }
   .nh-empty { margin:0; font-size:var(--nw-fs-small); opacity:.75; }
   .nh-more { display:flex; flex-direction:column; gap:18px; padding-top:6px; }
-  @media (prefers-reduced-motion: no-preference) { .nh-band { transition:background .4s ease; } }
 `;

@@ -73,7 +73,7 @@ export class HestiaComfortCard extends LitElement {
   static getConfigElement(){return document.createElement('hestia-comfort-card-editor');}
   static getStubConfig():Config{return {type:'custom:hestia-comfort-card',format:'tile'};}
   getCardSize(){const f=this.config?.format;return f==='mini'?1:f==='alert'?2:f==='full'?10:f==='measures'?6:f==='horizon'||f==='temperature'?4:3;}
-  getGridOptions(){const f=this.config?.format;return {columns:f==='full'?'full':['humidity','air','openings','heating'].includes(f??'')?6:12,rows:'auto',min_columns:f&&['humidity','air','openings','heating'].includes(f)?3:6};}
+  getGridOptions(){const f=this.config?.format;return {columns:f==='full'?'full':['humidity','air','openings','heating','devices'].includes(f??'')?6:12,rows:'auto',min_columns:f&&['humidity','air','openings','heating','devices'].includes(f)?3:6};}
   connectedCallback(){super.connectedCallback();this.connect();this.unwatch=watchOffscreen(this);
     // « Laissez ouvert encore 4 min » counts down between two steps of the 3.0 advisor: redrawn every half minute.
     clearInterval(this.ticking);this.ticking=setInterval(()=>{if(this.view?.advice3?.refermer_a||this.advisorState()?.attributes.refermer_a)this.requestUpdate();},30000);}
@@ -147,8 +147,8 @@ export class HestiaComfortCard extends LitElement {
     history.pushState(null,'',path);window.dispatchEvent(new CustomEvent('location-changed',{detail:{replace:false}}));
   }
   /** What a long press (a tap on mini and alert) does: the full card in a window by default, a page, or nothing. */
-  private act=(e:Event)=>{
-    const c=this.config!,action=c.hold_action??(c.hold_path?'page':'popup');
+  private act=(e:Event,press:'hold'|'tap'='hold')=>{
+    const c=this.config!,action=press==='tap'?c.tap_action??'toggle':c.hold_action??(c.hold_path?'page':'popup');
     if(action==='none')return;
     if(action==='page'&&c.hold_path){history.pushState(null,'',c.hold_path);window.dispatchEvent(new CustomEvent('location-changed',{detail:{replace:false}}));return;}
     this.openFull(e);
@@ -169,7 +169,9 @@ export class HestiaComfortCard extends LitElement {
     if(format==='full')return card;
     const tap=format==='mini'||format==='alert';
     // As Hestia Weather's tile: a tap folds or unfolds it in place, except on what has its own action (a button, a link).
-    const unfold=format==='tile'?(e:Event)=>{if(this.held){e.stopPropagation();e.preventDefault();this.held=false;return;}if((e.target as HTMLElement).closest('button,a,input,select,[role=button]'))return;this.state(modal).toggle('unfolded');}:undefined;
+    // Its tap is a setting (6 November, as Hestia Weather's): fold, the full card in a window, a page, or nothing.
+    const unfold=format==='tile'||format==='intermediate'?(e:Event)=>{if(this.held){e.stopPropagation();e.preventDefault();this.held=false;return;}if((e.target as HTMLElement).closest('button,a,input,select,[role=button]'))return;
+      const tapAction=this.config!.tap_action??'toggle';if(tapAction==='toggle'){if(format==='tile')this.state(modal).toggle('unfolded');}else this.act(e,'tap');}:undefined;
     const label=tap?t('Ouvrir la carte complète'):undefined;
     return html`<div class="nc-hold" role=${tap?'button':'group'} tabindex=${tap?0:-1} aria-label=${label??this.view!.title}
       @click=${tap?this.act:unfold??this.swallow} @pointerdown=${tap?undefined:this.press} @pointerup=${this.release} @pointerleave=${this.release} @pointercancel=${this.release} @contextmenu=${(e:Event)=>{if(this.held)e.preventDefault();}}

@@ -8,14 +8,17 @@ import traitStyle from './ui/trait.css';
 import {watchOffscreen} from './ui/offscreen';
 import {html as h2} from 'lit';
 import {isView,number,numeric} from './view';
-import {advice,needs,coldSettled,scale,fold,hero,tileSummary,pills,moreInfo,type CardState,type Advice,type Slide} from './views/room';
+import {advice,needs,coldSettled,scale,fold,hero,tileSummary,pills,pillMark,statePill,moreInfo,type CardState,type Advice,type Slide} from './views/room';
 import {cleanHomeConfig,homeAction,type Connection,type HomeAssistant,type HomeConfig,type HomeFormat,type Unsubscribe,type View,type Level} from './types';
 import {icon} from './ui/icons';
+import {sceneFor,hourOf} from './ui/scene';
 import {hassMatters} from './hass-change';
 import {setLanguage,guessLanguage,t as tt,tx,fr} from './i18n';
 /** A part of a line in bold, translated where the line is shown. */
 const B=(text:string)=>h2`<b>${text}</b>`;
-import {band,tabs,themes,roomsChart,curve,homeboardStyles,SHOWN_SECTIONS,FOLDED_SECTIONS,type Period,type Periods,type Section,type ChartFloor} from './views/homeboard';
+import {band,tabs,themes,roomsChart,curve,periodWord,homeboardStyles,SHOWN_SECTIONS,FOLDED_SECTIONS,type Period,type Periods,type Section,type ChartFloor} from './views/homeboard';
+import {slides3} from './views/advisor3';
+import {lecture} from './ui/hestia-lecture';
 
 interface FloorRef {floor_id:string|null;name:string;level:number|null}
 interface Floor extends FloorRef {room_ids:string[];mean:number|null;measured:number;total:number;hottest:{title:string;temperature:number}|null}
@@ -28,6 +31,9 @@ interface Home {
   open_rooms:{title:string;open:string[]}[]; crossing:'strong'|'partial'|'none'|null; start_with:string|null;
   sun_entering:{title:string;openings:string[]}[];
 }
+
+/** The pill's colour on the title line, by the banner's level (the charter's state colours). */
+const CHIP:Record<string,string>={action:'var(--nw-act)',urgent:'var(--nw-alert)',benefit:'var(--nw-benefit)',calm:'var(--nw-ok)',neutral:'var(--nw-fg2)'};
 
 /** The home card: a synthesis of every room. It never replaces the room cards' advice. */
 export class HestiaComfortHomeCard extends LitElement {
@@ -157,14 +163,19 @@ export class HestiaComfortHomeCard extends LitElement {
     for(const s of h.sun_entering)out.push(row('Soleil qui entre',s.title));
     return out;
   }
-  /** One slide per room that asks for something, the most urgent first, then what the home can do as a whole. */
+  /** A room's advice: the 3.0 advisor's decision when the integration sends it (advice3, as the room card reads it), else the 2.1 advice. */
+  private roomAdvice(r:View):Advice{
+    const a=r.advice3;
+    if(a){const s=slides3({title:typeof a.title==='string'?a.title:'',attributes:a})[0];return {title:s.title,line:s.line,disk:s.disk,level:s.level,pill:s.pill,learned:s.learned,cap:s.cap};}
+    return advice(r);
+  }
   /** Rooms that ask for something, the most urgent first. */
   private asking(levels=['urgent','action']):View[]{
-    const rank:Record<string,number>={urgent:0,action:1,benefit:2};
+    const rank:Record<string,number>={urgent:0,action:1,benefit:2},level=(r:View)=>this.roomAdvice(r).level??r.assessment.level;
     // A room that only follows its shared air comes after the one it follows.
     const follows=(r:View)=>r.assessment.reason==='shared_volume'?1:0;
     // A room airing as advised asks nothing more: its banner is blue.
-    return this.rooms.filter(r=>levels.includes(advice(r).level??r.assessment.level)).sort((a,b)=>rank[a.assessment.level]-rank[b.assessment.level]||follows(a)-follows(b));
+    return this.rooms.filter(r=>levels.includes(level(r))).sort((a,b)=>rank[level(a)]-rank[level(b)]||follows(a)-follows(b));
   }
   private slides(h:Home,calmAdvice:Advice):Slide[]{
     const blocks=this.config?.banner_blocks??['rooms','house'];
@@ -175,17 +186,20 @@ export class HestiaComfortHomeCard extends LitElement {
       const key=r.volume?.length?[r.entry_id,...r.volume.map(p=>p.entry_id)].sort().join('|'):null,a=r.assessment;
       const known=key?shared.get(key):undefined;
       if(known&&(a.reason==='shared_volume'||a.action===known.action)){known.slide.pill+=' · '+r.title;continue;}
-      const ad=advice(r),cool=a.needs.includes('cool')&&h.start_with===r.title;
-      const slide:Slide={...ad,level:a.level as Level,pill:r.title,line:cool&&h.start_floor?h2`${ad.line} · ${B(h.start_floor.name)} d’abord`:ad.line};
+      const ad=this.roomAdvice(r),cool=a.needs.includes('cool')&&h.start_with===r.title;
+      const slide:Slide={...ad,scene:sceneFor({...ad,level:(ad.level??a.level) as Level},r),level:(ad.level??a.level) as Level,pill:r.title,line:cool&&h.start_floor?h2`${ad.line} · ${B(h.start_floor.name)} d’abord`:ad.line};
       out.push(slide);
       if(key&&!known)shared.set(key,{slide,action:a.action});
     }
     if(blocks.includes('house')&&h.ventilation&&!h.ventilation.engaged)out.push({level:'benefit',pill:'Logement',title:h.ventilation.kind==='cross'?'Faites traverser l’air':'Ouvrez en bas et en haut',
-      line:h2`${h.ventilation.openings.map(o=>o.name).join(' + ')}`,disk:'open'});
+      line:h2`${h.ventilation.openings.map(o=>o.name).join(' + ')}`,disk:'open',scene:{k:'win',m:'invite',hour:this.hour()}});
     // A sensor that stops answering is a matter for the Hestia-FB panel, not an advice for the home.
     const calm=(h.level==='neutral'?'calm':h.level) as Level;
-    return out.length?out:[{level:calm,pill:pills[calm],...calmAdvice}];
+    // Nothing to do: the home's window as the room cards draw it, shut or open, at the hour of the day.
+    return out.length?out:[{level:calm,pill:pills[calm],...calmAdvice,scene:{k:'win',m:h.open_rooms.length?'open':'closed',hour:this.hour()}}];
   }
+  /** Dawn, day, dusk or night, from the sun as the rooms see it. */
+  private hour(){const r=this.rooms[0];return hourOf(r?.assessment.sun?.elevation,new Date(r?.computed_at||Date.now()));}
   protected render(){
     if(!this.config)return nothing;
     const h=this.home;
@@ -218,8 +232,10 @@ export class HestiaComfortHomeCard extends LitElement {
     const card=this.homeCard(h,muteAdvice,format);
     if(card===null)return this.preview||this.editMode?html`<ha-card class="nc-c nc-alert-note" data-level="calm"><p>${tt('Alerte · {room} : rien à signaler. La carte n’apparaît que lorsqu’une pièce demande un geste.',{room:this.config.title||tt('Mon logement')})}</p></ha-card>`:nothing;
     const tap=format==='mini'||format==='alert';
+    // As the room tile: a tap folds or unfolds it, except on what has its own action (a button, a link).
+    const unfold=format==='tile'?(e:Event)=>{if(this.held){e.stopPropagation();e.preventDefault();this.held=false;return;}if((e.target as HTMLElement).closest('button,a,input,select,[role=button]'))return;this.folds={...this.folds,unfolded:!this.folds.unfolded};}:undefined;
     return html`<div class="nc-hold" role=${tap?'button':'group'} tabindex=${tap?0:-1} aria-label=${tap?tt('Ouvrir la carte complète'):this.config.title||tt('Mon logement')}
-      @click=${tap?this.act:this.swallow} @pointerdown=${tap?undefined:this.press} @pointerup=${this.release} @pointerleave=${this.release} @pointercancel=${this.release}
+      @click=${tap?this.act:unfold??this.swallow} @pointerdown=${tap?undefined:this.press} @pointerup=${this.release} @pointerleave=${this.release} @pointercancel=${this.release}
       @keydown=${(e:KeyboardEvent)=>{if(tap&&(e.key==='Enter'||e.key===' ')){e.preventDefault();this.act(e);}}}>${card}</div>
       <dialog aria-label=${tt('Logement complet')} @cancel=${()=>{this.dialogOpen=false;}} @close=${()=>{this.dialogOpen=false;}}>
         <div class="dialog-top"><span>${this.config.title||tt('Mon logement')}</span><button class="icon-button" aria-label=${tt('Fermer')} @click=${()=>this.closeFull()}>${icon('close')}</button></div>
@@ -246,17 +262,22 @@ export class HestiaComfortHomeCard extends LitElement {
     const temps=this.rooms.map(r=>numeric(r.observations.indoor_temperature)).filter((t):t is number=>t!==null);
     const mean=temps.length?temps.reduce((x,y)=>x+y,0)/temps.length:null;
     if(format==='alert'&&!this.asking().length)return null;
-    if(format==='mini'){const n=this.asking().length,first=homeSlides[0];
-      return html`<ha-card class="nc-c nc-line-card" data-level=${muteAdvice?'neutral':n?top:'calm'}><div class="nc-disk">${icon(muteAdvice?first.disk:n?first.disk:'home')}</div>
-        <div class="nc-line-text"><span>${name}</span><b>${muteAdvice?tx(first.title):n?(n>1?tt('{n} pièces demandent un geste',{n}):tt('{n} pièce demande un geste',{n})):tt('Rien à faire')}</b></div>
-        ${mean!==null?html`<span class="nc-line-value">${number(Math.round(mean*10)/10)}<small> °C</small></span>`:nothing}</ha-card>`;}
+    // The small formats drawn as card E (6 November): its tinted square, its title line, its banner.
+    if(format==='mini'){const n=this.asking().length,first=homeSlides[0],lvl=muteAdvice?'neutral':n?top:'calm';
+      return html`<ha-card class="nc-c nh-mini" data-level=${lvl}><span class="nw-band nh-mini-pic" data-level=${lvl}><span class="nw-band-pic box">${icon(muteAdvice?first.disk:n?first.disk:'home')}</span></span>
+        <div class="nh-mini-text"><span class="nw-label">${name}</span><b>${muteAdvice?tx(first.title):n?(n>1?tt('{n} pièces demandent un geste',{n}):tt('{n} pièce demande un geste',{n})):tt('Rien à faire')}</b></div>
+        ${mean!==null?html`<span class="nh-mini-t">${number(Math.round(mean*10)/10)}<small>°</small></span>`:nothing}</ha-card>`;}
     if(format==='list'){
       const order=c.list_order==='floor'?floors.flatMap(f=>this.rooms.filter(r=>f.room_ids.includes(r.entry_id))):[...this.asking(['urgent','action','benefit']),...this.rooms.filter(r=>!['urgent','action','benefit'].includes(r.assessment.level))];
-      return html`<ha-card class="nc-c nc-list-card" data-level="neutral"><div class="nc-mhead"><h2>${name}</h2>${mean!==null?html`<span class="nw-sum">${tt('{value} en moyenne',{value:number(Math.round(mean*10)/10)+' °C'})}</span>`:nothing}</div>
-        <div class="nc-rows">${order.map(r=>{const t=numeric(r.observations.indoor_temperature),a=advice(r),id=r.observations.indoor_temperature?.source;
-          return html`<button type="button" class="nc-row" data-level=${r.assessment.level} title=${tt('Détails : {label}',{label:r.title})} @click=${(e:Event)=>{if(id)moreInfo(e,id);}}><i></i><b>${r.title}</b><span>${tx(a.title)}</span><em>${number(t)}<small> °C</small></em></button>`;})}</div></ha-card>`;
+      return html`<ha-card class="nc-c" data-level="neutral"><div class="nh-body">${this.hero(h,homeSlides,false)}
+        <div class="nw-panel nh-rows">${order.map(r=>{const t=numeric(r.observations.indoor_temperature),a=this.roomAdvice(r),id=r.observations.indoor_temperature?.source,lvl=(a.level??r.assessment.level) as Level;
+          return html`<button type="button" class="nh-line" data-level=${lvl} title=${tt('Détails : {label}',{label:r.title})} @click=${(e:Event)=>{if(id)moreInfo(e,id);}}>
+            <span class="nh-row-n"><b>${r.title}</b><small>${tx(a.title)}</small></span><span class="nh-row-t">${number(t)}<small> °C</small></span></button>`;})}</div></div></ha-card>`;
     }
+    if(format==='alert'){const asking=homeSlides.filter(s=>['action','urgent','benefit'].includes(s.level));
+      return html`<ha-card class="nc-c nh-alert" data-level=${top}>${band({slides:asking.length?asking:homeSlides,index:this.slide,pick:(i:number)=>{this.paused=true;this.slide=i;}})}</ha-card>`;}
     if(format==='full')return this.board(h,homeSlides,body,all,outside,floors,season);
+    if(format==='tile')return this.board(h,homeSlides,body,all,outside,floors,season,{tile:true,open:!!this.folds.unfolded});
     const small=format==='tile'||format==='alert';
     return html`<ha-card class="nc-c" data-level=${top} ?data-starting=${this.rooms.some(r=>r.starting)}>
       ${hero({name,level:top,slides:homeSlides,small,compact:c.show_scale===false||format==='alert',still,scaleLabel:tt('Les pièces'),scale:scale({band:season?[season.minimum,season.maximum]:null,out:h.outdoor_temperature,rooms,outEntity:this.rooms[0]?.observations.outdoor_temperature?.source??undefined}),st,why:h2`<p><b>${tt('Pièce suivie de près')}</b> · ${focus?focus.title:tt('aucune')}</p>`})}
@@ -268,7 +289,7 @@ export class HestiaComfortHomeCard extends LitElement {
   }
   /** The full card: the rooms' advice in turn, then the last day, week or month like a light review. */
   private board(h:Home,slides:Slide[],tiles:ReturnType<typeof h2>,all:unknown[],outside:View[],floors:{name:string;mean:number|null;room_ids:string[]}[],
-      season:{minimum:number;maximum:number}|undefined){
+      season:{minimum:number;maximum:number}|undefined,o:{tile?:boolean;open?:boolean}={}){
     const c=this.config!,st=this.state(),name=c.title||tt('Mon logement'),period=this.period??c.period??'day',data=this.periods?.[period];
     const legacy:Record<string,boolean|undefined>={rooms_chart:c.show_scale,rooms:c.show_rooms,details:c.show_details};
     // The old switches still hide a section until sections are chosen in the editor.
@@ -277,7 +298,7 @@ export class HestiaComfortHomeCard extends LitElement {
     const own=this.rooms.find(r=>r.comfort_minimum!=null&&r.comfort_maximum!=null);
     const bandRange:[number,number]|null=season?[season.minimum,season.maximum]:own?[own.comfort_minimum!,own.comfort_maximum!]:null;
     const chartFloors:ChartFloor[]=floors.map(f=>({name:f.name,mean:f.mean,rooms:this.rooms.filter(r=>f.room_ids.includes(r.entry_id)).map(r=>{
-      const lvl=(advice(r).level??r.assessment.level) as Level;
+      const lvl=(this.roomAdvice(r).level??r.assessment.level) as Level;
       const own=r.assessment.features?.season,unheated=own?.heated===false;
       const range:[number,number]|null=unheated?null:own?[own.minimum,own.maximum]:r.comfort_minimum!=null&&r.comfort_maximum!=null?[r.comfort_minimum,r.comfort_maximum]:null;
       return {entry_id:r.entry_id,title:r.title,now:numeric(r.observations.indoor_temperature),band:range,level:unheated&&!['action','urgent'].includes(lvl)?'neutral':lvl};})}));
@@ -290,17 +311,38 @@ export class HestiaComfortHomeCard extends LitElement {
       case 'details':{const list=h2`<ul class="nc-list">${this.details(h)}</ul>`;
         return inside?h2`<div><span class="nw-label">${tt('Détails')}</span>${list}</div>`:fold({label:tt('Détails'),summary:'',open:st.detailsOpen,onToggle:()=>st.toggle('detailsOpen'),id:this.uid+'-details',body:list});}
     }};
-    const open=shown.filter(s=>!folded.includes(s)),more=shown.filter(s=>folded.includes(s));
-    const pick=(i:number)=>{this.paused=true;this.slide=i;};
-    return html`<ha-card class="nc-c" data-level=${slides[0]?.level??h.level} ?data-starting=${this.rooms.some(r=>r.starting)}>
-      ${band({slides,index:this.slide,pick,title:name})}
+    const open=shown.filter(s=>!folded.includes(s)),more=shown.filter(s=>folded.includes(s)),first=slides[0];
+    // The tile (6 November): folded, the same title line and banner as the full card; a tap unfolds the rest in place.
+    if(o.tile&&!o.open)return html`<ha-card class="nc-c nh-tile" data-level=${first?.level??h.level} ?data-starting=${this.rooms.some(r=>r.starting)}>
+      <div class="nh-body">${this.hero(h,slides,true)}<span class="nc-handle" aria-hidden="true"></span></div></ha-card>`;
+    return html`<ha-card class="nc-c" data-level=${first?.level??h.level} ?data-starting=${this.rooms.some(r=>r.starting)}>
       <div class="nh-body">
-        <div class="nh-head"><h2>${name}</h2>${tabs(period,p=>{this.period=p;})}</div>
-        ${open.map(s=>render(s,false))}
+        ${this.hero(h,slides,true)}
+        <section class="nh-part"><div class="nw-section-head"><h2>${tt('Bilan')}</h2><span class="nw-sum">${periodWord(period)}</span>${tabs(period,p=>{this.period=p;})}</div>
+          ${open.includes('themes')?themes(data,period):nothing}</section>
+        ${open.filter(s=>s!=='themes').map(s=>render(s,false))}
         ${more.length?fold({label:tt('Plus de détails'),summary:more.length>1?tt('{n} sections',{n:more.length}):tt('{n} section',{n:more.length}),open:this.folds.moreOpen??c.more_open??false,onToggle:()=>{this.folds={...this.folds,moreOpen:!(this.folds.moreOpen??c.more_open??false)};},id:this.uid+'-more',
           body:h2`<div class="nh-more">${more.map(s=>render(s,true))}</div>`}):nothing}
+        ${o.tile?html`<span class="nc-handle" aria-hidden="true"></span>`:nothing}
       </div>
     </ha-card>`;
+  }
+  /** The title line of card E (title, pill, outside), with its banner under it or alone (the list). */
+  private hero(h:Home,slides:Slide[],withBand:boolean){
+    const c=this.config!,name=c.title||tt('Mon logement'),pick=(i:number)=>{this.paused=true;this.slide=i;};
+    // How many gestures, or the calm word of the banner, and the temperature outside with its last 24 hours.
+    const gestures=slides.filter(s=>s.level==='action'||s.level==='urgent').length,first=slides[0];
+    const chipLevel=gestures?(slides.some(s=>s.level==='urgent')?'urgent':'action'):first?.level??'calm';
+    // The same pill and mark as the room cards: « Au mieux » with its half disk, « Tout va bien » with its tick; a hand for gestures.
+    const chip=gestures?html`<span class="nc-mark">${icon(chipLevel==='urgent'?'alert':'hand')}${gestures>1?tt('{n} gestes',{n:gestures}):tt('1 geste')}</span>`
+      :pillMark(chipLevel==='benefit'?'À saisir':statePill(first,chipLevel as Level),chipLevel as Level);
+    const out=h.outdoor_temperature,day=this.periods?.day?.outdoor;
+    return html`<div class="nh-hero">${withBand?html`<div class="nc-b-light" aria-hidden="true"></div>`:nothing}
+        <div class="nh-top"><div class="nh-top-l"><h2 class="nw-title">${name}</h2>
+          <span class="nw-chip nc-level" style=${`--c:${CHIP[chipLevel]??CHIP.neutral}`}>${chip}</span></div>
+          ${out!=null?lecture({value:number(Math.round(out*10)/10),unit:'°C',label:tt('Dehors'),
+            ...(day?{low:`${tt('dehors')} · ${number(day.min)}`,high:number(day.max),rangeTitle:tt('Dehors, mini et maxi sur 24 h')}:{more:tt('dehors')})}):nothing}</div>
+        ${withBand?band({slides,index:this.slide,pick}):nothing}</div>`;
   }
 }
 if(!customElements.get('hestia-comfort-home-card'))customElements.define('hestia-comfort-home-card',HestiaComfortHomeCard);

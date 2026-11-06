@@ -7,11 +7,11 @@ export type Level = typeof LEVELS[number];
 export type Module = typeof MODULES[number];
 /** Like Hestia Weather: full, tile (folds), intermediate (the tile unfolded), mini (one line), measures (the tiles alone),
  *  alert (only while a gesture is asked, hidden otherwise), and one card per measure (the full card's modules). */
-export const FORMATS = ['full','tile','intermediate','mini','measures','alert','temperature','humidity','air','openings','heating','horizon'] as const;
+export const FORMATS = ['full','tile','intermediate','mini','measures','alert','temperature','humidity','air','openings','heating','devices','horizon','feel'] as const;
 export type Format = typeof FORMATS[number];
 /** The formats in three kinds, as Hestia Weather's editor: large cards, one card per piece of the room, small cards. */
 export type Kind = 'large'|'piece'|'small';
-export const KINDS:Record<Kind,Format[]>={large:['full','tile'],piece:['temperature','humidity','air','openings','heating','measures','horizon'],small:['mini','alert']};
+export const KINDS:Record<Kind,Format[]>={large:['full','tile'],piece:['feel','temperature','humidity','air','devices','openings','heating','measures','horizon'],small:['mini','alert']};
 export const kindOf=(format:Format='tile'):Kind=>(Object.keys(KINDS) as Kind[]).find(k=>KINDS[k].includes(format))??'large';
 /** The modules of the full card's « Maintenant », each also a card of its own. */
 export const PIECES = ['temperature','humidity','air','openings','heating'] as const;
@@ -22,6 +22,13 @@ export type BannerBlock = typeof BANNER_BLOCKS[number];
 /** Marks of the temperature scale; none removes the scale. */
 export const SCALE_MARKS = ['band','day','out'] as const;
 export type ScaleMark = typeof SCALE_MARKS[number];
+/** The pieces of « En ce moment » (6 November, as Hestia Weather's « Aujourd’hui »): the Ressenti's warmth and humidity,
+ *  the air in rings, the line of devices. */
+export const NOW_BLOCKS = ['warmth','humidity','air','devices'] as const;
+export type NowBlock = typeof NOW_BLOCKS[number];
+/** A tap on the tile, as Hestia Weather's: fold or unfold, the full card in a window, a page, or nothing. */
+export const TAP_ACTIONS = ['toggle','popup','page','none'] as const;
+export type TapAction = typeof TAP_ACTIONS[number];
 /** Chips under the advice of a folded tile, and values on a mini line. */
 export const CHIPS = ['temperature','humidity','co2'] as const;
 export type Chip = typeof CHIPS[number];
@@ -56,7 +63,9 @@ export interface Config {
   /** What the card shows and how it opens: the scale, the measures, the details, and whether advices scroll by themselves. */
   show_scale?: boolean; show_measures?: boolean; show_details?: boolean; measures_open?: boolean; details_open?: boolean; rotate?: boolean;
   banner_blocks?: BannerBlock[]; scale_marks?: ScaleMark[]; tile_chips?: Chip[]; tile_blocks?: TileBlock[]; mini_values?: Chip[];
-  hold_action?: HoldAction; hold_path?: string;
+  hold_action?: HoldAction; hold_path?: string; tap_action?: TapAction;
+  /** What « En ce moment » shows, in its order; none hides it. */
+  now_blocks?: NowBlock[];
   /** The « Prochaines heures » graph in the banner, and its subjects. */
   show_horizon?: boolean; horizon_mode?: HorizonMode; horizon_subjects?: HorizonSubject[];
   /** « À savoir » and « Détails techniques »: shown or not, which topics and lines, how many lines. */
@@ -178,13 +187,21 @@ export function cleanConfig(input:Config):Config {
   if(input.modules && (!Array.isArray(input.modules) || input.modules.some(m=>!MODULES.includes(m)))) throw new Error(t('Rubrique inconnue.'));
   if(input.horizon_mode!==undefined&&!HORIZON_MODES.includes(input.horizon_mode))throw new Error(t('Réglage « graphique » invalide.'));
   if(input.piece_style!==undefined&&!['detailed','compact'].includes(input.piece_style))throw new Error(t('Réglage « version » invalide.'));
+  if(input.tap_action!==undefined&&!TAP_ACTIONS.includes(input.tap_action))throw new Error(t('Réglage « appui » invalide.'));
   hold(input);
   const lists={banner_blocks:list(input.banner_blocks,BANNER_BLOCKS,'bandeau'),scale_marks:list(input.scale_marks,SCALE_MARKS,'échelle'),
     tile_chips:list(input.tile_chips,CHIPS,'pastilles'),tile_blocks:list(input.tile_blocks,TILE_BLOCKS,'tuile dépliée'),mini_values:list(input.mini_values,CHIPS,'ligne'),
     horizon_subjects:list(input.horizon_subjects,HORIZON_SUBJECTS,'sujets du graphique'),insight_topics:list(input.insight_topics,INSIGHT_TOPICS,'sujets À savoir'),insight_groups:list(input.insight_groups,INSIGHT_GROUPS,'rubriques À savoir'),
-    detail_rows:list(input.detail_rows,DETAIL_ROWS,'lignes des détails')};
+    detail_rows:list(input.detail_rows,DETAIL_ROWS,'lignes des détails'),now_blocks:list(input.now_blocks,NOW_BLOCKS,'En ce moment')};
   if(input.insight_max!==undefined&&!(Number.isInteger(input.insight_max)&&input.insight_max>=1&&input.insight_max<=8))throw new Error(t('Réglage « lignes À savoir » invalide : de 1 à 8.'));
   return {...input,...Object.fromEntries(Object.entries(lists).filter(([,v])=>v!==undefined)), format:input.format??'tile', modules:[...new Set(input.modules??MODULES)]};
+}
+/** « En ce moment » of a card: its list, else what an older card's switch and cases allowed (6 November). */
+export function nowBlocks(c:Config):NowBlock[] {
+  if(c.now_blocks)return c.now_blocks;
+  if(c.show_measures===false)return [];
+  const m=new Set(c.modules??MODULES);
+  return NOW_BLOCKS.filter(b=>b==='warmth'||(b==='humidity'?m.has('humidity'):b==='air'?m.has('air'):m.has('air')||m.has('windows')||m.has('shutters')||m.has('coordination')));
 }
 
 /** The home card's settings: the same display choices as a room card, rooms instead of measures. */
@@ -218,12 +235,14 @@ export const homeAction=(c:HomeConfig)=>c.hold_action??(c.hold_path?'page':(c.fo
 
 /** The review card (review-card.ts): a title and its format, « summary » unless « full » is chosen. */
 export type ReviewFormat='summary'|'full';
-export interface ReviewConfig {type:'custom:hestia-comfort-review-card';title?:string;format?:ReviewFormat}
+/** `entry_id`: one room's review (its sheet, or its summary), instead of the whole home's (6 November). */
+export interface ReviewConfig {type:'custom:hestia-comfort-review-card';title?:string;format?:ReviewFormat;entry_id?:string}
 
 export function cleanReviewConfig(input:ReviewConfig):ReviewConfig {
   if(!input||input.type!=='custom:hestia-comfort-review-card')throw new Error(t('Type de carte Hestia Confort · bilan invalide.'));
   const config:ReviewConfig={type:input.type,format:input.format==='full'?'full':'summary'};
   if(typeof input.title==='string'&&input.title.trim())config.title=input.title.trim();
+  if(typeof input.entry_id==='string'&&input.entry_id)config.entry_id=input.entry_id;
   return config;
 }
 /** When the heating changes next, as ha-chauffage plans it; `override`: the end of a change made by hand. */

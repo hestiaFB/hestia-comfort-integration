@@ -1,5 +1,5 @@
 import {factBox3,slides3,why3} from './advisor3';
-import {fullBody} from './full';
+import {fullBody,fullPiece} from './full';
 import {html,svg,nothing,LitElement,type TemplateResult} from 'lit';
 import {property,state} from 'lit/decorators.js';
 import {SCALE_MARKS,CHIPS,TILE_BLOCKS,DETAIL_ROWS,INSIGHT_TOPICS,INSIGHT_GROUPS,PIECES,type Piece,type Config,type View,type Level,type Format,type BannerBlock,type Chip,type HorizonSubject,type Horizon,type NextChange} from '../types';
@@ -807,7 +807,7 @@ export function banner(o:{name:string;sub?:string;level:Level;slides:Slide[];st:
     <div class="nc-b-top"><div class="nc-b-id"><div class="nc-b-name"><h2 class="nw-title">${o.name}</h2><button class="nw-info" aria-label=${t('Pourquoi ce conseil ?')} aria-expanded=${o.st.why} aria-controls=${o.st.uid+'-why'} @click=${(e:Event)=>{e.stopPropagation();o.st.toggle('why');}}></button>${pill}</div>${o.sub?html`<span class="nc-b-sub">${o.sub}</span>`:nothing}</div>
       ${o.now&&o.now!==nothing?html`<div class="nc-b-now">${o.now}</div>`:nothing}</div>
     <div class="nc-why nc-b-why nw-glass" id=${o.st.uid+'-why'} ?hidden=${!o.st.why}>${o.why}</div>
-    <div class="nc-b-main nw-glass"><hestia-advice-ticker layout="banner" .slides=${o.slides.slice(0,1)} .still=${!!o.still}></hestia-advice-ticker></div>
+    <div class="nc-b-main nw-glass nw-band" data-level=${first?.level??o.level}><hestia-advice-ticker layout="banner" .slides=${o.slides.slice(0,1)} .still=${!!o.still}></hestia-advice-ticker></div>
     ${o.after??nothing}
   </div>`;
 }
@@ -1010,7 +1010,7 @@ export function roomCard(v:View,config:Config,st:CardState,format:Format='full',
   const watched=[...own.map(t=>named(t,v.title)),...others.flatMap(o=>o.list.map(t=>named(t,o.title)))].filter(t=>(t.out&&!t.remedy)||tileClass(t).includes(' mute'));
   const grid=others.length?html`<div class="nw-label nc-room-label">${v.title}</div><div class="nc-tiles">${own.map(t=>tile(t,soft))}</div>${others.map(o=>o.list.length?html`<div class="nw-label nc-room-label">${o.title}</div><div class="nc-tiles">${o.list.map(t=>tile(t,soft))}</div>`:nothing)}`
     :html`<div class="nc-tiles">${list.map(t=>tile(t,soft))}</div>`;
-  const known=factList(v,partners,config),box=factBox(v,partners,config,known);
+  const known=factList(v,partners,config);
   // « Au mieux »: the disk shows what « À savoir » names first, whichever room of the shared air it comes from.
   if(!v.advisor&&all.length===1&&all[0].pill==='Au mieux'&&known[0])all[0]={...all[0],disk:known[0].key==='humidity'?'drop':known[0].key==='cold'?'temp':all[0].disk};
   const detailList=html`<ul class="nc-list">${details(v,config)}</ul>${st.configure?html`<button class="nw-badge nc-configure" @click=${st.configure}>${icon('settings')}${t('Configurer cette pièce')}</button>`:nothing}`;
@@ -1018,7 +1018,6 @@ export function roomCard(v:View,config:Config,st:CardState,format:Format='full',
   // « Prochaines heures » (engine/horizon.py): under the scale, the banner's subject first, the other one behind a tab.
   const hum=f?.humidity,season=f?.season;
   const plage=(s:HorizonSubject):[number,number]|null=>s==='humidity'?(hum?.minimum!=null&&hum?.maximum!=null?[hum.minimum,hum.maximum]:null):(season?[season.minimum,season.maximum]:null);
-  const graph=config.show_horizon===false?nothing:horizonBox(f?.horizon??[],{subjects:config.horizon_subjects,mode:config.horizon_mode,uid:st.uid,second:!!st.horizonAlt,onTab:()=>st.toggle('horizonAlt'),plage});
   if(format==='mini'){
     // One thin line: the advice's tinted square, the room and its advice, a value or two, the temperature.
     const values=chipValues(v,config.mini_values??['temperature']),temp=values.find(c=>c.ic==='temp'),first=all[0];
@@ -1028,12 +1027,16 @@ export function roomCard(v:View,config:Config,st:CardState,format:Format='full',
   // The modules of « Maintenant », the scale inside the temperature's (switched off, the module keeps its figures).
   const scaleIn=config.show_scale===false||(config.show_scale===undefined&&config.scale_marks?.length===0)?null:sc;
   const mods=modules(v,config,partners,{scale:scaleIn});
-  if(format==='measures')
-    return html`<ha-card class="nc-c nc-measures-card" data-level="neutral"><div class="nc-mhead"><h2>${name}</h2><span class="nw-sum">${summary}</span></div><div class="nc-mbody">${moduleGrid(modules(v,config,partners,{scale:config.show_scale===true||config.scale_marks?.length?sc:null}),true)}</div></ha-card>`;
-  // One card per piece of the room: the full card's module alone, or its « Prochaines heures ».
-  if(format==='horizon')
-    return html`<ha-card class="nc-c nc-piece-card" data-level="neutral"><div class="nc-mod nw-panel" data-piece="horizon"><div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon('clock')}</span><h3>${t('Prochaines heures')}</h3><span class="aside nc-src">${name}</span></div>${horizonBox(f?.horizon??[],{subjects:config.horizon_subjects,mode:config.horizon_mode??'always',uid:st.uid,second:!!st.horizonAlt,onTab:()=>st.toggle('horizonAlt'),
-      plage:x=>x==='humidity'?(hum?.minimum!=null&&hum?.maximum!=null?[hum.minimum,hum.maximum]:null):(season?[season.minimum,season.maximum]:null)})}</div></ha-card>`;
+  // Every card of a piece draws the full card's own piece (6 November): « Toutes les mesures » its « En ce moment » and devices,
+  // « Prochaines heures » its « À venir », Température and Humidité the Ressenti's halves, Air the rings, Appareils the devices.
+  const none=html`<p class="nc-mod-none">${t('{room} : rien à montrer ici. Vérifiez les capteurs et les rubriques de la carte.',{room:name})}</p>`;
+  if(format==='measures'){const body=fullPiece('measures',v,config,st,partners,name);
+    return html`<ha-card class="nc-c nc-measures-card" data-level="neutral"><div class="nc-mhead"><h2>${name}</h2><span class="nw-sum">${summary}</span></div><div class="nc-mbody">${body===nothing?none:body}</div></ha-card>`;}
+  if(format==='horizon'){const body=fullPiece('horizon',v,config,st,partners,name);
+    return html`<ha-card class="nc-c nc-piece-card" data-level="neutral">${body===nothing?html`<p class="nc-mod-none">${t('{room} : rien ne change dans les prochaines heures.',{room:name})}</p>`:body}</ha-card>`;}
+  if(format==='feel'||format==='temperature'||format==='humidity'||format==='air'||format==='devices'){const body=fullPiece(format,v,config,st,partners,name);
+    return html`<ha-card class="nc-c nc-piece-card" data-level="neutral">${body===nothing?none:body}</ha-card>`;}
+  // Ouvertures and Chauffage have no piece of their own in the full card (only its line of devices): their module stays.
   if((PIECES as readonly string[]).includes(format)){
     const m=mods.find(x=>x.key===format);
     return html`<ha-card class=${'nc-c nc-piece-card'+(config.piece_style==='compact'?' compact':'')} data-level="neutral">${m?(config.piece_style==='compact'?moduleCompact({...m,src:m.src??name}):moduleCard({...m,src:m.src??name},true)):html`<p class="nc-mod-none">${t('{room} : rien à montrer ici. Vérifiez les capteurs et les rubriques de la carte.',{room:name})}</p>`}</ha-card>`;
@@ -1047,17 +1050,6 @@ export function roomCard(v:View,config:Config,st:CardState,format:Format='full',
       ${tnow!==null?html`<span class="nc-al-t">${number(tnow)}<small>°</small></span>`:nothing}</ha-card>`;
   }
   const now=nowBlock(v,partners);
-  // « Maintenant », « Prochaines heures », « Détails »: the full card's sections, as Hestia Weather's « Aujourd’hui » and « Prévisions ».
-  const measures=mods.length>0&&config.show_measures!==false,hasGraph=graph!==nothing;
-  // « À venir » says only what is worth it; with nothing to say, it is left out.
-  const coming=config.show_horizon===false?nothing:upcoming(v,config,plage);
-  // Always « Maintenant », then « À venir », then « Détails », whatever order the settings list them in.
-  const sections=(blocks:readonly string[])=>{const parts=['measures','horizon','details'].filter(b=>blocks.includes(b)).map(b=>
-      // « Maintenant » is titled only when « À venir » follows it: alone, the title says nothing (3 November).
-      b==='measures'&&measures?(blocks.includes('horizon')&&config.show_horizon!==false&&coming!==nothing?part(t('Maintenant'),summary,moduleGrid(mods,soft)):html`<section class="nc-part">${moduleGrid(mods,soft)}</section>`)
-      :b==='horizon'&&config.show_horizon!==false&&coming!==nothing?part(t('À venir'),t('Prochaines 24 h'),coming as TemplateResult)
-      :b==='details'&&config.show_details!==false?fold({label:t('Détails'),summary:'',open:st.detailsOpen,onToggle:()=>st.toggle('detailsOpen'),id:st.uid+'-details',body:detailList}):null).filter(x=>x!==null);
-    return parts.length?html`<div class="nc-body nc-sections">${parts}</div>`:nothing;};
   if(format==='tile'||format==='intermediate'){
     // The one foldable card: folded, the banner and a few values; a tap unfolds « À savoir » and the sections in place.
     const open=format==='intermediate'||!!st.unfolded;
@@ -1065,7 +1057,7 @@ export function roomCard(v:View,config:Config,st:CardState,format:Format='full',
     const chips=open?nothing:chipRow([...chipValues(v,(config.tile_chips??CHIPS).filter(c=>c!=='temperature')),...partners.flatMap(p=>chipValues(p,['humidity']).map(c=>({...c,text:p.title+' '+c.text})))]);
     return html`<ha-card class=${'nc-c nc-tile-card'+(open?' open':' folded')} data-level=${top} ?data-starting=${!!v.starting}>
       ${banner({name,level:top,slides:all,st,why:whyRoom(v,all[0]),still,now,compact:true,after:html`${chips}${format==='tile'?html`<span class="nc-handle" aria-hidden="true"></span>`:nothing}`})}
-      ${open?html`${box}${sections(blocks)}<div class="nc-foot"><span>${partners.length?t('Capteurs de {rooms}',{rooms:[v,...partners].map(r=>r.title).join(' et ')}):t('Capteurs de la pièce')}</span><span>${format==='tile'?t('Appui : replier · '):''}${t('Appui long : carte complète')}</span></div>`:nothing}
+      ${open?html`${fullBody(v,config,st,partners,blocks)}<div class="nc-foot"><span>${partners.length?t('Capteurs de {rooms}',{rooms:[v,...partners].map(r=>r.title).join(' et ')}):t('Capteurs de la pièce')}</span><span>${format==='tile'?t('Appui : replier · '):''}${t('Appui long : carte complète')}</span></div>`:nothing}
     </ha-card>`;
   }
   return html`<ha-card class="nc-c nc-full-card" data-level=${top} ?data-starting=${!!v.starting}>
@@ -1121,16 +1113,16 @@ export class HestiaAdviceTicker extends LitElement {
   /** The banner's layout: its tinted square with the pictogram, then « Action à faire », the advice, why, and what to touch. */
   private banner(list:Slide[],many:boolean,i:number){
     // The kicker says when: now, or under way; nothing when there is nothing to do.
-    const when=(s:Slide)=>/^(Encore |Laissez ouvert)|^Aération en cours$/.test(s.title)?t('En cours'):s.title==='Rien à faire'||s.level==='neutral'||s.level==='calm'?'':t('Maintenant');
+    const when=(s:Slide)=>s.cap==='À essayer'?t('À essayer'):/^(Encore |Laissez ouvert)|^Aération en cours$/.test(s.title)?t('En cours'):s.title==='Rien à faire'||s.level==='neutral'||s.level==='calm'?'':t('Maintenant');
     // « Puis refermez » is the gesture's second half: in the title. The other tags were said elsewhere (À savoir, the « i »).
     const title=(s:Slide)=>s.cap==='Puis refermez'?`${tx(s.title)}, ${tx('puis refermez')}`:tx(s.title);
-    return html`<div class="nc-bt" @mouseenter=${()=>this.hold(true)} @mouseleave=${()=>this.hold(false)} @focusin=${()=>this.hold(true)} @focusout=${()=>this.hold(false)}>
-      <div class="nc-bt-copy">
+    return html`<div class="nw-band-row" @mouseenter=${()=>this.hold(true)} @mouseleave=${()=>this.hold(false)} @focusin=${()=>this.hold(true)} @focusout=${()=>this.hold(false)}>
+      <div class="nw-band-text">
         <div class="nc-stack" aria-live=${this.paused?'polite':'off'}>${list.map((s,k)=>html`<div class=${'nc-slide'+(k===i?' on':k===this.previous?' out':'')} aria-hidden=${k===i?'false':'true'}>
-          ${when(s)||s.learned?html`<div class="nc-tk-head">${when(s)?html`<span class="nc-bt-kicker">${when(s)}</span>`:nothing}${s.learned?html`<span class="nc-bt-learned" title=${tx(s.learned)}>${icon('flask')}${t('Optimisé par l’apprentissage')}</span>`:nothing}</div>`:nothing}
-          <p class="nc-advice">${title(s)}</p>${s.line?html`<p class="nc-line">${tl(s.line)}</p>`:nothing}</div>`)}</div>
+          ${when(s)||s.learned?html`<div class="nw-band-kicker">${when(s)?html`<span>${when(s)}</span>`:nothing}${s.learned?html`<span class="nc-bt-learned" title=${tx(s.learned)}>${icon('flask')}${t('Optimisé par l’apprentissage')}</span>`:nothing}</div>`:nothing}
+          <p class="nw-band-title">${title(s)}</p>${s.line?html`<p class="nw-band-line">${tl(s.line)}</p>`:nothing}</div>`)}</div>
       </div>
-      <div class="nc-bt-icons nc-stack" aria-hidden="true">${list.map((s,k)=>s.scene?html`<div class=${'nc-slide nc-scene'+(k===i?' on':k===this.previous?' out':'')} data-level=${s.level}>${scene(s.scene)}</div>`
+      <div class="nw-band-pic nc-stack" aria-hidden="true">${list.map((s,k)=>s.scene?html`<div class=${'nc-slide nc-scene'+(k===i?' on':k===this.previous?' out':'')} data-level=${s.level}>${scene(s.scene)}</div>`
         :html`<div class=${'nc-slide nc-orb'+(k===i?' on':k===this.previous?' out':'')} data-level=${s.level} data-mood=${mood(s,s.level)}><span class="nc-orb-ring"></span>${icon(s.disk)}${s.learned?html`<span class="nc-orb-learned">${icon('flask')}</span>`:nothing}</div>`)}</div>
     </div>`;
   }

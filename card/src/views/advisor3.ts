@@ -13,7 +13,7 @@ export interface Advisor3 {
   /** What the last opinion sent answered, shown in place of the buttons. */
   said?:string;
 }
-interface Slide3 {title:string;line:string;disk:string;level:Level;pill:string;learned?:string}
+interface Slide3 {title:string;line:string;disk:string;level:Level;pill:string;learned?:string;cap?:string}
 
 const str=(x:unknown)=>typeof x==='string'?x:'';
 const list=(x:unknown)=>Array.isArray(x)?x.filter((i):i is string=>typeof i==='string'):[];
@@ -56,8 +56,20 @@ export function level3(x:Advisor3):{level:Level;pill:string}{
 /** « Rien à faire » while a measure stays out of its range or mark: the engine's line says so (advisor/words.py). */
 const beyond=(a:Record<string,unknown>)=>/aucun geste ne ferait vraiment mieux|^(Ouverte ou fermée|Ouverte|Fermée) :/i.test(str(a.phrase));
 
+/** The pictogram of a gesture to try, from its first words (« Aérez 20 min », « Lancez la VMC »…). */
+const TRY_DISKS:[RegExp,string][]=[[/^(Aérez|Ouvrez|Entrouvrez)/i,'open'],[/VMC/i,'vmc'],[/purificateur/i,'fan'],[/chauff|poêle|radiateur/i,'flame'],[/volet/i,'window'],[/^(Fermez|Refermez)/i,'shut']];
+/** « À essayer — Aérez 20 min : 60 % d'humidité à 20 h 45 au lieu de 66 %, sans doute » (advisor/words.py) as a banner:
+ *  nothing else to do, so the trial is the advice (5 November: the banner said « Rien à faire » under « À saisir »). */
+export function trial3(a:Record<string,unknown>):{title:string;line:string;disk:string}|null{
+  const text=str(a.a_essayer).replace(/^À essayer\s*[—:–-]\s*/,'');
+  if(!text||(str(a.geste)||'nothing')!=='nothing')return null;
+  const k=text.indexOf(' : '),title=k>0?text.slice(0,k):text;
+  return {title,line:k>0?text.slice(k+3):'',disk:TRY_DISKS.find(([re])=>re.test(title))?.[1]??'spark'};
+}
+
 export function slides3(x:Advisor3):Slide3[]{
-  const a=x.attributes,gesture=str(a.geste)||'nothing',{level,pill}=level3(x);
+  const a=x.attributes,gesture=str(a.geste)||'nothing',{level,pill}=level3(x),tried=level==='benefit'?trial3(a):null;
+  if(tried)return [{...tried,level,pill,cap:'À essayer'}];
   const proof=gesture!=='nothing'&&!['safety','overheat'].includes(str(a.regle))?PROOF[str(a.preuve)]:undefined;
   // « Optimisé par l'apprentissage » only for an effect this room has shown: a probable one is said « sans doute » in the line
   // (Chambre P, 3 November: the flask over a window it had never seen open).

@@ -409,7 +409,8 @@ test('a running ventilation or purifier is never counted out of your range',()=>
   v.observations={...v.observations,purifier:{value:true,quality:'valid',source:'fan.p'}};
   const st={why:false,tilesOpen:false,detailsOpen:false,uid:'t',toggle(){}};
   const text=plain(roomCard(v,cleanConfig({type:'custom:hestia-comfort-card',format:'measures',modules:['air','humidity']}),st,'measures'));
-  assert.match(text,/En marche/);assert.doesNotMatch(text,/à surveiller/);
+  // The devices at work are said in « Appareils », as on the full card (6 November).
+  assert.match(text,/Purificateur en marche/);assert.match(text,/VMC en marche/);assert.doesNotMatch(text,/à surveiller/);
 });
 test('the home card names what a room needs, as measured',async()=>{
   const {needs}=await import(pathToFileURL(join(temp,'views/room.mjs')));
@@ -466,8 +467,8 @@ test('rooms sharing one air show each measure once, under the room that has it',
   const air=modules(salon,cleanConfig({type:'custom:hestia-comfort-card',modules:['air']}),[cuisine]).find(m=>m.key==='air');
   assert.deepEqual(air.slides.map(x=>[x.label,x.room]),[['CO₂','Salon'],['COV','Cuisine'],['Purificateur','Cuisine']]);
   assert.equal((text.match(/Purificateur/g)??[]).length,1);
-  // Both temperatures, each under its room.
-  assert.match(text,/20,2/);assert.match(text,/20,1/);
+  // The full card's Ressenti (6 November): the leading room's warmth; humidity not ticked, so not shown at all.
+  assert.match(text,/20,2/);assert.doesNotMatch(text,/Humidité/);
   // A room shown alone says where a borrowed measure comes from.
   assert.match(plain(roomCard(cuisine,cleanConfig({type:'custom:hestia-comfort-card',format:'measures',modules:['air']}),st,'measures')),/Salon/);
   const alone=modules(cuisine,cleanConfig({type:'custom:hestia-comfort-card',modules:['air']})).find(m=>m.key==='air');
@@ -663,7 +664,7 @@ test('« À savoir » says how to act and what to watch; the last airing goes to
 test('the formats come in three kinds, as Hestia Weather’s editor (30 October)',()=>{
   assert.deepEqual(['full','tile','intermediate','temperature','measures','horizon','mini','alert'].map(f=>kindOf(f)),['large','large','large','piece','piece','piece','small','small']);
   // One foldable large card only (30 October, evening): « Intermédiaire » is no longer offered, an older card keeps it.
-  assert.deepEqual(Object.values(KINDS).flat().sort(),['air','alert','full','heating','horizon','humidity','measures','mini','openings','temperature','tile']);
+  assert.deepEqual(Object.values(KINDS).flat().sort(),['air','alert','devices','feel','full','heating','horizon','humidity','measures','mini','openings','temperature','tile']);
   assert.equal(cleanConfig({type:'custom:hestia-comfort-card',format:'humidity',piece_style:'compact'}).piece_style,'compact');
   assert.throws(()=>cleanConfig({type:'custom:hestia-comfort-card',piece_style:'grande'}));
   // An older card keeps its format: nothing to change on the dashboard.
