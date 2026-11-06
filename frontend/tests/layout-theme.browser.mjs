@@ -10,6 +10,8 @@ const server=createServer((req,res)=>{const path=new URL(req.url,'http://localho
  if(path==='/shell.js')source=readFileSync(new URL('hestia-socle.js',root));
  else if(path==='/comfort.js')source=readFileSync(new URL('panel.js',root));
  else if(path==='/weather.js')source=readFileSync(legacy??new URL('panel.js',other));
+ // Socle 1.23: the pieces loaded when needed (hub-<sum>.js), from whichever brick built them.
+ else if(/^\/hub-\w+\.js$/.test(path))source=[root,other].map(r=>new URL(path.slice(1),r)).filter(u=>existsSync(u)).map(u=>readFileSync(u))[0];
  else if(/^\/manrope-\d+\.ttf$/.test(path)){res.setHeader('Content-Type','font/ttf');res.end(readFileSync(new URL(path.slice(1),root)));return;}
  if(source){res.setHeader('Content-Type','text/javascript');res.end(source);return;}
  if(path==='/comfort.json'||path==='/weather.json'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(path==='/comfort.json'?comfort:weather));return;}

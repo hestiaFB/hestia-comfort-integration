@@ -8,6 +8,8 @@ const comfortRoot=new URL('../../custom_components/hestia_comfort/frontend/',imp
 const withWeather=process.env.HESTIA_TEST_COMFORT_ONLY!=='1'&&existsSync(weatherRoot);const html=harness(withWeather),id=comfort.snapshot.rooms[0].entry_id;
 const server=createServer((req,res)=>{const path=new URL(req.url,'http://localhost').pathname;
  try{let file;if(path==='/shell.js')file=new URL('hestia-socle.js',comfortRoot);else if(path==='/comfort.js')file=new URL('panel.js',comfortRoot);else if(path==='/weather.js')file=new URL('panel.js',weatherRoot);else if(/^\/manrope-\d+\.ttf$/.test(path))file=new URL(path.slice(1),comfortRoot);
+ // Socle 1.23: the pieces loaded when needed (hub-<sum>.js), from whichever brick built them.
+ else if(/^\/hub-\w+\.js$/.test(path))file=[comfortRoot,weatherRoot].map(r=>new URL(path.slice(1),r)).find(u=>existsSync(u));
  if(file){res.setHeader('Content-Type',path.endsWith('.ttf')?'font/ttf':'text/javascript');res.end(readFileSync(file));}
  else if(path.endsWith('/comfort.json')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(comfort));}
  else if(path.endsWith('/weather.json')){res.setHeader('Content-Type','application/json');res.end(readFileSync(new URL('./fixtures/weather.json',import.meta.url)));}

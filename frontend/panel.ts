@@ -3,9 +3,7 @@ import {customElement,property,state} from 'lit/decorators.js';
 import {live} from 'lit/directives/live.js';
 import styles from './styles.css';
 // The comfort review is shared with its Lovelace card (card/src/review.ts).
-import '../card/src/review';
-import {kpis,todoLists,listSection,listRow,saveBar,tabBar,numberField,segmented,toggle,moreRow,frame,noteBox,hubStyles,modernStyles,helpTip,defaultValue,pageHead,todoFrame,itemsFrame,stepMenu,stepFooter,extensionsFrame,detectedFrame,versionsFrame,extensionCard as nkExtensionCard,aboutPage,removeBlock as nkRemoveBlock,pageStyles,setLanguage,addDictionary,t,fr,currentLocale,currentLanguage,type NkLine,type NkLevel} from './socle/ui';
-import {PANEL_EN} from './i18n-en';
+import {kpis,todoLists,listSection,listRow,saveBar,tabBar,numberField,segmented,toggle,moreRow,frame,noteBox,hubStyles,modernStyles,helpTip,defaultValue,pageHead,todoFrame,itemsFrame,stepMenu,stepFooter,extensionsFrame,detectedFrame,versionsFrame,extensionCard as nkExtensionCard,aboutPage,removeBlock as nkRemoveBlock,pageStyles,hassChanged,setLanguage,addDictionary,wordsReady,t,fr,currentLocale,currentLanguage,type NkLine,type NkLevel} from './socle/ui';
 import {lightEditor,noLights,type Lights,type LightRule,type LightInfo} from './lights';
 import {foyerPage,roomFoyer,toleranceName,FOYER_DEFAULTS,duration,type Foyer} from './foyer';
 import {quizScreen,unanswered,firstUnanswered,habitsStyles,type HabitsContext,type HouseUses} from './habitudes';
@@ -13,13 +11,19 @@ import {overhangSketch} from './sketch';
 import {roomLearning3,outside3,firstMissing} from './learning3';
 import {words,labels,indoor,outdoor,multiple,exposures,kinds,measurement,newRoom,coverage,exteriorSummary,livingArea,defaultOpening,warningText,warningId,stages,intros,outdoorGroups,airSource,airChoices,exteriorChoices,airReferenceDefaults,vocPreset,thresholdSources,type Choice,type Candidate,type Discovery,type Health,type HealthLine,type Target,type Snapshot,type Hass,type Room,type RoomConfig,type Spec,type Twins,type Twin,type Progress,type Extension,seasonNames,ordinarySize,type Heater,type OpeningMeta,type RoomBuilt,type CustomEquipment} from './model';
 // Confort's words beside the hub's (socle 1.13): French in the code, English for any other language.
-addDictionary('en',PANEL_EN);
+// Loaded only for a Home Assistant in another language than French (socle 1.23, PLAN-OPTIMISATION-HUB.md point 10).
+addDictionary('en',()=>import('./i18n-en').then(m=>m.PANEL_EN));
+// The comfort review (« Bilan », shared with the card) only when it is opened.
+let reviewLoad:Promise<unknown>|undefined;
+const loadReview=()=>reviewLoad??=import('../card/src/review');
 /** An extension's state in one word, and its colour: blue when linked, orange when one step is left. */
 const extState:Record<Extension['state'],[string,string]>={linked:[fr('liée'),'ok'],found:[fr('à lier'),'act'],missing:[fr('non installée'),''],off:[fr('désactivée'),'']};
 const extIcon:Record<string,string>={wled:'light',hestia_weather:'weather',versatile_thermostat:'heating',adaptive_cover_pro:'openings',cover_automatic:'openings',cover_extender:'openings',alarmo:'presence'};
 /** HACS opens the repository from its GitHub address. */
 const hacsUrl=(url:string)=>{const [owner,repository]=url.replace('https://github.com/','').split('/');return `https://my.home-assistant.io/redirect/hacs_repository/?owner=${owner}&repository=${repository}&category=integration`;};
 /** Plural words: French says « 0 point », English « 0 points ». */
+/** A saved room as the editor holds it: every window with its details, the area said even when there is none. */
+const editable=(saved:RoomConfig):RoomConfig=>{const config=structuredClone(saved);config.area_id??=null;config.openings??={};for(const id of config.windows)config.openings[id]??={...defaultOpening(),sheltered:config.rain_exposed===false};return config;};
 const many=(n:number)=>n>1||n===0&&currentLanguage()!=='fr';
 const num=(v:number,d=1)=>v.toLocaleString(currentLocale(),{maximumFractionDigits:d,minimumFractionDigits:0});
 const days=(d:number)=>{const n=Math.max(1,Math.floor(d));return n>1?t('{n} jours',{n}):t('{n} jour',{n});};
@@ -124,9 +128,23 @@ export class ComfortSetup extends LitElement {
  private revision='';
  private previewCard?:{id:string;el:HTMLElement&{hass?:unknown;setConfig?:(c:object)=>void}};
  private beforeUnload=(e:BeforeUnloadEvent)=>{if(this.draft||this.exteriorDraft||this.drafts.size){e.preventDefault();e.returnValue='';}};
- connectedCallback(){super.connectedCallback();if(this.hass&&!this.snapshot){this.connection=this.hass.connection;void this.load();}else if(this.healthLoading&&this.snapshot)void this.loadHealth();window.addEventListener('beforeunload',this.beforeUnload);void loadPicker().then(tag=>this.pickerTag=tag);}
- disconnectedCallback(){super.disconnectedCallback();this.workspaceGeneration++;this.opening=false;if(this.busy)this.routeHandled=undefined;this.generation++;this.healthGeneration++;window.removeEventListener('beforeunload',this.beforeUnload);}
+ // The words of a language arrive after the page (socle 1.23): drawn again with them.
+ private words=()=>this.requestUpdate();
+ connectedCallback(){super.connectedCallback();window.addEventListener('hestia-words',this.words);if(this.hass&&!this.snapshot){this.connection=this.hass.connection;void this.load();}else if(this.healthLoading&&this.snapshot)void this.loadHealth();window.addEventListener('beforeunload',this.beforeUnload);void loadPicker().then(tag=>this.pickerTag=tag);}
+ disconnectedCallback(){super.disconnectedCallback();this.workspaceGeneration++;this.opening=false;if(this.busy)this.routeHandled=undefined;this.generation++;this.healthGeneration++;window.removeEventListener('beforeunload',this.beforeUnload);window.removeEventListener('hestia-words',this.words);}
+ // Home Assistant hands a new `hass` at every change of state in the home (8 a second on the lab): this tab redraws only when
+ // one of the entities it shows changes, or its language, theme or connection (socle 1.23, PLAN-OPTIMISATION-HUB.md point 7).
+ // The card's preview follows every change.
+ protected shouldUpdate(changed:PropertyValues){
+  if(changed.has('hass')&&this.previewCard)this.previewCard.el.hass=this.hass;
+  return !(changed.size===1&&changed.has('hass'))||hassChanged(changed.get('hass') as Hass|undefined,this.hass,this.shown(),this.hassSeen);}
+ private hassSeen={};
+ /** Every entity this tab may show: the rooms' and the outside's sensors, the alarm, the lights, and the room being set. */
+ private shown():string[]{const ids:string[]=[];
+  const add=(v:unknown):void=>{if(typeof v==='string'){if(v.includes('.'))ids.push(v);}else if(Array.isArray(v))v.forEach(add);else if(v&&typeof v==='object')Object.values(v).forEach(add);};
+  add(this.snapshot?.rooms.map(r=>r.config));add(this.snapshot?.home);add(this.draft);add(this.exteriorDraft);return ids;}
  protected updated(changed:PropertyValues){
+  if(this.page==='review')void loadReview();
   // The hub's words (socle 1.13) follow Home Assistant's language.
   // Its words come back from Confort in the new language too: the report is asked again.
   if(setLanguage(this.hass?.language)){this.requestUpdate();if(this.snapshot)void this.loadHealth();}
@@ -141,7 +159,7 @@ export class ComfortSetup extends LitElement {
  }
  private async load(){
   if(!this.hass)return;const generation=++this.generation;this.busy=true;this.error='';
-  try{const value=await this.ws<Snapshot>({type:'hestia_comfort/configuration'});if(generation===this.generation){this.snapshot=value;await this.followRoute();if(!value.rooms.length)await this.loadOverview();}}
+  try{const [value]=await Promise.all([this.ws<Snapshot>({type:'hestia_comfort/configuration'}),wordsReady()]);if(generation===this.generation){this.snapshot=value;await this.followRoute();if(!value.rooms.length)await this.loadOverview();}}
   catch(e){if(generation===this.generation)this.error=this.message(e);}
   finally{if(generation===this.generation)this.busy=false;}
  }
@@ -310,7 +328,10 @@ export class ComfortSetup extends LitElement {
  private menu(){this.dispatchEvent(new CustomEvent('hass-toggle-menu',{bubbles:true,composed:true}));}
  private areaName(id:string|null){return id?this.snapshot?.areas.find(a=>a.area_id===id)?.name??id:'';}
  private async discover(area_id?:string|null,entry_id?:string){
-  return await this.ws<Discovery>({type:'hestia_comfort/discover',...(area_id?{area_id}:{}),...(entry_id?{entry_id}:{})});
+  const d=await this.ws<Discovery>({type:'hestia_comfort/discover',...(area_id?{area_id}:{}),...(entry_id?{entry_id}:{})});
+  // The cover's override switches are sent once when they are its automation's (configuration.py discover).
+  if(!d.candidates.shutter_override&&d.candidates.shutter_auto)d.candidates.shutter_override=d.candidates.shutter_auto;
+  return d;
  }
  private begin(){this.confirmRemove=false;this.adding=false;this.busy=true;this.error='';this.saved='';this.preview=undefined;this.search={};this.confirmed=false;}
  private async start(area:{area_id:string;name:string}|null,name=''){
@@ -324,7 +345,7 @@ export class ComfortSetup extends LitElement {
   const cached=this.drafts.get(room.entry_id);if(route&&cached){Object.assign(this,cached);this.workspaceKey=room.entry_id;this.path(room.entry_id+'/'+(roomSections.find(x=>x.stage===this.stage)?.path??'mesures'));return;}
   const generation=this.workspaceGeneration;this.begin();
   try{const d=await this.discover(room.config.area_id,room.entry_id);if(generation!==this.workspaceGeneration)return;this.discovery=d;this.revision=d.revision;this.entryId=room.entry_id;
-   const config=structuredClone(room.config);config.area_id??=null;config.openings??={};for(const id of config.windows)config.openings[id]??={...defaultOpening(),sheltered:config.rain_exposed===false};
+   const config=editable(room.config);
    this.draft=config;this.original=JSON.stringify(config);this.proposed=[];this.stage=0;this.acknowledged=[...(config.acknowledged??[])];this.workspaceKey=room.entry_id;if(route)this.path(room.entry_id+'/mesures');}
   catch(e){this.error=this.message(e);}finally{this.busy=false;}
  }
@@ -363,7 +384,9 @@ export class ComfortSetup extends LitElement {
   return nkRemoveBlock({link:t('Supprimer cette pièce'),title:t('Supprimer « {name} » ?',{name:d.name}),lines:[t('Cette pièce ne sera plus suivie et sa carte n’affichera plus rien. Vos appareils et capteurs Home Assistant ne sont pas touchés.'),
    d.area_id?t('La pièce Home Assistant vous sera de nouveau proposée.'):t('Vous pourrez la recréer comme pièce libre.')],keep:t('Garder la pièce'),confirm:t('Supprimer la pièce'),asking:this.confirmRemove,busy:this.busy,
    onAsk:()=>{this.confirmRemove=true;},onCancel:()=>{this.confirmRemove=false;},onConfirm:()=>void this.removeRoom()});}
- private cancel(){if(this.draft||this.exteriorDraft){this.confirmDiscard=true;return;}this.discard();}
+ /** Leaving asks only when something is really unsaved: a new room not created yet, or choices that differ from the saved ones (after « Enregistrer », nothing is pending). */
+ private cancel(){const pending=this.exteriorDraft?this.exteriorChanges()>0:this.draft?(!this.entryId||this.changes()>0):false;
+  if(pending){this.confirmDiscard=true;return;}this.discard();}
  private discard(){const back=this.draft&&!this.exteriorDraft?'pieces':'';this.drafts.delete(this.workspaceKey);this.workspaceKey='';this.path(back);this.confirmDiscard=false;this.draft=undefined;this.exteriorDraft=undefined;this.discovery=undefined;this.entryId=undefined;this.error='';this.acknowledged=[];this.proposed=[];}
  private selected(key:string):string[]{if(this.exteriorDraft)return this.exteriorDraft[key]?[this.exteriorDraft[key].entity_id]:[];if(!this.draft)return [];return key==='presence'?(this.draft.presence??[]):key==='windows'?this.draft.windows:this.draft.sources[key]?[this.draft.sources[key]]:[];}
  private choose(key:string,c:Candidate){
@@ -502,6 +525,9 @@ export class ComfortSetup extends LitElement {
    const before=new Set(this.snapshot?.rooms.map(r=>r.entry_id));const wasRoom=!isHome;const edited=entryId;
    this.snapshot=await this.ws<Snapshot>({type:'hestia_comfort/save_config',config,home:isHome,revision,...(entryId?{entry_id:entryId}:{}),acknowledged:this.acknowledged});
    if(workspace!==this.workspaceGeneration)return;
+   // A room saved stays on screen, on the same tab and at the same place: no other page in between, nothing reloaded.
+   const kept=wasRoom&&edited?this.snapshot.rooms.find(r=>r.entry_id===edited):undefined;
+   if(kept){const config=editable(kept.config);this.drafts.delete(this.workspaceKey);this.draft=config;this.original=JSON.stringify(config);this.acknowledged=[...(config.acknowledged??[])];this.revision=this.snapshot.revision;this.saved=t('Enregistré');return;}
    this.drafts.delete(this.workspaceKey);this.workspaceKey='';this.path('');this.draft=undefined;this.exteriorDraft=undefined;this.discovery=undefined;this.entryId=undefined;
    if(wasRoom&&edited){const tab=roomSections.find(x=>x.stage===this.stage)?.path??'mesures';await this.openRoom(edited,tab);this.saved=t('Enregistré');return;}
    if(wasRoom){this.preview=this.snapshot.rooms.find(r=>!before.has(r.entry_id))?.entry_id;this.previewEdited=false;if(this.preview)this.path('apercu/'+this.preview);}
@@ -607,7 +633,7 @@ export class ComfortSetup extends LitElement {
   const content=this.stage===0?this.measuresTab()
    :this.stage===1?this.windowsTab()
    :this.stage===2?this.equipmentTab()
-   :this.stage===3?this.heatingStage():this.stage===4?html`${this.preferences()}<p><button class="link" ?disabled=${this.busy} @click=${()=>this.refreshCandidates()}>${t('Rechercher à nouveau les capteurs')}</button></p>${this.removeBlock()}`
+   :this.stage===3?this.heatingStage():this.stage===4?this.preferences()
    :this.stage===8?this.roomLearning():this.stage===7?this.notifications():this.summary();
   return html`${pageHead({back:{label:t('Pièces'),onClick:()=>this.cancel()},title:d.name?d.name:t('Nouvelle pièce')})}
   ${creating?html`<p class="room-step">${t('Nouvelle pièce · étape {n} sur {total}',{n:at+1,total:roomOrder.length})}</p>`:this.roomChips()}

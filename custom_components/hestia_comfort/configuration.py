@@ -138,8 +138,18 @@ class Configuration:
         indoor_ids = {{**e.data, **e.options}.get("sources", {}).get(k) for e in self.entries()
                       for k in ("indoor_temperature", "indoor_humidity")} - {None}
         candidates = catalog(self.hass, area_id, selected, indoor_ids)
+        # The switches of a cover's automation and of its manual override are the same list (all the home's switches):
+        # sent once, the panel reads it for both (PLAN-OPTIMISATION-HUB.md).
+        if candidates.get("shutter_override") == candidates.get("shutter_auto"):
+            candidates.pop("shutter_override", None)
+        proposed = suggestions(candidates, area_id) if area_id else {}
+        # Those switches are picked by their id in Home Assistant's own picker, which shows their names: the panel reads
+        # only the id, the name and the warnings of each (PLAN-OPTIMISATION.md, point 21: 735 switches, half the answer).
+        for key in ("shutter_auto", "shutter_override"):
+            if key in candidates:
+                candidates[key] = [{"entity_id": c["entity_id"], "name": c["name"], "warnings": c["warnings"]} for c in candidates[key]]
         return {"version": 1, "revision": self.revision(), "candidates": candidates,
-                "suggestions": suggestions(candidates, area_id) if area_id else {},
+                "suggestions": proposed,
                 # Covers driven with the sun (cover_link.py): their signals are read without being chosen.
                 "drivers": {cover: self._driver(roles) for cover, roles in cover_link.find_all(self.hass).items()}}
 

@@ -28,6 +28,9 @@ let shell=shells.newer;
 const server=createServer((req,res)=>{const p=new URL(req.url,'http://x').pathname;
  const files={'/shell.js':shell,'/comfort.js':join(comfort,'panel.js'),'/weather.js':join(weather,'panel.js')};
  if(files[p]){res.setHeader('Content-Type','text/javascript');return res.end(readFileSync(files[p]));}
+ // Socle 1.23: the pieces loaded when needed (hub-<sum>.js), from whichever brick built them.
+ const piece=/^\/hub-\w+\.js$/.test(p)&&[comfort,weather].map(d=>join(d,p.slice(1))).find(f=>existsSync(f));
+ if(piece){res.setHeader('Content-Type','text/javascript');return res.end(readFileSync(piece));}
  if(p.endsWith('.ttf')){res.setHeader('Content-Type','font/ttf');return res.end(readFileSync(join(comfort,'manrope-400.ttf')));}
  if(p.endsWith('/comfort.json')){res.setHeader('Content-Type','application/json');return res.end(readFileSync(at('../../card/preview/evolution/setup-fixture.json')));}
  if(p.endsWith('/weather.json')){res.setHeader('Content-Type','application/json');return res.end(readFileSync(at('./fixtures/weather.json')));}

@@ -95,8 +95,23 @@ VENTILATION_WORDS = ("vmc", "ventil", "extract", "aérat", "aerat", "hotte")
 BOOST_WORDS = ("turbo", "boost", "grande vitesse", "rapide", "vitesse 2", "speed 2")
 
 
-def candidate(hass, entity_id, key, area_id=None, *, include_legacy=False, indoor_ids=()):
-    entry = er.async_get(hass).async_get(entity_id)
+# The domains `candidate` can accept for each kind of source (None: any, Atmo France's index being recognised by its
+# integration). `catalog` only offers it those: it went through the whole home once per kind (PLAN-OPTIMISATION-HUB.md, point 2).
+DOMAINS = {"windows": ("binary_sensor",), "presence": ("binary_sensor",), "covers": ("cover",),
+           "shutter_auto": ("switch", "binary_sensor"), "shutter_override": ("switch", "binary_sensor"), "purifier": ("fan",),
+           "ventilation": ("fan", "switch", "binary_sensor"), "ventilation_boost": ("fan", "switch", "binary_sensor"),
+           "heating": ("climate",), "heating_indicator": ("input_boolean", "binary_sensor", "switch", "sensor"),
+           "rain": ("sensor", "binary_sensor"), "pollution": None}
+# The device class `candidate` requires of a sensor for these kinds: the other sensors are not even read.
+NEEDS_CLASS = {**{key: CLASSES[SOURCES[key]] for key in ("indoor_temperature", "outdoor_temperature", "indoor_humidity", "outdoor_humidity",
+                                                          "co2", "wind_gust", "wind_bearing", "solar")},
+               "illuminance": "illuminance", "pm25": "pm25"}
+
+
+def candidate(hass, entity_id, key, area_id=None, *, include_legacy=False, indoor_ids=(), entry=None, chains=None):
+    """`chains`: the provenances already followed by the same `catalog` call, kept by entity (one entity is offered for
+    several kinds: a temperature inside and outside)."""
+    entry = entry if entry is not None else er.async_get(hass).async_get(entity_id)
     state = hass.states.get(entity_id)
     if not entry or entry.disabled_by or entry.entity_category is not None or not state:
         return None
@@ -200,7 +215,10 @@ def candidate(hass, entity_id, key, area_id=None, *, include_legacy=False, indoo
         if attrs.get("unit_of_measurement") not in UNITS[kind]:
             return None
     own_area = effective_area(hass, entry)
-    chain = provenance(hass, entity_id)
+    if chains is None:
+        chain = provenance(hass, entity_id)
+    elif (chain := chains.get(entity_id)) is None:
+        chain = chains[entity_id] = provenance(hass, entity_id)
     warnings = []
     if len(chain) > 1:
         warnings.append("alias")
@@ -235,7 +253,9 @@ def candidate(hass, entity_id, key, area_id=None, *, include_legacy=False, indoo
     return {"entity_id": entity_id, "name": state.name, "value": state.state,
             "unit": attrs.get("unit_of_measurement"), "area_id": own_area,
             "local": local, "outside": outside, "reference": bool(reference), "available": available,
-            "adapter": adapter, "warnings": list(dict.fromkeys(warnings)), "provenance": chain,
+            "adapter": adapter, "warnings": list(dict.fromkeys(warnings)),
+            # The chain only when the sensor copies another one: alone, it repeated the sensor (a third of the answer).
+            "provenance": chain if len(chain) > 1 else [],
             "device_class": device_class, "atmo_label": attrs.get("Libellé") if adapter == "atmo_daily" else None,
             **({"voc_reference": voc_reference(hass, entry, device_class, attrs.get("unit_of_measurement"))} if key == "voc" else {}),
             **({"thermostat": thermostats.read(state.state, dict(attrs))} if key == "heating" and entry.platform == thermostats.PLATFORM else {})}
@@ -245,12 +265,37 @@ def catalog(hass, area_id=None, selected=None, indoor_ids=(), *, keys=None, entr
     selected = selected or {}
     result = {}
     entries = tuple(er.async_get(hass).entities.values()) if entries is None else entries
+    domains = [entry.entity_id.split(".", 1)[0] for entry in entries]
+    # Each sensor's and binary sensor's device class, unit and state, read as `candidate` reads them, once for every kind; the
+    # entities of each domain and of each sensor class, in the registry's order: a kind only goes through those it can take.
+    classes, units, values = [None] * len(entries), [None] * len(entries), [None] * len(entries)
+    by_domain, by_class = {}, {}
+    for i, (entry, domain) in enumerate(zip(entries, domains)):
+        by_domain.setdefault(domain, []).append(i)
+        if domain in ("sensor", "binary_sensor") and (state := hass.states.get(entry.entity_id)):
+            classes[i] = state.attributes.get("device_class") or entry.device_class or entry.original_device_class
+            units[i], values[i] = state.attributes.get("unit_of_measurement"), state.state
+            if domain == "sensor":
+                by_class.setdefault(classes[i], []).append(i)
+    chains = {}
+    chosen = lambda key: (lambda ids: ids if isinstance(ids, list) else [ids] if ids else [])(selected.get(key, []))
     for key in keys if keys is not None else (*INDOOR, *OUTDOOR, *OPENING_SOURCES):
-        ids = selected.get(key, [])
-        ids = ids if isinstance(ids, list) else [ids] if ids else []
+        ids = chosen(key)
+        # The switches of a cover's manual override are those of its automation (same domains, same tests, same order):
+        # computed once when nothing chosen sets them apart (PLAN-OPTIMISATION.md, point 21).
+        if key == "shutter_override" and "shutter_auto" in result and ids == chosen("shutter_auto"):
+            result[key] = result["shutter_auto"]
+            continue
+        allowed, needs = DOMAINS.get(key, ("sensor",)), NEEDS_CLASS.get(key)
+        rows = by_class.get(needs, []) if needs else range(len(entries)) if allowed is None else \
+            sorted(i for domain in allowed for i in by_domain.get(domain, ()))
         items = []
-        for entry in entries:
-            c = candidate(hass, entry.entity_id, key, area_id, include_legacy=entry.entity_id in ids, indoor_ids=indoor_ids)
+        for i in rows:
+            entry = entries[i]
+            if not _may_fit(key, entry, domains[i], classes[i], units[i], values[i], ids):
+                continue
+            c = candidate(hass, entry.entity_id, key, area_id, include_legacy=entry.entity_id in ids, indoor_ids=indoor_ids, entry=entry,
+                          chains=chains)
             if c:
                 items.append(c)
         # Outside: sensors of outdoor areas first. Inside: the room's own reference first.
@@ -264,6 +309,34 @@ def catalog(hass, area_id=None, selected=None, indoor_ids=(), *, keys=None, entr
             items = [c for c in items if fast(c) == (key == "ventilation_boost") or not c["local"]]
         result[key] = sorted(items, key=lambda c: (first(c), not c["local"], speed(c), bool(c["warnings"]), c["name"].casefold()))
     return result
+
+
+VOC_CLASSES = ("volatile_organic_compounds", "volatile_organic_compounds_parts", "volatile_organic_compounds_index")
+
+
+def _may_fit(key, entry, domain, device_class, unit, value, chosen):
+    """False only where `candidate` surely refuses (its own tests, read once per entity in `catalog`): it is not asked.
+    `device_class`, `unit` and `value` are only read for sensors and binary sensors."""
+    if key == "pollution":
+        # Atmo France's index whatever its domain, Hestia Weather's sensor, or a binary sensor already chosen.
+        return entry.platform == "atmofrance" or entry.platform in weather_link.PLATFORMS or (domain == "binary_sensor" and entry.entity_id in chosen)
+    if key == "windows":
+        return device_class in ("window", "door", "opening")
+    if key == "presence":
+        return device_class in ("occupancy", "presence", "motion")
+    if key == "season":
+        return entry.platform == "season" or str(value).casefold().strip() in SEASONS
+    if key == "voc":
+        # `voc_device_class`: a VOC class, or none on a Zigbee2MQTT sensor (VINDSTYRKA).
+        return device_class in VOC_CLASSES or (device_class is None and entry.platform == "mqtt")
+    if key == "rain":
+        if domain == "sensor":
+            return device_class == "precipitation_intensity"
+        return entry.platform in weather_link.PLATFORMS or entry.entity_id in chosen
+    if key == "heating_indicator" and domain == "sensor":
+        # A sensor with a unit is never an indicator, unless already chosen.
+        return not unit or entry.entity_id in chosen
+    return True
 
 
 def suggestions(candidates, area_id):
