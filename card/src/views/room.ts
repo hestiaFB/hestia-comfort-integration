@@ -661,6 +661,9 @@ export const nextChange=(n?:NextChange|null)=>{const at=n?new Date(n.at):null;if
 const tileKeys:Record<string,string>={'CO₂':'co2',Particules:'pm25',COV:'voc',Purificateur:'purifier',Ventilation:'ventilation',Chauffage:'heating'};
 /** A room's tiles without those it reads from another room: on a card shared by both, each measure shows once. */
 const ownTiles=(v:View,list:Tile[])=>list.filter(t=>!v.inherited?.[tileKeys[t.label]??'']);
+// With the 3.0 advisor, it alone says whether to shut a shutter (its `volet`): the 2.1 rule « à fermer » at nightfall
+// said so under « Rien à faire » (Chambre P, 5 November).
+const shutterAdvice=(v:View,s:{advice?:string|null}):string|null=>v.advisor?(v.advisor.attributes?.volet==='fermer'?'close':null):s.advice??null;
 export function tiles(v:View,config:Config):Tile[] {
   const o=v.observations,a=v.assessment,mods=new Set(config.modules??[]),list:Tile[]=[],air=a.features?.air;
   if(mods.has('humidity')&&o.indoor_humidity){const h=numeric(o.indoor_humidity),hum=a.features?.humidity,wet=a.needs.includes('dry'),outside=hum?.source==='outside',out=h!==null&&(hum?.degree!==undefined?hum.degree>=2:wet);
@@ -679,10 +682,10 @@ export function tiles(v:View,config:Config):Tile[] {
       list.push({ic:night?'moon':'sun',label:'Soleil',value,note:entering?'entre dans la pièce':night?'pas d’apport':solar===null?'non mesuré':`${number(Math.round(solar))} W/m²${o.solar?.detail==='shaded_estimate'?' · estimé, station à l’ombre':''}`,level:entering?'action':'neutral',out:entering,trend:solar===null||night?undefined:trendOf(v,'solar',null)});}}
   // A connected cover: where it stands, and who moves it (Adaptive Cover Pro, the person, or nobody yet).
   if(mods.has('shutters'))for(const s of a.features?.shutters??[]){if(s.mode!=='connected')continue;
-    const p=s.position,shut=p===0||(p==null&&s.state==='closed'),open=p===100||(p==null&&s.state==='open'),act=s.manual_override!==true&&!!s.advice;
+    const p=s.position,shut=p===0||(p==null&&s.state==='closed'),open=p===100||(p==null&&s.state==='open'),advice=shutterAdvice(v,s),act=s.manual_override!==true&&!!advice;
     const auto=!!s.driver&&(s.driving??s.automatic===true)&&s.manual_override!==true;
     const until=clock(s.override_end),soon=s.soon?clock(s.sun_start):null;
-    const note=s.manual_override===true?(until?`à la main jusqu’à ${until}`:'repris à la main'):act?(s.advice==='close'?(soon?`à fermer avant ${soon}`:'à fermer'):'à ouvrir'):auto?(s.sun_front?'automatique · soleil devant':'automatique'):s.driver&&(s.off||s.automatic===false)?({disabled:'ACP désactivé',tracking:'suivi du soleil coupé'} as Record<string,string>)[s.off??'']??'automatisme coupé':s.state==null&&p==null?'indisponible':'rien à faire';
+    const note=s.manual_override===true?(until?`à la main jusqu’à ${until}`:'repris à la main'):act?(advice==='close'?(v.advisor?'à fermer ce soir':soon?`à fermer avant ${soon}`:'à fermer'):'à ouvrir'):auto?(s.sun_front?'automatique · soleil devant':'automatique'):s.driver&&(s.off||s.automatic===false)?({disabled:'ACP désactivé',tracking:'suivi du soleil coupé'} as Record<string,string>)[s.off??'']??'automatisme coupé':s.state==null&&p==null?'indisponible':'rien à faire';
     list.push({ic:shut?'shut':'window',label:'Volet',value:shut?'Fermé':open?'Ouvert':p!=null?number(p):'—',unit:!shut&&!open&&p!=null?'%':undefined,note,level:act?'action':auto?'calm':'neutral',out:act,entity:s.cover??undefined});}
   if(mods.has('air')&&o.purifier){const on=o.purifier.quality==='valid'?o.purifier.value===true:null,speed=numeric(o.purifier_speed);
     // Running, it is a remedy at work: framed in green, like the measure it treats.
@@ -724,10 +727,10 @@ export function details(v:View,config:Config):TemplateResult[] {
   if(a.unverified?.length&&a.action!=='fermer')add('sensors','Sans capteur',a.unverified.map(k=>k==='rain'?'pluie':'qualité de l’air dehors').join(', '));
   const vent=f?.ventilation;
   if(mods.has('windows')&&vent){if(vent.opened_minutes!=null)add('windows','Ouvert depuis',`${number(vent.opened_minutes)} min`);}
-  if(mods.has('shutters'))for(const s of f?.shutters??[]){if(s.mode==='none'||(!s.advice&&!s.manual_override&&s.position==null))continue;
+  if(mods.has('shutters'))for(const s of f?.shutters??[]){const advice=shutterAdvice(v,s);if(s.mode==='none'||(!advice&&!s.manual_override&&s.position==null))continue;
     const from=clock(s.sun_start),to=clock(s.sun_end);
     // In plain words: who sets it, where it stands, when the sun comes. Adaptive Cover Pro's own wording is left out.
-    add('shutters',v.names?.[s.entity_id]??'Volet',[s.manual_override?'réglé à la main':s.advice==='close'?'à fermer':s.advice==='open'?'à ouvrir':s.driver&&(s.driving??s.automatic===true)?'piloté par Adaptive Cover Pro':'rien à faire',s.driver&&s.detection===false?'reprise à la main non détectée':'',s.driver&&s.climate===false?'mode climat coupé':'',
+    add('shutters',v.names?.[s.entity_id]??'Volet',[s.manual_override?'réglé à la main':advice==='close'?'à fermer':advice==='open'?'à ouvrir':s.driver&&(s.driving??s.automatic===true)?'piloté par Adaptive Cover Pro':'rien à faire',s.driver&&s.detection===false?'reprise à la main non détectée':'',s.driver&&s.climate===false?'mode climat coupé':'',
       s.position!=null?`ouvert à ${number(s.position)} %`:'',s.driver&&s.target!=null&&s.target!==s.position?`visé ${number(s.target)} %`:'',from&&to?`soleil de ${from} à ${to}`:''].filter(Boolean).join(' · '));}
   if(f?.people&&(f.people.home.length||f.people.away.length))add('people','Personnes',[f.people.home.length?`${f.people.home.join(', ')} à la maison`:'',f.people.away.length?`${f.people.away.join(', ')} ${f.people.away.length>1?'absents':'absent'}`:''].filter(Boolean).join(' · '));
   if(f?.household?.alarm)add('people','Alarme',`${f.household.alarm.name} · ${({disarmed:'désarmée',armed_away:'absence',armed_home:'à la maison',armed_night:'nuit',armed_vacation:'vacances'} as Record<string,string>)[f.household.alarm.state]??f.household.alarm.state}`);

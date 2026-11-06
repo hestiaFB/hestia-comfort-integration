@@ -50,6 +50,12 @@ Chambre A, 5 nov. : « À essayer — Ouvrez : 65 % d'humidité à 23 h au lieu 
 - « À essayer » gardé au redémarrage (`state["tried"]` de `room/advice.py`), comme le geste du bandeau.
 - Verdict `keep_open`, `feedback.done("keep")` vrai (le geste suivi est l'« Ouvrez »), pictogramme `open` sur la carte (`advisor3.ts`).
 
+### 3.9.1 — 5 novembre 2026
+
+Chambre P, 5 nov. vers 18 h : bandeau « Rien à faire », mais « Baissez le volet ce soir : environ 0,1 kWh de chauffage en moins » dans le Ressenti et « Volet ouvert · à fermer » dans les appareils.
+- `knowing.SHUTTER_HEAT, SHUTTER_ENERGY` 0,1 °C / 0,05 kWh → 0,3 °C / 0,25 kWh (la moitié de `SIGNIFICANT["energy"]`).
+- Nouveau champ `volet` du conseil (`"fermer"` quand le Bon à savoir du volet est dit, sinon `null`) ; la carte (`room.ts` `shutterAdvice`) prend le volet du moteur 3 et plus la règle 2.1 (`engine/evolution.py` : volet à fermer dès le coucher du soleil si la pièce a besoin de chaleur). Sans moteur 3, la carte garde la règle 2.1.
+
 ### 3.9.0 — 5 novembre 2026
 
 « Volets fermés quand vous partez » seulement pour une absence de 2 h ou plus (`Habits.shutters_away_after`, clé `volets_absence_apres_h`, 2 h par défaut, pas encore dans le panneau). Salon, 5 nov. : alarme en absence 24 min à midi, volets ouverts en plein soleil (FP2 165 lx), le moteur les croyait fermés.

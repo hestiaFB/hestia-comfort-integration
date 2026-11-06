@@ -39,6 +39,15 @@ Pas encore dans une version de Confort.
 
 - Après « Ouvrez », une fois la fenêtre ouverte, la carte dit « Laissez ouvert » et ce que l'on y gagne, au lieu de « Rien à faire ».
 
+## 3.9.1 — 5 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Corrections
+
+- « Rien à faire » et « Volet à fermer » ne s'affichent plus ensemble : le volet suit le conseil de la carte.
+- « Baissez le volet ce soir » n'est plus dit pour un gain minuscule (0,1 kWh).
+
 ## 3.9.0 — 5 novembre 2026
 
 Pas encore dans une version de Confort.

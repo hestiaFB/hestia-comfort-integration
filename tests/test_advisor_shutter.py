@@ -92,20 +92,23 @@ class Tonight(unittest.TestCase):
                         shutter_night=found, wake=self.NOW + timedelta(hours=10))
 
     def test_said_in_the_evening_when_the_room_wakes_up_cold(self):
-        tips = shutter_at_night(self.view({"heat": 0.25, "energy": 0.0, "wake": 17.8}))
-        self.assertEqual(tip_text(tips[0]), "Baissez le volet ce soir : environ 0,2 °C de plus au réveil")
+        tips = shutter_at_night(self.view({"heat": 0.4, "energy": 0.0, "wake": 17.8}))
+        self.assertEqual(tip_text(tips[0]), "Baissez le volet ce soir : environ 0,4 °C de plus au réveil")
 
     def test_the_heating_saved_when_a_thermostat_keeps_the_room(self):
-        tips = shutter_at_night(self.view({"heat": 0.0, "energy": 0.12, "wake": 19.0}))
-        self.assertEqual(tip_text(tips[0]), "Baissez le volet ce soir : environ 0,1 kWh de chauffage en moins")
+        tips = shutter_at_night(self.view({"heat": 0.0, "energy": 0.3, "wake": 19.0}))
+        self.assertEqual(tip_text(tips[0]), "Baissez le volet ce soir : environ 0,3 kWh de chauffage en moins")
 
     def test_nothing_said_for_a_room_warm_enough_or_a_tiny_gain(self):
-        self.assertEqual(shutter_at_night(self.view({"heat": 0.25, "energy": 0.0, "wake": 20.5})), [])
+        self.assertEqual(shutter_at_night(self.view({"heat": 0.4, "energy": 0.0, "wake": 20.5})), [])
+        # Chambre P, 5 November: 0.1 kWh said « Baissez le volet ce soir » under « Rien à faire ».
+        self.assertEqual(shutter_at_night(self.view({"heat": 0.0, "energy": 0.12, "wake": 19.0})), [])
+        self.assertEqual(shutter_at_night(self.view({"heat": 0.25, "energy": 0.0, "wake": 17.8})), [])
         self.assertEqual(shutter_at_night(self.view({"heat": 0.05, "energy": 0.0, "wake": 17.8})), [])
         self.assertEqual(shutter_at_night(self.view(None)), [])
 
     def test_not_once_asleep(self):
-        view = replace(self.view({"heat": 0.25, "energy": 0.0, "wake": 17.8}), asleep=True)
+        view = replace(self.view({"heat": 0.4, "energy": 0.0, "wake": 17.8}), asleep=True)
         self.assertEqual(shutter_at_night(view), [])
 
 

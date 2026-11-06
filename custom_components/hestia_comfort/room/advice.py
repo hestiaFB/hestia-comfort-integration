@@ -837,6 +837,9 @@ class RoomAdvisor:
                        "plage": [comfort.minimum, comfort.maximum], "cette_nuit": night_text, "preuve": decision.level,
                        "part_fenetre": None if share is None else round(share, 2),
                        "preuves": proof, "a_essayer": words["try"], "bon_a_savoir": good_words,
+                       # The shutter to lower tonight, said in « Bon à savoir »: the card's shutter follows it, never the
+                       # 2.1 rule (« à fermer » at nightfall under « Rien à faire »).
+                       "volet": "fermer" if any(t.kind in ("shutter_night", "shutter_night_energy") for t in good) else None,
                        "pas_maintenant": {k: dt_util.as_local(until).strftime("%H h %M") for k, until in self.paused.items() if k in aside},
                        "douteuses": doubt_text(doubts), "calcule_a": now.isoformat(), "moteur": home.version}
         changed = self.shown != (words["title"], words["try"])

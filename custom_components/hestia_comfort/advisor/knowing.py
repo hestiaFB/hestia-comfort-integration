@@ -149,8 +149,9 @@ def mist_tonight(view: RoomView) -> list[Tip]:
 
 
 # The shutter closed for the night is worth saying from this much kept at waking up, when the room would wake up under
-# its range, or from this much heating saved (kWh).
-SHUTTER_HEAT, SHUTTER_ENERGY = 0.1, 0.05
+# its range, or from this much heating saved (kWh): half a gesture's (decide.SIGNIFICANT « energy »). Below, it is
+# « Rien à faire » for it too — 0.1 kWh said « Baissez le volet ce soir » under « Rien à faire » (Chambre P, 5 November).
+SHUTTER_HEAT, SHUTTER_ENERGY = 0.3, 0.25
 
 
 def shutter_at_night(view: RoomView) -> list[Tip]:
