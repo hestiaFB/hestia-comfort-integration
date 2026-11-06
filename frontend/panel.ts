@@ -170,10 +170,19 @@ export class ComfortSetup extends LitElement {
   catch(e){if(generation===this.generation)this.error=this.message(e);}
   finally{if(generation===this.generation)this.busy=false;}
  }
+ // Just after « Enregistrer », Home Assistant reloads the room: for a few seconds Confort answers without it (no learning, the
+ // room « À régler »), and nothing asked again, so « Apprentissage » stayed on « Chargement… » (7 November, the house). The
+ // report and the learning are asked again, 3 s apart, until every room is back; at most 10 times.
+ private reloadTries=0;
+ private askAgainIfReloading(t?:Twins){
+  const back=!!t&&(this.snapshot?.rooms??[]).every(r=>t.rooms.some(x=>x.entry_id===r.entry_id&&(x.advisor||x.progress)));
+  if(back){this.reloadTries=0;return;}
+  if(this.reloadTries++<10)setTimeout(()=>{if(this.isConnected)void this.loadHealth();},3000);}
  private async loadHealth(){
   const generation=++this.healthGeneration;this.healthLoading=true;this.healthError='';
   // What the twins learned is a bonus: the health page never waits for it nor fails with it.
-  void this.ws<Twins>({type:'hestia_comfort/twins'}).then(t=>{if(generation===this.healthGeneration)this.twins=t;},()=>{});
+  void this.ws<Twins>({type:'hestia_comfort/twins'}).then(t=>{if(generation===this.healthGeneration){this.twins=t;this.askAgainIfReloading(t);}},
+   ()=>{if(generation===this.healthGeneration)this.askAgainIfReloading();});
   try{const value=await this.ws<Health>({type:'hestia_comfort/health'});if(generation===this.healthGeneration)this.health=value;}
   catch(e){if(generation===this.healthGeneration)this.healthError=this.message(e);}
   finally{if(generation===this.healthGeneration)this.healthLoading=false;}
