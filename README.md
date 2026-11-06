@@ -198,7 +198,7 @@ Installée sous son nom technique d’origine, l’intégration passe seule au n
 
 Mettez à jour Hestia Weather en même temps, si vous l’avez : la liaison entre les deux suit d’elle-même.
 
-Hestia Confort 2.x va avec Hestia Weather 3.x.
+Hestia Confort 3.x va avec Hestia Weather 3.x ; Hestia Weather 3.2.0 ou plus récente pour tout avoir.
 
 ## Langues
 

@@ -6,7 +6,7 @@ Chaque version de Confort dit quelle version du moteur elle contient. Le détail
 
 ## 3.10.0 — 6 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Nouveautés
 
@@ -20,7 +20,7 @@ Pas encore dans une version de Confort.
 
 ## 3.9.6 — 6 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Corrections
 
@@ -29,7 +29,7 @@ Pas encore dans une version de Confort.
 
 ## 3.9.5 — 5 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Nouveautés
 
@@ -39,7 +39,7 @@ Pas encore dans une version de Confort.
 
 ## 3.9.4 — 5 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Corrections
 
@@ -49,7 +49,7 @@ Pas encore dans une version de Confort.
 
 ## 3.9.3 — 5 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Améliorations
 
@@ -57,7 +57,7 @@ Pas encore dans une version de Confort.
 
 ## 3.9.2 — 5 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Corrections
 
@@ -65,7 +65,7 @@ Pas encore dans une version de Confort.
 
 ## 3.9.1 — 5 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Corrections
 
@@ -74,7 +74,7 @@ Pas encore dans une version de Confort.
 
 ## 3.9.0 — 5 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Améliorations
 
@@ -82,7 +82,7 @@ Pas encore dans une version de Confort.
 
 ## 3.8.0 — 5 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Améliorations
 
@@ -92,7 +92,7 @@ Pas encore dans une version de Confort.
 
 ## 3.7.0 — 5 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Nouveautés
 
@@ -108,7 +108,7 @@ Pas encore dans une version de Confort.
 
 ## 3.6.0 — 5 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Améliorations
 
@@ -117,7 +117,7 @@ Pas encore dans une version de Confort.
 
 ## 3.5.0 — 5 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Améliorations
 
@@ -126,7 +126,7 @@ Pas encore dans une version de Confort.
 
 ## 3.4.0 — 5 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Améliorations
 
@@ -139,7 +139,7 @@ Pas encore dans une version de Confort.
 
 ## 3.3.0 — 4 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Améliorations
 
@@ -149,7 +149,7 @@ Pas encore dans une version de Confort.
 
 ## 3.2.0 — 4 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Nouveautés
 
@@ -166,7 +166,7 @@ Pas encore dans une version de Confort.
 
 ## 3.1.1 — 4 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Améliorations
 
@@ -179,7 +179,7 @@ Pas encore dans une version de Confort.
 
 ## 3.1.0 — 4 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.0.0.
 
 ### Nouveautés
 
@@ -196,6 +196,8 @@ Pas encore dans une version de Confort.
 
 ## 3.0.6 — 3 novembre 2026
 
+Dans Confort 3.0.0.
+
 ### Améliorations
 
 - L'humidité gagnée par une aération se dit une heure après avoir refermé : les murs et la literie la rendent vite à l'air.
@@ -204,12 +206,16 @@ Pas encore dans une version de Confort.
 
 ## 3.0.5 — 3 novembre 2026
 
+Dans Confort 3.0.0.
+
 ### Améliorations
 
 - Une fenêtre à peine entrouverte est reconnue au bout de dix minutes : le conseil suit ce qu'elle fait vraiment.
 - « Bon à savoir » le dit : « Ouverte depuis 19 h 19 : 18,2 → 18,1 °C, 67 → 69 % : elle renouvelle peu l'air ».
 
 ## 3.0.4 — 3 novembre 2026
+
+Dans Confort 3.0.0.
 
 ### Corrections
 
@@ -221,12 +227,16 @@ Pas encore dans une version de Confort.
 
 ## 3.0.3 — 3 novembre 2026
 
+Dans Confort 3.0.0.
+
 ### Améliorations
 
 - L'humidité se dit en valeur, à l'heure où le geste fait le plus : « Vers 19 h 35 : 56 % d'humidité au lieu de 67 % ».
 - « Optimisé par l'apprentissage » ne s'affiche que pour un effet que la pièce a vraiment montré.
 
 ## 3.0.2 — 3 novembre 2026
+
+Dans Confort 3.0.0.
 
 ### Corrections
 
@@ -241,6 +251,8 @@ Pas encore dans une version de Confort.
 
 ## 3.0.1 — 3 novembre 2026
 
+Dans Confort 3.0.0.
+
 ### Corrections
 
 - Une heure annoncée (« Aérez 5 min vers 17 h 15 ») ne recule plus à chaque calcul.
@@ -248,6 +260,8 @@ Pas encore dans une version de Confort.
 - Une surface déclarée après coup est prise en compte : le CO₂ ne monte plus trop vite dans une grande pièce.
 
 ## 3.0.0 — 3 novembre 2026
+
+Dans Confort 3.0.0.
 
 ### Nouveautés
 

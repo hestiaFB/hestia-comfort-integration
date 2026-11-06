@@ -1,3 +1,57 @@
+## 3.0.0 — Un nouveau moteur de conseil, des cartes refaites, un Confort plus léger
+
+### Avant de mettre à jour
+
+- Vous venez de la 1.7.x ? Hestia Confort prend son nom technique `hestia_comfort`. Au premier démarrage, tout passe seul au nouveau nom : pièces, réglages, apprentissages, entités, tableaux de bord et automatisations faites dans l’interface.
+- Un encart dans **Hestia-FB → Accueil** suit chaque étape. Si une réparation « quelques lignes à changer à la main » apparaît, elle liste les fichiers YAML à modifier.
+- Si HACS affiche « No manifest.json file found », redémarrez Home Assistant puis relancez la mise à jour.
+- Mettez à jour Hestia Weather en même temps (3.2.0), si vous l’avez.
+- Le nouveau moteur change des valeurs d’entités. Vérifiez les automatisations qui s’en servent :
+  - « État » ne donne plus que `calm`, `best`, `benefit`, `action`, `urgent` et `neutral` ;
+  - toutes les valeurs de « Raison » changent ;
+  - le % d’« Apprentissage » compte maintenant les effets prouvés dans la pièce.
+- Les premiers jours, Hestia conseille peu : elle attend d’avoir vu chaque geste marcher chez vous.
+
+### Nouveautés
+
+- Les cartes sont refaites : un bandeau qui dit le geste, sa durée et sa raison, puis « À venir », puis une case par mesure avec sa flèche et sa courbe.
+- Dans l’éditeur, on choisit d’abord le type de carte : grandes cartes, cartes à la pièce, petites cartes.
+- Nouvelles cartes à la pièce : Température, Humidité, Air, Ouvertures, Chauffage et À venir.
+- Le ressenti de la pièce : la chaleur et l’humidité telles qu’on les sent, avec une flèche qui dit où ça va.
+- Le panneau Confort est refait : un accueil à lire, une page « Réglages du foyer », vos habitudes en quelques questions.
+- Une lumière peut montrer le conseil : un bandeau WLED ou une ampoule couleur, pour tout le logement ou pièce par pièce.
+- Une douche dans la pièce : l’humidité qui la suit est reconnue.
+- Les volets pilotés par CoverAutomatic ou Cover Extender sont reconnus, comme Adaptive Cover Pro.
+- Sur l’accueil, « Participez à l’amélioration du moteur » : un rapport anonyme à télécharger, à partager si vous le voulez.
+- Le menu et les réglages communs de Hestia-FB parlent allemand.
+- Une intégration trouvée mais pas encore lue se demande en un clic.
+
+### Améliorations
+
+- Confort est beaucoup plus léger : Home Assistant ne se fige plus, même sur une petite box.
+- Au démarrage, chaque pièce ne relit que l’historique qu’elle n’a pas encore lu.
+- Le panneau s’ouvre plus vite : il ne charge que ce qu’il montre.
+- Chaque mesure montre sa tendance : vert quand elle revient vers votre plage, orange quand elle s’en éloigne.
+- Le texte suit les mêmes tailles sur toutes les cartes Hestia.
+- On glisse du doigt d’une mesure à l’autre ; plus rien ne défile tout seul.
+
+### Corrections
+
+- « Températures sur 24 h » dessine la plage de chaque pièce, et aucune pour une pièce non chauffée.
+- La tendance apparaît dès le redémarrage.
+- L’humidité s’affiche en nombre entier partout.
+
+### Moteur de conseil 3.10.0 — en bêta
+
+- Pour chaque pièce, il compare les gestes possibles (ouvrir, refermer, VMC, purificateur, volet, chauffage) et garde celui qui aide le plus.
+- Il apprend chaque nuit comment chaque pièce réagit, et n’affirme que ce qu’il a déjà vu marcher chez vous.
+- Il dit à quel point il est sûr : « Aérez », « devrait », ou « à vérifier ».
+- Une aération qui ne fait pas l’effet prévu est dite au bout de 10 minutes, au lieu de conseiller l’inverse.
+- Jamais d’ouverture sous la pluie, par grand vent, pendant une vigilance, une absence, le sommeil ou le gel.
+- Il suit le thermostat, le poêle et le planning du chauffage (ha-chauffage, Scheduler).
+- Vos retours l’aident : « Ce conseil ne va pas » sur la carte, et le rapport de l’accueil.
+- Le détail de chaque version du moteur est dans [CHANGELOG-MOTEUR.md](CHANGELOG-MOTEUR.md).
+
 ## 2.1.0b8 — Bêta : l'air en liste et l'encart d'information
 
 ### Avant de mettre à jour
