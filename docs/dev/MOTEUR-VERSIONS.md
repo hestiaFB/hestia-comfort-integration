@@ -20,6 +20,15 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.11.2 — 7 novembre 2026
+
+L'aération finit au coucher de la pièce (Frank, 7 novembre, Chambre A couchée à 21 h, « Aérez 30 min » à 20 h 27).
+- `advisor/decide.py` : `Now.bed_in`, minutes jusqu'au coucher (`Sleep.bedtime`), None la nuit ; gardé dans les instantanés, None pour les anciens. `_past_bedtime(now, habits)` : un « open »/« open_more » qui finit après le coucher (`after + minutes`), un « close » après lui, « Ouvrez » sans fin dans les `airing_max` dernières minutes ; demi-pas de marge ; rien la nuit ni avec `open_at_night`.
+- `decide` : `previous` et `tried` qui débordent ne sont plus tenus ; juste avant le choix du geste (après le tri des aérations « plus tard »), les gestes qui débordent sortent de `worth`. Si le geste qu'on aurait conseillé débordait (`cut`), une ouverture plus courte reste seulement si son effet est PROVEN — ni bandeau, ni « À essayer » sinon. Aucun scénario de plus simulé.
+- `room/advice.py` : `bed_in` donné à `Now` ; heure du chauffage prévu arrondie à la minute (`planned`).
+- Tests : `tests/test_advisor_household.py` `AiringEndsByBedtime` (instantané réel Chambre AL du 4 novembre).
+- Rejeu des 1 830 instantanés du labo (3-7 nov.) : 7 conseils changés — Chambre A le 7 à 20 h 33 (« Ouvrez » sans fin, coucher dans 26 min → rien), Chambre M le 5 de 21 h 33 à 21 h 48 (« Refermez dans 45-60 min » → 10-15 min, coucher à 22 h). Temps de décision identique (43,3 s → 43,2 s).
+
 ### 3.11.1 — 7 novembre 2026
 
 Les gestes conseillés gardent leurs kWh, pour Hestia Énergie (`hestia_comfort_api.gestures`, INTERFACE.md d'Énergie § 2, CAHIER-MOTEUR § 17). Rien de recalculé, aucun conseil changé.

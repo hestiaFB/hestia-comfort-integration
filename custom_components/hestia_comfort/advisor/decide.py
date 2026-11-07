@@ -283,6 +283,9 @@ class Now:
     # hour (`recent_sources`), carried into every scenario and fading over SOURCE_HOURS (Frank, 1 November: a cooking
     # going on, the window open, keeps the VOC level; shut, it would climb — « Refermez » was wrong).
     sources: dict | None = None
+    # Minutes until the household goes to bed in this room (`Sleep.bedtime`), in the evening; None at night, or unknown.
+    # An airing ends by then (`_past_bedtime`).
+    bed_in: float | None = None
 
 
 @dataclass
@@ -725,6 +728,23 @@ def _for_the_outside(later: Gesture, twins: Twins, now: Now, coming, comfort: Co
     return real - own > own
 
 
+def _past_bedtime(now: Now, habits: Habits):
+    """Whether a gesture leaves a window open after bedtime (`Now.bed_in`): an airing, now or later, that ends after it;
+    a window shut only after it; « Ouvrez » for good in the last `airing_max` minutes. Half a step of slack: the steps
+    are not exactly five minutes apart. Nothing is past it at night, or for a household that would get up to shut it."""
+    if now.bed_in is None or habits.open_at_night:
+        return lambda g: False
+    edge = now.bed_in + STEP / 120
+
+    def late(g: Gesture | None) -> bool:
+        if g is None:
+            return False
+        if g.kind in ("open", "open_more"):
+            return now.bed_in <= habits.airing_max if g.minutes is None else (g.after or 0) + g.minutes > edge
+        return g.kind == "close" and (g.after or 0) > edge
+    return late
+
+
 def _too_long(g: Gesture, pollen: Pollen, short: bool = False) -> bool:
     """A gesture longer than a day of high pollens allows (advisor/pollen.py) to anything but the humidity, the mould or
     the CO₂: an airing longer than POLLEN_AIRING or without an end; with `short` (a window open that is not needed for
@@ -777,6 +797,14 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # An airing « À essayer » followed is under way as well: it holds from the moment the window opens.
     if (previous is None or previous.kind == "nothing") and under_way(tried, now) != tried:
         previous, held = under_way(tried, now), 0.0
+    # A window is shut by bedtime: nobody gets up to shut it, and one left open stays open all night (Frank, 7 November:
+    # Chambre A goes to bed at 21 h, « Aérez 30 min » at 20 h 27 ended at 20 h 57 by chance). A gesture said before that
+    # would now run past it is not held.
+    late = _past_bedtime(now, habits)
+    if late(previous):
+        previous, held = None, None
+    if late(tried):
+        tried = None
     # Leaving open what is open is weighed as it is: the same scenario as doing nothing, said as a gesture when shutting
     # would clearly do worse (« Laissez ouvert »), or when it follows « Ouvrez » (`under_way`).
     if now.opened and Gesture("keep") not in pool:
@@ -848,6 +876,15 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         worth = [g for g in worth if not (g.kind == "open" and g.after)]
         if previous is not None and previous.kind == "open" and previous.after:
             previous = None
+    # What runs past bedtime is left out, once the airings for later are sorted out. When the airing the room needs does
+    # not fit before it, a shorter one is said only if the windows' effect is proven here (Frank, 7 November: « si le conseil arrive à 20 h 55 pour 30 minutes
+    # d'aération, on ne propose pas d'aérer 5 minutes, sauf si c'est vraiment avéré ») — neither on the banner, nor
+    # « À essayer ». The scenarios were all simulated already: nothing more is computed.
+    if worth and now.bed_in is not None:
+        cut = late(_shortest(min(worth, key=order), worth, costs))
+        worth = [g for g in worth if not late(g)
+                 and not (cut and g.kind in ("open", "open_more") and proof is not None
+                          and proof.get(effect(g, main_subject(costs, g)), SUPPOSED) != PROVEN)]
     best = min(worth, key=order) if worth else Gesture("nothing")
     best = _shortest(best, worth, costs)
     # Only how long changed (« Aérez 30 → 20 → 25 min » in twelve minutes, 2 November): the duration shown stays while it

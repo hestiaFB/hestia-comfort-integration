@@ -4,6 +4,17 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.11.2 — 7 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Améliorations
+
+- Une aération conseillée se termine au plus tard à l'heure du coucher de la pièce. Exemple : coucher à 21 h, conseil à 20 h 40 : « Aérez 30 min » n'est plus proposé.
+- Si l'aération utile ne tient plus avant le coucher, Hestia ne propose pas une aération raccourcie, même en « À essayer », sauf si la pièce a déjà prouvé que ses fenêtres font l'effet voulu et que la version courte change vraiment quelque chose.
+- Une fenêtre ouverte le soir est à refermer avant le coucher : « Laissez ouvert encore 10 min » plutôt que 60.
+- Le chauffage prévu est annoncé à la bonne minute (20 h 30, plus 20 h 29).
+
 ## 3.11.1 — 7 novembre 2026
 
 Pas encore dans une version de Confort.

@@ -737,7 +737,8 @@ class RoomAdvisor:
                       cover=None if position is None or driven else position / 100,
                       heating=None if twins.thermostat is None and twins.idle_thermostat is None else twins.thermostat is not None,
                       heating_target=twins.thermostat.target if twins.thermostat else None,
-                      house_running=burning, house_rise=rise, overheated=overheated)
+                      house_running=burning, house_rise=rise, overheated=overheated,
+                      bed_in=None if night else (bedtime - local).total_seconds() / 60)
         rain_rate, gust, rain_in, vigilance, wind_from = home.safety()
         wet = {e for e in sizes if rained_on(room.get("sheltered", {}).get(e, False), (orientations.get(e) or (None,))[0], gust, wind_from)}
         wet_open = {e for i, e in enumerate(sizes) if i in opened_index} & wet

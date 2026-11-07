@@ -68,3 +68,53 @@ class HouseholdHabits(unittest.TestCase):
         # « Laissez ouvert encore 10 min », five minutes on, is « encore 5 min », then « Refermez ».
         self.assertEqual(aged(Gesture("close", after=10), 5), Gesture("close", after=5))
         self.assertEqual(aged(Gesture("close", after=5), 6), Gesture("close"))
+
+
+class AiringEndsByBedtime(unittest.TestCase):
+    """An airing ends by the room's bedtime; cut short by it, it is said only on a proven effect (Frank, 7 November:
+    « si le conseil arrive à 20 h 55 pour 30 minutes d'aération, on ne propose pas d'aérer 5 minutes, sauf si c'est
+    vraiment avéré »)."""
+
+    def setUp(self):
+        from advisor.snapshot import load, restore
+        # Chambre AL, 4 November at 15 h 13: « À essayer — Aérez 25 min ».
+        self.args = restore(load(Path(__file__).parent / "fixtures" / "chambre-al-4-novembre-15h13.json"))
+
+    def decide(self, bed_in, **changes):
+        from dataclasses import replace
+        from advisor.decide import decide
+        return decide(**{**self.args, "now": replace(self.args["now"], bed_in=bed_in), **changes})
+
+    def test_an_airing_that_fits_is_unchanged(self):
+        from advisor.decide import Gesture
+        self.assertEqual(self.decide(None).passive, Gesture("open", 25))
+        self.assertEqual(self.decide(32).passive, Gesture("open", 25))
+
+    def test_cut_short_by_bedtime_it_is_not_said_unless_proven(self):
+        for bed_in in (20, 10, 3):
+            decision = self.decide(bed_in)
+            self.assertNotIn(decision.gesture.kind, ("open", "open_more"), bed_in)
+            self.assertIsNone(decision.passive, bed_in)
+
+    def test_proven_it_is_said_shorter_only_if_that_still_makes_a_difference(self):
+        from advisor.proof import PROVEN
+        proven = {k: PROVEN for k in self.args["proof"]}
+        self.assertEqual(self.decide(60, proof=proven).gesture.kind, "open")
+        for bed_in in (20, 10, 3):
+            g = self.decide(bed_in, proof=proven).gesture
+            self.assertTrue(g.kind not in ("open", "open_more") or ((g.after or 0) + g.minutes <= bed_in + 2.5), (bed_in, g))
+
+    def test_a_household_that_gets_up_at_night_keeps_its_airing(self):
+        from dataclasses import replace
+        from advisor.decide import Gesture
+        self.assertEqual(self.decide(10, habits=replace(self.args["habits"], open_at_night=True)).passive, Gesture("open", 25))
+
+    def test_a_window_open_is_shut_by_bedtime(self):
+        from advisor.decide import Gesture, Now, _past_bedtime
+        from advisor.household import Habits
+        late = _past_bedtime(Now(air=20.0, walls=20.0, opened=(), bed_in=12.0), Habits())
+        self.assertTrue(late(Gesture("close", after=20)))
+        self.assertFalse(late(Gesture("close", after=10)))
+        self.assertTrue(late(Gesture("open")))          # « Ouvrez » for good, twelve minutes before bed
+        self.assertFalse(late(Gesture("open", 10)))
+        self.assertTrue(late(Gesture("open", 10, after=15)))
