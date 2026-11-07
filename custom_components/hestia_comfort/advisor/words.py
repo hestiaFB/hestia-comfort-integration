@@ -307,10 +307,12 @@ def _name(gesture: Gesture, path, words, opened: bool) -> str:
 
 
 def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool = True,
-           marks: dict | None = None, hour: float | None = None, reason: str | None = None) -> dict:
+           marks: dict | None = None, hour: float | None = None, reason: str | None = None,
+           beyond_before: bool | None = None) -> dict:
     """The banner's title and line, and the lines of « Pourquoi ? »; `hour`: the local time now, for a later gesture;
     `marks`: the room's range and marks, as `Comfort` holds them; `reason`: the safety rule that shuts, if one does
-    (advisor/safety.py)."""
+    (advisor/safety.py); `beyond_before`: whether the last « Rien à faire » said a measure out of its range or mark
+    (« Au mieux »), kept while the forecast stays within EDGE of it."""
     words = TEXTS[language]
     # A reinforced effect is said in the conditional (CAHIER-MOTEUR.md § 4.1).
     # A supposed one too, when the card keeps it a while (an airing under way, advisor/decide.py `under_way`).
@@ -346,6 +348,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         title = words[gesture.kind].format(minutes=gesture.minutes, target=_degrees(gesture.target, language))
     paths = decision.paths
     line = ""
+    beyond_now = False
     if gesture.kind == "nothing":
         # « Open or shut » only when something is open; « in your range » only when it is true (31 October, Chambre P at
         # 18 °C, its window open: « la pièce restera dans votre plage » was not).
@@ -353,13 +356,16 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         if decision.passive is not None and idle is not None and idle.air:
             # A gesture held back for want of proof: « open or shut » would say it changes nothing, which is untrue.
             line = words["held_open" if opened else "held_shut"].format(air=_number(idle.air[-1], language), hour=end_hour)
-        elif idle is not None and idle.air and not marks["minimum"] <= idle.air[-1] <= marks["maximum"]:
+        elif idle is not None and idle.air and _outside(idle.air[-1], marks["minimum"], marks["maximum"], EDGE["heat"],
+                                                        beyond_before):
             line = words["nothing_out" if opened else "nothing_out_shut"].format(air=_number(idle.air[-1], language), hour=end_hour)
-        elif idle is not None and (beyond := _beyond(idle, marks)):
+            beyond_now = True
+        elif idle is not None and (beyond := _beyond(idle, marks, beyond_before)):
             # The heat in its range, not the rest (rejeu of 10 days: « dans votre plage » at 77 % of humidity).
             measure, value = beyond
             what = words[f"out_{measure}"].format(value=round(value), hour=end_hour)
             line = words["out_nothing"].format(what=what)
+            beyond_now = True
         else:
             line = words["nothing_line" if opened else "nothing_shut"]
     if subject and paths:
@@ -440,7 +446,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             if path.humidity:
                 text += words["why_humidity"].format(humidity=round(path.humidity[-1]))
             why.append(text)
-    out = {"title": title, "line": line, "subject": subject, "why": why, "try": None}
+    out = {"title": title, "line": line, "subject": subject, "why": why, "try": None, "beyond": beyond_now}
     if decision.passive is not None:
         # Held back for want of proof: said as a passive advice, to try.
         tried = phrase(replace(decision, gesture=decision.passive, passive=None, rule="best"), end_hour, language,
@@ -449,10 +455,25 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     return out
 
 
-def _beyond(path, marks) -> tuple[str, float] | None:
-    """The first subject the room ends above its mark: humidity, CO₂, particles."""
+# Within this much of its range or mark, a forecast keeps what the last « Rien à faire » said of it: « Au mieux » and
+# « Tout va bien » took turns every half hour all night, the forecast at 18,6 °C for a range from 18,5 °C (7 November,
+# every room). Less than one feels, and than the twin is sure of.
+EDGE = {"heat": 0.3, "humidity": 2.0, "co2": 50.0, "particles": 2.0, "voc": 10.0}
+
+
+def _outside(value: float, low: float, high: float, edge: float, before: bool | None) -> bool:
+    """Whether `value` is out of [low, high]: clearly, or within `edge` of a bound as it was said before."""
+    if value < low - edge or value > high + edge:
+        return True
+    if low + edge <= value <= high - edge:
+        return False
+    return before if before is not None else not low <= value <= high
+
+
+def _beyond(path, marks, before: bool | None = None) -> tuple[str, float] | None:
+    """The first subject the room ends above its mark: humidity, CO₂, particles; within EDGE of it, as said before."""
     for subject, values in (("humidity", path.humidity), ("co2", path.co2), ("particles", path.particles), ("voc", path.voc)):
-        if values and values[-1] > marks[subject]:
+        if values and _outside(values[-1], float("-inf"), marks[subject], EDGE[subject], before):
             return subject, values[-1]
     return None
 

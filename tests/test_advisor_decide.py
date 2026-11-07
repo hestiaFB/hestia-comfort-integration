@@ -259,6 +259,65 @@ class TriedHolds(unittest.TestCase):
         self.assertEqual(decide(**{**args, "tried": Gesture("open", 5)}).passive, Gesture("open", 25))
 
 
+class EveningOf7November(unittest.TestCase):
+    """Chambre A, 7 November, bed at 21 h: from 19 h 33 to 20 h 42, seven changes for one point of humidity."""
+
+    def args(self, at, bed_in, **changes):
+        from advisor.snapshot import load, restore
+        args = restore(load(Path(__file__).parent / "fixtures" / f"chambre-a-7-novembre-{at}.json"))
+        return {**args, "now": replace(args["now"], bed_in=bed_in), **changes}
+
+    def test_the_gesture_on_the_banner_holds_against_one_to_try(self):
+        # 19 h 58: « Aérez 20 min vers 20 h 05 » shown for 25 min; « Aérez 25 min » now, only reinforced, sent the card to
+        # « Rien à faire — À essayer ». It stays on the banner its half hour.
+        decision = decide(**self.args("19h58", 62))
+        self.assertEqual((decision.gesture.kind, decision.gesture.minutes, decision.rule), ("open", 20, "kept"))
+        # Past its half hour, it may go.
+        self.assertNotEqual(decide(**self.args("19h58", 62, held=40.0)).rule, "kept")
+
+    def test_an_airing_newly_proposed_ends_well_before_bed(self):
+        # 20 h 28, bed in 32 min: « Aérez 30 min » would end at 20 h 58 and leave the card five minutes later. Not proposed;
+        # nor shorter, its effect only reinforced here (Frank's rule of 7 November).
+        decision = decide(**self.args("20h28", 32.0, previous=None, held=None))
+        self.assertEqual(decision.gesture.kind, "nothing")
+        self.assertIsNone(decision.passive)
+        # The same airing already on the card keeps the plain rule: it still fits.
+        held = decide(**self.args("20h28", 32.0, previous=Gesture("open", 30), held=5.0))
+        self.assertEqual(held.gesture, Gesture("open", 30))
+
+    def test_open_for_good_is_not_proposed_in_the_last_hour(self):
+        from advisor.decide import _past_bedtime
+        from advisor.household import Habits
+        now = Now(air=20.0, walls=20.0, opened=(), bed_in=55.0)
+        late = _past_bedtime(now, Habits())
+        self.assertTrue(late(Gesture("open")))
+        self.assertFalse(late(Gesture("open"), held=True))
+        # A 20-minute airing still ends 15 min before bed.
+        self.assertFalse(late(Gesture("open", 20)))
+
+
+class TriedKeepsItsMargin(unittest.TestCase):
+    def test_to_try_stays_while_it_helps_by_half_the_gain(self):
+        # Chambre M, 7 November from 20 h 20: « À essayer » came and went every five minutes, its gain at the threshold.
+        from advisor.snapshot import load, restore
+        args = restore(load(Path(__file__).parent / "fixtures" / "chambre-al-4-novembre-15h13.json"))
+        tried = decide(**args).passive
+        self.assertIsNotNone(tried)
+        nothing = decide(**args).scenarios[Gesture("nothing")]["total"]
+        gain = nothing - decide(**args).scenarios[tried]["total"]
+        # The same room with the gain shrunk between half the threshold and the threshold: kept, not dropped.
+        from advisor import decide as module
+        saved = module.GAIN
+        try:
+            module.GAIN = gain * 1.5
+            self.assertIsNone(decide(**args).passive)
+            self.assertEqual(decide(**{**args, "tried": tried}).passive, tried)
+            module.GAIN = gain * 2.5
+            self.assertIsNone(decide(**{**args, "tried": tried}).passive)
+        finally:
+            module.GAIN = saved
+
+
 class AiringUnderWay(unittest.TestCase):
     """Salon · Cuisine, 5 November at 7 h 26: « Aérez 5 min » at 7 h 18, the French window opened at 7 h 25, and the card
     said « Rien à faire — Ouverte ou fermée »: the airing asked was no longer among an open room's scenarios."""

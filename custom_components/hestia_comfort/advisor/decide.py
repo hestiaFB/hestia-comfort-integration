@@ -728,19 +728,29 @@ def _for_the_outside(later: Gesture, twins: Twins, now: Now, coming, comfort: Co
     return real - own > own
 
 
+# Minutes an airing newly proposed ends before bedtime at least: the time to get to it. Without it, « Aérez 30 min »
+# said at 20 h 28 for a bed at 21 h no longer fitted five minutes later and left the card (Chambre A, 7 November).
+BED_MARGIN = 15
+
+
 def _past_bedtime(now: Now, habits: Habits):
     """Whether a gesture leaves a window open after bedtime (`Now.bed_in`): an airing, now or later, that ends after it;
     a window shut only after it; « Ouvrez » for good in the last `airing_max` minutes. Half a step of slack: the steps
-    are not exactly five minutes apart. Nothing is past it at night, or for a household that would get up to shut it."""
+    are not exactly five minutes apart. Nothing is past it at night, or for a household that would get up to shut it.
+    A gesture not yet on the card (`held` false) must leave more room: it ends BED_MARGIN before bedtime, and « Ouvrez »
+    for good is not proposed in the last twice `airing_max` minutes — an airing longer than the longest timed one,
+    that close to bedtime, would be a short one in disguise."""
     if now.bed_in is None or habits.open_at_night:
-        return lambda g: False
+        return lambda g, held=False: False
     edge = now.bed_in + STEP / 120
 
-    def late(g: Gesture | None) -> bool:
+    def late(g: Gesture | None, held: bool = False) -> bool:
         if g is None:
             return False
         if g.kind in ("open", "open_more"):
-            return now.bed_in <= habits.airing_max if g.minutes is None else (g.after or 0) + g.minutes > edge
+            if g.minutes is None:
+                return now.bed_in <= (habits.airing_max if held else 2 * habits.airing_max)
+            return (g.after or 0) + g.minutes > (edge if held else edge - BED_MARGIN)
         return g.kind == "close" and (g.after or 0) > edge
     return late
 
@@ -801,9 +811,9 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # Chambre A goes to bed at 21 h, « Aérez 30 min » at 20 h 27 ended at 20 h 57 by chance). A gesture said before that
     # would now run past it is not held.
     late = _past_bedtime(now, habits)
-    if late(previous):
+    if late(previous, held=True):
         previous, held = None, None
-    if late(tried):
+    if late(tried, held=True):
         tried = None
     # Leaving open what is open is weighed as it is: the same scenario as doing nothing, said as a gesture when shutting
     # would clearly do worse (« Laissez ouvert »), or when it follows « Ouvrez » (`under_way`).
@@ -818,6 +828,9 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         pool.append(tried)
     gestures = [g for g in pool if g.kind not in forbidden
                 and not (g.kind == "open" and g.minutes is None and "open_long" in forbidden)
+                # Nobody home (the alarm set to away): no window to open, and what is open is the alarm's business, not
+                # comfort's (Frank, 7 November: « il ne faut pas se substituer à l'alarme »).
+                and not (g.kind in ("open", "open_more") and "absent" in forbidden)
                 and not (g.kind in ("open", "open_more") and now.night and not habits.open_at_night)
                 and not (g.kind == "open_more" and "open" in forbidden)
                 # Nobody gets up to see to the heating either (CAHIER-MOTEUR.md § 9.1 bis), nor comes back in ten minutes.
@@ -882,7 +895,7 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # « À essayer ». The scenarios were all simulated already: nothing more is computed.
     if worth and now.bed_in is not None:
         cut = late(_shortest(min(worth, key=order), worth, costs))
-        worth = [g for g in worth if not late(g)
+        worth = [g for g in worth if not late(g, held=g in (previous, tried))
                  and not (cut and g.kind in ("open", "open_more") and proof is not None
                           and proof.get(effect(g, main_subject(costs, g)), SUPPOSED) != PROVEN)]
     best = min(worth, key=order) if worth else Gesture("nothing")
@@ -929,6 +942,16 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         # Open, and shutting now would clearly do worse: « Laissez ouvert », not « Rien à faire » (Frank, 5 November:
         # « Rien à faire » in Chambre A at 67 %, the window just opened, while shutting would end at 75 %).
         best, rule, gain = keep, "best", 0.0
+    if (best.kind == "nothing" and proof is not None and tried is not None and tried.kind != "nothing" and tried in costs
+            and nothing - costs[tried]["total"] >= GAIN / 2 and not late(tried, held=True)
+            and not (aired is not None and aired < RESTING_MINUTES and tried.kind == "open"
+                     and main_subject(costs, tried) not in FAST_SUBJECTS)):
+        # « À essayer » holds like the banner (HOLD_MINUTES): while it still helps by half the gain, it stays, rather than
+        # coming and going with a gain that hovers at the threshold (Chambre M, 7 November, every five minutes from 20 h 20).
+        found = proof.get(effect(tried, main_subject(costs, tried)), SUPPOSED)
+        if found != PROVEN:
+            return Decision(Gesture("nothing"), nothing - costs[tried]["total"], "unproven", costs, paths, level=found,
+                            passive=tried)
     if best.kind == "nothing" or proof is None:
         return Decision(best, gain, rule, costs, paths)
     # Only a proven effect sends a gesture to the banner as soon as it is significant; a reinforced one must be clear-cut;
@@ -945,6 +968,12 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         return Decision(best, gain, rule, costs, paths, level=found)
     if hold and best == previous:
         return Decision(best, gain, "kept", costs, paths, level=found)
+    if hold and previous in costs and previous.kind != "nothing":
+        # The gesture on the banner stays there its half hour: a slightly different one, only to try, does not send it to
+        # « À essayer » (Chambre A, 7 November at 19 h 58: « Aérez 20 min vers 20 h 05 » became « Rien à faire — À essayer,
+        # Aérez 25 min », then « Rien à faire » at 20 h 03).
+        held_found = proof.get(effect(previous, main_subject(costs, previous)), SUPPOSED)
+        return Decision(previous, nothing - costs[previous]["total"], "kept", costs, paths, level=held_found)
     # « À essayer » holds like the banner: the gesture shown stays while it is about as good (MARGIN). It changed at every
     # step, « Ouvrez », « Aérez 25 min », « Aérez 30 min » (Chambre AL, 4 November: thirty times since 21 h).
     if (tried is not None and tried != best and tried in worth

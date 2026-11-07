@@ -1,4 +1,5 @@
-"""The 3.0 advisor's safety rules: rain, rain soon, gusts, red vigilance and an empty house take « open » away."""
+"""The 3.0 advisor's safety rules: rain, rain soon, gusts and red vigilance take « open » away; an empty house only
+proposes no opening."""
 from pathlib import Path
 import sys
 import unittest
@@ -13,7 +14,21 @@ class SafetyTest(unittest.TestCase):
         self.assertEqual(forbidden(rain_in=10), (frozenset({"open"}), "rain_soon"))
         self.assertEqual(forbidden(gust=60.0), (frozenset({"open"}), "gusts"))
         self.assertEqual(forbidden(vigilance="rouge"), (frozenset({"open"}), "vigilance"))
-        self.assertEqual(forbidden(alarm="armed_away"), (frozenset({"open"}), "away"))
+        # Nobody home: no opening proposed, but nothing open is shut (« absent », not « open »).
+        self.assertEqual(forbidden(alarm="armed_away"), (frozenset({"absent"}), "away"))
+
+    def test_the_alarm_never_shuts_a_window_open(self):
+        # Chambre A, 7 November, 10 h 09 to 11 h 29: the alarm set to away, the window open, « Refermez » in red. Alarmo
+        # leaves an open window out when arming: comfort does not stand in for the alarm.
+        from advisor.decide import Now, decide
+        from test_advisor_decide import FRENCH, TWINS, day
+        taken, _ = forbidden(alarm="armed_away")
+        opened = Now(air=19.0, walls=19.0, opened=(FRENCH.size,), humidity=62.0)
+        decision = decide(TWINS, opened, day(outdoor=12.0), forbidden=taken)
+        self.assertNotEqual(decision.rule, "safety")
+        # And no window to open while away.
+        shut = decide(TWINS, Now(air=19.0, walls=19.0, opened=(), humidity=85.0), day(outdoor=8.0), forbidden=taken)
+        self.assertNotIn(shut.gesture.kind, ("open", "open_more"))
 
     def test_what_is_calm_or_unknown_forbids_nothing(self):
         self.assertEqual(forbidden(rain_rate=0.0, gust=20.0, rain_in=120, vigilance="orange", alarm="disarmed"), (frozenset(), None))

@@ -40,13 +40,14 @@ def capture(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weight
             reason: str | None = None, held: float | None = None, tried: Gesture | None = None, aired: float | None = None,
             failed: dict | None = None, pollen: Pollen | None = None,
             end_hour: int, hour: float | None = None, language: str = "fr", room: str = "", when: str = "",
-            version: str = "") -> dict:
+            version: str = "", beyond_before: bool | None = None) -> dict:
     """The decision's inputs, as plain JSON."""
     return {"format": FORMAT, "version": version, "room": room, "when": when, "twins": _plain(twins), "now": _plain(now),
             "coming": [[_plain(u), water] for u, water in coming], "comfort": _plain(comfort), "weights": _plain(weights),
             "previous": _plain(previous), "forbidden": sorted(forbidden), "reason": reason, "proof": proof, "holidays": holidays,
             "habits": habits.setting(), "held": held, "tried": _plain(tried), "aired": aired, "failed": failed,
-            "pollen": _plain(pollen), "end_hour": end_hour, "hour": hour, "language": language}
+            "pollen": _plain(pollen), "end_hour": end_hour, "hour": hour, "language": language,
+            "beyond_before": beyond_before}
 
 
 def restore(snap: dict) -> dict:
@@ -84,7 +85,7 @@ def replay(snap: dict, **changes) -> tuple[Decision, dict]:
     marks = {"minimum": c.minimum, "maximum": c.maximum, "humidity": c.humidity, "co2": c.co2, "particles": c.particles,
              "voc": c.voc}
     return decision, phrase(decision, snap["end_hour"], snap.get("language", "fr"), hour=snap.get("hour"),
-                            reason=snap.get("reason"), marks=marks)
+                            reason=snap.get("reason"), marks=marks, beyond_before=snap.get("beyond_before"))
 
 
 def warmer(coming, degrees: float):

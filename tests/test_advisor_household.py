@@ -88,7 +88,10 @@ class AiringEndsByBedtime(unittest.TestCase):
     def test_an_airing_that_fits_is_unchanged(self):
         from advisor.decide import Gesture
         self.assertEqual(self.decide(None).passive, Gesture("open", 25))
-        self.assertEqual(self.decide(32).passive, Gesture("open", 25))
+        self.assertEqual(self.decide(45).passive, Gesture("open", 25))
+        # Newly proposed, it ends BED_MARGIN before bed: 25 min with bed in 32 no longer is; already shown, it still is.
+        self.assertIsNone(self.decide(32).passive)
+        self.assertEqual(self.decide(32, tried=Gesture("open", 25)).passive, Gesture("open", 25))
 
     def test_cut_short_by_bedtime_it_is_not_said_unless_proven(self):
         for bed_in in (20, 10, 3):
@@ -116,5 +119,6 @@ class AiringEndsByBedtime(unittest.TestCase):
         self.assertTrue(late(Gesture("close", after=20)))
         self.assertFalse(late(Gesture("close", after=10)))
         self.assertTrue(late(Gesture("open")))          # « Ouvrez » for good, twelve minutes before bed
-        self.assertFalse(late(Gesture("open", 10)))
-        self.assertTrue(late(Gesture("open", 10, after=15)))
+        self.assertTrue(late(Gesture("open", 10)))      # newly proposed: not 15 min before bed
+        self.assertFalse(late(Gesture("open", 10), held=True))   # already on the card: it still fits
+        self.assertTrue(late(Gesture("open", 10, after=15), held=True))

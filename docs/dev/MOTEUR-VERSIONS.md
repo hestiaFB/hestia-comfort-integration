@@ -20,6 +20,19 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.12.0 — 7 novembre 2026
+
+Moins de yoyo, après le bilan d'une journée en prod (7 novembre, moteur 3.10) et au labo (3.11.2) ; accord de Frank sur les quatre points et sur l'alarme (« on parle de confort, pas de sécurité »).
+- `room/advice.py` : **« À essayer » n'était jamais retenu** — `self.tried` effacé au même pas que noté (`elif gesture != nothing or not taken`) ; effacé maintenant seulement sans `passive`. C'est ce qui le faisait clignoter (Chambre M, 20 h 20-20 h 45).
+- `advisor/opening.py` : `seen_shares(..., read=)` et `failed(..., read=)` lisent chaque mesure à l'heure où le capteur l'a envoyée (`last_reported`) et seulement envoyée `OBSERVE_MINUTES` après l'ouverture ; les minutes dites sont celles de la mesure. `room/advice.py` `_sent()`. Chambre A, 9 h 39 : « ne fait pas l'effet prévu, 68 → 67 % » sur une valeur envoyée à l'ouverture (capteur muet de 9 h 24 à 9 h 56, puis 63 %).
+- `advisor/decide.py` : le geste du bandeau tenu (`hold`, HOLD_MINUTES) l'emporte sur un nouveau meilleur seulement « À essayer » (règle `kept`) ; « À essayer » (`tried`) tenu tant qu'il gagne GAIN/2 quand plus rien ne vaut GAIN (même pause `aired` que `worth`).
+- `advisor/decide.py` : `_past_bedtime` → `late(g, held=False)` ; un geste pas encore affiché finit `BED_MARGIN` (15 min) avant le coucher, « Ouvrez » sans fin interdit dans les 2 × `airing_max` dernières minutes ; un geste déjà affiché (`previous`, `tried`) garde la règle de 3.11.2.
+- `room/advice.py` : `GRACE_MINUTES` (3) — un « Refermez » de confort (`best`/`kept`, sans `after`) sur une ouverture de moins de 3 min, sans « Refermez » déjà affiché, est redécidé pièce fermée (`decided_on`) ; l'instantané garde ces entrées ; `opened_seen` attend la fin de la grâce. Buanderie : 4 « Refermez » de 20 s à 2 min.
+- `advisor/words.py` : `EDGE` (0,3 °C, 2 points, 50 ppm, 2 µg, 10) et `_outside` — près d'une limite, la phrase garde ce que disait le dernier « Rien à faire » (`beyond_before`, attribut `au_dela` du résultat, clé `beyond_before` des instantanés, None pour les anciens).
+- `advisor/safety.py` : l'alarme en absence retire `absent` (aucune ouverture proposée) au lieu de `open` : plus de « Refermez » de sécurité. Raison `away` gardée pour « Gardez fermé ».
+- Tests : `EveningOf7November`, `TriedKeepsItsMargin` (test_advisor_decide), `EdgeOfTheRange` (test_advisor_words), lecture à l'heure d'envoi (test_advisor_opening), alarme (test_advisor_safety), `AiringEndsByBedtime` mis à la marge. Fixtures `chambre-a-7-novembre-19h58.json`, `-20h28.json`. 884 tests OK.
+- Rejeu des 1 873 instantanés du labo (3-7 nov.) : 5 conseils changés, aucune erreur — Chambre A le 7 à 19 h 58 (geste tenu), Chambre P le 4 à 19 h 54 (« Aérez 10 min » tenu), Chambre AL le 6 à 12 h 57 et 13 h 42 (« À essayer » gardé), Chambre M le 7 à 21 h 02 (« Ouvrez » à moins d'une heure du coucher). Le gain principal est dans l'enchaînement des pas, que les instantanés isolés ne montrent pas.
+
 ### 3.11.2 — 7 novembre 2026
 
 L'aération finit au coucher de la pièce (Frank, 7 novembre, Chambre A couchée à 21 h, « Aérez 30 min » à 20 h 27).

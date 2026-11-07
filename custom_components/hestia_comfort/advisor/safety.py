@@ -94,7 +94,9 @@ def forbidden(rain_rate: float | None = None, gust: float | None = None, rain_in
     if level is not None and level >= RED:
         return frozenset({"open"}), "vigilance"
     if alarm in AWAY:
-        return frozenset({"open"}), "away"
+        # Nobody to open a window: none is proposed. One left open is the alarm's business (Alarmo leaves it out when
+        # arming), not comfort's: never « Refermez » (Frank, 7 November: « on parle de confort, pas de sécurité »).
+        return frozenset({"absent"}), "away"
     if coldest is not None and coldest <= FROST:
         return frozenset({"open_long"}), "frost"
     return frozenset(), None

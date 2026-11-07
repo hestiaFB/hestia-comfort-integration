@@ -4,6 +4,23 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.12.0 — 7 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Améliorations
+
+- Un conseil affiché reste en place au moins une demi-heure tant qu'il aide encore. Exemple : « Aérez 20 min vers 20 h 05 » ne se change plus en « À essayer — Aérez 25 min » cinq minutes avant l'heure.
+- « À essayer » ne clignote plus : il reste tant qu'il aide encore un peu, au lieu d'apparaître et disparaître toutes les 5 minutes.
+- Une nouvelle aération se termine au moins 15 minutes avant le coucher. Exemple : coucher à 21 h, « Aérez 30 min » n'est plus proposé à 20 h 28. Une heure avant le coucher, Hestia ne dit plus « Ouvrez » sans durée.
+- Une fenêtre ou une porte qu'on vient d'ouvrir n'affiche pas « Refermez » pendant 3 minutes : le temps de passer. La pluie et le vent fort font toujours refermer tout de suite.
+- La nuit, la pastille ne passe plus de « Tout va bien » à « Au mieux » toutes les demi-heures quand une mesure frôle la limite de votre plage.
+
+### Corrections
+
+- Hestia ne dit plus qu'une aération « ne fait pas l'effet prévu » avant que le capteur ait envoyé une nouvelle mesure. Exemple : le capteur de la Chambre A n'envoie qu'une mesure toutes les 30 minutes ; l'aération était jugée sur l'humidité d'avant l'ouverture.
+- L'alarme en mode absence ne fait plus dire « Refermez » : c'est le rôle de l'alarme, pas de Confort. Hestia ne propose simplement pas d'ouvrir quand personne n'est là.
+
 ## 3.11.2 — 7 novembre 2026
 
 Pas encore dans une version de Confort.

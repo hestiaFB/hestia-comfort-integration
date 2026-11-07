@@ -74,3 +74,17 @@ class WordsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EdgeOfTheRange(unittest.TestCase):
+    def test_near_a_bound_the_last_word_holds(self):
+        # 7 November, every room, all night: « Au mieux » and « Tout va bien » took turns every half hour, the forecast at
+        # 18,6 °C for a range from 18,5 °C. Within EDGE of a bound, what was said last is kept.
+        from advisor.words import EDGE, _outside
+        self.assertTrue(_outside(18.0, 18.5, 22.0, EDGE["heat"], None))
+        self.assertFalse(_outside(19.0, 18.5, 22.0, EDGE["heat"], True))
+        self.assertTrue(_outside(18.6, 18.5, 22.0, EDGE["heat"], True))
+        self.assertFalse(_outside(18.4, 18.5, 22.0, EDGE["heat"], False))
+        # Nothing said before: the plain bound.
+        self.assertTrue(_outside(18.4, 18.5, 22.0, EDGE["heat"], None))
+        self.assertFalse(_outside(18.6, 18.5, 22.0, EDGE["heat"], None))

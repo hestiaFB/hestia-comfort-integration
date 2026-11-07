@@ -29,13 +29,15 @@ READ_ON = {"humidity": "water", "mould": "water", "heat": "heat"}
 
 
 def failed(subject: str | None, shares: dict, opened: Opened, now: datetime, air: float,
-           humidity: float | None) -> dict | None:
+           humidity: float | None, read: dict | None = None) -> dict | None:
     """The airing advised for `subject`, seen at work, when it does less than INEFFECTIVE of its forecast: what was
-    measured since it was opened, for the card to say. None while it works, or when it cannot be read yet."""
+    measured since it was opened, for the card to say. None while it works, or when it cannot be read yet. `read`: when
+    each measure was last sent (`seen_shares`), the minutes said are those of the reading."""
     key = READ_ON.get(subject or "")
     if key is None or key not in shares or shares[key] >= INEFFECTIVE:
         return None
-    minutes = (now - opened.since).total_seconds() / 60
+    at = (read or {}).get("humidity" if key == "water" else "air") or now
+    minutes = (min(at, now) - opened.since).total_seconds() / 60
     if key == "water":
         if humidity is None or opened.humidity is None:
             return None
@@ -53,25 +55,42 @@ class Opened:
     forecast_humidity: tuple[float, ...] = ()
 
 
-def seen_shares(opened: Opened, now: datetime, air: float, humidity: float | None) -> dict[str, float]:
+def seen_shares(opened: Opened, now: datetime, air: float | None, humidity: float | None,
+                read: dict | None = None) -> dict[str, float]:
     """The share of the forecast the open window shows since it was opened, read apart on the heat and on the water: 1 as
     forecast, 0 nothing at all. A subject is left out when too soon or when its forecast changes too little to be read.
     Apart, because the twin learns them apart: Chambre P, 6 November, the window did a sixth of the heat forecast and
-    half as much water again — scaled on the heat alone, the drying vanished and the twin saw the humidity climb."""
-    minutes = (now - opened.since).total_seconds() / 60
-    k = int(round(minutes * 60 / STEP)) - 1
-    if minutes < OBSERVE_MINUTES or k < 0 or not opened.forecast_air:
+    half as much water again — scaled on the heat alone, the drying vanished and the twin saw the humidity climb.
+    `read`: when each measure (« air », « humidity ») was last sent, None as now. A measure is read against the forecast at
+    the time it was sent, and only once sent OBSERVE_MINUTES after the opening: a sensor that reports every half hour
+    still shows the room as it was opened (Chambre A, 7 November: 67 % sent at 9 h 24, the window open since 9 h 24, then
+    nothing until 63 % at 9 h 56 — at 9 h 39 the airing was judged useless on the first)."""
+    if not opened.forecast_air:
         return {}
-    k = min(k, len(opened.forecast_air) - 1)
+    read = read or {}
+
+    def step(kind):
+        """The forecast step the measure of `kind` stands for, or None when sent too soon after the opening."""
+        at = min(read.get(kind) or now, now)
+        minutes = (at - opened.since).total_seconds() / 60
+        k = int(round(minutes * 60 / STEP)) - 1
+        if minutes < OBSERVE_MINUTES or k < 0:
+            return None
+        return min(k, len(opened.forecast_air) - 1)
     found = {}
-    told = opened.forecast_air[k] - opened.air
-    if abs(told) >= HEAT_READ:
-        found["heat"] = (air - opened.air) / told
-    if humidity is not None and opened.humidity is not None and len(opened.forecast_humidity) > k:
+    k = step("air")
+    if air is not None and k is not None:
+        told = opened.forecast_air[k] - opened.air
+        if abs(told) >= HEAT_READ:
+            found["heat"] = (air - opened.air) / told
+    k = step("humidity")
+    if humidity is not None and opened.humidity is not None and k is not None and len(opened.forecast_humidity) > k:
         then = absolute(opened.air, opened.humidity)
+        # The water is read on both the humidity and the air; without the air, the twin's for that time.
+        air_then = air if air is not None else opened.forecast_air[k]
         told = absolute(opened.forecast_air[k], opened.forecast_humidity[k]) - then
         if abs(told) >= WATER_READ:
-            found["water"] = (absolute(air, humidity) - then) / told
+            found["water"] = (absolute(air_then, humidity) - then) / told
     return {subject: min(HIGHEST, max(LOWEST, share)) for subject, share in found.items()}
 
 
