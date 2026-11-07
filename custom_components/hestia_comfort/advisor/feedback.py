@@ -25,6 +25,8 @@ class Asked:
     title: str
     trial: bool = False
     target: float | None = None     # the set point « Remettez le chauffage à 19 °C » asks for
+    kwh: float | None = None        # what it costs against « do nothing », as simulated when first asked (decide.gesture_energy)
+    heated: bool = False            # those kWh are the simulated thermostat's, not only the heat let out
 
 
 def done(kind: str, now: Now, target: float | None = None) -> bool:
@@ -56,9 +58,10 @@ def done(kind: str, now: Now, target: float | None = None) -> bool:
 
 
 def follow(asked: Asked | None, shown: Gesture | None, title: str, trial: bool, now: Now,
-           when: datetime) -> tuple[Asked | None, list[dict]]:
+           when: datetime, energy: tuple[float, bool] | None = None) -> tuple[Asked | None, list[dict]]:
     """The gesture followed from one decision to the next: what is asked now, and what was learned — a gesture done
-    while it was asked, or replaced by another before. `shown`: the gesture on the card now, None or « nothing » if none."""
+    while it was asked, or replaced by another before. `shown`: the gesture on the card now, None or « nothing » if none;
+    `energy`: its (kWh, heated) against « do nothing » (decide.gesture_energy), kept with it for Hestia Énergie."""
     out = []
     if asked is not None:
         if done(asked.kind, now, asked.target):
@@ -68,13 +71,15 @@ def follow(asked: Asked | None, shown: Gesture | None, title: str, trial: bool, 
             out.append(_record(asked, when, False))
             asked = None
     if asked is None and shown is not None and shown.kind != "nothing" and not done(shown.kind, now, shown.target):
-        asked = Asked(shown.kind, when, title, trial, shown.target)
+        kwh, heated = energy if energy else (None, False)
+        asked = Asked(shown.kind, when, title, trial, shown.target, None if kwh is None else round(kwh, 2), heated)
     return asked, out
 
 
 def _record(asked: Asked, when: datetime, followed: bool) -> dict:
     return {"geste": asked.kind, "conseil": asked.title, "essai": asked.trial, "suivi": followed,
-            "depuis": asked.since.isoformat(), "minutes": round((when - asked.since).total_seconds() / 60)}
+            "depuis": asked.since.isoformat(), "minutes": round((when - asked.since).total_seconds() / 60),
+            "kwh": asked.kwh, "chauffage": asked.heated}
 
 
 def declined(paused: dict[str, datetime], now: Now, when: datetime) -> frozenset[str]:

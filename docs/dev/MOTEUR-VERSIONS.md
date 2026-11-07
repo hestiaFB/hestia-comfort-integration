@@ -20,6 +20,15 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.11.1 — 7 novembre 2026
+
+Les gestes conseillés gardent leurs kWh, pour Hestia Énergie (`hestia_comfort_api.gestures`, INTERFACE.md d'Énergie § 2, CAHIER-MOTEUR § 17). Rien de recalculé, aucun conseil changé.
+- `advisor/decide.py` : `gesture_energy(paths, gesture)` → `(kWh, heated)` = `paths[geste].spent − paths[rien].spent`, l'écart que la trace montre déjà ; None si l'un des deux n'est pas simulé (les « Fermez » de sécurité).
+- `advisor/feedback.py` : `Asked.kwh`, `Asked.heated`, pris au premier affichage (`follow(..., energy)`) ; `_record` ajoute `kwh` et `chauffage` (aussi dans `retours.jsonl` quand l'analyse est allumée).
+- `room/advice.py` : `RoomAdvisor.gestures`, les gestes finis (suivis ou remplacés) avec `fin`, gardés `GESTURES_KEPT` (62 jours) dans le Store de la pièce (clé `gestures`) ; `gestures_between(start, end)` y ajoute le geste encore affiché (`fin` None). Ne dépend pas de l'interrupteur `analysis`.
+- `api.py` : `gestures(entry_id, start, end)`, `version` reste 1. Tests : `tests/test_api_gestures.py` (instantanés réels du labo).
+- Rejeu des 1 682 instantanés du labo (3-7 nov.) : 379 gestes affichés sur 381 retrouvent leurs kWh, 374 égaux à la trace gardée ; chaîne complète pièce par pièce : 99 gestes, 97 avec kWh, gestes et « suivi » conformes à `retours.jsonl` (les écarts viennent des instantanés, gardés seulement aux changements de conseil).
+
 ### 3.11.0 — 6 novembre 2026
 
 Le réglage « Allergie aux pollens » (`home.pollen_allergy`, Confort 2.1.0b2) n'était plus lu par le moteur 3. Règle revue et validée par Frank le 6 nov. (les quatre choix recommandés, puis la durée nécessaire pour l'humidité et le CO₂ après le rejeu des 3-6 nov.). Nouvelle source : les pollens du jour de Hestia Weather (`api.pollen`, via `configuration.pollen()`, donnés seulement si quelqu'un est allergique).

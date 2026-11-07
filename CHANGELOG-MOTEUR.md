@@ -4,6 +4,14 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.11.1 — 7 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Améliorations
+
+- Chaque geste conseillé garde ce qu'il coûte ou économise en chauffage, en kWh. Hestia Énergie pourra le lire pour le dire en euros.
+
 ## 3.11.0 — 6 novembre 2026
 
 Pas encore dans une version de Confort.

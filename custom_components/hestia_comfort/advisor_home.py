@@ -153,6 +153,14 @@ def result(hass, entry_id):
     return advisor.result or WAITING
 
 
+def gestures(hass, entry_id, start, end):
+    """The gestures asked in this room's air between `start` and `end`, with their kWh (room/advice.py `gestures_between`);
+    None when no 3.0 advisor reads this room."""
+    home = hass.data.get(DATA)
+    advisor = home.advisor_of(entry_id) if home else None
+    return advisor.gestures_between(start, end) if advisor else None
+
+
 def knowing(hass, entry_id):
     """What the hub's « Apprentissage » shows of this room's air (room/advice.py `knowing`); None without a 3.0 advisor."""
     home = hass.data.get(DATA)

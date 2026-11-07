@@ -305,6 +305,18 @@ class Path:
         return self.heating if self.heated else self.lost
 
 
+def gesture_energy(paths: dict, gesture: "Gesture | None") -> tuple[float, bool] | None:
+    """(kWh, heated) a gesture costs against « do nothing », as its scenarios were simulated: more than zero, heat let
+    out that the heating must give back; less, heating saved (« Refermez », « Baissez le volet »). `heated`: the room's
+    thermostat was simulated, the kWh are what it spends; otherwise the heat the windows let out. None when the gesture
+    or « do nothing » was not simulated. Kept for Hestia Énergie (api.py `gestures`, CAHIER-MOTEUR.md § 17)."""
+    idle = paths.get(Gesture("nothing"))
+    chosen = paths.get(gesture) if gesture is not None else None
+    if idle is None or chosen is None:
+        return None
+    return chosen.spent - idle.spent, chosen.heated
+
+
 # The airings, later moments and devices' durations proposed are the household's (advisor/household.py `Habits`).
 
 

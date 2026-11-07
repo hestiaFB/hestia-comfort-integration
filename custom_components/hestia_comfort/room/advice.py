@@ -19,7 +19,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from ..advisor.checks import GOOD, KINDS, Checker
-from ..advisor.decide import (SHUT_SHADE, SIGNIFICANT, RESTING_MINUTES, Gesture, Now, Twins, aged, decide, for_season, remembered, from_thermostat, heating_back,
+from ..advisor.decide import (SHUT_SHADE, SIGNIFICANT, RESTING_MINUTES, Gesture, Now, Twins, aged, decide, for_season, gesture_energy, remembered, from_thermostat, heating_back,
                               heating_off, main_subject, recent_sources, shutter_tonight, simulate, stove_idle, sun_gain,
                               tonight)
 from ..advisor.feedback import declined, follow, pause_until
@@ -65,6 +65,8 @@ DAY_STEPS = 36
 # A step closer to the last one than this decides without moving the trail (a restart's retries, a tick come early).
 STEP_AT_LEAST = timedelta(minutes=4)
 VERSION = 1
+# The gestures asked, with their kWh, kept this long for Hestia Énergie (api.py `gestures`): two monthly bills.
+GESTURES_KEPT = timedelta(days=62)
 
 
 def _number(hass, entity_id, attribute=None):
@@ -347,6 +349,8 @@ class RoomAdvisor:
         self.tried = None
         # The gesture the card asks for, followed until done or replaced; the gestures put aside by « Pas maintenant ».
         self.asked, self.paused = None, {}
+        # The gestures asked and ended (followed or replaced), with their kWh: what Hestia Énergie reads (api.py `gestures`).
+        self.gestures = []
         # When an airing was last shut: the next opening waits until it is judged (advisor/decide.py RESTING_MINUTES).
         self.shut_at = None
         # What the airing advised was for (its subject, when last shown): an airing followed that does not do it is said
@@ -372,6 +376,7 @@ class RoomAdvisor:
         kept = await self.store.async_load() or {}
         self.learned = kept.get("twins") or first_twins(self.room, self.hass, self.home.houses)
         self.learned_at, self.earlier, self.report = kept.get("learned_at"), kept.get("earlier") or [], kept.get("report")
+        self.gestures = kept.get("gestures") or []
         if _resized(self.learned, self.room):
             self.learned = _remade(self.learned, self.learned_at, first_twins(self.room, self.hass, self.home.houses))
             self.learned_at = None
@@ -406,7 +411,7 @@ class RoomAdvisor:
 
     async def async_save(self, now):
         await self.store.async_save({"twins": self.learned, "learned_at": self.learned_at, "earlier": self.earlier[-7:],
-                                     "report": self.report, "state": self._state(now)})
+                                     "report": self.report, "state": self._state(now), "gestures": self.gestures})
 
     async def learned_now(self, entry, now, report):
         """A night's twins: kept, the previous ones remembered a week (PASSAGE-CONFORT-3.md § 2.5)."""
@@ -416,6 +421,17 @@ class RoomAdvisor:
         entry = {**entry, "fitted": bool(entry.get("fitted") or report.get("appris"))}
         self.learned, self.learned_at, self.report = entry, now.isoformat(), report
         await self.async_save(now)
+
+    def gestures_between(self, start, end):
+        """The gestures asked between `start` and `end` (aware datetimes): the ones ended, kept GESTURES_KEPT, and the one
+        on the card now (`fin` None). Each with its kWh against « do nothing », as simulated when it was first asked."""
+        out = [g for g in self.gestures
+               if dt_util.parse_datetime(g["depuis"]) < end and dt_util.parse_datetime(g["fin"]) > start]
+        if self.asked is not None and self.asked.since < end:
+            a = self.asked
+            out.append({"geste": a.kind, "conseil": a.title, "essai": a.trial, "suivi": None, "depuis": a.since.isoformat(),
+                        "fin": None, "kwh": a.kwh, "chauffage": a.heated})
+        return out
 
     def knowing(self):
         """What Hestia-FB knows of the room (« Ce que Hestia-FB sait de votre maison », CAHIER-HUB.md § 5.3): each effect it can
@@ -888,7 +904,11 @@ class RoomAdvisor:
         # The gesture the card asks for, followed: done while shown, or replaced before (CAHIER-MOTEUR.md § 15).
         trial = decision.gesture.kind == "nothing" and decision.passive is not None and bool(words["try"])
         shown = decision.passive if trial else decision.gesture
-        self.asked, followed = follow(self.asked, shown, words["try"] if trial else words["title"], trial, current, now)
+        self.asked, followed = follow(self.asked, shown, words["try"] if trial else words["title"], trial, current, now,
+                                      gesture_energy(decision.paths, shown))
+        if followed:
+            since = (now - GESTURES_KEPT).isoformat()
+            self.gestures = [g for g in self.gestures if g["fin"] >= since] + [{**r, "fin": now.isoformat()} for r in followed]
         # Our analysis tools (advisor_home.py `analysis`, PLAN-OPTIMISATION.md point 16): the files the Atelier reads,
         # written only while they are on. The advice and the learning never read them back.
         analysing = home.analysis()
