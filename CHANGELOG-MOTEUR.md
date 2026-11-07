@@ -6,7 +6,7 @@ Chaque version de Confort dit quelle version du moteur elle contient. Le détail
 
 ## 3.12.0 — 7 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b1.
 
 ### Améliorations
 
@@ -23,7 +23,7 @@ Pas encore dans une version de Confort.
 
 ## 3.11.2 — 7 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b1.
 
 ### Améliorations
 
@@ -34,7 +34,7 @@ Pas encore dans une version de Confort.
 
 ## 3.11.1 — 7 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b1.
 
 ### Améliorations
 
@@ -42,7 +42,7 @@ Pas encore dans une version de Confort.
 
 ## 3.11.0 — 6 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b1.
 
 ### Corrections
 

@@ -60,6 +60,9 @@ def room_keys(coordinator):
     alone = not coordinator.partners
     sensors = [*(VERDICT_SENSORS if alone else ()), *ROOM_SENSORS]
     binaries = [*(VERDICT_BINARIES if alone else ()), *ROOM_BINARIES]
+    # « Turbo conseillé » belongs to the room that holds the VMC's fast speed.
+    if ((getattr(coordinator, "config", None) or {}).get("sources") or {}).get("ventilation_boost"):
+        binaries.append("boost")
     if volume_owner(coordinator):
         sensors += [f"volume:{k}" for k in VERDICT_SENSORS]
         binaries += [f"volume:{k}" for k in VERDICT_BINARIES]
@@ -108,16 +111,9 @@ def home_clean(hass, entry):
             registry.async_remove(item.entity_id)
 
 
-def ventilation_useful(views):
-    """The VMC is worth running: the card asks for it, or it is running and the air is still humid (do not stop it then)."""
-    for view in views:
-        v = view.get("verdict") or {}
-        if v.get("gesture") == "ventilation":
-            return True
-        running = (((view["assessment"].get("features") or {}).get("air") or {}).get("ventilation") or {}).get("on") is True
-        if running and v.get("humidity") in HUMID:
-            return True
-    return False
+def ventilation_advised(views, speed="slow"):
+    """The VMC's speed is advised (engine/ventilation.py, computed in each room's view): in any room of the air."""
+    return any(((view or {}).get("vmc") or {}).get(speed) is True for view in views)
 
 
 def binary_value(key, verdict, views):
@@ -129,7 +125,9 @@ def binary_value(key, verdict, views):
     if key == "close":
         return gesture == "close"
     if key == "ventilation":
-        return ventilation_useful(views)
+        return ventilation_advised(views)
+    if key == "boost":
+        return ventilation_advised(views, "fast")
     if key == "humid":
         return verdict.get("humidity") in HUMID
     return None

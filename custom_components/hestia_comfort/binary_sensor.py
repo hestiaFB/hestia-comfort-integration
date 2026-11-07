@@ -1,4 +1,4 @@
-"""Yes or no, for automations: a gesture to make, air the room, shut a window, run the VMC, too humid."""
+"""Yes or no, for automations: a gesture to make, air the room, shut a window, run the VMC or its turbo, too humid."""
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity, BinarySensorEntityDescription
 
 from .engine.verdict import ACTING
@@ -9,6 +9,7 @@ DESCRIPTIONS = {d.key: d for d in (
     BinarySensorEntityDescription(key="airing", translation_key="airing", icon="mdi:window-open-variant"),
     BinarySensorEntityDescription(key="close", translation_key="close", icon="mdi:window-closed-variant"),
     BinarySensorEntityDescription(key="ventilation", translation_key="ventilation", icon="mdi:fan"),
+    BinarySensorEntityDescription(key="boost", translation_key="boost", icon="mdi:fan-speed-3"),
     BinarySensorEntityDescription(key="humid", translation_key="humid", device_class=BinarySensorDeviceClass.MOISTURE),
 )}
 

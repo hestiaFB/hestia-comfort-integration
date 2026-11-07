@@ -1,3 +1,27 @@
+## 3.1.0b2 — La VMC à sa place
+
+### Nouveautés
+
+- Réglage « Fonctionnement » de la VMC, dans Équipements : « En continu » pour une VMC classique, « À la demande » pour un extracteur.
+- Nouvelle entité « Turbo conseillé » dans les pièces qui ont une vitesse rapide : elle s'allume pendant une douche et quand Hestia conseille le turbo.
+
+### Améliorations
+
+- « VMC conseillée » en continu reste toujours allumée ; seul le turbo va et vient.
+- « VMC conseillée » à la demande s'arrête au coucher de la pièce. Exemple : 78 % d'humidité à 23 h, l'extracteur ne tourne plus jusqu'au matin.
+- Une heure de VMC qui ne fait pas baisser l'humidité d'au moins 1 point met l'extracteur au repos 2 heures.
+- Une mesure qui hésite une minute n'arrête plus la VMC : il faut 3 minutes de « non ».
+
+### Corrections
+
+- « VMC conseillée » ne reste plus allumée toute la nuit dans une pièce humide qu'elle n'arrive pas à assécher.
+
+### Après la mise à jour
+
+- VMC classique pilotée par « VMC conseillée » : choisissez « En continu » dans Équipements, sinon elle s'arrêtera la nuit.
+
+### Moteur de conseil 3.12.0 — inchangé
+
 ## 3.1.0b1 — Des conseils plus posés
 
 ### Nouveautés

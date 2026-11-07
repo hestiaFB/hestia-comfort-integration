@@ -594,7 +594,10 @@ export class ComfortSetup extends LitElement {
    mine.includes(key)?listRow({label:sub(t('Pour savoir quand il marche')),sub:links[key]?undefined:t('Facultatif : une prise, un interrupteur, une puissance.'),value:run(links[key]??'',v=>{const l={...this.draft!.equipment_links??{}};if(v)l[key]=v;else delete l[key];this.draft={...this.draft!,equipment_links:l};})}):nothing];
   const setCustom=(i:number,change:Partial<CustomEquipment>|null)=>{const list=[...(this.draft!.custom_equipment??[])];if(change)list[i]={...list[i],...change};else list.splice(i,1);this.draft={...this.draft!,custom_equipment:list};};
   const effects:[string,string][]=[['heat',t('Chauffe')],['cool',t('Rafraîchit')],['humid',t('Mouille l’air')],['dry',t('Assèche l’air')],['voc',t('COV, odeurs')],['particles',t('Particules, fumée')],['purify',t('Purifie')]];
-  return html`${listSection(t('VMC'),[...this.sensorRows('ventilation'),...(d.sources.ventilation?[...this.sensorRows('ventilation_boost'),flow('ventilation_boost',t('Débit en vitesse rapide'))]:[])],
+  const mode=d.ventilation_mode??'on_demand';
+  const running=listRow({label:t('Fonctionnement'),sub:mode==='continuous'?t('Une VMC classique : la petite vitesse ne s’arrête jamais, seul le turbo va et vient.'):t('Un extracteur : il tourne quand il aide, jamais la nuit.'),
+   value:segmented(t('Fonctionnement'),[['continuous',t('En continu')],['on_demand',t('À la demande')]],mode,v=>{this.draft={...this.draft!,ventilation_mode:v};})});
+  return html`${listSection(t('VMC'),[...this.sensorRows('ventilation'),...(d.sources.ventilation?[running,...this.sensorRows('ventilation_boost'),flow('ventilation_boost',t('Débit en vitesse rapide'))]:[])],
    {help:html`<p>${t('Le débit, sur la notice, donne une durée juste dès le premier jour. Vide, Hestia-FB suppose une VMC ordinaire et se corrige au fil des utilisations.')}</p>`})}
   ${listSection(t('Purificateur'),[...this.sensorRows('purifier'),...(d.sources.purifier?[flow('purifier',t('Débit d’air propre'),t('« CADR » sur la notice ou la boîte.'))]:[])])}
   ${listSection(t('Ce qui change l’air de la pièce'),[...item('shower',t('Douche ou baignoire'),t('Humidité')),...item('hob',t('Plaque de cuisson'),t('Humidité, COV, particules')),...item('oven',t('Four'),t('COV, chaleur')),

@@ -15,7 +15,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, LEARNING_REFRESH_SECONDS, OPEN_DEBOUNCE_SECONDS, SOURCES, STARTUP_GRACE_SECONDS, VIEW_VERSION
 from .engine.assessment import Opening, Settings, assess
-from .engine import feedback, habits, horizon, learning, night, twin, voc as vocs
+from .engine import feedback, habits, horizon, learning, night, twin, ventilation, voc as vocs
 from .engine.feel import feel
 from .engine.sources import Reading
 from .engine.verdict import verdict
@@ -76,6 +76,8 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
                          request_refresh_debouncer=Debouncer(hass, logger, cooldown=1.0, immediate=True))
         self._measure_refresh = Debouncer(hass, logger, cooldown=MEASURE_COOLDOWN, immediate=False, function=self.async_refresh)
         self._measure_ids = set()
+        # What the VMC remembers between two readings (engine/ventilation.py): its run, its rest, its turbo.
+        self.vmc_memory = ventilation.Memory()
         self.config = {**entry.data, **entry.options}
         self.settings = Settings(**self.config.get("settings", {}))
         self.home_configuration = hass.data.get(DATA_CONFIG)
@@ -574,6 +576,12 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
         # The entities and the lights then say the 3.0 decision too, never the 2.1 one beside it.
         if view["advice3"]:
             view["verdict"] = advisor_verdict(view["advice3"], view)
+        # What the VMC should do now (engine/ventilation.py): « VMC conseillée » and « Turbo conseillé ».
+        try:
+            view["vmc"] = ventilation.advise(view, self.config, self.vmc_memory, now)
+        except (KeyError, TypeError, ValueError):
+            logging.getLogger(__name__).exception("Hestia Comfort: VMC for %s", view["title"])
+            view["vmc"] = None
         return view
 
     def outdoor_entity(self):
