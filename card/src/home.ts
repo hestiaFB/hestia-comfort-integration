@@ -337,11 +337,17 @@ export class HestiaComfortHomeCard extends LitElement {
     const chip=gestures?html`<span class="nc-mark">${icon(chipLevel==='urgent'?'alert':'hand')}${gestures>1?tt('{n} gestes',{n:gestures}):tt('1 geste')}</span>`
       :pillMark(chipLevel==='benefit'?'À saisir':statePill(first,chipLevel as Level),chipLevel as Level);
     const out=h.outdoor_temperature,day=this.periods?.day?.outdoor;
+    // Or the home itself (7 November): the mean of the declared rooms that measure, the coolest and warmest under it.
+    const inside=c.hero_temperature==='home'?this.rooms.map(r=>numeric(r.observations.indoor_temperature)).filter((x):x is number=>x!=null):[];
+    const reading=c.hero_temperature==='home'
+      ?(inside.length?lecture({value:number(Math.round(inside.reduce((a,b)=>a+b,0)/inside.length*10)/10),unit:'°C',label:tt('Moyenne des pièces'),
+          ...(inside.length>1?{low:`${tt('pièces')} · ${number(Math.round(Math.min(...inside)*10)/10)}`,high:number(Math.round(Math.max(...inside)*10)/10),rangeTitle:tt('La pièce la plus fraîche et la plus chaude')}:{more:tt('pièces')})}):nothing)
+      :out!=null?lecture({value:number(Math.round(out*10)/10),unit:'°C',label:tt('Dehors'),
+          ...(day?{low:`${tt('dehors')} · ${number(day.min)}`,high:number(day.max),rangeTitle:tt('Dehors, mini et maxi sur 24 h')}:{more:tt('dehors')})}):nothing;
     return html`<div class="nh-hero">${withBand?html`<div class="nc-b-light" aria-hidden="true"></div>`:nothing}
         <div class="nh-top"><div class="nh-top-l"><h2 class="nw-title">${name}</h2>
           <span class="nw-chip nc-level" style=${`--c:${CHIP[chipLevel]??CHIP.neutral}`}>${chip}</span></div>
-          ${out!=null?lecture({value:number(Math.round(out*10)/10),unit:'°C',label:tt('Dehors'),
-            ...(day?{low:`${tt('dehors')} · ${number(day.min)}`,high:number(day.max),rangeTitle:tt('Dehors, mini et maxi sur 24 h')}:{more:tt('dehors')})}):nothing}</div>
+          ${reading}</div>
         ${withBand?band({slides,index:this.slide,pick}):nothing}</div>`;
   }
 }

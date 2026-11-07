@@ -42,7 +42,7 @@ const labels:Record<string,string>={entry_id:fr('Pièce'),piece_style:fr('Versio
   rotate:fr('Faire défiler les conseils'),banner_blocks:fr('Contenu du bandeau'),scale_marks:fr('Repères de l’échelle'),modules:fr('Cases'),measures_open:fr('Mesures dépliées au départ'),
   show_details:fr('Afficher la section'),details_open:fr('Dépliés au départ'),show_measures:fr('Afficher la section'),show_insights:fr('Afficher la section'),
   show_horizon:fr('Afficher la section'),horizon_mode:fr('Quand l’afficher'),horizon_subjects:fr('Sujets'),insight_groups:fr('Rubriques'),insight_max:fr('Lignes au plus'),detail_rows:fr('Lignes'),tile_chips:fr('Pastilles de la tuile repliée'),tile_blocks:fr('Contenu de la tuile dépliée'),
-  mini_values:fr('Valeurs de la ligne'),hold_action:fr('Appui long'),hold_path:fr('Page à ouvrir'),show_scale:fr('Échelle dans la case Température'),show_rooms:fr('Section Pièces'),sections:fr('Sections affichées'),folded:fr('Dans « Plus de détails »'),more_open:fr('« Plus de détails » déplié au départ'),period:fr('Période au départ'),rooms_open:fr('Pièces dépliées au départ'),
+  mini_values:fr('Valeurs de la ligne'),hold_action:fr('Appui long'),hold_path:fr('Page à ouvrir'),show_scale:fr('Échelle dans la case Température'),show_rooms:fr('Section Pièces'),sections:fr('Sections affichées'),folded:fr('Dans « Plus de détails »'),more_open:fr('« Plus de détails » déplié au départ'),period:fr('Période au départ'),hero_temperature:fr('Grande température'),rooms_open:fr('Pièces dépliées au départ'),
   list_order:fr('Ordre des pièces'),now_blocks:fr('Ce qui est affiché'),tap_action:fr('Appui court')};
 const helpers:Record<string,string>={
   animations:fr('Coupées, la lumière et l’anneau restent fixes et les conseils ne défilent plus seuls.'),
@@ -63,6 +63,7 @@ const helpers:Record<string,string>={
   mini_values:fr('À droite du conseil.'),hold_action:fr('La carte complète par-dessus la page, une page de votre tableau de bord, ou rien.'),
   hold_path:fr('Le chemin de la page, par exemple /confort ou /lovelace/confort.'),rooms_open:fr('Repliées, les pièces qui demandent un geste restent visibles.'),
   folded:fr('Les sections cochées ici passent dans la partie dépliable, sous les autres.'),
+  hero_temperature:fr('En haut à droite : la température dehors, ou la moyenne de toutes vos pièces avec la plus fraîche et la plus chaude.'),
   now_blocks:fr('Tout décocher retire la section.'),tap_action:fr('Sur la tuile : la déplier, la carte complète par-dessus la page, une page, ou rien.')};
 /** Each format: its icon, its name and what it shows. */
 const FORMAT_INFO:Record<Format,[string,string,string]>={
@@ -210,7 +211,7 @@ export class ComfortEditor extends LitElement {
 }
 if(!customElements.get('hestia-comfort-card-editor'))customElements.define('hestia-comfort-card-editor',ComfortEditor);
 
-const HOME_DEFAULTS:Record<string,unknown>={format:'full',sections:[...SHOWN_SECTIONS],folded:[...FOLDED_SECTIONS],more_open:false,period:'day',animations:true,glass_effect:true,rotate:true,show_scale:true,show_rooms:true,rooms_open:false,show_details:true,details_open:false,
+const HOME_DEFAULTS:Record<string,unknown>={format:'full',sections:[...SHOWN_SECTIONS],folded:[...FOLDED_SECTIONS],more_open:false,period:'day',hero_temperature:'outdoor',animations:true,glass_effect:true,rotate:true,show_scale:true,show_rooms:true,rooms_open:false,show_details:true,details_open:false,
   banner_blocks:['rooms','house'],list_order:'urgent',hold_action:'popup'};
 /** The home card's editor, built the same way. */
 export class ComfortHomeEditor extends LitElement {
@@ -227,13 +228,15 @@ export class ComfortHomeEditor extends LitElement {
       {value:'list',label:t('Liste des pièces : une ligne par pièce')},{value:'mini',label:t('Mini : une ligne pour toute la maison')},
       {value:'alert',label:t('Alerte : visible seulement si une pièce demande un geste')}]}}};
     const head=[{name:'title',selector:{text:{}}},format];
+    // The big temperature of the title line (7 November): outside, or the mean of the rooms. Mini and alert do not show it.
+    const temperature=dropdown('hero_temperature',[['outdoor',fr('Dehors')],['home',fr('Moyenne des pièces')]]);
     const banner=group(fr('Bandeau intelligent'),'mdi:view-day-outline',[choices('banner_blocks',[['rooms',fr('Conseils des pièces')],['house',fr('Gestes pour toute la maison (air traversant)')]]),toggle('rotate')],true);
     if(f==='mini')return [...head,look(),hold(action)];
     if(f==='alert')return [...head,look(),banner,hold(action)];
-    if(f==='list')return [...head,look(),group(fr('Contenu'),'mdi:format-list-bulleted',[dropdown('list_order',[['urgent',fr('Celles qui demandent un geste d’abord')],['floor',fr('Par étage')]])],true),hold(action)];
+    if(f==='list')return [...head,temperature,look(),group(fr('Contenu'),'mdi:format-list-bulleted',[dropdown('list_order',[['urgent',fr('Celles qui demandent un geste d’abord')],['floor',fr('Par étage')]])],true),hold(action)];
     const sections=SECTIONS.map(k=>[k,SECTION_LABELS[k]] as [string,string]);
     // The tile unfolds into the full card's review (6 November): the same settings.
-    return [...head,look(),banner,
+    return [...head,temperature,look(),banner,
       group(fr('Bilan'),'mdi:chart-box-outline',[dropdown('period',[['day',fr('Jour')],['week',fr('Semaine')],['month',fr('Mois')]]),choices('sections',sections),choices('folded',sections),toggle('more_open'),toggle('rooms_open'),toggle('details_open')],f==='full'),
       hold(action,f==='full')];
   }
