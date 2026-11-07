@@ -1,3 +1,29 @@
+## 3.1.0b1 — Des conseils plus posés
+
+### Nouveautés
+
+- Carte du logement : la grande température peut montrer le dehors ou la moyenne des pièces, au choix.
+- Carte complète : un encart « Bon à savoir », replié, rassemble les informations utiles de la pièce.
+
+### Améliorations
+
+- Un conseil affiché reste en place au moins une demi-heure tant qu'il aide encore : il ne change plus toutes les 5 minutes.
+- « À essayer » ne clignote plus.
+- Une aération se termine avant l'heure du coucher de la pièce, avec 15 minutes de marge pour une nouvelle. Pas de « Ouvrez » sans durée dans l'heure qui précède le coucher.
+- Une porte ou une fenêtre qu'on vient d'ouvrir n'affiche pas « Refermez » pendant 3 minutes : le temps de passer. La pluie et le vent fort font toujours refermer tout de suite.
+- La nuit, la pastille ne passe plus de « Tout va bien » à « Au mieux » quand une mesure frôle la limite.
+- Le réglage « Allergie aux pollens » compte de nouveau : les jours de pollens élevés, les aérations sont courtes et au bon moment.
+
+### Corrections
+
+- Une aération n'est plus dite « sans effet » avant que le capteur ait envoyé une nouvelle mesure.
+- L'alarme en mode absence ne fait plus dire « Refermez » : c'est le rôle de l'alarme.
+- Le chauffage prévu est annoncé à la bonne minute.
+
+### Moteur de conseil 3.12.0 — en bêta
+
+- Le détail de chaque version du moteur est dans le changelog du moteur.
+
 ## 3.0.1 — Correctif : le panneau après « Enregistrer »
 
 ### Corrections
