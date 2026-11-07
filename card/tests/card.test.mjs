@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import {build} from 'esbuild';
 const root=new URL('../',import.meta.url),temp=await mkdtemp(join(tmpdir(),'hestia-comfort-card-'));
-await build({entryPoints:['src/types.ts','src/view.ts','src/live.ts','src/views/room.ts','src/views/horizon.ts','src/ui/scene.ts','src/editor.ts','src/hass-change.ts'].map(p=>fileURLToPath(new URL(p,root))),outdir:temp,
+await build({entryPoints:['src/types.ts','src/view.ts','src/live.ts','src/views/room.ts','src/views/full.ts','src/views/horizon.ts','src/ui/scene.ts','src/editor.ts','src/hass-change.ts'].map(p=>fileURLToPath(new URL(p,root))),outdir:temp,
   bundle:true,platform:'node',format:'esm',outExtension:{'.js':'.mjs'},logLevel:'silent'});
 const {cleanConfig,cleanHomeConfig,homeAction,cleanReviewConfig,kindOf,KINDS}=await import(pathToFileURL(join(temp,'types.mjs')));
 const {isView,numeric,summary,readingStatus,coverageText,windFrom,evolutionLines,co2Metric,solarMetric}=await import(pathToFileURL(join(temp,'view.mjs')));
@@ -777,4 +777,28 @@ test('the banner draws each gesture as its scene: the window and which way the a
   assert.equal(sceneFor(s('Mesures en chargement','clock','neutral'),room('incomplete_data')),null);
   assert.equal(sceneFor(s('Mesures absentes','mute','neutral'),room('incomplete_data')),null);
   assert.equal(hourOf(-10),'night');assert.equal(hourOf(25),'day');assert.equal(hourOf(2,new Date('2026-11-02T08:00:00')),'dawn');assert.equal(hourOf(2,new Date('2026-11-02T17:30:00')),'dusk');
+});
+
+test('« Bon à savoir » of the full card: one folded box, the dated lines in « À venir », the heating said once (7 November)',async()=>{
+  const {fullBody}=await import(pathToFileURL(join(temp,'views/full.mjs')));
+  const flat=t=>t==null?'':Array.isArray(t)?t.map(flat).join(''):typeof t!=='object'?String(t):t.strings?t.strings.map((x,i)=>x+(i<t.values.length?flat(t.values[i]):'')).join(''):'';
+  const at=new Date(Date.now()+2*3600e3);at.setSeconds(0,0);const hh=`${at.getHours()} h ${String(at.getMinutes()).padStart(2,'0')}`;
+  const v={...fresh(),advisor:{title:'Rien à faire',attributes:{regle:'nothing',geste:'nothing',bon_a_savoir:[
+    `Chauffage prévu à ${hh} : 20 °C visés`,"Dehors, l'air est plus sec qu'ici : aérer assèche",
+    "Ouverte depuis 9 h 05 : 19,2 → 18,8 °C : elle renouvelle peu l'air","Chauffage éteint : le rallumer donnerait 1,2 °C de plus d'ici 22 h"]}}};
+  v.assessment={...v.assessment,features:{...v.assessment.features,planned:{at:at.toISOString(),preset:'comfort',temperature:20}}};
+  const config=cleanConfig({type:'custom:hestia-comfort-card',format:'full'});
+  const st=open=>({why:false,tilesOpen:true,detailsOpen:false,knowOpen:open,uid:'t',toggle(){}});
+  const folded=flat(fullBody(v,config,st(false),[])),opened=flat(fullBody(v,config,st(true),[]));
+  // Folded: the box says how many lines, none of them.
+  assert.match(folded,/Bon à savoir<\/span><span class="nw-sum">3</);
+  assert.doesNotMatch(folded,/plus sec qu/);
+  // Unfolded: the three lines without a time to come, the past and the horizon among them.
+  for(const x of [/plus sec qu/,/Ouverte depuis 9 h 05/,/d'ici 22 h/])assert.match(opened.split('nc-know')[1]??'',x);
+  // The heating's change once in « À venir », in the engine's words.
+  assert.equal((opened.match(/Chauffage prévu/g)??[]).length,1);
+  assert.doesNotMatch(opened,/confort \(20/);
+  // Without the engine's line, the card says the schedule's change itself.
+  const alone={...v,advisor:{...v.advisor,attributes:{...v.advisor.attributes,bon_a_savoir:[]}}};
+  assert.match(flat(fullBody(alone,config,st(false),[])),/confort \(20/);
 });

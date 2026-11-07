@@ -746,7 +746,8 @@ export function details(v:View,config:Config):TemplateResult[] {
 
 export interface CardState {why:boolean;tilesOpen:boolean;detailsOpen:boolean;horizonAlt?:boolean;
   /** The tile unfolded by a tap; « Prochaines heures » folded or not on the full card. */ unfolded?:boolean;horizonOpen?:boolean;
-  toggle:(k:'why'|'tilesOpen'|'detailsOpen'|'horizonAlt'|'unfolded'|'horizonOpen')=>void;uid:string;configure?:()=>void}
+  /** « Bon à savoir » of the full card, folded at first (7 November). */ knowOpen?:boolean;
+  toggle:(k:'why'|'tilesOpen'|'detailsOpen'|'horizonAlt'|'unfolded'|'horizonOpen'|'knowOpen')=>void;uid:string;configure?:()=>void}
 /** The « i » panel: needs, constraints and how complete the picture is, one line each. */
 export function whyLines(v:View):TemplateResult {
   const a=v.assessment;

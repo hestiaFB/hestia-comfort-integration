@@ -39,8 +39,10 @@ function trendLine(tr:Trend|undefined,slope:number|null|undefined,unit:string,di
     <span class="nw-trend nc-fx-arrow" data-way="lean" data-tone=${moving?tr.tone:'steady'} style=${`--r:${turn}deg`} aria-hidden="true"></span></span>`;
 }
 
-// ---------- « À savoir » spread out: each line where it answers (the engine does not yet say a line's subject or time). ----------
-interface Said {humidity:string[];air:string[];warmth:string[];coming:Coming[];rest:string[];doubts:string[];tryIt:string}
+// ---------- « À savoir » of the engine: what has a time to come goes to « À venir », the rest to « Bon à savoir ». ----------
+// One place for each line, the same every time (Frank, 7 November: « je me demande surtout où sont affichés les bon à
+// savoir »): the lines were spread over the Ressenti, the Air and the Détails, and lost in a room without an air sensor.
+interface Said {know:string[];coming:Coming[];doubts:string[];tryIt:string}
 interface Coming {when:number;at:string;ic:string;text:string;note?:string|TemplateResult;tone:Tone;chart?:TemplateResult}
 const TIME=/(jusqu[’']à |vers |à |dès |avant )?(demain )?(\d{1,2}) h(?: (\d{2}))?/;
 /** « 23 h », « demain 6 h 30 »: the moment it says, today unless said tomorrow or already past by an hour. */
@@ -50,12 +52,17 @@ const clockAt=(ms:number)=>{const d=new Date(ms),h=d.getHours(),m=d.getMinutes()
   return d.toDateString()===new Date().toDateString()?time:t('demain {time}',{time});};
 /** A line of the engine as an event: « Le poêle tourne au minimum » in bold, the rest under it, the time in its column. */
 function event(line:string,m:RegExpMatchArray,ic:string,tone:Tone):Coming {
-  const until=/^jusqu/.test(m[1]??''),rest=line.replace(m[0],'').replace(/\s+(au moins|environ)\s*$/,'').replace(/[\s,]+$/,'').replace(/\s{2,}/g,' ');
+  // « de 11 h à 15 h »: the span in the time column, both hours out of the words.
+  const span=line.match(/\bde (\d{1,2} h(?: \d{2})?) à ((\d{1,2}) h(?: (\d{2}))?)/),end=span?span[3]&&clockAt(when(['',undefined,undefined,span[3],span[4]] as unknown as RegExpMatchArray)):'';
+  const until=/^jusqu/.test(m[1]??''),rest=line.replace(span?span[0]:m[0],'').replace(/\s+(au moins|environ)\s*$/,'').replace(/[\s,]+$/,'').replace(/\s{2,}/g,' ').replace(/\s+:/g,' :');
   const [title,...more]=rest.split(' : ');
-  return {when:when(m),at:(until?t('jusqu’à {time}',{time:clockAt(when(m))}):clockAt(when(m))),ic,text:title.trim(),note:more.join(' : ').trim()||undefined,tone};
+  const at=span?`${clockAt(when(m))} → ${end}`:until?t('jusqu’à {time}',{time:clockAt(when(m))}):clockAt(when(m));
+  return {when:when(m),at,ic,text:title.trim(),note:more.join(' : ').trim()||undefined,tone};
 }
+/** A time that is not to come: « ouverte depuis 14 h 05 », « 1,2 °C de plus d'ici 22 h » (a horizon, not an event). */
+const notComing=(line:string,m:RegExpMatchArray)=>/(depuis|d[’']ici)\s*$/.test(line.slice(0,m.index));
 function spread(v:View):Said {
-  const out:Said={humidity:[],air:[],warmth:[],coming:[],rest:[],doubts:[],tryIt:''};
+  const out:Said={know:[],coming:[],doubts:[],tryIt:''};
   const a=v.advisor?.attributes;
   if(!a)return out;
   // The engine writes « À essayer — … »: the heading is the card's. With no other gesture the trial is the banner's advice
@@ -69,11 +76,8 @@ function spread(v:View):Said {
   out.doubts=typeof a.douteuses==='string'?[a.douteuses]:list(a.douteuses);
   for(const line of list(a.bon_a_savoir).filter(l=>l!==night)){
     const m=line.match(TIME);
-    if(m)out.coming.push(event(line,m,/chauff|poêle/i.test(line)?'heat':/soleil/i.test(line)?'sun':'clock','none'));
-    else if(/humid|vapeur|eau|séch|sec\b| %/i.test(line))out.humidity.push(line);
-    else if(/CO₂|COV|particul|air\b|renferm/i.test(line))out.air.push(line);
-    else if(/mur|vitre|soleil|chauff|froid|chaud/i.test(line))out.warmth.push(line);
-    else out.rest.push(line);
+    if(m&&!notComing(line,m))out.coming.push(event(line,m,/chauff|poêle/i.test(line)?'heat':/soleil/i.test(line)?'sun':'clock','none'));
+    else out.know.push(line);
   }
   return out;
 }
@@ -103,7 +107,7 @@ function feelPanel(v:View,partners:View[],said:Said,uid:string,only?:'warmth'|'h
       ...(f.factors.heating&&Math.abs(f.factors.heating.delta)>=.05?[[t((f.factors.heating.kind&&HEATERS[f.factors.heating.kind])||'Chauffage'),f.factors.heating.delta]]:[]),
       ...(Math.abs(f.factors.draught.delta)>=.05?[[t('Courant d’air'),f.factors.draught.delta]]:[]),
       ...(f.factors.humidity&&f.factors.humidity.delta>=.05?[[t('Air lourd'),f.factors.humidity.delta]]:[])] as [string,number][]:[];
-    const line=[...causes.map(([k,d])=>html`<span>${k} <b>${signed(d)} °C</b></span>`),...said.warmth.map(x=>html`<span>${x}</span>`)];
+    const line=causes.map(([k,d])=>html`<span>${k} <b>${signed(d)} °C</b></span>`);
     warmth=html`<div class="nc-fx-row"><span class="nw-label">${t('Chaleur')}</span>
       ${fxTop(html`<b class="nc-fx-word" style=${`--c:${C[tone]}`}>${word}</b>${trendLine(trendOf(v,'temperature',out,band),curves?.temperature?.slope,'°C',1)}`,tempId,t('Détails de la température'))}
       ${echelle({lo,hi,value,valueText:`${nf(value)} °C`,label:t('Ressenti {t} °C',{t:nf(value)}),degree:()=>'',compact:true,...tap(tempId,t('Détails de la température')),
@@ -117,7 +121,7 @@ function feelPanel(v:View,partners:View[],said:Said,uid:string,only?:'warmth'|'h
     const out=hum?.status==='high'?'high':hum?.status==='low'?'low':null;
     const tone:Tone=!out?'ok':ask&&needs.includes('dry')?'act':'watch';
     const others=partners.map(p=>({room:p.title,h:numeric(p.observations.indoor_humidity)})).filter(x=>x.h!==null);
-    const note=[...others.map(x=>t('{room} {value} %',{room:x.room,value:Math.round(x.h!)})),...said.humidity];
+    const note=others.map(x=>t('{room} {value} %',{room:x.room,value:Math.round(x.h!)}));
     humidity=html`<div class="nc-fx-row"><span class="nw-label">${partners.length?t('Humidité · {room}',{room:v.title}):t('Humidité')}</span>
       ${fxTop(html`<b class="nc-fx-word" style=${`--c:${C[tone]}`}>${word}</b>${trendLine(trendOf(v,'humidity',out,[hmin,hmax]),curves?.humidity?.slope,'%',0)}`,humId,t('Détails de l’humidité'))}
       ${echelle({lo:20,hi:90,value:h,valueText:`${Math.round(h)} %`,label:t('Humidité {n} %',{n:Math.round(h)}),degree:()=>'',compact:true,...tap(humId,t('Détails de l’humidité')),
@@ -182,14 +186,13 @@ function airPanel(v:View,partners:View[],config:Config,said:Said,src?:string):Te
     return html`<span class="nc-fx-trend" data-tone=${tr?.tone??'steady'}><span class="nw-trend nc-way" data-way=${moving?tr!.way:'stable'} data-tone=${tr?.tone??'steady'}></span>${moving?`${signed(r.slope!,0)} ${r.unit?r.unit+'/h':'/h'}`:t('stable')}</span>`;};
   const name=(r:AirRow)=>html`<span class="nc-ring-n">${tx(r.label)}${r.room?html` <small>${r.room}</small>`:nothing}</span>`;
   const open=(r:AirRow)=>(e:Event)=>{if(r.tile.entity)moreInfo(e,r.tile.entity);};
-  const notes=said.air.length?html`<p class="nc-fx-line">${said.air.join(' · ')}</p>`:nothing;
   const head=html`<div class="nc-mod-h nw-panel-head"><span class="nc-ic nw-panel-icon">${icon('air')}</span><h3>${t('Air')}</h3>${src?html`<span class="aside nc-src">${src}</span>`:nothing}</div>`;
   // One measure: its value in the ring, its word, way and note beside it.
   if(rows.length===1&&live.length===1){const r=live[0],l=look(r);
     return html`<section class="nc-mod nw-panel nc-air" data-piece="air">${head}<div class="nc-rings one">
       <button type="button" class="nc-ring" @click=${open(r)} title=${t('Détails : {label}',{label:tx(r.label)})}><svg viewBox="0 0 120 120" aria-hidden="true">${fill(r,50,10)}</svg>
         <span class="nc-ring-c"><b class="nc-ring-v">${number(r.value!)}</b><small>${r.unit}</small></span></button>
-      <div class="nc-ring-side">${name(r)}<b class="nc-fx-word" style=${`--c:${C[l.tone]}`}>${l.word}</b>${rate(r)}</div></div>${notes}</section>`;}
+      <div class="nc-ring-side">${name(r)}<b class="nc-fx-word" style=${`--c:${C[l.tone]}`}>${l.word}</b>${rate(r)}</div></div></section>`;}
   // One ring per kind of measure (CO₂, particles, VOC), drawn for the room where it is most at stake; every room in the list.
   // A wider hole in the middle (6 November): the verdict fits inside the innermost ring.
   const R=[50,39,28],W=8,kinds=(['co2','pm25','voc'] as const).map(k=>live.filter(r=>r.key===k).sort((a,b)=>RANK[look(b).tone]-RANK[look(a).tone]||look(b).x-look(a).x)[0]).filter((r):r is AirRow=>!!r);
@@ -203,15 +206,16 @@ function airPanel(v:View,partners:View[],config:Config,said:Said,src?:string):Te
       return html`<button type="button" class=${'nc-ring-row'+(l.muted?' mute':'')} @click=${open(r)} title=${t('Détails : {label}',{label:tx(r.label)})}>
         ${key(r,l.muted?'':l.color)}${name(r)}<b>${l.muted?'—':html`${number(r.value!)}${r.unit?html`<small> ${r.unit}</small>`:nothing}`}</b>
         ${l.muted?html`<span class="nc-ring-w mute">${t('à vérifier · {why}',{why:tx(r.tile.note)})}</span>`:html`<span class="nc-ring-w" style=${`--c:${C[l.tone]}`}>${l.word}</span>${rate(r)}`}</button>`;})}</div>
-  </div>${notes}</section>`;
+  </div></section>`;
 }
 
 // ---------- À venir : what will change, dated, each with its source; nothing to say, no section. ----------
 function coming(v:View,said:Said,plage:(s:'temperature'|'humidity')=>[number,number]|null):Coming[] {
   const a=v.assessment,f=a.features,out:Coming[]=[...said.coming],ms=(iso:unknown)=>{const d=new Date(String(iso));return isNaN(+d)?null:d.getTime();};
   // The heating's own schedule (ha-chauffage, Scheduler): its next change, cold or not.
+  // Said once: when the engine already says this change (« Chauffage prévu à 20 h 30 : 20 °C visés »), its line is kept.
   const plan=f?.planned??f?.warmth?.next,next=nextChange(plan),nextAt=ms(plan?.at);
-  if(next&&nextAt)out.push({when:nextAt,at:clockAt(nextAt),ic:'heat',text:t('Chauffage'),note:next.replace(/\s*(?:demain )?à \d{1,2} h \d{2}/,''),tone:'none'});
+  if(next&&nextAt&&!said.coming.some(e=>e.ic==='heat'&&Math.abs(e.when-nextAt)<=5*60e3))out.push({when:nextAt,at:clockAt(nextAt),ic:'heat',text:t('Chauffage'),note:next.replace(/\s*(?:demain )?à \d{1,2} h \d{2}/,''),tone:'none'});
   if(a.rain_soon_minutes!=null){const at=Date.now()+a.rain_soon_minutes*60e3;
     out.push({when:at,at:clockAt(at),ic:'rain',text:t('Pluie'),note:t('dans {n} min · les ouvrants exposés se ferment',{n:Math.round(a.rain_soon_minutes)}),tone:'none'});}
   // The engine's next hours (engine/horizon.py): a gesture later compared with doing nothing, summer nights drawn.
@@ -294,12 +298,14 @@ export function fullBody(v:View,config:Config,st:CardState,partners:View[],block
   const parts=show('measures')?now(v,config,said,st.uid,partners):{feel:nothing,air:nothing,devs:nothing},{feel,air}=parts;
   const next=config.show_horizon===false||!show('horizon')?[]:coming(v,said,plage);
   const sensors=new Set([v,...partners].flatMap(r=>Object.values(r.observations).map(o=>o?.source).filter((x):x is string=>!!x))).size;
-  const rows=[...details(v,config),...said.rest.map(x=>html`<li><b>${t('Bon à savoir')}</b><span> · ${x}</span></li>`),...said.doubts.map(x=>html`<li><b>${t('À vérifier')}</b><span> · ${x}</span></li>`)];
+  const rows=[...details(v,config),...said.doubts.map(x=>html`<li><b>${t('À vérifier')}</b><span> · ${x}</span></li>`)];
   return html`<div class="nc-body nc-sections nc-full">
     ${said.tryIt?html`<p class="nc-try"><b>${t('À essayer')}</b> · ${said.tryIt}</p>`:nothing}
     ${feel!==nothing||air!==nothing?html`<section class="nc-part"><header class="nc-part-h nw-section-head"><h2>${t('En ce moment')}</h2></header><div class="nc-mods">${feel}${air}</div></section>`:nothing}
     ${next.length?html`<section class="nc-part"><header class="nc-part-h nw-section-head"><h2>${t('À venir')}</h2><span class="nw-sum">${t('ce qui va changer')}</span></header>${comingList(next)}</section>`:nothing}
     ${parts.devs}
+    ${said.know.length&&(show('measures')||show('details'))?fold({label:t('Bon à savoir'),summary:String(said.know.length),open:!!st.knowOpen,onToggle:()=>st.toggle('knowOpen'),id:st.uid+'-know',
+      body:html`<ul class="nc-list nc-know">${said.know.map(x=>html`<li>${x}</li>`)}</ul>`}):nothing}
     ${config.show_details===false||!show('details')?nothing:fold({label:t('Détails'),summary:html`${t('{n} capteurs',{n:sensors})}${said.doubts.length?html` · <b>${t('{n} à vérifier',{n:said.doubts.length})}</b>`:nothing}`,open:st.detailsOpen,onToggle:()=>st.toggle('detailsOpen'),id:st.uid+'-details',
       body:html`<ul class="nc-list">${rows}</ul>${st.configure?html`<button class="nw-badge nc-configure" @click=${st.configure}>${icon('settings')}${t('Configurer cette pièce')}</button>`:nothing}`})}
   </div>`;

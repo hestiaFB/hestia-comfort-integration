@@ -886,7 +886,9 @@ class RoomAdvisor:
             or (decision.passive is not None and main_subject(decision.scenarios, decision.passive) == "humidity")
         # The set point the room's schedule raises next (ha-chauffage): « Chauffage prévu à 17 h ».
         stat = twins.thermostat or twins.idle_thermostat
-        planned = ({"at": local + timedelta(minutes=stat.at), "temperature": stat.then}
+        # A schedule changes on the minute: the minutes counted from a slightly earlier « now » are rounded back to it
+        # (Chambre P, 7 November: « Chauffage prévu à 20 h 29 » for a change at 20 h 30).
+        planned = ({"at": (local + timedelta(minutes=stat.at, seconds=30)).replace(second=0, microsecond=0), "temperature": stat.then}
                    if stat and stat.at is not None and stat.then is not None and stat.then > stat.target else None)
         good = self._good_to_know(now, air, opening, comfort, current.humidity, coldest, bedtime, night, shutter_night, wake,
                                   back, off, end_hour, stove, sunny, outdoor, outdoor_rh, water,
