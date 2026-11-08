@@ -1,3 +1,12 @@
+## 3.1.0b4 — Une lune pour la nuit
+
+### Nouveautés
+
+- La nuit, une petite lune s'affiche sur l'image du conseil, dans la tuile et la carte complète. Elle dit que les conseils sont en pause jusqu'au réveil. Exemple : « Nuit : conseils en pause jusqu'à 7 h ».
+- Le « i » l'explique : pas d'aération proposée avant le réveil ; une fenêtre restée ouverte ou un appareil allumé restent signalés.
+
+### Moteur de conseil 3.12.1 — inchangé
+
 ## 3.1.0b3 — Des phrases justes
 
 ### Améliorations

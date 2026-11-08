@@ -13,7 +13,7 @@ export interface Advisor3 {
   /** What the last opinion sent answered, shown in place of the buttons. */
   said?:string;
 }
-interface Slide3 {title:string;line:string;disk:string;level:Level;pill:string;learned?:string;cap?:string}
+interface Slide3 {title:string;line:string;disk:string;level:Level;pill:string;learned?:string;cap?:string;night?:string}
 
 const str=(x:unknown)=>typeof x==='string'?x:'';
 const list=(x:unknown)=>Array.isArray(x)?x.filter((i):i is string=>typeof i==='string'):[];
@@ -33,6 +33,12 @@ const RULES:Record<string,string>={nothing:'Aucun geste ne ferait mieux : la pi�
 const LIMITS:Record<string,string>={rain:'il pleut',rain_soon:'la pluie arrive',gusts:'rafales de vent',vigilance:'vigilance météo',
   away:'la maison est en mode absence',frost:'le gel est annoncé'};
 const SOURCES:Record<string,string>={co2:'CO₂',voc:'COV',particles:'particules',humidity:'humidité'};
+
+/** The room asleep (advice.py `reveil`): its waking hour, « 7 h » or « 6 h 45 »; nothing by day. */
+export function wake3(a:Record<string,unknown>):string|undefined{
+  const at=a.nuit===true?Date.parse(str(a.reveil)):NaN;if(Number.isNaN(at))return undefined;
+  const d=new Date(at),h=d.getHours(),m=d.getMinutes();return m?`${h} h ${String(m).padStart(2,'0')}`:`${h} h`;
+}
 
 /** The minutes left before shutting, from the time the engine gave: the card counts down between two of its steps. */
 export function countdown(a:Record<string,unknown>,now=Date.now()):string|null{
@@ -69,12 +75,13 @@ export function trial3(a:Record<string,unknown>):{title:string;line:string;disk:
 
 export function slides3(x:Advisor3):Slide3[]{
   const a=x.attributes,gesture=str(a.geste)||'nothing',{level,pill}=level3(x),tried=level==='benefit'?trial3(a):null;
-  if(tried)return [{...tried,level,pill,cap:'À essayer'}];
+  const night=wake3(a);
+  if(tried)return [{...tried,level,pill,cap:'À essayer',night}];
   const proof=gesture!=='nothing'&&!['safety','overheat'].includes(str(a.regle))?PROOF[str(a.preuve)]:undefined;
   // « Optimisé par l'apprentissage » only for an effect this room has shown: a probable one is said « sans doute » in the line
   // (Chambre P, 3 November: the flask over a window it had never seen open).
   return [{title:countdown(a)??x.title,line:str(a.phrase),disk:str(a.regle)==='safety'?'rain':str(a.regle)==='waiting'?'clock':DISKS[gesture]??'check',level,pill,
-    learned:str(a.preuve)==='proven'?proof:undefined}];
+    learned:str(a.preuve)==='proven'?proof:undefined,night}];
 }
 
 /** « À savoir » from the 3.0 decision: what to try and the night first, then what is worth watching, then the passive advice.
@@ -106,6 +113,7 @@ export function why3(x:Advisor3):TemplateResult{
   return html`<p class="nc-why-head"><b>Pourquoi « ${pill} » ?</b> ${said}</p>
     ${list(a.pourquoi).map(l=>row('clock','Scénario',l))}
     ${limit?row('alert','Ce qui limite',limit):nothing}
+    ${wake3(a)?row('moon','Nuit',`pas d’aération proposée avant ${wake3(a)} ; une fenêtre ouverte ou un appareil allumé restent signalés`):nothing}
     ${sources.length?row('spark','Source en cours',sources.join(', ')+' : plus que d’habitude'):nothing}
     ${str(a.preuve)&&str(a.geste)!=='nothing'?row('flask','Preuve',PROOF[str(a.preuve)]??str(a.preuve)):nothing}
     ${x.send?html`<div class="nc-why-row nc-opinion">${icon('ask')}<span>Ce conseil ne va pas</span>${x.said?html`<b>${x.said}</b>`

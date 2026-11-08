@@ -505,6 +505,11 @@ ha-card.nc-alert-card { display:flex; align-items:center; gap:14px; padding:10px
   background:var(--nw-bg); color:color-mix(in oklab, var(--nw-benefit) 70%, var(--nw-fg)); box-shadow:0 0 0 2px color-mix(in oklab, var(--nw-benefit) 45%, var(--nw-bg)); }
 .nc-orb-learned .icon { width:14px; height:14px; }
 .nc-orb.small .nc-orb-learned { width:16px; height:16px; right:-5px; bottom:-4px; } .nc-orb.small .nc-orb-learned .icon { width:10px; height:10px; }
+.nc-night { position:absolute; right:6px; bottom:6px; z-index:3; width:24px; height:24px; border-radius:50%; display:grid; place-items:center;
+  background:var(--nw-bg); color:var(--nw-fg2); box-shadow:0 0 0 2px color-mix(in oklab, var(--nw-fg2) 35%, var(--nw-bg)); }
+.nc-night .icon { width:14px; height:14px; }
+.nc-scene { position:relative; }
+.nc-orb .nc-night { right:-4px; top:-2px; bottom:auto; }
 .nc-bt-learned { display:inline-flex; align-items:center; gap:4px; font-size:var(--nw-fs-small); font-weight:600; color:color-mix(in oklab, var(--nw-benefit) 60%, var(--nw-fg)); }
 .nc-bt-learned .icon { width:13px; height:13px; }
 .nc-flame { display:inline-grid; place-items:center; color:var(--nw-heat); } .nc-flame .icon { width:15px; height:15px; }

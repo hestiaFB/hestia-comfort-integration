@@ -802,3 +802,12 @@ test('« Bon à savoir » of the full card: one folded box, the dated lines in �
   const alone={...v,advisor:{...v.advisor,attributes:{...v.advisor.attributes,bon_a_savoir:[]}}};
   assert.match(flat(fullBody(alone,config,st(false),[])),/confort \(20/);
 });
+
+test('the room asleep: a small moon on the banner, its waking hour said, none by day (8 November)',()=>{
+  const wake=new Date(2026,10,9,6,45).toISOString();
+  const at=(advice3)=>slides({...fresh(),advisor:{title:'Rien à faire',attributes:{geste:'nothing',regle:'nothing',...advice3}}})[0];
+  assert.equal(at({nuit:true,reveil:wake}).night,'6 h 45');
+  assert.equal(at({nuit:true,reveil:new Date(2026,10,9,7,0).toISOString()}).night,'7 h');
+  assert.equal(at({nuit:false,reveil:null}).night,undefined);
+  assert.equal(at({nuit:true}).night,undefined);
+});

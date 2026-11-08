@@ -978,7 +978,9 @@ class RoomAdvisor:
                        # When to shut, for the card's « encore 4 min » between two steps.
                        "refermer_a": (now + timedelta(minutes=decision.gesture.after)).isoformat()
                        if decision.gesture.kind == "close" and decision.gesture.after and decision.gesture.after < 60 else None,
-                       "nuit": night, "interdit": reason, "vacances": away,
+                       # The card's moon on the banner's picture: no airing proposed until this waking up (8 November).
+                       "nuit": night, "reveil": dt_util.as_local(wake).isoformat() if night else None,
+                       "interdit": reason, "vacances": away,
                        "ecart_1h": None if missed is None else round(missed, 2), "piece": name,
                        "mesures": {"air": air, "humidite": current.humidity, "co2": current.co2, "particules": current.particles,
                                    "cov": current.voc, "dehors": outdoor, "fenetres": len(opened)},

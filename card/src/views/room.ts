@@ -36,7 +36,8 @@ const deg=(v:number|null)=>v===null?'—':number(v)+' °C';
 export interface Advice {title:string;line:TemplateResult|string;disk:string;cap?:string;
   /** Learned on this room by its twin: the basis, said under the gesture (« d'après 31 aérations »). */ learned?:string;
   /** A state that is not advice (sensors loading or silent) brings its own words and colour. */ pill?:string;level?:Level;
-  /** The banner's scene (window, VMC, radiator) in place of the pictogram; none keeps the pictogram. */ scene?:Scene|null}
+  /** The banner's scene (window, VMC, radiator) in place of the pictogram; none keeps the pictogram. */ scene?:Scene|null;
+  /** The room sleeps: its waking hour (« 7 h »), a small moon on the banner's picture. */ night?:string}
 /** Reasons that only say « keep closed »: the engine lowers them to calm when nothing is open and no reflex is at stake. */
 const QUIET=['drying_unavailable','drying_slow','drying_night','drying_alone','opening_blocked','cooling_unavailable','precool_later'];
 /** The banner: the gesture in a few words, then why in one line. The full explanation stays behind « i ». */
@@ -1069,6 +1070,9 @@ export function roomCard(v:View,config:Config,st:CardState,format:Format='full',
 
 /** The advices, one at a time every 4.5 s (as Hestia Weather's ticker). Every slide sits in the same place,
     so the card keeps the height of the longest one. Pauses on hover or focus; a tap shows the next one. */
+/** The room asleep (8 November): a small moon on the banner's picture, as the learning's flask; « i » says why. */
+const moon=(s:Slide)=>s.night?html`<span class="nc-night" title=${t('Nuit : conseils en pause jusqu’à {h}',{h:s.night})}>${icon('moon')}</span>`:nothing;
+
 export class HestiaAdviceTicker extends LitElement {
   @property({attribute:false}) slides:Slide[]=[];
   @property({type:Boolean}) still=false;
@@ -1123,8 +1127,8 @@ export class HestiaAdviceTicker extends LitElement {
           ${when(s)||s.learned?html`<div class="nw-band-kicker">${when(s)?html`<span>${when(s)}</span>`:nothing}${s.learned?html`<span class="nc-bt-learned" title=${tx(s.learned)}>${icon('flask')}${t('Optimisé par l’apprentissage')}</span>`:nothing}</div>`:nothing}
           <p class="nw-band-title">${title(s)}</p>${s.line?html`<p class="nw-band-line">${tl(s.line)}</p>`:nothing}</div>`)}</div>
       </div>
-      <div class="nw-band-pic nc-stack" aria-hidden="true">${list.map((s,k)=>s.scene?html`<div class=${'nc-slide nc-scene'+(k===i?' on':k===this.previous?' out':'')} data-level=${s.level}>${scene(s.scene)}</div>`
-        :html`<div class=${'nc-slide nc-orb'+(k===i?' on':k===this.previous?' out':'')} data-level=${s.level} data-mood=${mood(s,s.level)}><span class="nc-orb-ring"></span>${icon(s.disk)}${s.learned?html`<span class="nc-orb-learned">${icon('flask')}</span>`:nothing}</div>`)}</div>
+      <div class="nw-band-pic nc-stack" aria-hidden="true">${list.map((s,k)=>s.scene?html`<div class=${'nc-slide nc-scene'+(k===i?' on':k===this.previous?' out':'')} data-level=${s.level}>${scene(s.scene)}${moon(s)}</div>`
+        :html`<div class=${'nc-slide nc-orb'+(k===i?' on':k===this.previous?' out':'')} data-level=${s.level} data-mood=${mood(s,s.level)}><span class="nc-orb-ring"></span>${icon(s.disk)}${s.learned?html`<span class="nc-orb-learned">${icon('flask')}</span>`:nothing}${moon(s)}</div>`)}</div>
     </div>`;
   }
 }
