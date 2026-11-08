@@ -89,6 +89,9 @@ TEXTS = {
         "out_particles": "Particules {value} µg/m³ à {hour} h", "out_voc": "COV {value} à {hour} h", "out_nothing": "{what} : aucun geste ne ferait vraiment mieux",
         "held_open": "Ouverte : {air} °C à {hour} h", "held_shut": "Fermée : {air} °C à {hour} h",
         "nothing_out": "Ouverte ou fermée : {air} °C à {hour} h", "nothing_out_shut": "Aucun geste ne ferait vraiment mieux : {air} °C à {hour} h",
+        "back_humidity": "L'humidité repasse seule sous {mark} % {when}", "back_co2": "Le CO₂ repasse seul sous {mark} ppm {when}",
+        "back_particles": "Les particules repassent seules sous {mark} µg/m³ {when}", "back_voc": "Les COV repassent seuls sous {mark} {when}",
+        "back_at": "vers {at}", "back_in": "d'ici {minutes} min",
     },
     "en": {
         "boost": "Run the ventilation fast for {minutes} min", "boost_off": "Set the ventilation back to normal",
@@ -164,6 +167,9 @@ TEXTS = {
         "out_particles": "Particles {value} µg/m³ at {hour}:00", "out_voc": "VOC {value} at {hour}:00", "out_nothing": "{what}: no gesture would really do better",
         "held_open": "Open: {air} °C at {hour}:00", "held_shut": "Shut: {air} °C at {hour}:00",
         "nothing_out": "Open or shut: {air} °C at {hour}:00", "nothing_out_shut": "No gesture would really do better: {air} °C at {hour}:00",
+        "back_humidity": "Humidity falls back under {mark} % on its own {when}", "back_co2": "CO₂ falls back under {mark} ppm on its own {when}",
+        "back_particles": "Particles fall back under {mark} µg/m³ on their own {when}", "back_voc": "VOCs fall back under {mark} on their own {when}",
+        "back_at": "around {at}", "back_in": "within {minutes} min",
     },
     "de": {
         "boost": "Lüftung {minutes} Min. auf hohe Stufe", "boost_off": "Lüftung zurück auf normale Stufe",
@@ -239,6 +245,9 @@ TEXTS = {
         "out_particles": "Partikel {value} µg/m³ um {hour} Uhr", "out_voc": "VOC {value} um {hour} Uhr", "out_nothing": "{what}: keine Geste wäre wirklich besser",
         "held_open": "Offen: {air} °C um {hour} Uhr", "held_shut": "Geschlossen: {air} °C um {hour} Uhr",
         "nothing_out": "Offen oder geschlossen: {air} °C um {hour} Uhr", "nothing_out_shut": "Keine Geste wäre wirklich besser: {air} °C um {hour} Uhr",
+        "back_humidity": "Feuchte sinkt von selbst unter {mark} % {when}", "back_co2": "CO₂ sinkt von selbst unter {mark} ppm {when}",
+        "back_particles": "Partikel sinken von selbst unter {mark} µg/m³ {when}", "back_voc": "VOC sinken von selbst unter {mark} {when}",
+        "back_at": "gegen {at}", "back_in": "in {minutes} Min.",
     },
 }
 STEP_MINUTES = 5
@@ -308,11 +317,12 @@ def _name(gesture: Gesture, path, words, opened: bool) -> str:
 
 def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool = True,
            marks: dict | None = None, hour: float | None = None, reason: str | None = None,
-           beyond_before: bool | None = None) -> dict:
+           beyond_before: bool | None = None, keep_beyond: bool = False) -> dict:
     """The banner's title and line, and the lines of « Pourquoi ? »; `hour`: the local time now, for a later gesture;
     `marks`: the room's range and marks, as `Comfort` holds them; `reason`: the safety rule that shuts, if one does
     (advisor/safety.py); `beyond_before`: whether the last « Rien à faire » said a measure out of its range or mark
-    (« Au mieux »), kept while the forecast stays within EDGE of it."""
+    (« Au mieux »), kept while the forecast stays within EDGE of it; `keep_beyond`: « Au mieux » kept although the
+    forecast came back in its range, until it has stayed there a while (room/advice.py CALM_MINUTES)."""
     words = TEXTS[language]
     # A reinforced effect is said in the conditional (CAHIER-MOTEUR.md § 4.1).
     # A supposed one too, when the card keeps it a while (an airing under way, advisor/decide.py `under_way`).
@@ -365,6 +375,22 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             measure, value = beyond
             what = words[f"out_{measure}"].format(value=round(value), hour=end_hour)
             line = words["out_nothing"].format(what=what)
+            beyond_now = True
+        elif idle is not None and (back := _back_alone(idle, marks)):
+            # Above its mark now, back under it by itself before the end: not « la pièce restera dans votre plage » at
+            # 1 118 ppm (Salon · Cuisine, 8 November at 10 h 40), nor at a VOC of 441 while cooking (13 h 05).
+            measure, minutes = back
+            if hour is not None:
+                at = round((hour * 60 + minutes) / 5) * 5 % (24 * 60)
+                when = words["back_at"].format(at=_time(time(at // 60, at % 60), words))
+            else:
+                when = words["back_in"].format(minutes=minutes)
+            what = words[f"back_{measure}"].format(mark=round(marks[measure]), when=when)
+            line = words["out_nothing"].format(what=what)
+            beyond_now = True
+        elif idle is not None and idle.air and keep_beyond:
+            # « Au mieux » kept: what it says stays true, no gesture would do better (room/advice.py CALM_MINUTES).
+            line = words["nothing_out" if opened else "nothing_out_shut"].format(air=_number(idle.air[-1], language), hour=end_hour)
             beyond_now = True
         else:
             line = words["nothing_line" if opened else "nothing_shut"]
@@ -468,6 +494,18 @@ def _outside(value: float, low: float, high: float, edge: float, before: bool | 
     if low + edge <= value <= high - edge:
         return False
     return before if before is not None else not low <= value <= high
+
+
+def _back_alone(path, marks) -> tuple[str, int] | None:
+    """The first subject above its mark now (clearly, by EDGE) that comes back under it by itself within the forecast:
+    (subject, minutes until then)."""
+    for subject in ("humidity", "co2", "particles", "voc"):
+        values = getattr(path, subject)
+        if values and values[0] > marks[subject] + EDGE[subject]:
+            minutes = _back_under(values, marks[subject])
+            if minutes:
+                return subject, minutes
+    return None
 
 
 def _beyond(path, marks, before: bool | None = None) -> tuple[str, float] | None:

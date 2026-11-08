@@ -41,6 +41,15 @@ class Memory:
     fast_no_since: datetime | None = None
 
 
+def resume(memory: Memory, running: bool, now: datetime) -> None:
+    """The VMC as it was before a restart or a reload: running, it goes on, its hour judged afresh from now. Forgotten,
+    it stopped a minute until the advisor spoke again (Chambre P, 8 November at 12 h 53)."""
+    if running:
+        memory.slow = True
+        memory.run_since = now
+        memory.checkpoint = (now, None)
+
+
 def mode_of(config) -> str:
     mode = (config or {}).get("ventilation_mode")
     return mode if mode in MODES else DEFAULT_MODE

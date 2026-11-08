@@ -88,3 +88,33 @@ class EdgeOfTheRange(unittest.TestCase):
         # Nothing said before: the plain bound.
         self.assertTrue(_outside(18.4, 18.5, 22.0, EDGE["heat"], None))
         self.assertFalse(_outside(18.6, 18.5, 22.0, EDGE["heat"], None))
+
+
+class BackAlone(unittest.TestCase):
+    """8 November, Salon · Cuisine: « La pièce restera dans votre plage » at 1 118 ppm of CO₂, then at a VOC of 441 while
+    cooking — the forecast back under the marks by 13 h, the room above them now."""
+
+    def _nothing(self, **series):
+        from advisor.decide import Decision, Gesture, Path as Scenario
+        idle = Scenario(air=[21.0] * 36, **series)
+        return Decision(Gesture("nothing"), 0.0, "nothing", {Gesture("nothing"): {"total": 0.0}}, {Gesture("nothing"): idle})
+
+    def test_a_measure_above_its_mark_now_says_it_comes_back_alone(self):
+        decision = self._nothing(co2=[1090.0, 1060.0, 1020.0, 990.0] + [900.0] * 32)
+        words = phrase(decision, end_hour=13, hour=10 + 40 / 60, marks={"minimum": 20.0, "maximum": 24.0})
+        self.assertEqual(words["line"], "Le CO₂ repasse seul sous 1000 ppm vers 11 h : aucun geste ne ferait vraiment mieux")
+        self.assertTrue(words["beyond"])
+        self.assertIn("within 20 min", phrase(decision, 13, "en", marks={"minimum": 20.0, "maximum": 24.0})["line"])
+
+    def test_under_its_mark_now_the_range_is_said(self):
+        decision = self._nothing(co2=[1020.0] + [900.0] * 35)
+        words = phrase(decision, end_hour=13, hour=10.5, marks={"minimum": 20.0, "maximum": 24.0})
+        self.assertEqual(words["line"], "La pièce restera dans votre plage")
+        self.assertFalse(words["beyond"])
+
+    def test_au_mieux_kept_says_no_gesture_would_do_better(self):
+        # « Au mieux » kept a while (room/advice.py CALM_MINUTES): its line stays true, as the card's pill reads it.
+        decision = self._nothing(co2=[700.0] * 36)
+        words = phrase(decision, end_hour=13, marks={"minimum": 20.0, "maximum": 24.0}, beyond_before=True, keep_beyond=True)
+        self.assertEqual(words["line"], "Aucun geste ne ferait vraiment mieux : 21,0 °C à 13 h")
+        self.assertTrue(words["beyond"])

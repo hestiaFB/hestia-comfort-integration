@@ -20,6 +20,13 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.12.1 — 8 novembre 2026
+
+Bilan de la nuit et de la matinée du 8 novembre en prod (3.12.0) ; accord de Frank (« corrige les points négatifs »). Aucun geste ne change : seuls la ligne de « Rien à faire » et la pastille.
+- `advisor/words.py` : `_back_alone` — une mesure au-dessus de sa marque au premier pas (de plus que `EDGE`) qui repasse dessous avant la fin de l'horizon est dite (`back_<sujet>`, « vers 11 h 05 » ou « d'ici 25 min »), sous la forme `out_nothing` (« … : aucun geste ne ferait vraiment mieux ») : pastille « Au mieux », la carte la lit de la même façon. Salon · Cuisine 10 h 40 : 1 118 ppm, prévu sous 1 000 ppm en 25 min, mesuré 898 ppm à 11 h 08. Le « Rien à faire » lui-même était juste : la pièce à 19,3 °C pour 21,5 °C, aérer 5 min coûtait 0,3 de chauffage pour 0,03 de CO₂.
+- `advisor/words.py` `phrase(keep_beyond=)` et `room/advice.py` `CALM_MINUTES` (60) : « Au mieux » → « Tout va bien » seulement après une heure de prévision dans la plage (`calm_since`, remis à zéro par un geste ou un retour au-delà) ; « Au mieux » gardé dit `nothing_out(_shut)`. Prod 8 nov. : bascules simultanées dans toutes les pièces à 6 h 05, 6 h 50, 6 h 55, 7 h, 10 h, 10 h 35 (cause commune non retrouvée : la prod n'écrivait pas d'instantanés). L'instantané garde `keep_beyond`, que `replay` relit.
+- Rejeu des 10 instantanés du Salon du 8 nov. (labo) : 6 lignes changent, aucun geste.
+
 ### 3.12.0 — 7 novembre 2026
 
 Moins de yoyo, après le bilan d'une journée en prod (7 novembre, moteur 3.10) et au labo (3.11.2) ; accord de Frank sur les quatre points et sur l'alarme (« on parle de confort, pas de sécurité »).

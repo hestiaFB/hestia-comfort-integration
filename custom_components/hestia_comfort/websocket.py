@@ -431,7 +431,7 @@ async def ws_relearn(hass, connection, msg):
     connection.send_result(msg["id"], {"lance": True})
 
 
-@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/set_analysis", vol.Required("enabled"): bool})
+@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/set_analysis", LANGUAGE: str, vol.Required("enabled"): bool})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_analysis(hass, connection, msg):

@@ -1,3 +1,17 @@
+## 3.1.0b3 — Des phrases justes
+
+### Améliorations
+
+- Quand le CO₂ ou les COV dépassent leur seuil mais redescendent seuls, la carte le dit au lieu de « La pièce restera dans votre plage ».
+- La pastille ne repasse à « Tout va bien » qu'après une heure de calme : elle ne change plus plusieurs fois par heure.
+
+### Corrections
+
+- L'interrupteur « Je participe » est de nouveau enregistré. Avant, il bougeait à l'écran sans rien garder.
+- Au redémarrage de Home Assistant, « VMC conseillée » reprend son état. Avant, la VMC s'arrêtait une minute.
+
+### Moteur de conseil 3.12.1
+
 ## 3.1.0b2 — La VMC à sa place
 
 ### Nouveautés

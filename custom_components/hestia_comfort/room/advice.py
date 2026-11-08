@@ -59,6 +59,10 @@ HOUSE_SHARE, HOUSE_SHARE_OWN = 0.05, 0.6
 # Minutes a window just opened is judged shut, for comfort: a door or a window opened to go through or to call someone
 # is not met with « Refermez » (advisor/safety.py still shuts at once).
 GRACE_MINUTES = 3
+# « Au mieux » goes back to « Tout va bien » only once the forecast has stayed in its range this long: both took turns in
+# every room at once, 6 h 05, 6 h 50, 6 h 55, 7 h, 10 h, 10 h 35 (8 November). « Au mieux » says no gesture would do
+# better, true either way; « Tout va bien » is said when it holds.
+CALM_MINUTES = 60
 # The walls' temperature is kept over a restart this long; older, it is taken back from the air of the last hours (a
 # restart just after the stove took the air for the walls: the Salon was forecast 1.5 °C too warm for five hours).
 WALLS_KEPT = timedelta(hours=1)
@@ -332,6 +336,8 @@ class RoomAdvisor:
     def __init__(self, coordinator, home):
         self.coordinator, self.home, self.hass = coordinator, home, coordinator.hass
         self.entry_id = coordinator.entry_id
+        # Since when the forecast is back in its range while « Au mieux » is kept (CALM_MINUTES).
+        self.calm_since = None
         self.store = Store(self.hass, VERSION, f"{DOMAIN}.advisor.{self.entry_id}")
         self.room = None
         self.learned, self.learned_at, self.earlier, self.report = None, None, [], None
@@ -830,6 +836,8 @@ class RoomAdvisor:
 
         # What the last « Rien à faire » said of the measures (« Au mieux »), kept near a bound (advisor/words.py EDGE).
         beyond_before = (self.result or {}).get("au_dela")
+        # Since when the forecast is back in its range under « Au mieux » kept (CALM_MINUTES).
+        calm_since = self.calm_since
 
         def think():
             """The decision and everything simulated around it, in the executor (PLAN-OPTIMISATION.md, point 8): it only
@@ -863,6 +871,15 @@ class RoomAdvisor:
             # The local time now: a later gesture says its hour (« Aérez 5 min vers 13 h 50 »), never only its length.
             words = phrase(decision, end_hour, marks=marks, hour=local.hour + local.minute / 60, reason=reason,
                            beyond_before=beyond_before)
+            calm = None
+            if decision.gesture.kind == "nothing" and beyond_before and not words.get("beyond"):
+                calm = calm_since or now
+                if now - calm < timedelta(minutes=CALM_MINUTES):
+                    words = phrase(decision, end_hour, marks=marks, hour=local.hour + local.minute / 60, reason=reason,
+                                   beyond_before=beyond_before, keep_beyond=True)
+                    snap["keep_beyond"] = True
+                else:
+                    calm = None
             # What the shutter closed at bedtime would keep by waking up: a passive advice (advisor/knowing.py).
             shutter_night = shutter_tonight(twins, current, night_coming, 0 if night else int((bedtime - local).total_seconds() // 60)) \
                 if night_coming else None
@@ -877,9 +894,10 @@ class RoomAdvisor:
             if night_coming and not night and local >= bedtime - timedelta(hours=habits.tonight_before):
                 night_text = self._tonight(twins, current, local, bedtime, wake, night_coming, comfort, proof, marks, taken, habits,
                                            pollen)
-            return decision, snap, words, shutter_night, back, off, stove, sun_gain(twins, current, coming), night_text
+            return decision, snap, words, shutter_night, back, off, stove, sun_gain(twins, current, coming), night_text, calm
 
-        decision, snap, words, shutter_night, back, off, stove, sunny, night_text = await hass.async_add_executor_job(think)
+        decision, snap, words, shutter_night, back, off, stove, sunny, night_text, self.calm_since = \
+            await hass.async_add_executor_job(think)
         # What the twin gives the windows left open, from the moment they are first seen open; a safety rule that shuts
         # them weighs no scenario (Salon · Cuisine, 4 November at 6 h 26: the advice failed on it), the next step will.
         path = decision.paths.get(Gesture("nothing"))

@@ -236,7 +236,7 @@ async def ws_lights(hass, connection, msg):
     connection.send_result(msg["id"], snapshot)
 
 
-@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/light_info", vol.Required("entity_id"): str})
+@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/light_info", LANGUAGE: str, vol.Required("entity_id"): str})
 @websocket_api.require_admin
 @callback
 def ws_light_info(hass, connection, msg):

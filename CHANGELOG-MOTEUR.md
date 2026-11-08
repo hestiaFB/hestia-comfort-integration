@@ -4,6 +4,15 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.12.1 — 8 novembre 2026
+
+Dans Confort 3.1.0b3.
+
+### Améliorations
+
+- Quand le CO₂ ou les COV dépassent leur seuil mais vont redescendre seuls, Hestia le dit. Exemple : « Le CO₂ repasse seul sous 1000 ppm vers 11 h 05 » au lieu de « La pièce restera dans votre plage » à 1 118 ppm.
+- La pastille ne repasse de « Au mieux » à « Tout va bien » qu'après une heure de calme. Exemple : le 8 novembre au matin, elle changeait six fois dans toutes les pièces en même temps.
+
 ## 3.12.0 — 7 novembre 2026
 
 Dans Confort 3.1.0b1.

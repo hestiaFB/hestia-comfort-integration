@@ -112,3 +112,31 @@ class TurboTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ResumeTests(unittest.TestCase):
+    """8 November at 12 h 53, Home Assistant restarted: the extractor stopped a minute, « VMC conseillée » forgotten until
+    the advisor spoke again (entities.py `resume_ventilation`)."""
+
+    def test_running_before_it_goes_on_while_the_advisor_is_silent(self):
+        from engine.ventilation import resume
+        memory = Memory()
+        resume(memory, True, NOW)
+        waiting = view(humidity="humid", measured=72)
+        waiting["advice3"] = {}
+        self.assertTrue(advise(waiting, VMC, memory, NOW)["slow"])
+
+    def test_it_stops_as_usual_once_the_advisor_says_night(self):
+        from engine.ventilation import resume
+        memory = Memory()
+        resume(memory, True, NOW)
+        found = run(VMC, [(0, view(humidity="humid", night=True)), (DELAY, view(humidity="humid", night=True))], memory)
+        self.assertEqual([f["slow"] for f in found], [True, False])
+
+    def test_stopped_before_nothing_starts_on_a_guess(self):
+        from engine.ventilation import resume
+        memory = Memory()
+        resume(memory, False, NOW)
+        waiting = view(humidity="humid")
+        waiting["advice3"] = {}
+        self.assertFalse(advise(waiting, VMC, memory, NOW)["slow"])

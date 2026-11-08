@@ -85,7 +85,8 @@ def replay(snap: dict, **changes) -> tuple[Decision, dict]:
     marks = {"minimum": c.minimum, "maximum": c.maximum, "humidity": c.humidity, "co2": c.co2, "particles": c.particles,
              "voc": c.voc}
     return decision, phrase(decision, snap["end_hour"], snap.get("language", "fr"), hour=snap.get("hour"),
-                            reason=snap.get("reason"), marks=marks, beyond_before=snap.get("beyond_before"))
+                            reason=snap.get("reason"), marks=marks, beyond_before=snap.get("beyond_before"),
+                            keep_beyond=bool(snap.get("keep_beyond")))
 
 
 def warmer(coming, degrees: float):
