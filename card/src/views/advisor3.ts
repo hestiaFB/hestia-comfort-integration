@@ -28,9 +28,10 @@ const RULES:Record<string,string>={nothing:'Aucun geste ne ferait mieux : la pi�
   unproven:'Un geste aiderait peut-être, mais son effet n’est pas encore prouvé dans cette pièce : il est à essayer.',
   best:'C’est le geste qui aide le plus, comparé à ne rien faire.',safety:'Une règle de sécurité impose ce geste.',
   overheat:'La pièce dépasse sa consigne depuis un moment : c’est une mesure, pas une prévision.',
+  stale:'Le CO₂ mesuré est trop haut : l’air est à renouveler. C’est une mesure, pas une prévision.',
   doubtful:'Une mesure semble fausse : pas de conseil tant qu’elle l’est.',
   waiting:'Le moteur de conseil redémarre ; il reprend la pièce dès son premier passage.'};
-const LIMITS:Record<string,string>={rain:'il pleut',rain_soon:'la pluie arrive',gusts:'rafales de vent',vigilance:'vigilance météo',
+const LIMITS:Record<string,string>={rain:'il pleut',rain_soon:'la pluie pourrait arriver',rain_maybe:'la pluie pourrait arriver : pas de nouvelle aération',gusts:'rafales de vent',vigilance:'vigilance météo',
   away:'la maison est en mode absence',frost:'le gel est annoncé'};
 const SOURCES:Record<string,string>={co2:'CO₂',voc:'COV',particles:'particules',humidity:'humidité'};
 
@@ -57,6 +58,8 @@ export function level3(x:Advisor3):{level:Level;pill:string}{
   if(gesture==='keep')return {level:'calm',pill:'Au mieux'};
   if(gesture!=='nothing')return {level:'action',pill:'Geste conseillé'};
   if(str(a.a_essayer))return {level:'benefit',pill:'À saisir'};
+  // Read on the measures by the engine (room/advice.py `hors_plage`, 9 November); the line only for an older engine.
+  if(typeof a.hors_plage==='boolean')return {level:'calm',pill:a.hors_plage?'Au mieux':'Tout va bien'};
   return {level:'calm',pill:['insignificant','unproven'].includes(rule)||beyond(a)?'Au mieux':'Tout va bien'};
 }
 /** « Rien à faire » while a measure stays out of its range or mark: the engine's line says so (advisor/words.py). */
@@ -77,7 +80,7 @@ export function slides3(x:Advisor3):Slide3[]{
   const a=x.attributes,gesture=str(a.geste)||'nothing',{level,pill}=level3(x),tried=level==='benefit'?trial3(a):null;
   const night=wake3(a);
   if(tried)return [{...tried,level,pill,cap:'À essayer',night}];
-  const proof=gesture!=='nothing'&&!['safety','overheat'].includes(str(a.regle))?PROOF[str(a.preuve)]:undefined;
+  const proof=gesture!=='nothing'&&!['safety','overheat','stale'].includes(str(a.regle))?PROOF[str(a.preuve)]:undefined;
   // « Optimisé par l'apprentissage » only for an effect this room has shown: a probable one is said « sans doute » in the line
   // (Chambre P, 3 November: the flask over a window it had never seen open).
   return [{title:countdown(a)??x.title,line:str(a.phrase),disk:str(a.regle)==='safety'?'rain':str(a.regle)==='waiting'?'clock':DISKS[gesture]??'check',level,pill,
@@ -109,7 +112,7 @@ export function why3(x:Advisor3):TemplateResult{
   const sources=a.sources&&typeof a.sources==='object'?Object.keys(a.sources as object).map(k=>SOURCES[k]??k):[];
   const row=(ic:string,label:string,text:string)=>html`<div class="nc-why-row">${icon(ic)}<span>${label}</span><b>${text}</b></div>`;
   const asked=str(a.geste)!=='nothing'||!!str(a.a_essayer);
-  const said=pill==='Au mieux'&&rule==='nothing'?'Une mesure sort de votre plage ou de son repère, mais aucun geste ne ferait mieux pour l’instant.':RULES[rule]??'';
+  const said=pill==='Au mieux'&&str(a.geste||'nothing')==='nothing'&&!['safety','doubtful','waiting'].includes(rule)?'Une mesure sort de votre plage ou de son repère, mais aucun geste ne ferait mieux pour l’instant.':RULES[rule]??'';
   return html`<p class="nc-why-head"><b>Pourquoi « ${pill} » ?</b> ${said}</p>
     ${list(a.pourquoi).map(l=>row('clock','Scénario',l))}
     ${limit?row('alert','Ce qui limite',limit):nothing}

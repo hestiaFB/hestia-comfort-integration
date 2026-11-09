@@ -1,3 +1,38 @@
+## 3.1.0b6 — Une pastille qui dit vrai
+
+### Améliorations
+
+- La pastille se lit sur les mesures : « Tout va bien » seulement si tout est dans votre plage, « Au mieux » si une mesure en sort et qu'aucun geste n'aiderait. Elle ne clignote plus avec la pluie ou l'absence.
+- La pluie annoncée est dite au conditionnel. Avec un pluviomètre, seule la pluie mesurée fait refermer ; une pluie annoncée s'affiche dans « À savoir ».
+- Demande Hestia Météo 3.6.1 pour la force et la probabilité de la pluie. Avec une version plus ancienne, la carte fonctionne sans ces informations.
+
+### Moteur de conseil 3.14.0
+
+- Pastille calculée sur les mesures, au plus un changement par demi-heure.
+- Pluviomètre d'abord ; pluie annoncée au conditionnel ; probabilité Météo-France prise en compte.
+
+## 3.1.0b5 — De l'air quand il le faut
+
+### Nouveautés
+
+- Quand le CO₂ mesuré dépasse 1 400 ppm, la carte conseille d'aérer 10 min et donne la mesure. Exemple : « Aérez 10 min — CO₂ mesuré à 1 470 ppm : l'air est à renouveler ».
+
+### Améliorations
+
+- Un conseil laissé sans suite ne revient pas avant 2 heures, sauf si la pièce se dégrade nettement.
+- « À essayer » garde la même durée au moins une demi-heure.
+
+### Corrections
+
+- Fini les phrases contradictoires comme « Aérez 15 min : l'air pourrait redevenir sain en 5 min ».
+
+### Moteur de conseil 3.13.0
+
+- CO₂ mesuré au-dessus de 1 400 ppm : aération conseillée, même sans preuve.
+- Conseil non suivi : pas reproposé avant 2 heures.
+- « À essayer » stable une demi-heure ; temps de retour arrondi au quart d'heure.
+- Le journal note la pastille et ne double plus ses lignes au rechargement.
+
 ## 3.1.0b4 — Une lune pour la nuit
 
 ### Nouveautés

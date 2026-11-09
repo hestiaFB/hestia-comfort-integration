@@ -38,7 +38,7 @@ def capture(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weight
             previous: Gesture | None = None, forbidden=frozenset(), proof: dict | None = None, holidays: bool = False,
             habits: Habits = Habits(), *,
             reason: str | None = None, held: float | None = None, tried: Gesture | None = None, aired: float | None = None,
-            failed: dict | None = None, pollen: Pollen | None = None,
+            failed: dict | None = None, pollen: Pollen | None = None, tried_held: float | None = None,
             end_hour: int, hour: float | None = None, language: str = "fr", room: str = "", when: str = "",
             version: str = "", beyond_before: bool | None = None) -> dict:
     """The decision's inputs, as plain JSON."""
@@ -46,7 +46,7 @@ def capture(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weight
             "coming": [[_plain(u), water] for u, water in coming], "comfort": _plain(comfort), "weights": _plain(weights),
             "previous": _plain(previous), "forbidden": sorted(forbidden), "reason": reason, "proof": proof, "holidays": holidays,
             "habits": habits.setting(), "held": held, "tried": _plain(tried), "aired": aired, "failed": failed,
-            "pollen": _plain(pollen), "end_hour": end_hour, "hour": hour, "language": language,
+            "pollen": _plain(pollen), "tried_held": tried_held, "end_hour": end_hour, "hour": hour, "language": language,
             "beyond_before": beyond_before}
 
 
@@ -74,7 +74,7 @@ def restore(snap: dict) -> dict:
             "habits": Habits.of(snap.get("habits")), "held": snap.get("held"),
             "tried": Gesture(**snap["tried"]) if snap.get("tried") else None, "aired": snap.get("aired"), "failed": snap.get("failed"),
             "pollen": Pollen(**{**snap["pollen"], "good": tuple(tuple(g) for g in snap["pollen"]["good"])})
-            if snap.get("pollen") else None}
+            if snap.get("pollen") else None, "tried_held": snap.get("tried_held")}
 
 
 def replay(snap: dict, **changes) -> tuple[Decision, dict]:

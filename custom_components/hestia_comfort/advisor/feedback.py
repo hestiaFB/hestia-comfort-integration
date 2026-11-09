@@ -92,6 +92,43 @@ def pause_until(when: datetime, minutes: int) -> datetime:
     return when + timedelta(minutes=minutes)
 
 
+# A gesture left on the card without being followed, then gone with nothing in its place, is not asked again for this
+# long (Chambre P, 8 November: « Ouvrez » at 18 h, 19 h and 20 h, each held 40 min, never followed). Shown less than
+# IGNORED_SHOWN minutes, it was not really left: the household may not have seen it.
+IGNORED_MINUTES = 120
+IGNORED_SHOWN = 10
+# The gestures it holds for: the airings and the devices, never shutting or the stove, which a measure asks.
+IGNORABLE = ("open", "open_more", "boost", "purify")
+# Unless the room gets clearly worse meanwhile, by this much on what the gesture was for.
+WORSE = {"humidity": 5.0, "mould": 5.0, "co2": 300.0, "particles": 10.0, "voc": 100.0, "heat": 1.0}
+
+
+def measured(subject: str | None, now: Now) -> float | None:
+    """The measure a gesture's subject is judged on: the humidity for the mould, the air for the heat."""
+    return {"humidity": now.humidity, "mould": now.humidity, "co2": now.co2, "particles": now.particles,
+            "voc": now.voc, "heat": now.air}.get(subject or "")
+
+
+def ignored(record: dict, gone: bool, safety: bool) -> bool:
+    """Whether a gesture just ended (`follow`'s record) was left: asked on the banner, not followed, shown long enough,
+    and `gone` with nothing in its place — not replaced by another gesture, nor taken away by a `safety` rule."""
+    return (not record["suivi"] and not record["essai"] and record["geste"] in IGNORABLE and gone and not safety
+            and record["minutes"] >= IGNORED_SHOWN)
+
+
+def left_aside(left: dict[str, tuple[datetime, str | None, float | None]], now: Now, when: datetime) -> dict[str, datetime]:
+    """Of the gestures left (kind → until when, subject, its measure then), those still put aside: within their pause,
+    and the room no worse by WORSE on their subject than when they were left."""
+    out = {}
+    for kind, (until, subject, then) in left.items():
+        value = measured(subject, now)
+        worse = (then is not None and value is not None and subject in WORSE
+                 and (abs(value - then) if subject == "heat" else value - then) >= WORSE[subject])
+        if until > when and not worse:
+            out[kind] = until
+    return out
+
+
 def followed_share(records: list[dict]) -> dict:
     """Of the gestures asked, how many were followed; the ones only to try, apart."""
     asked = [r for r in records if not r.get("essai")]

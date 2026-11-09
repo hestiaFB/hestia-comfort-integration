@@ -19,7 +19,7 @@ TEXTS = {
         "nothing": "Rien à faire", "keep": "Laissez ouvert", "close": "Refermez", "open": "Aérez {minutes} min", "open_long": "Ouvrez",
         "close_later": "Refermez vers {at}", "open_later": "Aérez {minutes} min vers {at}", "close_soon": "Laissez ouvert encore {after} min", "open_more": "Ouvrez aussi {which} {minutes} min", "open_more_plain": "les autres fenêtres", "opened_more": "Ouvertes des deux côtés {minutes} min", "instead": "{line} au lieu de {minutes}",
         "heat": "vous gardez {value} °C d'ici {hour} h", "heat_open": "{value} °C de mieux d'ici {hour} h",
-        "humidity": "{chosen} % d'humidité au lieu de {idle} %", "humidity_at": "{chosen} % d'humidité à {at} au lieu de {idle} %", "humidity_brief": "l'humidité baisse pendant l'aération, puis revient", "co2": "l'air redevient sain en {minutes} min",
+        "humidity": "{chosen} % d'humidité au lieu de {idle} %", "humidity_at": "{chosen} % d'humidité à {at} au lieu de {idle} %", "humidity_brief": "l'humidité baisse pendant l'aération, puis revient", "co2": "l'air redevient sain en {minutes} min", "co2_during": "l'air redevient sain avant la fin",
         "particles": "les particules retombent en {minutes} min", "voc": "le COV retombe en {minutes} min", "energy": "{value} kWh de chauffage économisés",
         "mould": "moins de risque de moisissure sur les murs froids",
         "sure": "{line}", "unsure": "{line}, sans doute",
@@ -31,6 +31,7 @@ TEXTS = {
         "humidity_at_likely": "l'humidité devrait passer à {chosen} % vers {at} au lieu de {idle} %", "humidity_at_maybe": "l'humidité pourrait passer à {chosen} % vers {at}",
         "humidity_brief_likely": "l'humidité devrait baisser pendant l'aération, puis revenir", "humidity_brief_maybe": "l'humidité pourrait baisser pendant l'aération, puis revenir",
         "co2_likely": "l'air devrait redevenir sain en {minutes} min", "co2_maybe": "l'air pourrait redevenir sain en {minutes} min",
+        "co2_during_likely": "l'air devrait redevenir sain avant la fin", "co2_during_maybe": "l'air pourrait redevenir sain avant la fin",
         "particles_likely": "les particules devraient retomber en {minutes} min", "particles_maybe": "les particules pourraient retomber en {minutes} min",
         "voc_likely": "le COV devrait retomber en {minutes} min", "voc_maybe": "le COV pourrait retomber en {minutes} min",
         "energy_likely": "environ {value} kWh de chauffage économisés", "energy_maybe": "peut-être {value} kWh de chauffage économisés",
@@ -45,9 +46,9 @@ TEXTS = {
         "nothing_line": "Ouverte ou fermée, la pièce restera dans votre plage",
         "nothing_shut": "La pièce restera dans votre plage",
         "try": "À essayer — {title} : {line}",
-        "keep_shut": "Gardez fermé : {why}",
+        "keep_shut": "Gardez fermé : {why}", "rain_maybe_at": "La pluie pourrait arriver vers {at}",
         "tonight_close": "Cette nuit, pensez à refermer : {line}", "tonight_open": "Cette nuit, pensez à ouvrir : {line}",
-        "safety_rain": "il pleut", "safety_rain_soon": "la pluie arrive", "safety_gusts": "rafales de vent",
+        "safety_rain": "il pleut", "safety_rain_soon": "la pluie pourrait arriver", "safety_rain_maybe": "la pluie pourrait arriver", "safety_gusts": "rafales de vent",
         "safety_vigilance": "vigilance météo", "safety_away": "la maison est en mode absence", "safety_frost": "le gel est annoncé",
         "sun": "Soleil sur {window} de {start} à {end}", "sun_strong": "Grand soleil prévu sur {window} de {start} à {end}",
         "sun_now": "Soleil sur {window} jusqu'à {end}", "sun_now_strong": "Grand soleil sur {window} jusqu'à {end}",
@@ -64,6 +65,7 @@ TEXTS = {
         "heat_stop": "Coupez le poêle",
         "stove_off": "Poêle coupé",
         "overheat": "{air} °C pour {target} °C visés, depuis {minutes} min",
+        "stale": "CO₂ mesuré à {co2} ppm : l'air est à renouveler",
         "stove_hold": "Le poêle tourne au minimum : sans lui, la pièce reste au-dessus de {minimum} °C jusqu'à {at}",
         "stove_hold_long": "Le poêle tourne au minimum : sans lui, la pièce reste au-dessus de {minimum} °C au moins jusqu'à {hour} h",
         "stove_rising": "Le poêle tourne au minimum et la pièce monte encore : {change} °C de plus en 30 min",
@@ -100,7 +102,7 @@ TEXTS = {
         "nothing": "Nothing to do", "keep": "Leave it open", "close": "Close", "open": "Air for {minutes} min", "open_long": "Open",
         "close_later": "Close around {at}", "open_later": "Air {minutes} min around {at}", "close_soon": "Leave it open {after} more min", "open_more": "Open {which} too for {minutes} min", "open_more_plain": "the other windows", "opened_more": "Open on both sides {minutes} min", "instead": "{line} instead of {minutes}",
         "heat": "you keep {value} °C until {hour}:00", "heat_open": "{value} °C better by {hour}:00",
-        "humidity": "{chosen}% humidity instead of {idle}%", "humidity_at": "{chosen}% humidity at {at} instead of {idle}%", "humidity_brief": "the humidity drops while airing, then comes back", "co2": "the air is fresh again in {minutes} min",
+        "humidity": "{chosen}% humidity instead of {idle}%", "humidity_at": "{chosen}% humidity at {at} instead of {idle}%", "humidity_brief": "the humidity drops while airing, then comes back", "co2": "the air is fresh again in {minutes} min", "co2_during": "the air is fresh again before the end",
         "particles": "the particles settle in {minutes} min", "voc": "the VOC falls back in {minutes} min", "energy": "{value} kWh of heating saved",
         "mould": "less risk of mould on the cold walls",
         "sure": "{line}", "unsure": "{line}, most likely",
@@ -110,6 +112,7 @@ TEXTS = {
         "humidity_at_likely": "the humidity should go to {chosen} % around {at} instead of {idle} %", "humidity_at_maybe": "the humidity could go to {chosen} % around {at}",
         "humidity_brief_likely": "the humidity should drop while airing, then come back", "humidity_brief_maybe": "the humidity could drop while airing, then come back",
         "co2_likely": "the air should be healthy again in {minutes} min", "co2_maybe": "the air could be healthy again in {minutes} min",
+        "co2_during_likely": "the air should be healthy again before the end", "co2_during_maybe": "the air could be healthy again before the end",
         "particles_likely": "the particles should settle in {minutes} min", "particles_maybe": "the particles could settle in {minutes} min",
         "voc_likely": "the VOC should drop in {minutes} min", "voc_maybe": "the VOC could drop in {minutes} min",
         "energy_likely": "about {value} kWh of heating saved", "energy_maybe": "perhaps {value} kWh of heating saved",
@@ -123,9 +126,9 @@ TEXTS = {
         "nothing_line": "Open or shut, the room stays in your range",
         "nothing_shut": "The room stays in your range",
         "try": "Worth a try — {title}: {line}",
-        "keep_shut": "Keep it shut: {why}",
+        "keep_shut": "Keep it shut: {why}", "rain_maybe_at": "Rain could come around {at}",
         "tonight_close": "Tonight, remember to close: {line}", "tonight_open": "Tonight, remember to open: {line}",
-        "safety_rain": "it is raining", "safety_rain_soon": "rain is coming", "safety_gusts": "gusts of wind",
+        "safety_rain": "it is raining", "safety_rain_soon": "rain might come", "safety_rain_maybe": "rain might come", "safety_gusts": "gusts of wind",
         "safety_vigilance": "weather warning", "safety_away": "the home is set to away", "safety_frost": "frost is forecast",
         "sun": "Sun on {window} from {start} to {end}", "sun_strong": "Bright sun expected on {window} from {start} to {end}",
         "sun_now": "Sun on {window} until {end}", "sun_now_strong": "Bright sun on {window} until {end}",
@@ -142,6 +145,7 @@ TEXTS = {
         "heat_stop": "Turn the stove off",
         "stove_off": "Stove off",
         "overheat": "{air} °C for {target} °C aimed at, for {minutes} min",
+        "stale": "CO₂ measured at {co2} ppm: the air needs renewing",
         "stove_hold": "The stove runs at its lowest: without it, the room stays above {minimum} °C until {at}",
         "stove_hold_long": "The stove runs at its lowest: without it, the room stays above {minimum} °C until {hour}:00 at least",
         "stove_rising": "The stove runs at its lowest and the room is still warming: {change} °C more in 30 min",
@@ -178,7 +182,7 @@ TEXTS = {
         "nothing": "Nichts zu tun", "keep": "Offen lassen", "close": "Schließen", "open": "{minutes} Min. lüften", "open_long": "Öffnen",
         "close_later": "Gegen {at} schließen", "open_later": "Gegen {at} {minutes} Min. lüften", "close_soon": "Noch {after} Min. offen lassen", "open_more": "Auch {which} {minutes} Min. öffnen", "open_more_plain": "die anderen Fenster", "opened_more": "Auf beiden Seiten offen {minutes} Min.", "instead": "{line} statt in {minutes}",
         "heat": "Sie behalten {value} °C bis {hour} Uhr", "heat_open": "{value} °C besser bis {hour} Uhr",
-        "humidity": "{chosen} % Feuchte statt {idle} %", "humidity_at": "{chosen} % Feuchte um {at} statt {idle} %", "humidity_brief": "die Feuchte sinkt beim Lüften und steigt danach wieder", "co2": "die Luft ist in {minutes} Min. wieder frisch",
+        "humidity": "{chosen} % Feuchte statt {idle} %", "humidity_at": "{chosen} % Feuchte um {at} statt {idle} %", "humidity_brief": "die Feuchte sinkt beim Lüften und steigt danach wieder", "co2": "die Luft ist in {minutes} Min. wieder frisch", "co2_during": "die Luft ist vor dem Ende wieder frisch",
         "particles": "die Partikel setzen sich in {minutes} Min.", "voc": "die VOC sinken in {minutes} Min.", "energy": "{value} kWh Heizenergie gespart",
         "mould": "weniger Schimmelgefahr an kalten Wänden",
         "sure": "{line}", "unsure": "{line}, voraussichtlich",
@@ -188,6 +192,7 @@ TEXTS = {
         "humidity_at_likely": "die Feuchte dürfte gegen {at} auf {chosen} % statt {idle} % gehen", "humidity_at_maybe": "die Feuchte könnte gegen {at} auf {chosen} % gehen",
         "humidity_brief_likely": "die Feuchte dürfte beim Lüften sinken und dann zurückkehren", "humidity_brief_maybe": "die Feuchte könnte beim Lüften sinken und dann zurückkehren",
         "co2_likely": "die Luft dürfte in {minutes} Min. wieder gesund sein", "co2_maybe": "die Luft könnte in {minutes} Min. wieder gesund sein",
+        "co2_during_likely": "die Luft dürfte vor dem Ende wieder gesund sein", "co2_during_maybe": "die Luft könnte vor dem Ende wieder gesund sein",
         "particles_likely": "die Partikel dürften in {minutes} Min. sinken", "particles_maybe": "die Partikel könnten in {minutes} Min. sinken",
         "voc_likely": "die VOC dürften in {minutes} Min. sinken", "voc_maybe": "die VOC könnten in {minutes} Min. sinken",
         "energy_likely": "etwa {value} kWh Heizung gespart", "energy_maybe": "vielleicht {value} kWh Heizung gespart",
@@ -201,9 +206,9 @@ TEXTS = {
         "nothing_line": "Offen oder geschlossen, der Raum bleibt in Ihrem Bereich",
         "nothing_shut": "Der Raum bleibt in Ihrem Bereich",
         "try": "Einen Versuch wert — {title}: {line}",
-        "keep_shut": "Geschlossen lassen: {why}",
+        "keep_shut": "Geschlossen lassen: {why}", "rain_maybe_at": "Regen könnte gegen {at} kommen",
         "tonight_close": "Heute Nacht schließen: {line}", "tonight_open": "Heute Nacht öffnen: {line}",
-        "safety_rain": "es regnet", "safety_rain_soon": "Regen kommt", "safety_gusts": "Windböen",
+        "safety_rain": "es regnet", "safety_rain_soon": "Regen könnte kommen", "safety_rain_maybe": "Regen könnte kommen", "safety_gusts": "Windböen",
         "safety_vigilance": "Unwetterwarnung", "safety_away": "das Haus ist auf Abwesenheit gestellt", "safety_frost": "Frost ist angesagt",
         "sun": "Sonne auf {window} von {start} bis {end}", "sun_strong": "Viel Sonne erwartet auf {window} von {start} bis {end}",
         "sun_now": "Sonne auf {window} bis {end}", "sun_now_strong": "Viel Sonne auf {window} bis {end}",
@@ -220,6 +225,7 @@ TEXTS = {
         "heat_stop": "Ofen ausschalten",
         "stove_off": "Ofen aus",
         "overheat": "{air} °C bei {target} °C Ziel, seit {minutes} min",
+        "stale": "CO₂ gemessen bei {co2} ppm: die Luft muss erneuert werden",
         "stove_hold": "Der Ofen läuft auf kleinster Stufe: ohne ihn bleibt der Raum bis {at} über {minimum} °C",
         "stove_hold_long": "Der Ofen läuft auf kleinster Stufe: ohne ihn bleibt der Raum mindestens bis {hour} Uhr über {minimum} °C",
         "stove_rising": "Der Ofen läuft auf kleinster Stufe und der Raum wird weiter wärmer: {change} °C mehr in 30 min",
@@ -342,6 +348,9 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     # Something is open when closing is one of the scenarios.
     opened = any(g.kind == "close" for g in decision.scenarios)
     gesture, subject = decision.gesture, subject_of(decision)
+    if decision.rule == "stale":
+        # Asked for the CO₂ measured: what the airing will be judged on (room/advice.py `aim`).
+        subject = "co2"
     if gesture.kind == "close" and gesture.after and gesture.after < SOON:
         # Shut in a few minutes: how long is left, said again at each step until « Refermez » (Frank, 1 November).
         title = words["close_soon"].format(after=gesture.after)
@@ -420,8 +429,13 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         elif subject in ("co2", "particles", "voc"):
             series = getattr(chosen, subject)
             minutes = _back_under(series, marks[subject]) if series else None
-            if minutes:
-                line = say(subject, minutes=minutes)
+            if minutes and subject == "co2" and gesture.minutes and minutes <= gesture.minutes:
+                # Back under its mark before the airing ends: « Aérez 15 min : l'air pourrait redevenir sain en 5 min »
+                # read as a contradiction (Salon · Cuisine, 8 November at 15 h 40).
+                line = say("co2_during")
+            elif minutes:
+                # To the quarter of an hour beyond one: « retombe en 30, 45, 60, 75 min » moved at every step.
+                line = say(subject, minutes=minutes if minutes <= 15 else int(round(minutes / 15) * 15))
                 # Opened on both sides: how much sooner than with the windows open now (« en 5 min au lieu de 15 »).
                 without = _back_under(getattr(idle, subject), marks[subject]) if gesture.kind == "open_more" else None
                 if without and without > minutes:
@@ -441,6 +455,10 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         m = decision.measured
         line = words["overheat"].format(air=_number(m["air"], language), target=_degrees(m["target"], language),
                                         minutes=round(m["minutes"]))
+        shaded.append("fact")
+    elif decision.rule == "stale" and decision.measured:
+        # The CO₂ measured high: a fact, said as such, whatever the windows' effect has shown here (advisor/decide.py STALE_CO2).
+        line = words["stale"].format(co2=round(decision.measured["co2"]))
         shaded.append("fact")
     elif decision.rule == "safety" and reason and f"safety_{reason}" in words:
         line = words[f"safety_{reason}"]
@@ -494,6 +512,25 @@ def _outside(value: float, low: float, high: float, edge: float, before: bool | 
     if low + edge <= value <= high - edge:
         return False
     return before if before is not None else not low <= value <= high
+
+
+def measured_out(now, marks: dict, before: bool | None = None) -> bool:
+    """Whether a measure of the room is out of its range or mark now, as measured (the pill « Au mieux » rather than
+    « Tout va bien »): clearly out by EDGE, or within EDGE of a bound as it was said `before`. Neither the line, nor the
+    rule, nor the rain or the alarm play a part (9 November: the 91 « Tout va bien » of a day all said at 62 to 82 % of
+    humidity, each time a « Gardez fermé : … » took the line's place)."""
+    checks = [(now.air, marks["minimum"], marks["maximum"], EDGE["heat"])]
+    checks += [(getattr(now, subject), float("-inf"), marks[subject], EDGE[subject])
+               for subject in ("humidity", "co2", "particles", "voc")]
+    clear_in = True
+    for value, low, high, edge in checks:
+        if value is None:
+            continue
+        if value < low - edge or value > high + edge:
+            return True
+        if not low + edge <= value <= high - edge:
+            clear_in = False
+    return False if clear_in else bool(before)
 
 
 def _back_alone(path, marks) -> tuple[str, int] | None:

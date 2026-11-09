@@ -155,8 +155,26 @@ class Steady(unittest.TestCase):
         shown = self.first.gesture
         demoted = decide(TWINS, self.now, self.coming, proof={}, previous=shown, held=10.0)
         self.assertEqual((demoted.gesture, demoted.rule), (shown, "kept"))
-        later = decide(TWINS, self.now, self.coming, proof={}, previous=shown, held=40.0)
+        # Under STALE_CO2, the half hour gone, a gesture whose effect is not proven goes back to « À essayer ».
+        calmer = replace(self.now, co2=1350.0)
+        later = decide(TWINS, calmer, self.coming, proof={}, previous=shown, held=40.0)
         self.assertEqual(later.rule, "unproven")
+
+    def test_co2_measured_high_asks_an_airing_whatever_the_proof(self):
+        # 1 600 ppm measured: « Aérez 10 min » on the banner, said as a fact (Salon · Cuisine, 8 November).
+        found = decide(TWINS, self.now, self.coming, proof={}, previous=None, held=None)
+        self.assertEqual((found.gesture, found.rule), (Gesture("open", 10), "stale"))
+        self.assertEqual(found.measured, {"co2": 1600.0})
+        # Said, it holds down to STALE_KEPT, not to come and go around the mark.
+        kept = decide(TWINS, replace(self.now, co2=1300.0), self.coming, proof={}, previous=Gesture("open", 10), held=40.0)
+        self.assertEqual(kept.rule, "stale")
+        gone = decide(TWINS, replace(self.now, co2=1100.0), self.coming, proof={}, previous=Gesture("open", 10), held=40.0)
+        self.assertNotEqual(gone.rule, "stale")
+        # Never at night, nor with a window already open.
+        self.assertNotEqual(decide(TWINS, replace(self.now, night=True), self.coming, proof={}).rule, "stale")
+        self.assertNotEqual(decide(TWINS, replace(self.now, opened=((1.2, 1.2),)), self.coming, proof={}).rule, "stale")
+        # Nor when a safety rule takes the windows away.
+        self.assertNotEqual(decide(TWINS, self.now, self.coming, proof={}, forbidden=frozenset({"open"})).rule, "stale")
 
 
 if __name__ == "__main__":

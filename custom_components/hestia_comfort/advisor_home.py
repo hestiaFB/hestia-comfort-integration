@@ -218,6 +218,8 @@ class AdvisorHome:
         self.outdoor_measured, self.trust, self.retained = (None, None), None, None
         # Since when the rain has been said due without a drop at the station (advisor/safety.py `rain_believed`).
         self.rain_soon_since = None
+        # The last rain announced: {gauge, intensity, chance} (`safety`).
+        self.rain_hint = {}
         self.learning = False
         # The nightly learning's own process failed once (night_worker.py): said once in the log, then in the threads.
         self.worker_failed = False
@@ -386,6 +388,10 @@ class AdvisorHome:
         # A rain gauge under a tree or an overhang: its zero does not make the rain announced unbelieved.
         sheltered = weather_link.gauge_sheltered(self.trust) and weather_link.from_station(self.hass, place, rain.get("entity_id"))
         rain_in, self.rain_soon_since = rain_believed(rain_in, rate, self.rain_soon_since, dt_util.utcnow().timestamp(), sheltered)
+        # How sure the rain announced is, and whether a gauge in the open has the last word (advisor/safety.py).
+        self.rain_hint = {"gauge": rate is not None and not sheltered,
+                          "intensity": ahead.get("intensity") if isinstance(ahead.get("intensity"), int) else None,
+                          "chance": ahead.get("chance") if isinstance(ahead.get("chance"), (int, float)) else None}
         wind_from = _number(self.hass, (sources.get("wind_bearing") or {}).get("entity_id"))
         return rate, gust, rain_in, outlook.get("vigilance"), wind_from
 

@@ -635,7 +635,7 @@ def main_subject(scenarios: dict, gesture: Gesture) -> str | None:
 class Decision:
     gesture: Gesture
     gain: float                             # what it saves against « do nothing », in the cost's unit
-    rule: str                               # best | nothing | insignificant | kept | safety | unproven | overheat
+    rule: str                               # best | nothing | insignificant | kept | safety | unproven | overheat | stale
     scenarios: dict                         # gesture → its cost terms, for « Pourquoi ? » and the trace
     paths: dict = field(default_factory=dict, repr=False)
     level: str = PROVEN                     # how sure the effect it rests on is (advisor/proof.py)
@@ -778,11 +778,45 @@ def _needed(paths: dict, comfort: Comfort, night: bool, tolerance: float) -> boo
                for g, path in paths.items() if g.kind in ("nothing", "keep") or (g.kind == "close" and g.after))
 
 
+# Measured CO₂ from which the air is to renew, whatever the windows' effect has shown here: a fact, not a forecast (Salon ·
+# Cuisine, 8 November: 1 380 to 1 519 ppm from 15 h 40 to 17 h 51, nothing but « À essayer », the windows' effect on its
+# CO₂ still supposed). Kept down to STALE_KEPT once said, not to come and go around the mark; STALE_AIRING minutes asked.
+STALE_CO2 = 1400.0
+STALE_KEPT = 1200.0
+STALE_AIRING = 10
+
+
 def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
            previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
            proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits(),
            held: float | None = None, tried: Gesture | None = None, aired: float | None = None,
-           failed: dict | None = None, pollen: Pollen | None = None) -> Decision:
+           failed: dict | None = None, pollen: Pollen | None = None, tried_held: float | None = None) -> Decision:
+    """The gesture to advise (`_decide`), and the air measured stale asked to renew (STALE_CO2) when nothing else is.
+    `tried_held`: minutes « À essayer » has shown the same gesture (HOLD_MINUTES)."""
+    decision = _decide(twins, now, coming, comfort, weights, previous, forbidden, proof, holidays, habits, held, tried,
+                       aired, failed, pollen, tried_held)
+    airing = Gesture("open", minutes=STALE_AIRING)
+    said = previous is not None and previous == airing
+    if (said and decision.gesture == airing and decision.rule == "kept" and now.co2 is not None
+            and now.co2 >= STALE_KEPT and not now.opened):
+        # Held on the card: still the measure it was said for.
+        return replace(decision, rule="stale", measured={"co2": now.co2})
+    if decision.gesture.kind != "nothing" or decision.rule in ("safety", "ineffective", "overheat", "pollen"):
+        return decision
+    if (now.co2 is None or now.opened or now.night or airing not in decision.scenarios
+            or now.co2 < (STALE_KEPT if said else STALE_CO2) or _past_bedtime(now, habits)(airing, held=said)):
+        return decision
+    nothing = decision.scenarios[Gesture("nothing")]["total"]
+    found = (proof or {}).get(effect(airing, "co2"), SUPPOSED) if proof is not None else PROVEN
+    return Decision(airing, nothing - decision.scenarios[airing]["total"], "stale", decision.scenarios, decision.paths,
+                    level=found, measured={"co2": now.co2})
+
+
+def _decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
+            previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
+            proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits(),
+            held: float | None = None, tried: Gesture | None = None, aired: float | None = None,
+            failed: dict | None = None, pollen: Pollen | None = None, tried_held: float | None = None) -> Decision:
     """The gesture to advise. `forbidden`: kinds a safety rule takes away (« open » under the rain, in gusts…).
     `proof`: the level of the windows' effect on each subject (advisor/proof.py); None, all taken as proven.
     `held`: minutes `previous` has been on the card (HOLD_MINUTES); `tried`: the gesture shown « À essayer », as it
@@ -831,6 +865,8 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
                 # Nobody home (the alarm set to away): no window to open, and what is open is the alarm's business, not
                 # comfort's (Frank, 7 November: « il ne faut pas se substituer à l'alarme »).
                 and not (g.kind in ("open", "open_more") and "absent" in forbidden)
+                # The rain likely soon, a rain gauge watching (advisor/safety.py): no new airing, nothing shut for it.
+                and not (g.kind in ("open", "open_more") and "rain_likely" in forbidden)
                 and not (g.kind in ("open", "open_more") and now.night and not habits.open_at_night)
                 and not (g.kind == "open_more" and "open" in forbidden)
                 # Nobody gets up to see to the heating either (CAHIER-MOTEUR.md § 9.1 bis), nor comes back in ten minutes.
@@ -976,8 +1012,12 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         return Decision(previous, nothing - costs[previous]["total"], "kept", costs, paths, level=held_found)
     # « À essayer » holds like the banner: the gesture shown stays while it is about as good (MARGIN). It changed at every
     # step, « Ouvrez », « Aérez 25 min », « Aérez 30 min » (Chambre AL, 4 November: thirty times since 21 h).
-    if (tried is not None and tried != best and tried in worth
-            and costs[tried]["total"] - costs[best]["total"] < MARGIN * max(costs[tried]["total"], GAIN)):
+    # Of the same kind, it stays its half hour while it still helps by half the gain: « Aérez 5, 10, 15, 20 min » came in
+    # turn every 5 to 15 minutes (Salon · Cuisine, 8 November from 15 h 25).
+    if (tried is not None and tried != best and tried in costs
+            and ((tried in worth and costs[tried]["total"] - costs[best]["total"] < MARGIN * max(costs[tried]["total"], GAIN))
+                 or (tried.kind == best.kind and tried_held is not None and tried_held < HOLD_MINUTES
+                     and nothing - costs[tried]["total"] >= GAIN / 2))):
         best, gain = tried, nothing - costs[tried]["total"]
     return Decision(Gesture("nothing"), gain, "unproven", costs, paths, level=found, passive=best)
 

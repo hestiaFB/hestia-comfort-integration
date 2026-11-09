@@ -6,7 +6,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components" / "hestia_comfort"))
 from advisor.decide import Now, decide
-from advisor.words import TEXTS, phrase
+from advisor.words import TEXTS, measured_out, phrase
 from test_advisor_decide import FRENCH, TWINS, day, night
 
 
@@ -50,11 +50,11 @@ class WordsTest(unittest.TestCase):
         from advisor.decide import Gesture
         decision = decide(TWINS, Now(air=20.6, walls=20.6, opened=(FRENCH.size,)), day(), forbidden=frozenset({"open"}))
         self.assertEqual(decision.gesture, Gesture("close"))
-        self.assertEqual(phrase(decision, end_hour=17, reason="rain_soon")["line"], "la pluie arrive")
+        self.assertEqual(phrase(decision, end_hour=17, reason="rain_soon")["line"], "la pluie pourrait arriver")
         # A shut room under the same rain: nothing to do, because the rain takes the openings away.
         shut = decide(TWINS, Now(air=19.8, walls=19.8, opened=(), humidity=59.0, co2=613.0), day(outdoor=13.0),
                       forbidden=frozenset({"open"}))
-        self.assertEqual(phrase(shut, end_hour=21, reason="rain_soon")["line"], "Gardez fermé : la pluie arrive")
+        self.assertEqual(phrase(shut, end_hour=21, reason="rain_soon")["line"], "Gardez fermé : la pluie pourrait arriver")
 
     def test_in_your_range_only_when_humidity_and_air_are_too(self):
         # Rejeu of 10 days, Chambre P on 23 October: 77 % of humidity, a humid outside, « la pièce restera dans votre plage ».
@@ -74,6 +74,39 @@ class WordsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MeasuredPill(unittest.TestCase):
+    """« Au mieux » or « Tout va bien » on the measures now, with a margin at each bound (9 November)."""
+    MARKS = {"minimum": 20.0, "maximum": 25.0, "humidity": 60.0, "co2": 1000.0, "particles": 15.0, "voc": 150.0}
+
+    def room(self, **values):
+        return Now(**{"air": 21.0, "walls": 21.0, "opened": (), "humidity": 50.0, **values})
+
+    def test_out_in_and_the_margin(self):
+        self.assertTrue(measured_out(self.room(humidity=80.0), self.MARKS))
+        self.assertFalse(measured_out(self.room(), self.MARKS))
+        self.assertTrue(measured_out(self.room(air=19.5), self.MARKS))
+        self.assertTrue(measured_out(self.room(co2=1100.0), self.MARKS))
+        # Within the margin of a bound, as said before.
+        self.assertTrue(measured_out(self.room(humidity=59.0), self.MARKS, before=True))
+        self.assertFalse(measured_out(self.room(humidity=59.0), self.MARKS, before=False))
+        self.assertFalse(measured_out(self.room(humidity=57.0), self.MARKS, before=True))
+        # A measure the room does not have counts for nothing.
+        self.assertFalse(measured_out(self.room(humidity=None), self.MARKS))
+
+
+class StaleAir(unittest.TestCase):
+    """The CO₂ measured high: said as a fact (Salon · Cuisine, 8 November, 1 519 ppm)."""
+
+    def test_said_as_measured(self):
+        now = Now(air=21.5, walls=21.5, opened=(), humidity=55.0, co2=1519.0)
+        d = decide(TWINS, now, day(outdoor=17.0), proof={})
+        self.assertEqual(d.rule, "stale")
+        words = phrase(d, 18)
+        self.assertEqual(words["title"], "Aérez 10 min")
+        self.assertEqual(words["line"], "CO₂ mesuré à 1519 ppm : l'air est à renouveler")
+        self.assertEqual(words["subject"], "co2")
 
 
 class EdgeOfTheRange(unittest.TestCase):

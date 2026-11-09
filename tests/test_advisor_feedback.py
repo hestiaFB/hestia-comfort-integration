@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components" / "hestia_comfort"))
 from advisor.decide import Gesture, Now
-from advisor.feedback import declined, done, follow, followed_share, pause_until
+from advisor.feedback import IGNORED_MINUTES, declined, done, follow, followed_share, ignored, left_aside, pause_until
 from advisor.household import Habits
 
 T = datetime(2026, 11, 1, 10, tzinfo=timezone.utc)
@@ -65,6 +65,31 @@ class NotNow(unittest.TestCase):
 
     def test_the_pause_is_a_setting(self):
         self.assertEqual(Habits.of({"pas_maintenant_min": 30}).not_now, 30)
+
+
+class Left(unittest.TestCase):
+    """A gesture left on the card without being followed is not asked again for two hours (Chambre P, 8 November:
+    « Ouvrez » at 18 h, 19 h and 20 h, each held 40 min, never followed)."""
+
+    def record(self, minutes=40, followed=False, trial=False, kind="open"):
+        return {"geste": kind, "suivi": followed, "essai": trial, "minutes": minutes}
+
+    def test_left_only_when_gone_long_enough_and_not_by_safety(self):
+        self.assertTrue(ignored(self.record(), gone=True, safety=False))
+        self.assertFalse(ignored(self.record(), gone=False, safety=False))      # replaced by the VMC
+        self.assertFalse(ignored(self.record(), gone=True, safety=True))        # taken away by the rain
+        self.assertFalse(ignored(self.record(minutes=5), gone=True, safety=False))
+        self.assertFalse(ignored(self.record(followed=True), gone=True, safety=False))
+        self.assertFalse(ignored(self.record(trial=True), gone=True, safety=False))
+        self.assertFalse(ignored(self.record(kind="close"), gone=True, safety=False))
+
+    def test_put_aside_two_hours_unless_the_room_gets_clearly_worse(self):
+        left = {"open": (T + timedelta(minutes=IGNORED_MINUTES), "mould", 75.0)}
+        room = Now(air=20.0, walls=19.0, opened=(), humidity=77.0)
+        self.assertEqual(set(left_aside(left, room, T + timedelta(minutes=60))), {"open"})
+        self.assertEqual(left_aside(left, room, T + timedelta(minutes=IGNORED_MINUTES + 5)), {})
+        worse = Now(air=20.0, walls=19.0, opened=(), humidity=80.5)
+        self.assertEqual(left_aside(left, worse, T + timedelta(minutes=60)), {})
 
 
 if __name__ == "__main__":

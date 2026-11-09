@@ -6,6 +6,14 @@ frost, which only takes the long openings away (« open_long »): a short airing
 """
 RAIN = 0.2              # mm/h: it rains
 RAIN_SOON = 20          # minutes: the rain is due before an airing would end
+# The rain announced is a forecast, said in the conditional (Frank, 9 November: « la prévision reste une prévision »).
+# With a rain gauge, the gauge has the last word: the forecast never shuts a window, it only holds back a new airing when
+# the rain is likely — the radar seeing moderate rain or more, or Météo-France giving LIKELY_CHANCE % and more. Without
+# one, it shuts as before, unless Météo-France gives less than SURE_CHANCE %. On 8 and 9 November, of some ten « pluie
+# dans 2 min », two or three were followed by rain within half an hour: two « Refermez » for nothing.
+LIKELY_INTENSITY = 2
+LIKELY_CHANCE = 60
+SURE_CHANCE = 50
 DRIVEN = 25.0           # km/h: from there, the rain is pushed under an overhang (engine/wind.py DRIVEN_RAIN_GUST)
 WINDWARD = 60           # degrees: a wind from within this of the side an opening faces blows into it
 GUSTS = 45.0            # km/h
@@ -51,7 +59,8 @@ def rained_on(sheltered: bool, facing: float | None, gust: float | None, wind_fr
 # « La pluie arrive » believed this long without a drop at the station; then no longer, until it rains or the forecast
 # moves away (Frank, 5 November: Météo-France's radar said it 20 min away from 20 h 16, the station saw the first drops at
 # 21 h 49 and the rain at 22 h 27 — the evening's airings were held back in five rooms).
-RAIN_SOON_WAIT = 45     # minutes
+# 9 November: the radar stuck at « dans 2 min » for 10 to 50 minutes, no drop: ten minutes are enough.
+RAIN_SOON_WAIT = 10     # minutes
 RAIN_GONE = 60          # minutes: a forecast this far, or none, ends the wait
 RAIN_SOON_KEPT = 40     # minutes: once said, « la pluie arrive » holds while the forecast stays this close
 
@@ -78,12 +87,25 @@ def rain_believed(rain_in: float | None, rain_rate: float | None, since: float |
 
 def forbidden(rain_rate: float | None = None, gust: float | None = None, rain_in: float | None = None,
               vigilance=None, alarm: str | None = None, coldest: float | None = None,
-              shelter: str | None = None) -> tuple[frozenset[str], str | None]:
+              shelter: str | None = None, gauge: bool | None = None, intensity: int | None = None,
+              chance: float | None = None) -> tuple[frozenset[str], str | None]:
     """What safety takes away now, and why (the reason the card says). A value not known forbids nothing. `rain_in`: in
     minutes (`minutes`); `coldest`: the lowest outside temperature forecast over the coming hours; `shelter`: what the
-    rain spares (`rained_on`) — « all » every opening of the room, « opened » those open now."""
-    rain = ("rain" if rain_rate is not None and rain_rate > RAIN
-            else "rain_soon" if rain_in is not None and 0 <= rain_in <= RAIN_SOON else None)
+    rain spares (`rained_on`) — « all » every opening of the room, « opened » those open now. `gauge`: a rain gauge in the
+    open measures the rain (by default, when `rain_rate` is known); `intensity` (1 light, 2 moderate, 3 heavy) and
+    `chance` (%): how sure the rain announced is (Hestia Weather's `rain`)."""
+    measured = rain_rate is not None and rain_rate > RAIN
+    soon = not measured and rain_in is not None and 0 <= rain_in <= RAIN_SOON
+    held = None
+    if soon and ((rain_rate is not None) if gauge is None else gauge):
+        # The gauge has the last word: the forecast only holds back a new airing, when the rain is likely.
+        likely = ((intensity is not None and intensity >= LIKELY_INTENSITY)
+                  or (chance is not None and chance >= LIKELY_CHANCE))
+        held = (frozenset({"rain_likely"}), "rain_maybe") if likely and shelter != "all" else None
+        soon = False
+    elif soon and chance is not None and chance < SURE_CHANCE:
+        soon = False
+    rain = "rain" if measured else "rain_soon" if soon else None
     if rain and shelter != "all":
         # A sheltered French window open under the rain stays so (Salon · Cuisine, 4 November: « Refermez, il pleut »
         # with its overhang ticked); opening the others more would let the rain in.
@@ -97,6 +119,8 @@ def forbidden(rain_rate: float | None = None, gust: float | None = None, rain_in
         # Nobody to open a window: none is proposed. One left open is the alarm's business (Alarmo leaves it out when
         # arming), not comfort's: never « Refermez » (Frank, 7 November: « on parle de confort, pas de sécurité »).
         return frozenset({"absent"}), "away"
+    if held is not None:
+        return held
     if coldest is not None and coldest <= FROST:
         return frozenset({"open_long"}), "frost"
     return frozenset(), None

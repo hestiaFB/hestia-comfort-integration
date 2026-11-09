@@ -1,6 +1,6 @@
 {
   "name": "hestia-comfort-card",
-  "version": "3.1.0b4",
+  "version": "3.1.0b6",
   "private": true,
   "type": "module",
   "scripts": {

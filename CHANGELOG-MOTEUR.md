@@ -4,6 +4,37 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.14.0 — 9 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Améliorations
+
+- La pastille se lit sur les mesures du moment. « Tout va bien » : toutes les mesures sont dans votre plage. « Au mieux » : au moins une en sort, mais aucun geste n'aiderait. La pluie, l'absence et la phrase du conseil ne la changent plus, et elle change au plus une fois par demi-heure. Exemple : le 9 novembre, la Chambre P à 80 % d'humidité affichait « Tout va bien » chaque fois que la pluie était annoncée.
+- La pluie annoncée est dite au conditionnel : « la pluie pourrait arriver ».
+- Avec un pluviomètre, c'est lui qui décide. Une pluie seulement annoncée ne fait plus refermer : elle s'affiche dans « À savoir » (« La pluie pourrait arriver vers 21 h 50 »). Elle empêche seulement de proposer une nouvelle aération quand la pluie est probable : pluie modérée ou forte au radar, ou probabilité Météo-France d'au moins 60 %.
+- Sans pluviomètre, la pluie annoncée fait toujours refermer, sauf si Météo-France donne moins de 50 % de probabilité.
+- Une annonce « pluie dans 2 min » sans une goutte au pluviomètre n'est plus crue après 10 minutes, au lieu de 45.
+
+## 3.13.0 — 9 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Nouveautés
+
+- Quand le CO₂ mesuré dépasse 1 400 ppm, Hestia conseille d'aérer, même si l'effet de la fenêtre n'est pas encore prouvé dans la pièce. Exemple : « Aérez 10 min — CO₂ mesuré à 1 470 ppm : l'air est à renouveler ». Le conseil reste affiché tant que le CO₂ ne repasse pas sous 1 200 ppm. Rien la nuit, ni pendant la pluie ou l'absence.
+
+### Améliorations
+
+- Un conseil laissé sans suite n'est pas reproposé avant 2 heures, sauf si la pièce se dégrade nettement (5 points d'humidité de plus, par exemple). Exemple : la Chambre P recevait « Ouvrez » à 18 h, 19 h et 20 h.
+- « À essayer » garde la même durée au moins une demi-heure. Exemple : le Salon proposait tour à tour d'aérer 5, 10, 15 puis 20 min.
+- Le temps annoncé pour retrouver un air sain est arrondi au quart d'heure. Quand l'air redevient sain avant la fin de l'aération, la carte dit « avant la fin » au lieu de « Aérez 15 min : l'air pourrait redevenir sain en 5 min ».
+- Le journal du « Je participe » note la pastille, la règle appliquée et ce qui interdit d'ouvrir. Une ligne est aussi écrite quand seule la pastille change.
+
+### Corrections
+
+- Le journal n'écrit plus deux fois la même ligne quand une pièce est rechargée.
+
 ## 3.12.1 — 8 novembre 2026
 
 Dans Confort 3.1.0b3.

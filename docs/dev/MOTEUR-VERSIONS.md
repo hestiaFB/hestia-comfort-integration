@@ -20,6 +20,25 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.14.0 — 9 novembre 2026
+
+Points 1 et 2 du bilan du 9 nov., accord de Frank (« Oui, les deux »).
+- Pastille : `advisor/words.py` `measured_out(now, marks, before)`. Hors plage si une mesure (air, humidité, CO₂, particules, COV) dépasse sa limite de plus de `EDGE`. Dans la plage si toutes sont à `EDGE` à l'intérieur. Entre les deux, on garde `before`. `room/advice.py` `_pill` donne `PILL_MINUTES` (30) au moins entre deux changements et met l'attribut `hors_plage` dans le résultat. `banner_level` et la carte (`level3`) le lisent ; la regex `BEYOND` ne sert plus qu'aux anciens moteurs. Étude du 9 nov. : les 91 « Tout va bien » d'une journée étaient tous faux (humidité entre 62 et 82 %). Les 83 passages venaient de « Gardez fermé : … » qui remplaçait la phrase « au-delà » : 71 fois la pluie annoncée, 12 fois l'absence. Simulation sur 9 jours de mesures réelles : 40 bascules au total, contre 159 en une seule journée.
+- Pluie : `advisor/safety.py` `forbidden(gauge=, intensity=, chance=)`. Avec pluviomètre (`gauge`, par défaut `rain_rate` connu ; pas pour un pluviomètre abrité), la pluie annoncée ne retire jamais `open`. Si elle est probable (`intensity ≥ LIKELY_INTENSITY` = 2, ou `chance ≥ LIKELY_CHANCE` = 60), elle retire `rain_likely` (raison `rain_maybe`), et `decide` écarte alors les ouvertures sans rien faire fermer. Sans pluviomètre : `rain_soon` comme avant, sauf si `chance < SURE_CHANCE` (50). `RAIN_SOON_WAIT` passe de 45 à 10 min. `advisor_home.py` `rain_hint` vient de `outlook["rain"]` (Hestia Weather 3.6.1 : `intensity`, `chance`). `room/advice.py` : ligne « La pluie pourrait arriver vers … » en tête d'« À savoir » quand rien n'est fermé pour elle. Textes `safety_rain_soon` et `safety_rain_maybe` au conditionnel. Carte : `LIMITS.rain_maybe`.
+- Tests : `MeasuredPill`, `banner_level` avec `hors_plage`, `RainGaugeFirst` ; attente de 10 min dans `RainThatDoesNotCome`.
+
+### 3.13.0 — 9 novembre 2026
+
+Bilan des 24 h en prod du 8 nov. 18 h au 9 nov. 18 h 40 (moteur 3.12.1). Frank a validé les points 3, 4 et 5. Les points 1 (pastille) et 2 (pluie annoncée) sont à l'étude et ne sont pas dans cette version.
+- `advisor/decide.py` : `decide` enveloppe `_decide`. Règle `stale` : CO₂ mesuré ≥ `STALE_CO2` (1 400 ppm), pièce fermée, ni nuit ni coucher (`_past_bedtime`), « Aérez `STALE_AIRING` (10) min » permis (présent dans les scénarios, donc ni pluie, ni absence, ni pollens) et rien d'autre au bandeau. Dans ce cas, le geste va au bandeau quelle que soit la preuve, `measured={"co2"}`. Une fois affiché, il tient jusqu'à `STALE_KEPT` (1 200 ppm). S'il est tenu (`kept`), il redevient `stale`. Cas du Salon · Cuisine le 8 nov. : de 15 h 40 à 17 h 51, entre 1 380 et 1 519 ppm, le CO₂ n'avait qu'« À essayer » (effet `supposed`). Rejeu de 17 h 35 sans la pluie annoncée : `stale`, « Aérez 10 min ».
+- `advisor/decide.py` : `tried_held` (minutes depuis le premier affichage du même « À essayer », `room/advice.py` `tried_since`). Un essai du même genre tient `HOLD_MINUTES` tant qu'il gagne GAIN/2, même hors `MARGIN`. Avec `tried_held=10`, le rejeu de 15 h 50 garde « Aérez 15 min » au lieu de « 20 min ».
+- `advisor/words.py` : `stale` (fait) ; `co2_during(_likely/_maybe)` quand le CO₂ repasse sous sa marque avant la fin de l'aération ; minutes de retour arrondies au quart d'heure au-delà de 15.
+- `advisor/feedback.py` : `ignored`, `left_aside`, `measured`, `IGNORED_MINUTES` (120), `IGNORED_SHOWN` (10), `IGNORABLE` (open, open_more, boost, purify), `WORSE`. `room/advice.py` : `self.banner` (genre, sujet, mesure), `self.left`, ajoutés à `taken` par `declined`. Ils sont sauvegardés dans l'état. Ne compte que pour un geste du bandeau resté au moins 10 min et parti sans remplaçant. Un retrait par une règle de sécurité ne compte pas. Cas de la Chambre P le 8 nov. : « Ouvrez » à 18 h, 19 h et 20 h, tenu 40 min chaque fois.
+- `room/advice.py` : journal sur (titre, essai, pastille) au lieu de (titre, essai), avec `pastille`, `regle`, `interdit`. `journaled` est sauvegardé dans l'état, donc pas de doublon au rechargement (Buanderie, 17 h 01). Les instantanés suivent le même critère.
+- `advisor/snapshot.py` : `tried_held` capturé et relu.
+- Carte : règle `stale` dans « Pourquoi ? », sans ligne « Preuve ».
+- Tests : `test_co2_measured_high_asks_an_airing_whatever_the_proof`, `StaleAir`, `Left`. Le maintien de `Steady` est testé à 1 350 ppm.
+
 ### 3.12.1 — 8 novembre 2026
 
 Bilan de la nuit et de la matinée du 8 novembre en prod (3.12.0) ; accord de Frank (« corrige les points négatifs »). Aucun geste ne change : seuls la ligne de « Rien à faire » et la pastille.

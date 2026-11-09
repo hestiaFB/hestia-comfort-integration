@@ -56,7 +56,7 @@ class Snapshots(unittest.TestCase):
         found = trace(snap, again, words)
         self.assertEqual(list(found), ["1_mesures", "2_jumeau", "3_gestes", "4_scenarios", "5_regle", "6_changerait", "7_phrase"])
         self.assertEqual(found["5_regle"]["regle"], "safety")
-        self.assertEqual(found["7_phrase"]["line"], "la pluie arrive")
+        self.assertEqual(found["7_phrase"]["line"], "la pluie pourrait arriver")
         json.dumps(found)  # plain JSON, ready for the diagnostics and the Atelier page
 
 

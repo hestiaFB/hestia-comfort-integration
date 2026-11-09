@@ -145,6 +145,9 @@ class OneDecisionForTheCardTheEntitiesAndTheLights(unittest.TestCase):
         self.assertEqual(banner_level(decided(a_essayer="À essayer — Aérez 10 min")), ("benefit", "À saisir"))
         self.assertEqual(banner_level(decided(geste="close", regle="safety")), ("urgent", "Attention"))
         self.assertEqual(banner_level(advisor_home.WAITING), ("neutral", "Démarrage"))
+        # Read on the measures (9 November): « Gardez fermé : la pluie arrive » at 80 % of humidity is « Au mieux ».
+        self.assertEqual(banner_level(decided(phrase="Gardez fermé : la pluie arrive", hors_plage=True)), ("calm", "Au mieux"))
+        self.assertEqual(banner_level(decided(phrase="Fermée : 20,4 °C à 15 h", hors_plage=False)), ("calm", "Tout va bien"))
 
     def test_a_later_gesture_is_not_a_gesture_now(self):
         later = verdict(decided(title="Aérez 15 min vers 13 h 50", geste="open", apres=75, regle="best"), self.view)

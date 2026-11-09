@@ -22,7 +22,7 @@ from ..advisor.checks import GOOD, KINDS, Checker
 from ..advisor.decide import (SHUT_SHADE, SIGNIFICANT, RESTING_MINUTES, Gesture, Now, Twins, aged, decide, for_season, gesture_energy, remembered, from_thermostat, heating_back,
                               heating_off, main_subject, recent_sources, shutter_tonight, simulate, stove_idle, sun_gain,
                               tonight)
-from ..advisor.feedback import declined, follow, pause_until
+from ..advisor.feedback import IGNORED_MINUTES, declined, follow, ignored, left_aside, measured, pause_until
 from ..advisor.household import Habits
 from ..advisor.house import ORDINARY_VOLUME, Opening as Declared, Room
 from ..advisor.knowing import RoomView, Window, tips
@@ -37,9 +37,9 @@ from ..advisor.physics.thermal import STEP, Params, bounded, glazing as glazing_
 from ..advisor.physics.water import WaterParams, absolute
 from ..advisor.proof import CASES, ORDER, PROVEN, level, live, window_reinforced
 from ..advisor.pollen import today as pollen_today
-from ..advisor.safety import RAIN, forbidden, holidays, rained_on
+from ..advisor.safety import RAIN, RAIN_SOON, forbidden, holidays, rained_on
 from ..advisor.snapshot import capture
-from ..advisor.words import TEXTS, doubt_text, doubtful_air, phrase, tip_text, tonight_text
+from ..advisor.words import TEXTS, doubt_text, doubtful_air, measured_out, phrase, tip_text, tonight_text
 from ..const import DOMAIN
 from ..engine.verdict import COLOURS, HUES, STATES, humidity_label
 
@@ -92,6 +92,8 @@ GESTURE_KEYS = {"nothing": "none", "open": "open", "open_more": "open", "close":
                 "shutter_open": "covers", "heat_on": "heat", "heat_to": "heat", "heat_stop": "heat",
                 "keep": "keep_open"}
 # « Rien à faire » while a measure stays out of its range or mark (advisor/words.py): « Au mieux », as the card says.
+# The pill under « Rien à faire » changes at most once in this many minutes (9 November: 159 changes in a day).
+PILL_MINUTES = 30
 BEYOND = re.compile(r"aucun geste ne ferait vraiment mieux|^(Ouverte ou fermée|Ouverte|Fermée) :", re.IGNORECASE)
 
 
@@ -112,6 +114,9 @@ def banner_level(result: dict) -> tuple[str, str]:
         return "action", "Geste conseillé"
     if result.get("a_essayer"):
         return "benefit", "À saisir"
+    if isinstance(result.get("hors_plage"), bool):
+        # Read on the measures by the engine (room/advice.py PILL_MINUTES), never guessed from the line.
+        return "calm", "Au mieux" if result["hors_plage"] else "Tout va bien"
     quiet = rule in ("insignificant", "unproven") or bool(BEYOND.search(result.get("phrase") or ""))
     return "calm", "Au mieux" if quiet else "Tout va bien"
 
@@ -358,6 +363,16 @@ class RoomAdvisor:
         self.tried = None
         # The gesture the card asks for, followed until done or replaced; the gestures put aside by « Pas maintenant ».
         self.asked, self.paused = None, {}
+        # The gestures left on the card without being followed: kind → (until when, its subject, its measure then).
+        self.left = {}
+        # Since when « À essayer » has shown the same gesture (advisor/decide.py HOLD_MINUTES).
+        self.tried_since = None
+        # The banner's gesture of the last step: (kind, subject, its measure then), for a gesture then left.
+        self.banner = None
+        # What the journal said last of this room: (title, to try, pill) — a reload does not write it again.
+        self.journaled = None
+        # The pill under « Rien à faire »: (a measure out of its range or mark, since when it says so) (PILL_MINUTES).
+        self.measured_pill = None
         # The gestures asked and ended (followed or replaced), with their kWh: what Hestia Énergie reads (api.py `gestures`).
         self.gestures = []
         # When an airing was last shut: the next opening waits until it is judged (advisor/decide.py RESTING_MINUTES).
@@ -368,7 +383,6 @@ class RoomAdvisor:
         # When the rain was last measured falling: the hour after it, the air holds few pollens (advisor/pollen.py).
         self.rained_at = None
         self.checker, self.sensors = Checker(), {}
-        self.shown = None
         self.result = None
 
     @property
@@ -402,12 +416,19 @@ class RoomAdvisor:
                 self.tried = (Gesture(**tried["gesture"]), dt_util.parse_datetime(tried["at"]))
             self.shut_at = dt_util.parse_datetime(state["shut_at"]) if state.get("shut_at") else None
             self.paused = {k: until for k, v in (state.get("paused") or {}).items() if (until := dt_util.parse_datetime(v)) and until > now}
+            self.left = {k: (until, v[1], v[2]) for k, v in (state.get("left") or {}).items()
+                         if (until := dt_util.parse_datetime(v[0])) and until > now}
+            self.tried_since = dt_util.parse_datetime(state["tried_since"]) if state.get("tried_since") else None
+            self.journaled = tuple(state["journaled"]) if state.get("journaled") else None
         if self.walls is None and self.room["temperature"]:
             self.walls = await self.home.mean_air(self.room["temperature"], now - timedelta(hours=WALLS_HOURS), now)
 
     def _state(self, now):
         state = {"at": now.isoformat(), "walls": self.walls, "hot_since": self.hot_since.isoformat() if self.hot_since else None,
-                 "paused": {k: v.isoformat() for k, v in self.paused.items()}}
+                 "paused": {k: v.isoformat() for k, v in self.paused.items()},
+                 "left": {k: [until.isoformat(), subject, value] for k, (until, subject, value) in self.left.items()},
+                 "tried_since": self.tried_since.isoformat() if self.tried_since else None,
+                 "journaled": list(self.journaled) if self.journaled else None}
         if self.previous:
             gesture, at, since = self.previous
             state["shown"] = {"gesture": asdict(gesture), "at": at.isoformat(), "since": since.isoformat()}
@@ -762,11 +783,14 @@ class RoomAdvisor:
         shelter = "all" if sizes and not wet else "opened" if opened and not wet_open else None
         # Without an alarm, the empty hours the household set count as away: nobody there to make a gesture.
         rules_alarm = alarm if has_alarm or not away_now else "armed_away"
+        hint = getattr(home, "rain_hint", None) or {}
         taken, reason = forbidden(rain_rate, gust, rain_in, vigilance, rules_alarm, coldest=min(u.outdoor for u, _ in coming),
-                                  shelter=shelter)
+                                  shelter=shelter, gauge=hint.get("gauge"), intensity=hint.get("intensity"),
+                                  chance=hint.get("chance"))
         # The gestures answered « Pas maintenant », put aside for a while (CAHIER-MOTEUR.md § 15).
         aside = declined(self.paused, current, now)
-        taken = taken | aside
+        # The gestures left without being followed, not asked again for a while unless the room gets clearly worse.
+        taken = taken | aside | declined(left_aside(self.left, current, now), current, now)
         away = holidays(alarm)
         # The room's range as set in Confort, for the home's season (CAHIER-MOTEUR.md § 10.3).
         comfort = for_season(**room["comfort"], season=self.coordinator.season_name)
@@ -824,6 +848,8 @@ class RoomAdvisor:
         # The gesture shown « À essayer », counted down too: it holds while it is about as good.
         tried_before, tried_at = self.tried or (None, now)
         tried = aged(tried_before, (now - tried_at).total_seconds() / 60)
+        # How long « À essayer » has shown it: it holds its half hour (advisor/decide.py HOLD_MINUTES).
+        tried_held = (now - self.tried_since).total_seconds() / 60 if self.tried_since and tried is not None else None
         # Minutes since an airing was shut: the next opening for a slow subject waits until it is judged.
         aired = (now - self.shut_at).total_seconds() / 60 if self.shut_at and not opened else None
         marks = {"minimum": comfort.minimum, "maximum": comfort.maximum, "humidity": comfort.humidity, "co2": comfort.co2,
@@ -844,7 +870,7 @@ class RoomAdvisor:
             reads what was gathered above, never Home Assistant nor the room's own state, which change back on the loop."""
             decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
                               holidays=away, habits=habits, held=held, tried=tried, aired=aired, failed=failure,
-                              pollen=pollen)
+                              pollen=pollen, tried_held=tried_held)
             if decision.rule == "unproven" and opened and opening:
                 # The gesture under way may show its effect now (CAHIER-MOTEUR.md § 4.1).
                 subject = main_subject(decision.scenarios, decision.passive)
@@ -852,7 +878,7 @@ class RoomAdvisor:
                     proof[subject] = PROVEN
                     decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
                                       holidays=away, habits=habits, held=held, tried=tried, aired=aired, failed=failure,
-                                      pollen=pollen)
+                                      pollen=pollen, tried_held=tried_held)
             decided_on = current
             if (decision.gesture.kind == "close" and not decision.gesture.after and decision.rule in ("best", "kept")
                     and opening and now - opening[0] < timedelta(minutes=GRACE_MINUTES)
@@ -863,10 +889,10 @@ class RoomAdvisor:
                 decided_on = replace(current, opened=())
                 decision = decide(twins, decided_on, coming, comfort, previous=previous, forbidden=taken, proof=proof,
                                   holidays=away, habits=habits, held=held, tried=tried, aired=aired, failed=None,
-                                  pollen=pollen)
+                                  pollen=pollen, tried_held=tried_held)
             snap = capture(twins, decided_on, coming, comfort, previous=previous, forbidden=taken, proof=proof,
                            holidays=away, habits=habits, reason=reason, held=held, tried=tried, aired=aired, failed=failure,
-                           pollen=pollen, end_hour=end_hour, hour=local.hour + local.minute / 60,
+                           pollen=pollen, tried_held=tried_held, end_hour=end_hour, hour=local.hour + local.minute / 60,
                            room=name, when=now.isoformat(), version=home.version, beyond_before=beyond_before)
             # The local time now: a later gesture says its hour (« Aérez 5 min vers 13 h 50 »), never only its length.
             words = phrase(decision, end_hour, marks=marks, hour=local.hour + local.minute / 60, reason=reason,
@@ -912,6 +938,10 @@ class RoomAdvisor:
         self.previous = (kept, kept_at, shown_since if same else now)
         # Kept through a step where a safety rule takes the gesture away (a gust): it comes back as it was, not anew.
         if decision.passive is not None:
+            # The same gesture to try keeps the moment it was first shown; another starts its half hour anew.
+            same_try = (tried_before is not None and self.tried_since is not None
+                        and (tried_before.kind, tried_before.minutes) == (decision.passive.kind, decision.passive.minutes))
+            self.tried_since = self.tried_since if same_try else now
             self.tried = remembered(tried_before, tried_at, decision.passive, now)
         # What an airing shown (on the banner or to try) is for: what it will be judged on once followed.
         for shown_now, aim in ((decision.gesture, words.get("subject")),
@@ -924,7 +954,7 @@ class RoomAdvisor:
             # Nothing to try any more: forgotten, unless a safety rule only took it away for this step. Never right after
             # it was noted above: « À essayer » was forgotten at every step and came and went every five minutes
             # (Chambre M, 7 November, 20 h 20 to 20 h 45).
-            self.tried = None
+            self.tried, self.tried_since = None, None
         if stepping:
             # The walls follow the measured air, five minutes at a time.
             self.trail.append((now, air, walls, acting))
@@ -950,6 +980,14 @@ class RoomAdvisor:
         if self.failed_at is not None and now - self.failed_at[1] < timedelta(minutes=RESTING_MINUTES):
             texts = TEXTS["fr"]
             good_words.insert(0, texts["ineffective_noted"].format(what=texts[f"ineffective_{self.failed_at[0]}"]))
+        # The rain announced that shuts nothing (a rain gauge watching, or Météo-France unsure): said in the conditional,
+        # first in « À savoir » (Frank, 9 November: « la prévision reste une prévision »).
+        if (rain_in is not None and 0 <= rain_in <= RAIN_SOON and not (rain_rate is not None and rain_rate > RAIN)
+                and reason not in ("rain", "rain_soon")):
+            at = local + timedelta(minutes=rain_in)
+            at = at.replace(minute=at.minute // 5 * 5, second=0, microsecond=0)
+            good_words.insert(0, TEXTS["fr"]["rain_maybe_at"].format(
+                at=f"{at.hour} h" if at.minute == 0 else f"{at.hour} h {at.minute:02d}"))
         # « Cette nuit, pensez à refermer » says nothing more than a banner already saying « Refermez ».
         if night_text and decision.gesture.kind != "close":
             good_words.insert(0, night_text)
@@ -969,8 +1007,17 @@ class RoomAdvisor:
         for record in followed:
             if record["suivi"]:
                 self.paused.pop(record["geste"], None)
+            # Left on the card and gone with nothing in its place: not asked again for two hours, unless the room gets
+            # clearly worse on what it was for (advisor/feedback.py IGNORED_MINUTES).
+            elif self.banner is not None and self.banner[0] == record["geste"] \
+                    and ignored(record, gone=shown is None or shown.kind == "nothing", safety=reason is not None):
+                self.left[record["geste"]] = (now + timedelta(minutes=IGNORED_MINUTES), self.banner[1], self.banner[2])
             if analysing:
                 await hass.async_add_executor_job(home.files.feedback, {"heure": now.isoformat(), "piece": name, "type": "suivi", **record})
+        self.left = {k: v for k, v in self.left.items() if v[0] > now}
+        banner_subject = words.get("subject") if decision.gesture.kind != "nothing" else None
+        self.banner = (decision.gesture.kind, banner_subject, measured(banner_subject, current)) \
+            if decision.gesture.kind != "nothing" else None
         self.result = {"title": words["title"], "phrase": words["line"], "pourquoi": words["why"],
                        "sujet": words["subject"], "regle": decision.rule, "gain": round(decision.gain, 2),
                        "geste": decision.gesture.kind, "minutes": decision.gesture.minutes, "apres": decision.gesture.after,
@@ -992,22 +1039,35 @@ class RoomAdvisor:
                        "volet": "fermer" if any(t.kind in ("shutter_night", "shutter_night_energy") for t in good) else None,
                        "pas_maintenant": {k: dt_util.as_local(until).strftime("%H h %M") for k, until in self.paused.items() if k in aside},
                        "douteuses": doubt_text(doubts), "calcule_a": now.isoformat(), "moteur": home.version,
-                       "au_dela": words.get("beyond")}
-        changed = self.shown != (words["title"], words["try"])
+                       "au_dela": words.get("beyond"), "hors_plage": self._pill(current, air, marks, now)}
+        # A change of advice, of what to try, or of the pill: the journal says the pill too (9 November: 167 changes of
+        # « Au mieux » and « Tout va bien » in a day, none in the journal).
+        pill = banner_level(self.result)[1]
+        changed = self.journaled != (words["title"], words["try"], pill)
         # The situation of this step, kept in memory: « Ce conseil ne va pas » joins it to the report, even with no file.
         self.snap = snap
         if analysing:
             await hass.async_add_executor_job(home.files.keep, self.slug, now, local, snap, decision, words, changed)
         if changed:
-            self.shown = (words["title"], words["try"])
+            self.journaled = (words["title"], words["try"], pill)
         if changed and analysing:
             await hass.async_add_executor_job(home.files.journal, {
                 "heure": now.isoformat(), "moteur": home.version, "piece": name, "conseil": words["title"], "phrase": words["line"],
+                "pastille": pill, "regle": decision.rule, "interdit": reason,
                 "pourquoi": words["why"], "a_essayer": words["try"], "preuve": decision.level, "bon_a_savoir": good_words,
                 "gain": round(decision.gain, 2), "ecart_1h": None if missed is None else round(missed, 2),
                 "mesures": {"air": air, "dehors": outdoor, "fenetres_ouvertes": len(opened), "humidite": current.humidity,
                             "co2": current.co2, "particules": current.particles, "cov": current.voc}})
         return True
+
+    def _pill(self, current, air, marks, now) -> bool:
+        """« Au mieux » (True) or « Tout va bien » (False) under « Rien à faire », on the measures as they are now: a
+        margin at each bound (advisor/words.py EDGE) and at most one change per PILL_MINUTES."""
+        out = measured_out(replace(current, air=air), marks, self.measured_pill[0] if self.measured_pill else None)
+        if self.measured_pill is None or (out != self.measured_pill[0]
+                                          and now - self.measured_pill[1] >= timedelta(minutes=PILL_MINUTES)):
+            self.measured_pill = (out, now)
+        return self.measured_pill[0]
 
     async def opinion(self, kind, note):
         """« Ce conseil ne va pas » (CAHIER-MOTEUR.md § 15): the situation kept without limit, with its trace, to be
