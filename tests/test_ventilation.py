@@ -140,3 +140,97 @@ class ResumeTests(unittest.TestCase):
         waiting = view(humidity="humid")
         waiting["advice3"] = {}
         self.assertFalse(advise(waiting, VMC, memory, NOW)["slow"])
+
+
+class NightShowerTests(unittest.TestCase):
+    """9 November at 23 h 22, Chambre P: a shower at bedtime, the turbo asked for an hour, stopped by hand at 23 h 52."""
+
+    def test_at_night_a_shower_runs_the_turbo_twenty_minutes_only(self):
+        from engine.ventilation import NIGHT_SHOWER
+        shower = lambda m: view(night=True, shower={**SHOWER, "minutes": m})  # noqa: E731
+        found = run(TWO_SPEEDS, [(0, shower(0)), (NIGHT_SHOWER - 1, shower(NIGHT_SHOWER - 1)), (NIGHT_SHOWER, shower(NIGHT_SHOWER)),
+                                 (NIGHT_SHOWER + DELAY, shower(NIGHT_SHOWER + DELAY)),
+                                 (NIGHT_SHOWER + 2 * DELAY, shower(NIGHT_SHOWER + 2 * DELAY))])
+        self.assertEqual([a["fast"] for a in found], [True, True, True, False, False])
+        self.assertFalse(found[-1]["slow"])
+
+    def test_by_day_it_runs_the_whole_shower(self):
+        found = run(TWO_SPEEDS, [(40, view(shower={**SHOWER, "minutes": 40}))])
+        self.assertTrue(found[0]["fast"])
+
+
+class StoppedByHandTests(unittest.TestCase):
+    """Frank, 10 November: « j'ai dû arrêter moi-même la VMC vers minuit, elle ne s'est pas coupée toute seule »; at
+    0 h 10 the end of « Turbo conseillé » even started the slow speed again for 3 minutes."""
+
+    def test_stopped_by_hand_it_is_left_stopped_two_hours(self):
+        memory = Memory()
+        wet = view(shower=SHOWER)
+        steps = [advise(wet, TWO_SPEEDS, memory, NOW, (False, False)),           # advised, the automation not run yet
+                 advise(wet, TWO_SPEEDS, memory, NOW + timedelta(minutes=1), (True, True)),
+                 advise(wet, TWO_SPEEDS, memory, NOW + timedelta(minutes=30), (False, False)),   # stopped by hand
+                 advise(wet, TWO_SPEEDS, memory, NOW + timedelta(minutes=40), (False, False))]
+        self.assertEqual([(a["slow"], a["fast"]) for a in steps], [(True, True), (True, True), (False, False), (False, False)])
+        later = advise(view(humidity="humid", measured=72), TWO_SPEEDS, memory, NOW + timedelta(minutes=151), (False, False))
+        self.assertTrue(later["slow"])
+
+    def test_not_yet_started_is_not_a_stop(self):
+        memory = Memory()
+        found = [advise(view(shower=SHOWER), TWO_SPEEDS, memory, NOW + timedelta(minutes=m), (False, False)) for m in (0, 1, 2)]
+        self.assertTrue(all(a["fast"] for a in found))
+
+    def test_its_own_end_is_not_a_stop(self):
+        memory = Memory()
+        advise(view(shower=SHOWER), TWO_SPEEDS, memory, NOW, (True, True))
+        ending = [advise(view(), TWO_SPEEDS, memory, NOW + timedelta(minutes=m), (True, True)) for m in (30, 30 + DELAY, 30 + 2 * DELAY)]
+        self.assertEqual([(a["slow"], a["fast"]) for a in ending], [(True, True), (True, False), (False, False)])
+        self.assertIsNone(memory.manual_until)
+        self.assertFalse(advise(view(), TWO_SPEEDS, memory, NOW + timedelta(minutes=40), (False, False))["slow"])
+        self.assertIsNone(memory.manual_until)
+
+    def test_a_new_shower_runs_it_again(self):
+        memory = Memory()
+        advise(view(shower=SHOWER), TWO_SPEEDS, memory, NOW, (False, False))
+        advise(view(shower=SHOWER), TWO_SPEEDS, memory, NOW + timedelta(minutes=1), (True, True))
+        self.assertFalse(advise(view(shower=SHOWER), TWO_SPEEDS, memory, NOW + timedelta(minutes=10), (False, False))["fast"])
+        again = {"since": (NOW + timedelta(minutes=50)).isoformat(), "minutes": 1, "base": 62, "peak": 75}
+        self.assertTrue(advise(view(shower=again), TWO_SPEEDS, memory, NOW + timedelta(minutes=51), (False, False))["fast"])
+
+    def test_a_classic_vmc_keeps_its_slow_speed(self):
+        config = {**TWO_SPEEDS, "ventilation_mode": "continuous"}
+        memory = Memory()
+        advise(view(shower=SHOWER), config, memory, NOW, (False, False))
+        advise(view(shower=SHOWER), config, memory, NOW + timedelta(minutes=1), (True, True))
+        stopped = advise(view(shower=SHOWER), config, memory, NOW + timedelta(minutes=10), (False, False))
+        self.assertEqual((stopped["slow"], stopped["fast"]), (True, False))
+
+    def test_unknown_states_change_nothing(self):
+        memory = Memory()
+        advise(view(shower=SHOWER), TWO_SPEEDS, memory, NOW, (True, True))
+        self.assertTrue(advise(view(shower=SHOWER), TWO_SPEEDS, memory, NOW + timedelta(minutes=5), (None, None))["fast"])
+
+
+class LongerRestTests(unittest.TestCase):
+    """10 November, Chambre P at 80 % with an outdoor air as wet: three useless hours, at 7 h, 10 h and 16 h 27."""
+
+    def test_each_useless_hour_doubles_the_rest(self):
+        humid = lambda m: view(humidity="very_humid", measured=m)  # noqa: E731
+        memory = Memory()
+        run(VMC, [(0, humid(80)), (60, humid(80))], memory)                       # 1st useless hour: rest 2 h
+        self.assertTrue(run(VMC, [(181, humid(80))], memory)[0]["slow"])
+        run(VMC, [(241, humid(80))], memory)                                       # 2nd: rest 4 h
+        self.assertFalse(run(VMC, [(241 + 200, humid(80))], memory)[0]["slow"])
+        self.assertTrue(run(VMC, [(241 + 241, humid(80))], memory)[0]["slow"])
+
+    def test_a_clearly_drier_outdoor_air_lifts_the_rest(self):
+        memory = Memory()
+        run(VMC, [(0, view(humidity="very_humid", measured=80, outside=10.5)), (60, view(humidity="very_humid", measured=80, outside=10.5))],
+            memory)
+        self.assertFalse(run(VMC, [(70, view(humidity="very_humid", measured=80, outside=10.0))], memory)[0]["slow"])
+        self.assertTrue(run(VMC, [(80, view(humidity="very_humid", measured=80, outside=9.3))], memory)[0]["slow"])
+
+    def test_an_hour_that_dries_forgets_the_useless_ones(self):
+        memory = Memory()
+        run(VMC, [(0, view(humidity="very_humid", measured=80)), (60, view(humidity="very_humid", measured=80))], memory)
+        run(VMC, [(181, view(humidity="very_humid", measured=80)), (241, view(humidity="very_humid", measured=76))], memory)
+        self.assertEqual(memory.rests, 0)

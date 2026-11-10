@@ -4,9 +4,26 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.14.1 — 10 novembre 2026
+
+Dans Confort 3.1.0b7.
+
+### Corrections
+
+- Un poêle qui attend qu'on confirme son allumage n'est plus compté comme allumé. Exemple : le 10 novembre à 17 h, le poêle n'a jamais démarré, mais le Salon à 19 °C annonçait « 21,7 °C à 20 h » et la Chambre M « 23,1 °C ». Les prévisions de la maison se font maintenant sans lui, jusqu'à ce qu'il chauffe vraiment.
+- L'apprentissage de nuit ne compte plus ces demandes du poêle restées sans allumage.
+- La chaleur du poêle partagée entre les pièces ne dépasse plus 100 %. Elle dépassait 128 % : la salle de bain, par exemple, en recevait plus d'un quart.
+- La nuit, la VMC rapide lancée par une douche s'arrête au bout de 20 minutes au lieu d'une heure. Exemple : le 9 novembre, douche à 23 h 22, VMC arrêtée à la main à 23 h 52.
+- Une VMC arrêtée à la main n'est plus relancée pendant 2 heures, sauf nouvelle douche. Le 10 novembre à 0 h 10, elle était repartie 3 minutes après avoir été arrêtée.
+- L'extracteur qui ne sèche pas la pièce se repose plus longtemps à chaque essai : 2 heures, puis 4, puis 8. Il repart plus tôt si l'air dehors devient nettement plus sec. Exemple : la Chambre P à 80 % a tourné trois heures pour rien le 10 novembre.
+
+### Améliorations
+
+- Le journal du « Je participe » note aussi le changement de phrase, sans tenir compte des chiffres. Exemple : « Humidité 73 % à 7 h » et « Humidité 72 % à 8 h » ne font qu'une ligne.
+
 ## 3.14.0 — 9 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b6.
 
 ### Améliorations
 

@@ -219,10 +219,12 @@ def fit_windows(p: Params, samples: list[Sample], now: datetime, skipped=()) -> 
     return bounded(replace(p, window=window)), found, report
 
 
-def params_of(base: Params, x) -> Params:
-    # The share of the house's heat a room receives is never below nothing (Chambre P had learned −10 %); the window
-    # never does more than physics allows (`bounded`).
-    return bounded(replace(base, **{name: (math.exp(v) * getattr(base, name) if log else max(0.0, v) if name == "share" else v)
+def params_of(base: Params, x, share_max: float | None = None) -> Params:
+    # The share of the house's heat a room receives is never below nothing (Chambre P had learned −10 %), nor above what
+    # the other rooms leave of it (`share_max`: 10 November, the shares added up to 128 %); the window never does more
+    # than physics allows (`bounded`).
+    top = 1.0 if share_max is None else max(0.0, share_max)
+    return bounded(replace(base, **{name: (math.exp(v) * getattr(base, name) if log else min(top, max(0.0, v)) if name == "share" else v)
                                     for (name, log, _), v in zip(FREE, x)}))
 
 
@@ -231,17 +233,18 @@ def _start(base: Params):
 
 
 def fit(base: Params, samples: list[Sample], until: datetime | None = None, iterations: int = SEARCH,
-        held: frozenset[str] = frozenset(), recent: str | None = DEFAULT_RECENT) -> Params:
+        held: frozenset[str] = frozenset(), recent: str | None = DEFAULT_RECENT, share_max: float | None = None) -> Params:
     """The parameters that forecast the past days best, from the room's ordinary ones; those in `held` were declared.
-    `recent`: fitted with the correction the forecasts will be given (`RECENT`)."""
+    `recent`: fitted with the correction the forecasts will be given (`RECENT`); `share_max`: the most of the house's
+    heat this room may receive."""
     def cost(x):
-        s = score(params_of(base, x), samples, until=until, recent=recent)
+        s = score(params_of(base, x, share_max), samples, until=until, recent=recent)
         if not s.forecasts:
             return float("inf")
         pull = sum((HELD if name in held else PULL) * v * v for (name, log, _), v in zip(FREE, x) if log)
         return s.hour + s.three + pull
     best = _nelder_mead(cost, _start(base), [move for _, _, move in FREE], iterations)
-    return params_of(base, best)
+    return params_of(base, best, share_max)
 
 
 def _nelder_mead(f, x0, moves, iterations):

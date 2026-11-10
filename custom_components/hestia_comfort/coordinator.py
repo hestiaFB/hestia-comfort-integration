@@ -578,7 +578,7 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
             view["verdict"] = advisor_verdict(view["advice3"], view)
         # What the VMC should do now (engine/ventilation.py): « VMC conseillée » and « Turbo conseillé ».
         try:
-            view["vmc"] = ventilation.advise(view, self.config, self.vmc_memory, now)
+            view["vmc"] = ventilation.advise(view, self.config, self.vmc_memory, now, self._vmc_running())
         except (KeyError, TypeError, ValueError):
             logging.getLogger(__name__).exception("Hestia Comfort: VMC for %s", view["title"])
             view["vmc"] = None
@@ -590,6 +590,14 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
 
     def _outdoor_entity(self):
         return self._source_entity("outdoor_temperature")
+
+    def _vmc_running(self):
+        """(slow speed on, fast speed on) as their entities say, None when unknown: a VMC stopped by hand is seen."""
+        def on(key):
+            entity = self._source_entity(key)
+            state = self.hass.states.get(entity) if entity else None
+            return {"on": True, "off": False}.get(state.state) if state else None
+        return (on("ventilation"), on("ventilation_boost"))
 
     def _source_entity(self, key):
         """The entity behind a room source, chosen in the room or shared by the home (outdoor ones)."""

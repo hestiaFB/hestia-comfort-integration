@@ -20,6 +20,16 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.14.1 — 10 novembre 2026
+
+Bilan du 10 nov. (19 h de prod en 3.14.0), accord de Frank (« ok pour les 4 » + la VMC arrêtée à la main).
+- Poêle en attente : `room/advice.py` `stove_waiting(hass, e)` (`power_percent` > 0 et `hvac_action` ≠ `heating`, thermostat en `heat`) et `house_power_now`. En attente, `house_thermostat` vaut None (le poêle n'est pas simulé) et `house_now` 0 ; `advisor_home.py` `house_heat()` passe par `house_power_now`. Au repos (hors-gel, 0 %), le poêle reste simulé avec son planning. Constat : le 10 nov. à 6 h-6 h 15 et 17 h-17 h 15, `boost` 21,5 et 100 % demandés, `idle` (confirmation non donnée, prise à 0 W) ; prévisions à 20 h : Salon 21,7 °C (mesuré 19,1), Chambre M 23,1 (19,9), Salle de bain 23,0 (18,7). Le 3 nov., une fois allumé, `heating` arrive en une minute.
+- Nuit : `advisor/bench/history.py` `lit_power` remplace `attribute(..., "power_percent")` pour les chauffages de la maison dans `nightly.samples` (0 en attente ; sans `hvac_action` dans l'historique, la puissance reste comptée).
+- Parts du poêle : `advisor_home.py` `share_caps` (au-dessus de 100 %, chaque pièce garde sa part du total ; en dessous, chacune peut monter de ce qui reste), passées à `learn_room(..., share_max=)`. La part est ramenée sous le plafond avant le jugement (rapport `part_maison`), puis `fit(share_max=)` → `params_of`. Avant : Salon 0,55, SdB 0,27, AL 0,15, M 0,15, A 0,09, P 0,07 (total 1,28).
+- Journal : `phrase_subject` (chiffres → #) ; une ligne `motif: "phrase"` quand seul le sujet de la phrase change, sans instantané ; `journaled` passe à 4 éléments.
+- VMC (`engine/ventilation.py`, hors moteur mais livrée avec) : `NIGHT_SHOWER` 20 min de turbo la nuit ; arrêt à la main (`advise(..., running)`, état réel lu par `coordinator._vmc_running`) → `MANUAL_REST` 2 h sans rien conseiller, levé par une nouvelle douche, la petite vitesse d'une VMC « en continu » gardée ; repos de l'extracteur doublé à chaque heure inutile (`rests`, plafond `REST_MAX` 8 h), levé si l'air dehors est plus sec d'au moins `CLEARER` 1 g/m³. Constat : le 9 nov., douche détectée à 23 h 22 (79 → 87 %), L1+L2 jusqu'à l'arrêt à la main à 23 h 52, puis L1 relancée de 0 h 10 à 0 h 13 par l'automatisation à la fin du turbo.
+- Tests : `tests/test_bilan_10_novembre.py`, `NightShowerTests`, `StoppedByHandTests`, `LongerRestTests`.
+
 ### 3.14.0 — 9 novembre 2026
 
 Points 1 et 2 du bilan du 9 nov., accord de Frank (« Oui, les deux »).

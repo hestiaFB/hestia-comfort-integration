@@ -38,7 +38,7 @@ from .advisor.safety import minutes, rain_believed
 from .advisor_store import AdvisorFiles
 from .const import DOMAIN, VERSION
 from .engine import schedule
-from .room.advice import RoomAdvisor, house_heaters, leads, room_spec
+from .room.advice import RoomAdvisor, house_heaters, house_power_now, leads, room_spec
 
 _LOGGER = logging.getLogger(__name__)
 DATA = f"{DOMAIN}_advisor"
@@ -110,6 +110,16 @@ def night_history(hass, start, end, entity_ids, with_attributes):
         if rows:
             out[entity_id] = rows
     return out
+
+
+def share_caps(shares: dict) -> dict:
+    """{room: the most of the stove's heat it may receive tonight}: all the rooms together never more than all of it.
+    Over it (10 November: 128 %), each keeps its part of the whole; under it, each may grow by what is left."""
+    known = {room: max(0.0, share) if isinstance(share, (int, float)) else 0.0 for room, share in shares.items()}
+    total = sum(known.values())
+    if total > 1.0:
+        return {room: share / total for room, share in known.items()}
+    return {room: share + (1.0 - total) for room, share in known.items()}
 
 
 def _number(hass, entity_id, attribute=None):
@@ -353,8 +363,8 @@ class AdvisorHome:
         return self.outdoor
 
     def house_heat(self):
-        """W the house's heaters give off now, wherever they stand."""
-        return sum((_number(self.hass, e, "power_percent") or 0.0) / 100 * w for e, w in self.houses.items())
+        """W the house's heaters give off now, wherever they stand: none from a stove waiting to be lit."""
+        return sum(house_power_now(self.hass, e) * w for e, w in self.houses.items())
 
     def safety(self):
         """(rain mm/h, gusts km/h, minutes before the rain, vigilance, where the wind comes from in degrees): from the home's
@@ -681,12 +691,14 @@ class AdvisorHome:
             zone = dt_util.get_time_zone(self.hass.config.time_zone)
             location = (self.hass.config.latitude, self.hass.config.longitude)
             reports = []
+            caps = share_caps({e: (a.learned or {}).get("heat", {}).get("share") for e, a in self.rooms.items() if e in specs}) \
+                if self.houses else {}
             for entry_id, spec in specs.items():
                 advisor = self.rooms.get(entry_id)
                 if advisor is None:
                     continue
                 arguments = (spec, advisor.learned, room_history(history, spec, outdoor, outdoor_rh, self.houses), sun, now,
-                             outdoor, outdoor_rh, location, zone, self.houses)
+                             outdoor, outdoor_rh, location, zone, self.houses, None, caps.get(entry_id))
                 try:
                     entry, report = await self._learn_room(arguments)
                 except Exception:  # noqa: BLE001 - one room that fails keeps its twins

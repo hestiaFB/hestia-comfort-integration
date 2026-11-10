@@ -40,3 +40,19 @@ def attribute(history, entity_id, name, scale=1.0) -> Series:
         value = (state.get("attributes") or {}).get(name)
         points.append((_when(state, "last_updated"), float(value) * scale if isinstance(value, (int, float)) else None))
     return Series(points, keep_none=True)
+
+
+def lit_power(history, entity_id) -> Series:
+    """Share (0-1) of its power a house heater gave off: what its thermostat asked, nothing while it said it was idle,
+    waiting to be lit (the Salon's stove, 10 November: 100 % asked at 6 h and 17 h, never lit — room/advice.py
+    `stove_waiting`). A history without the thermostat's action keeps what it asked."""
+    points = []
+    for state in history.get(entity_id, ()):
+        attributes = state.get("attributes") or {}
+        value, action = attributes.get("power_percent"), attributes.get("hvac_action")
+        if not isinstance(value, (int, float)):
+            points.append((_when(state, "last_updated"), None))
+            continue
+        waiting = value > 0 and action is not None and action != "heating"
+        points.append((_when(state, "last_updated"), 0.0 if waiting else float(value) / 100))
+    return Series(points, keep_none=True)

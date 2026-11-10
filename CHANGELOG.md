@@ -1,3 +1,18 @@
+## 3.1.0b7 — Le poêle compté quand il chauffe
+
+### Corrections
+
+- Un poêle qui attend la confirmation de son allumage ne fausse plus les prévisions de toute la maison. Exemple : « 21,7 °C à 20 h » annoncé au Salon à 19 °C alors que le poêle n'a jamais démarré.
+- La nuit, la VMC rapide d'une douche s'arrête après 20 minutes.
+- Une VMC arrêtée à la main reste arrêtée 2 heures, sauf nouvelle douche.
+- Un extracteur qui ne sèche pas la pièce attend de plus en plus longtemps avant de repartir : 2, 4 puis 8 heures.
+
+### Moteur de conseil 3.14.1
+
+- Le poêle n'est compté que lorsqu'il chauffe vraiment, dans les prévisions comme dans l'apprentissage de nuit.
+- La chaleur du poêle partagée entre les pièces ne dépasse plus 100 %.
+- Le journal note aussi les changements de phrase.
+
 ## 3.1.0b6 — Une pastille qui dit vrai
 
 ### Améliorations

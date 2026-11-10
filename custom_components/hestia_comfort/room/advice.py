@@ -158,6 +158,32 @@ def heater_power(hass, entity_id, declared=None):
     return float(power) if isinstance(power, (int, float)) and power > 0 else None
 
 
+FIGURES = re.compile(r"\d+(?:[,.]\d+)?")
+
+
+def phrase_subject(line) -> str:
+    """The banner's line without its figures: « Humidité 73 % à 7 h » and « Humidité 72 % à 8 h » say the same."""
+    return FIGURES.sub("#", line or "")
+
+
+def stove_waiting(hass, entity_id) -> bool:
+    """A house heater asked to heat that does not: its thermostat asks a share of power but says it is idle. The Salon's
+    stove waits for its lighting to be confirmed (10 November, 6 h and 17 h: 100 % asked a quarter of an hour, never lit);
+    lit, its thermostat says « heating » within a minute (3 November at 7 h 41)."""
+    state = hass.states.get(entity_id) if entity_id else None
+    if state is None or state.state != "heat":
+        return False
+    asked = state.attributes.get("power_percent")
+    return isinstance(asked, (int, float)) and asked > 0 and state.attributes.get("hvac_action") != "heating"
+
+
+def house_power_now(hass, entity_id) -> float:
+    """Share (0-1) of its power a house heater gives off now: what its thermostat asks, nothing while it waits."""
+    if stove_waiting(hass, entity_id):
+        return 0.0
+    return (_number(hass, entity_id, "power_percent") or 0.0) / 100
+
+
 def house_heaters(hass) -> dict:
     """{thermostat: W} of the heaters set « chauffe toute la maison » in any room (a stove), whose power is known."""
     found = {}
@@ -703,7 +729,9 @@ class RoomAdvisor:
         main = room["thermostat_plage"]
         house_power = houses.get(main, 0.0) if main else 0.0
         kinds = heater_kinds(hass)
-        house_stat = _kinded(home.thermostat(main), kinds, main) if house_power else None
+        # Waiting to be lit (asked, idle), the stove is not simulated: the forecast is the room's without it, never a
+        # promise that depends on a lighting no one has confirmed (10 November: « 21,7 °C à 20 h » for a room at 19 °C).
+        house_stat = _kinded(home.thermostat(main), kinds, main) if house_power and not stove_waiting(hass, main) else None
         house_heat = home.house_heat()
         twins = Twins(
             heat=heat, windows=tuple(sizes.values()),
@@ -721,7 +749,7 @@ class RoomAdvisor:
             # The side each window faces, for the air crossing the room (« Ouvrez aussi la porte-fenêtre »).
             bearings=tuple((room["orientations"].get(e) or (None,))[0] for e in sizes),
             house_thermostat=house_stat, house_power=float(house_power) if house_stat else 0.0,
-            house_now=(_number(hass, main, "power_percent") or 0.0) / 100 if house_stat else 0.0)
+            house_now=house_power_now(hass, main) if house_stat else 0.0)
         orientations = room["orientations"]
         # The manual shutters the household says shut now: away, at night, on summer's sunny side (HABITUDES-FOYER.md).
         # Shut, they keep the sun out and the heat in, as a connected one does; at night, those it shuts for the night.
@@ -1043,16 +1071,21 @@ class RoomAdvisor:
         # A change of advice, of what to try, or of the pill: the journal says the pill too (9 November: 167 changes of
         # « Au mieux » and « Tout va bien » in a day, none in the journal).
         pill = banner_level(self.result)[1]
-        changed = self.journaled != (words["title"], words["try"], pill)
+        changed = tuple(self.journaled or ())[:3] != (words["title"], words["try"], pill)
+        # The line's subject changing (its figures aside) is journaled too, without a snapshot: 10 November, 19 h of
+        # « Rien à faire » left no word of « 21,7 °C à 20 h » said at 17 h for a room at 19 °C.
+        subject = phrase_subject(words["line"])
+        said = changed or tuple(self.journaled or ())[3:] != (subject,)
         # The situation of this step, kept in memory: « Ce conseil ne va pas » joins it to the report, even with no file.
         self.snap = snap
         if analysing:
             await hass.async_add_executor_job(home.files.keep, self.slug, now, local, snap, decision, words, changed)
-        if changed:
-            self.journaled = (words["title"], words["try"], pill)
-        if changed and analysing:
+        if said:
+            self.journaled = (words["title"], words["try"], pill, subject)
+        if said and analysing:
             await hass.async_add_executor_job(home.files.journal, {
-                "heure": now.isoformat(), "moteur": home.version, "piece": name, "conseil": words["title"], "phrase": words["line"],
+                "heure": now.isoformat(), "moteur": home.version, "piece": name, "motif": "conseil" if changed else "phrase",
+                "conseil": words["title"], "phrase": words["line"],
                 "pastille": pill, "regle": decision.rule, "interdit": reason,
                 "pourquoi": words["why"], "a_essayer": words["try"], "preuve": decision.level, "bon_a_savoir": good_words,
                 "gain": round(decision.gain, 2), "ecart_1h": None if missed is None else round(missed, 2),

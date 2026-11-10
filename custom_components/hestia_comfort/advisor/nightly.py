@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timedelta
 import math
 
-from .bench.history import attribute, contacts, numbers
+from .bench.history import attribute, contacts, lit_power, numbers
 from .decide import CROSS, SHUT_SHADE, sides_apart
 from .household import AWAY
 from .observe import Series
@@ -112,7 +112,7 @@ def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zo
     indoor, out = numbers(history, spec.temperature), numbers(history, outdoor)
     power = attribute(history, spec.thermostat, "power_percent", 0.01) if spec.thermostat else None
     position = attribute(history, spec.cover, "current_position", 0.01) if spec.cover in history else None
-    house = [(attribute(history, e, "power_percent", 0.01), w) for e, w in (house_heaters or {}).items()]
+    house = [(lit_power(history, e), w) for e, w in (house_heaters or {}).items()]
     devices = {name: (contacts(history, d[0]), d[1]) for name, d in (("vent", spec.boost), ("purifier", spec.purifier)) if d}
     windows = [(e, (w * h, h), contacts(history, e)) for e, (w, h) in spec.windows.items()]
     glazing = [(w * h, *spec.orientations[e], glazing_of(spec.panes.get(e))[0]) for e, (w, h) in spec.windows.items()
@@ -226,9 +226,12 @@ def _corrected(fit_notes, value, keep_if, now) -> tuple[float, dict]:
 
 
 def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor: str, outdoor_humidity: str,
-               location, zone, house_heaters=None, start: datetime | None = None) -> tuple[dict, dict]:
+               location, zone, house_heaters=None, start: datetime | None = None,
+               share_max: float | None = None) -> tuple[dict, dict]:
     """The room's twins after a night: (the entry to keep, the report). `entry` is the room's twins as kept (jumeaux.json):
-    `heat`, `water`, `air`, `particles` with their `…_flow`, and `gestures` ({subject: [[when, forecast, measured]…]})."""
+    `heat`, `water`, `air`, `particles` with their `…_flow`, and `gestures` ({subject: [[when, forecast, measured]…]}).
+    `share_max`: the most of the house's heat (a stove) this room may receive, the other rooms' shares set aside
+    (advisor_home.py `share_caps`)."""
     first = numbers(history, spec.temperature).times[:1] + numbers(history, outdoor).times[:1]
     if start is None:
         start = max(first).replace(minute=0, second=0, microsecond=0) + timedelta(hours=1) if len(first) == 2 else now
@@ -248,9 +251,14 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
         # Learned before the bound: a room receives no less than nothing of the house's heat.
         heat = replace(heat, share=0.0)
         entry["heat"] = asdict(heat)
+    if share_max is not None and heat.share > share_max:
+        # More than the other rooms leave of the stove's heat: brought back within it before being judged.
+        report["part_maison"] = {"avant": round(heat.share, 3), "plafond": round(share_max, 3)}
+        heat = replace(heat, share=max(0.0, share_max))
+        entry["heat"] = asdict(heat)
     if days >= MIN_DAYS:
         before = score(heat, searched, since=split)
-        found = fit(heat, searched, until=split, iterations=HEAT_SEARCH, held=spec.declared)
+        found = fit(heat, searched, until=split, iterations=HEAT_SEARCH, held=spec.declared, share_max=share_max)
         after = score(found, searched, since=split)
         kept, verdict = judged(before.hour + before.three, after.hour + after.three)
         report["chaleur"] = {"avant": [_rounded(before.hour), _rounded(before.three)],
