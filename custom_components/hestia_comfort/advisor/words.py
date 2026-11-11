@@ -82,13 +82,14 @@ TEXTS = {
         "outside_drier": "Dehors, l'air est plus sec qu'ici : aérer assèche",
         "outside_wetter": "Dehors, l'air est plus humide qu'ici : aérer ferait monter l'humidité",
         "outside_same": "Dehors, l'air est aussi humide qu'ici : aérer n'assèche pas",
+        "outside_drier_later": "Vers {at}, l'air dehors sera plus sec qu'ici : le bon moment pour aérer",
         "open_warms": "Laissez ouvert : la pièce a gagné {change} °C depuis {since}",
         "open_cools": "Laissez ouvert : la pièce a perdu {change} °C depuis {since}",
         "time": "{h} h {m:02d}", "time_hour": "{h} h",
         "north": "nord", "north_east": "nord-est", "east": "est", "south_east": "sud-est", "south": "sud",
         "south_west": "sud-ouest", "west": "ouest", "north_west": "nord-ouest",
         "out_humidity": "Humidité {value} % à {hour} h", "out_co2": "CO₂ {value} ppm à {hour} h",
-        "out_particles": "Particules {value} µg/m³ à {hour} h", "out_voc": "COV {value} à {hour} h", "out_nothing": "{what} : aucun geste ne ferait vraiment mieux",
+        "out_particles": "Particules {value} µg/m³ à {hour} h", "out_voc": "COV {value} à {hour} h", "out_nothing": "{what} : aucun geste ne ferait vraiment mieux", "aside_line": "« {title} » en pause jusqu'à {at} : {line}",
         "held_open": "Ouverte : {air} °C à {hour} h", "held_shut": "Fermée : {air} °C à {hour} h",
         "nothing_out": "Ouverte ou fermée : {air} °C à {hour} h", "nothing_out_shut": "Aucun geste ne ferait vraiment mieux : {air} °C à {hour} h",
         "back_humidity": "L'humidité repasse seule sous {mark} % {when}", "back_co2": "Le CO₂ repasse seul sous {mark} ppm {when}",
@@ -162,13 +163,14 @@ TEXTS = {
         "outside_drier": "The air outside is drier than in here: airing dries the room",
         "outside_wetter": "The air outside is more humid than in here: airing would raise the humidity",
         "outside_same": "The air outside is as humid as in here: airing does not dry the room",
+        "outside_drier_later": "Around {at}, the air outside will be drier than in here: the right time to air",
         "open_warms": "Leave it open: the room gained {change} °C since {since}",
         "open_cools": "Leave it open: the room lost {change} °C since {since}",
         "time": "{h}:{m:02d}", "time_hour": "{h}:00",
         "north": "north", "north_east": "north-east", "east": "east", "south_east": "south-east", "south": "south",
         "south_west": "south-west", "west": "west", "north_west": "north-west",
         "out_humidity": "Humidity {value} % at {hour}:00", "out_co2": "CO₂ {value} ppm at {hour}:00",
-        "out_particles": "Particles {value} µg/m³ at {hour}:00", "out_voc": "VOC {value} at {hour}:00", "out_nothing": "{what}: no gesture would really do better",
+        "out_particles": "Particles {value} µg/m³ at {hour}:00", "out_voc": "VOC {value} at {hour}:00", "out_nothing": "{what}: no gesture would really do better", "aside_line": "« {title} » paused until {at}: {line}",
         "held_open": "Open: {air} °C at {hour}:00", "held_shut": "Shut: {air} °C at {hour}:00",
         "nothing_out": "Open or shut: {air} °C at {hour}:00", "nothing_out_shut": "No gesture would really do better: {air} °C at {hour}:00",
         "back_humidity": "Humidity falls back under {mark} % on its own {when}", "back_co2": "CO₂ falls back under {mark} ppm on its own {when}",
@@ -242,13 +244,14 @@ TEXTS = {
         "outside_drier": "Draußen ist die Luft trockener als hier: Lüften trocknet",
         "outside_wetter": "Draußen ist die Luft feuchter als hier: Lüften würde die Feuchte erhöhen",
         "outside_same": "Draußen ist die Luft so feucht wie hier: Lüften trocknet nicht",
+        "outside_drier_later": "Gegen {at} ist die Luft draußen trockener als hier: der richtige Moment zum Lüften",
         "open_warms": "Offen lassen: der Raum hat seit {since} {change} °C gewonnen",
         "open_cools": "Offen lassen: der Raum hat seit {since} {change} °C verloren",
         "time": "{h}:{m:02d} Uhr", "time_hour": "{h} Uhr",
         "north": "Norden", "north_east": "Nordosten", "east": "Osten", "south_east": "Südosten", "south": "Süden",
         "south_west": "Südwesten", "west": "Westen", "north_west": "Nordwesten",
         "out_humidity": "Feuchte {value} % um {hour} Uhr", "out_co2": "CO₂ {value} ppm um {hour} Uhr",
-        "out_particles": "Partikel {value} µg/m³ um {hour} Uhr", "out_voc": "VOC {value} um {hour} Uhr", "out_nothing": "{what}: keine Geste wäre wirklich besser",
+        "out_particles": "Partikel {value} µg/m³ um {hour} Uhr", "out_voc": "VOC {value} um {hour} Uhr", "out_nothing": "{what}: keine Geste wäre wirklich besser", "aside_line": "„{title}“ pausiert bis {at}: {line}",
         "held_open": "Offen: {air} °C um {hour} Uhr", "held_shut": "Geschlossen: {air} °C um {hour} Uhr",
         "nothing_out": "Offen oder geschlossen: {air} °C um {hour} Uhr", "nothing_out_shut": "Keine Geste wäre wirklich besser: {air} °C um {hour} Uhr",
         "back_humidity": "Feuchte sinkt von selbst unter {mark} % {when}", "back_co2": "CO₂ sinkt von selbst unter {mark} ppm {when}",
@@ -564,6 +567,16 @@ def _time(when, words) -> str:
     return words["time_hour"].format(h=when.hour) if when.minute == 0 else words["time"].format(h=when.hour, m=when.minute)
 
 
+def aside_line(alternative: dict, until, language: str = "fr") -> str:
+    """« Rien à faire » while a gesture that would help waits in its pause (not followed, or « Pas maintenant »): said as
+    such, never « aucun geste ne ferait vraiment mieux » (bilan of 11 November, Chambres P, M and AL at 20 h 36).
+    `alternative`: the words of the decision the pause took away; `until`: its local end."""
+    words = TEXTS[language]
+    at = round((until.hour * 60 + until.minute) / 5) * 5 % (24 * 60)
+    return words["aside_line"].format(title=alternative["title"], at=_time(time(at // 60, at % 60), words),
+                                      line=alternative["line"])
+
+
 def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
     """A « Bon à savoir » tip in words."""
     words = TEXTS[language]
@@ -592,6 +605,10 @@ def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
         return words[key].format(since=_time(v["since"], words), air_then=_number(v["air_then"], language),
                                  air=_number(v["air"], language), humidity_then=round(v["humidity_then"] or 0),
                                  humidity=round(v["humidity"] or 0))
+    if tip.kind == "outside_drier_later":
+        at = v["at"]
+        at = time(at.hour, at.minute // 5 * 5)
+        return words["outside_drier_later"].format(at=_time(at, words))
     if tip.kind.startswith("outside_"):
         return words[tip.kind].format(rh=round(v["outdoor_humidity"]), outdoor=_number(v["outdoor"], language),
                                       outside=_number(v["outside"], language), inside=_number(v["inside"], language))

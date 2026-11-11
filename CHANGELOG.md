@@ -1,3 +1,18 @@
+## 3.1.0b8 — Des conseils qui tiennent
+
+### Corrections
+
+- L'humidité dehors vient de votre station : plus de « Refermez » sur une prévision trop humide.
+- La chaleur du poêle suit sa vraie courbe dans toutes les pièces. Exemple : 24,8 °C annoncés dans une chambre où il a fait 21,8 °C.
+- Un conseil mis en pause est dit « en pause jusqu'à 22 h 35 », plus « aucun geste ne ferait mieux ».
+- « À savoir » ne contredit plus le conseil affiché.
+- 2 minutes de fenêtre ouverte ne comptent plus comme une aération de 20 minutes.
+
+### Moteur de conseil 3.15.0
+
+- L'apprentissage de nuit juge aussi les prévisions à 8 heures.
+- « À essayer », l'heure d'« Aérez » et le sujet de la phrase restent stables.
+
 ## 3.1.0b7 — Le poêle compté quand il chauffe
 
 ### Corrections

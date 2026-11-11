@@ -7,7 +7,7 @@ trace, without limit, to be replayed (§ 16 bis.2).
 The engine also follows each gesture shown: done while it was shown, or replaced before. An advice never followed is a
 failure, not a success. (The 2.1 engine's own loop is engine/feedback.py; this one belongs to the 3.0 advisor.)
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
 from .decide import SHUTTER_OPEN, SHUTTER_SHUT, Gesture, Now
@@ -15,6 +15,10 @@ from .decide import SHUTTER_OPEN, SHUTTER_SHUT, Gesture, Now
 OPINIONS = ("faux", "inutile", "pas_maintenant")
 # The free note sent with an opinion, at most this many characters.
 NOTE = 500
+
+
+# An airing counts as followed once the window stayed open this share of what was asked, and at least these minutes.
+AIRED_SHARE, AIRED_LEAST = 0.5, 5
 
 
 @dataclass(frozen=True)
@@ -27,6 +31,8 @@ class Asked:
     target: float | None = None     # the set point « Remettez le chauffage à 19 °C » asks for
     kwh: float | None = None        # what it costs against « do nothing », as simulated when first asked (decide.gesture_energy)
     heated: bool = False            # those kWh are the simulated thermostat's, not only the heat let out
+    minutes: int | None = None      # how long the airing asked lasts
+    opened_at: datetime | None = None   # when the window was first seen open for it
 
 
 def done(kind: str, now: Now, target: float | None = None) -> bool:
@@ -63,6 +69,21 @@ def follow(asked: Asked | None, shown: Gesture | None, title: str, trial: bool, 
     while it was asked, or replaced by another before. `shown`: the gesture on the card now, None or « nothing » if none;
     `energy`: its (kWh, heated) against « do nothing » (decide.gesture_energy), kept with it for Hestia Énergie."""
     out = []
+    if asked is not None and asked.kind == "open" and asked.minutes:
+        # An airing is followed when the window stayed open long enough (AIRED_SHARE of it): two minutes for « Aérez
+        # 20 min » were counted as followed (bilan of 11 November, Salon · Cuisine at 20 h 29).
+        needed = timedelta(minutes=max(AIRED_LEAST, asked.minutes * AIRED_SHARE))
+        if asked.opened_at is None and now.opened:
+            asked = replace(asked, opened_at=when)
+        if asked.opened_at is not None:
+            if when - asked.opened_at >= needed:
+                out.append(_record(asked, when, True))
+                asked = None
+            elif not now.opened:
+                out.append({**_record(asked, when, False), "trop_court": round((when - asked.opened_at).total_seconds() / 60)})
+                asked = None
+            else:
+                return asked, out
     if asked is not None:
         if done(asked.kind, now, asked.target):
             out.append(_record(asked, when, True))
@@ -72,7 +93,8 @@ def follow(asked: Asked | None, shown: Gesture | None, title: str, trial: bool, 
             asked = None
     if asked is None and shown is not None and shown.kind != "nothing" and not done(shown.kind, now, shown.target):
         kwh, heated = energy if energy else (None, False)
-        asked = Asked(shown.kind, when, title, trial, shown.target, None if kwh is None else round(kwh, 2), heated)
+        asked = Asked(shown.kind, when, title, trial, shown.target, None if kwh is None else round(kwh, 2), heated,
+                      shown.minutes if shown.kind == "open" else None)
     return asked, out
 
 

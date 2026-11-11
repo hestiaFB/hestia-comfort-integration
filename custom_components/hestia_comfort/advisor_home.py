@@ -54,6 +54,7 @@ FORECAST = ("https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lo
 PAST_SUN = ("https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=shortwave_radiation,cloud_cover"
             "&past_days={days}&forecast_days=1&timezone=UTC")
 OFFSET_STEPS = 144      # twelve hours of five-minute steps
+STOVE_PATH_KEPT = timedelta(minutes=15)  # a stove's simulated power is followed this long by the other rooms
 # The nightly learning (advisor/nightly.py): at 3:30, and ten minutes after a start when the last one is a day old; from
 # the recorder's days (60 at most), with Open-Meteo's sun of those days.
 LEARN_AT, LEARN_AFTER_START, LEARN_DAYS = (3, 30), 600, 60
@@ -222,6 +223,9 @@ class AdvisorHome:
         self.started = False
         self.boot = dt_util.utcnow()
         self.houses = {}
+        # {stove's thermostat: (when, its share given off at each step)}: simulated in the room it stands in, followed by
+        # the other rooms it warms (`house_heat_steps`).
+        self.stove_paths = {}
         self.outdoor = (None, None)
         # The station's own reading, and how far Hestia Weather trusts it now (weather_link.station_trust): the
         # temperature it retains replaces a station warmed by its wall or its roof in the sun.
@@ -365,6 +369,23 @@ class AdvisorHome:
     def house_heat(self):
         """W the house's heaters give off now, wherever they stand: none from a stove waiting to be lit."""
         return sum(house_power_now(self.hass, e) * w for e, w in self.houses.items())
+
+    def house_heat_steps(self, now, steps):
+        """W the house's heaters give off at each coming step: a stove as its own room simulates it (5 min old at most,
+        STOVE_PATH_KEPT), the others as they are now. Kept at its power of the moment, a stove just lit at 100 % warmed
+        the other rooms two hours at full power (bilan of 11 November: Chambre M 24,8 °C foreseen, 21,8 °C measured)."""
+        out = [0.0] * steps
+        for entity, watts in self.houses.items():
+            found = self.stove_paths.get(entity)
+            power = house_power_now(self.hass, entity)
+            shares = None
+            if found is not None and power > 0 and timedelta(0) <= now - found[0] <= STOVE_PATH_KEPT and found[1]:
+                shift = int((now - found[0]).total_seconds() // STEP)
+                shares = found[1][shift:] or found[1][-1:]
+            for k in range(steps):
+                share = shares[min(k, len(shares) - 1)] if shares else power
+                out[k] += share * watts
+        return out
 
     def safety(self):
         """(rain mm/h, gusts km/h, minutes before the rain, vigilance, where the wind comes from in degrees): from the home's
@@ -553,6 +574,11 @@ class AdvisorHome:
         """The coming steps: the forecast, pulled toward the station's measure for the first hours."""
         start = self.forecast.get(now.replace(minute=0, second=0, microsecond=0))
         offset = outdoor - start[0] if start and start[0] is not None else 0.0
+        # The water too (bilan of 11 Nov.: 91 % forecast outside, 78 % at the station → « Refermez » for nothing): the
+        # forecast's own water, from its own temperature and humidity, pulled toward the station's like the temperature.
+        water_offset = 0.0
+        if start and start[0] is not None and start[1] is not None and outdoor_rh is not None:
+            water_offset = absolute(outdoor, outdoor_rh) - absolute(start[0], start[1])
         out = []
         hour = now.replace(minute=0, second=0, microsecond=0)
         for k in range(steps):
@@ -564,7 +590,12 @@ class AdvisorHome:
                 fc = (fc[0], fc[1], corrected(fc[2], ahead, self.sun_missed))
             # The gap between the station and the forecast holds for hours: it fades over twelve hours, not two.
             te = (fc[0] + offset * math.exp(-k / OFFSET_STEPS)) if fc and fc[0] is not None else outdoor
-            rh = fc[1] if fc and fc[1] is not None else outdoor_rh
+            fade = math.exp(-k / OFFSET_STEPS)
+            if fc and fc[0] is not None and fc[1] is not None:
+                water = absolute(fc[0], fc[1]) + water_offset * fade
+                water = min(max(water, 0.0), absolute(te, 100.0))
+            else:
+                water = absolute(te, outdoor_rh) if outdoor_rh is not None else None
             sun = fc[2] if fc and fc[2] is not None else 0.0
             local = dt_util.as_local(when)
             # The sun on each window by its orientation, when declared (an optional plus, CAHIER-MOTEUR.md § 6.7).
@@ -575,7 +606,7 @@ class AdvisorHome:
                 facades = tuple(through_windows(sun, elevation, azimuth, glazing, which) for which in (opened, (), range(len(glazing))))
             out.append((Inputs(te, sun=sun, hour=local.hour + local.minute / 60, house_heat=house_heat, shade=shade, shutter=shutter,
                                facade=facades[0], facade_shut=facades[1], facade_all=facades[2]),
-                        absolute(te, rh) if rh is not None else None))
+                        water))
         return out
 
     def _sun_check(self, now):

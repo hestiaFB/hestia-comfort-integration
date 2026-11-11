@@ -83,12 +83,16 @@ class Kept(unittest.TestCase):
 class Api(unittest.TestCase):
     def setUp(self):
         """Salon · Cuisine, 5 November at 7 h 26: « Aérez 5 min »; the window opened ten minutes later, « Laissez ouvert
-        encore 5 min » in its place."""
+        encore 5 min » in its place, « Refermez » five minutes after."""
         r = real("salon-cuisine-5-novembre-7h26.json")
         self.asked_at = r.when
         asked, kept = step(None, [], r)
         asked, kept = step(asked, kept, r, shown=Gesture("close", after=5), trial=False, title="Laissez ouvert encore 5 min",
                            now=replace(r.now, opened=((1.0, 2.0),)), when=r.when + timedelta(minutes=10))
+        # Followed once open five minutes (advisor/feedback.py AIRED_LEAST), then « Refermez » asked in turn.
+        for _ in range(2):
+            asked, kept = step(asked, kept, r, shown=Gesture("close"), trial=False, title="Refermez",
+                               now=replace(r.now, opened=((1.0, 2.0),)), when=r.when + timedelta(minutes=15))
         self.advisor = RoomAdvisor.__new__(RoomAdvisor)
         self.advisor.gestures, self.advisor.asked = kept, asked
         rooms = [SimpleNamespace(entry_id=e, data={}, state="loaded", runtime_data=object(), title=e) for e in ("salon", "cuisine")]

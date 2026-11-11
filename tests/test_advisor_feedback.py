@@ -20,11 +20,24 @@ class Followed(unittest.TestCase):
         asked, out = follow(None, Gesture("open", 10), "Aérez 10 min", False, SHUT, T)
         self.assertEqual(asked.kind, "open")
         self.assertEqual(out, [])
+        # Seen open: followed once open half of what was asked (5 min at least), not at once.
         asked, out = follow(asked, Gesture("close", after=10), "Refermez vers 10 h 25", False, OPEN, T + timedelta(minutes=15))
+        self.assertEqual(out, [])
+        asked, out = follow(asked, Gesture("close", after=5), "Refermez vers 10 h 25", False, OPEN, T + timedelta(minutes=20))
         self.assertTrue(out[0]["suivi"])
-        self.assertEqual(out[0]["minutes"], 15)
-        # The window open, « Refermez » is asked in turn.
+        self.assertEqual(out[0]["minutes"], 20)
+        # Then « Refermez » is asked in turn.
+        asked, out = follow(asked, Gesture("close", after=5), "Refermez vers 10 h 25", False, OPEN, T + timedelta(minutes=20))
         self.assertEqual(asked.kind, "close")
+
+    def test_an_airing_too_short_is_not_followed(self):
+        # Bilan of 11 November: « Aérez 20 min », the window open two minutes.
+        asked, _ = follow(None, Gesture("open", 20), "Aérez 20 min", False, SHUT, T)
+        asked, out = follow(asked, Gesture("close", after=20), "Refermez vers 10 h 20", False, OPEN, T + timedelta(minutes=5))
+        self.assertEqual(out, [])
+        asked, out = follow(asked, Gesture("open", 20), "Aérez 20 min", False, SHUT, T + timedelta(minutes=7))
+        self.assertFalse(out[0]["suivi"])
+        self.assertEqual(out[0]["trop_court"], 2)
 
     def test_an_advice_replaced_before_it_was_done(self):
         asked, _ = follow(None, Gesture("open", 10), "Aérez 10 min", False, SHUT, T)

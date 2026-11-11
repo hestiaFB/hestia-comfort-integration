@@ -4,6 +4,25 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.15.0 — 11 novembre 2026
+
+Dans Confort 3.1.0b8.
+
+### Corrections
+
+- L'humidité de l'air dehors est prise sur votre station, plus seulement sur la prévision. Exemple : le 11 novembre à 15 h 47, la prévision disait 91 %, la station 78 %, et le Salon affichait « Refermez » pour rien.
+- La chaleur du poêle dans les autres pièces suit sa vraie courbe : fort à l'allumage, puis au ralenti. Exemple : à midi, la Chambre M annonçait 24,8 °C à 15 h ; il a fait 21,8 °C.
+- Un conseil non suivi et mis en pause est dit comme tel : « « Ouvrez » en pause jusqu'à 22 h 35 : 75 % d'humidité au lieu de 80 % ». Avant, la carte disait « aucun geste ne ferait vraiment mieux », ce qui était faux.
+- « À savoir » ne contredit plus le conseil. Exemple : « Aérez 30 min vers 19 h » s'affichait avec « Dehors, l'air est aussi humide qu'ici : aérer n'assèche pas ». Il dit maintenant « Vers 19 h, l'air dehors sera plus sec qu'ici : le bon moment pour aérer », ou rien.
+- Une aération n'est comptée comme faite que si la fenêtre est restée ouverte au moins la moitié du temps demandé (5 min au moins). Exemple : 2 minutes pour « Aérez 20 min » ne comptent plus.
+
+### Améliorations
+
+- L'apprentissage de nuit juge aussi chaque pièce sur 8 heures, pas seulement sur 1 et 3 heures. Exemple : la Chambre P annonçait 89 % d'humidité à 7 h, il y en a eu 82 %.
+- « À essayer » garde le même texte tant que c'est le même geste. Avant, « le COV devrait retomber en 15, 30, 45, 75 min » changeait toutes les 5 minutes.
+- « Aérez … vers … » garde son heure et sa durée tant qu'elles restent bonnes. Avant : « 15 min vers 19 h 45 », puis « 20 min vers 19 h 50 », puis « 20 min vers 20 h 10 » en dix minutes.
+- La phrase garde son sujet au moins 30 minutes sous le même conseil. Avant, la température et l'humidité se relayaient plusieurs fois par heure.
+
 ## 3.14.1 — 10 novembre 2026
 
 Dans Confort 3.1.0b7.

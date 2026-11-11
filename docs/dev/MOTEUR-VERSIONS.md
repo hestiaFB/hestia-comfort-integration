@@ -20,6 +20,18 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.15.0 — 11 novembre 2026
+
+Bilan du 11 nov. (24 h de prod en 3.14.1), accord de Frank (« Les points 1 à 4 » puis « et le reste »). Mineur : le score de l'apprentissage change pour toutes les pièces.
+- Humidité dehors : `advisor_home.py` `coming()` ne prend plus `rh = fc[1]` brut avec la température recalée ; l'eau (g/m³) de la prévision, calculée sur sa propre température, est recalée sur la station (`water_offset`, même fondu que la température, `OFFSET_STEPS`), bornée à la saturation. Constat : 15 h 47, station 19,6 °C / 78 % (13,2 g/m³), moteur 15,4 g/m³ → « Refermez » Salon (77 % contre 72 %) ; rejeu de l'instantané avec la station : « Rien à faire ».
+- Poêle dans les autres pièces : `Path.stove` (part donnée par pas, pièce du poêle) → `AdvisorHome.stove_paths` ; `house_heat_steps(now, steps)` les suit (≤ `STOVE_PATH_KEPT` 15 min, décalé du temps écoulé), sinon la puissance du moment. Avant, `Inputs.house_heat` restait à `power_percent` du moment tout l'horizon : allumage à 12 h 38 (100 %), Chambre M (part 0,12) 24,8 °C prévus à 15 h, 21,8 mesurés.
+- Geste mis de côté (`left_aside`, « Pas maintenant ») : `put_aside`/`aside_until`/`safe_taken` ; sous « Rien à faire », une décision sans eux ; si elle choisit un geste mis de côté, `words.aside_line` (« « Ouvrez » en pause jusqu'à 22 h 35 : … »), `snap["en_pause"]`.
+- « À savoir » : `RoomView.airing_at` (eau dehors au départ de l'aération du bandeau, son heure) ; `outside_water` dit `outside_drier_later` si l'air sera plus sec à ce moment, sinon rien au lieu de `outside_same`/`outside_wetter`.
+- Apprentissage : `airfit._run` ajoute `night` (prévision à 8 h, `NIGHT` 96 pas, toutes les `NIGHT_EVERY` 6 h, sans correction) ; `score` + `NIGHT_WEIGHT` 0,5 × sa moyenne. Rejeu de la nuit Chambre P (sources 186 g/h à minuit, fuites ×3,72) : 86 % prévus à 7 h, 82 % mesurés.
+- Tenue : `decide.LATER_SLACK` 30 min (« Aérez … vers … » gardé si même geste, moment proche, gain ≥ GAIN/2) ; « À essayer » garde son texte pour le même (geste, durée) ; `LINE_HOLD` 30 min sur le sujet de la phrase sous le même (titre, règle), sauf pause et règles de fait.
+- Suivi : `feedback.Asked.minutes/opened_at` ; une aération est suivie après `AIRED_SHARE` 0,5 de sa durée (`AIRED_LEAST` 5 min), sinon notée non suivie avec `trop_court`.
+- Tests : tests/test_bilan_11_novembre.py (11) ; test_advisor_feedback et test_api_gestures adaptés. 947 OK (HA 2026.11.0).
+
 ### 3.14.1 — 10 novembre 2026
 
 Bilan du 10 nov. (19 h de prod en 3.14.0), accord de Frank (« ok pour les 4 » + la VMC arrêtée à la main).

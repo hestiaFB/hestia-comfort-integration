@@ -300,6 +300,9 @@ class Path:
     lost: float = 0.0           # kWh of heat let out through open windows
     heating: float = 0.0        # kWh the simulated thermostat spends
     heated: bool = False        # a thermostat was simulated: `heating` is what the gesture really costs
+    # The stove's share of its power given off at each step, when it is simulated (the room it stands in): the other
+    # rooms it warms follow it (bilan of 11 November: 100 % at lighting kept two hours, Chambre M 3 °C too warm).
+    stove: list[float] = field(default_factory=list)
 
     @property
     def spent(self) -> float:
@@ -466,6 +469,7 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
             running = 0.0 if gesture.kind == "heat_stop" else twins.house_thermostat.power(felt, u.outdoor, windows)
             house_given = given_off(house_given, running, stove.lag, STEP)
             u = replace(u, house_heat=max(0.0, u.house_heat + twins.house_power * (house_given - twins.house_now)))
+            path.stove.append(house_given)
         before = air
         air, walls = step(twins.heat, air, walls, u)
         path.air.append(air + correction(DEFAULT_RECENT, now.missed, k))
@@ -686,6 +690,8 @@ FAST_SUBJECTS = ("co2", "particles", "voc")
 
 # A gesture shown stays at least this long while it still helps (CAHIER-MOTEUR.md § 18.3: one change per half hour).
 HOLD_MINUTES = 30
+# An airing said for later is kept rather than another moment this close to it (minutes).
+LATER_SLACK = 30
 
 
 # Among gestures of one kind, one costing this share more than the best (of its cost, or of GAIN) still counts as enough.
@@ -940,6 +946,12 @@ def _decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weight
     # is about as good, even if, on its own, it no longer makes the difference that would put it forward.
     longer = (previous is not None and previous in costs and best.kind != "nothing" and previous.kind == best.kind
               and previous.after == best.after)
+    # Nor only when: « Aérez 15 min vers 19 h 45 », « 20 min vers 19 h 50 », « 20 min vers 20 h 10 » in ten minutes
+    # (bilan of 11 November, Salon · Cuisine). The airing said for later stays while it is about as good and still helps.
+    longer = longer or (previous is not None and previous in costs and best.kind == previous.kind == "open"
+                        and previous.after and best.after is not None
+                        and abs(previous.after - best.after) <= LATER_SLACK
+                        and nothing - costs[previous]["total"] >= GAIN / 2)
     if ((previous in worth or previous == Gesture("nothing") or longer) and previous != best
             and costs[previous]["total"] - costs[best]["total"] < MARGIN * max(costs[previous]["total"], GAIN)):
         best, rule = previous, "kept"

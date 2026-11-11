@@ -79,6 +79,9 @@ class RoomView:
     outdoor: float | None = None
     outdoor_humidity: float | None = None
     water_matters: bool = False
+    # The airing on the banner for the humidity: (the outside's water when it starts, g/m³; its local start). The tip then
+    # speaks of that moment, not of now (bilan of 11 November: « Aérez 30 min vers 19 h » beside « aérer n'assèche pas »).
+    airing_at: tuple | None = None
     # The share of its forecast the window open now really does (advisor/opening.py), and the humidity when it was opened.
     window_share: float | None = None
     humidity_at_opening: float | None = None
@@ -232,6 +235,13 @@ def outside_water(view: RoomView) -> list[Tip]:
         return []
     inside, outside = absolute(view.air, view.humidity), absolute(view.outdoor, view.outdoor_humidity)
     kind = "outside_drier" if outside <= inside - WATER_GAP else "outside_wetter" if outside >= inside + WATER_GAP else "outside_same"
+    if view.airing_at is not None and kind != "outside_drier":
+        later, at = view.airing_at
+        if later is not None and later <= inside - WATER_GAP and at > view.now:
+            return [Tip("outside_drier_later", {"at": at, "inside": inside, "outside": later}, "humidity", 3, None, PROVEN)]
+        # The airing dries by the room's own water carried away (cooking, breath), not by a drier outside: the tip
+        # would contradict the banner, it is left out.
+        return []
     return [Tip(kind, {"outdoor": view.outdoor, "outdoor_humidity": view.outdoor_humidity, "inside": inside, "outside": outside},
                 "humidity", 3, None, PROVEN)]
 
