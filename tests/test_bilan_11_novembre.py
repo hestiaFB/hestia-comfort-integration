@@ -36,7 +36,8 @@ def home_with(forecast, houses=None, states=None, stove_paths=None):
     home.houses, home.stove_paths = houses or {}, stove_paths or {}
     states = states or {}
     home.hass = SimpleNamespace(config=SimpleNamespace(latitude=43.45, longitude=5.47),
-                                states=SimpleNamespace(get=lambda e: states.get(e)))
+                                states=SimpleNamespace(get=lambda e: states.get(e)),
+                                config_entries=SimpleNamespace(async_entries=lambda domain: []))
     return home
 
 

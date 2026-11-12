@@ -106,13 +106,14 @@ def _absence(absences: list, when) -> float | None:
     return next(((to - since).total_seconds() / 3600 for since, to in absences if since <= when <= to), None)
 
 
-def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zone, house_heaters=None) -> list[Sample]:
+def samples(history, spec: RoomSpec, outdoor: str, sun, start, end, location, zone, house_heaters=None,
+            house_idle=None) -> list[Sample]:
     """The room every five minutes from `start` to `end`: its measured air and what acted on it. `sun`: the horizontal
     sun (an advisor.observe.Series); `house_heaters`: {thermostat: W} of the house's own heaters."""
     indoor, out = numbers(history, spec.temperature), numbers(history, outdoor)
     power = attribute(history, spec.thermostat, "power_percent", 0.01) if spec.thermostat else None
     position = attribute(history, spec.cover, "current_position", 0.01) if spec.cover in history else None
-    house = [(lit_power(history, e), w) for e, w in (house_heaters or {}).items()]
+    house = [(lit_power(history, e, (house_idle or {}).get(e, 0.0)), w) for e, w in (house_heaters or {}).items()]
     devices = {name: (contacts(history, d[0]), d[1]) for name, d in (("vent", spec.boost), ("purifier", spec.purifier)) if d}
     windows = [(e, (w * h, h), contacts(history, e)) for e, (w, h) in spec.windows.items()]
     glazing = [(w * h, *spec.orientations[e], glazing_of(spec.panes.get(e))[0]) for e, (w, h) in spec.windows.items()
@@ -227,7 +228,7 @@ def _corrected(fit_notes, value, keep_if, now) -> tuple[float, dict]:
 
 def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor: str, outdoor_humidity: str,
                location, zone, house_heaters=None, start: datetime | None = None,
-               share_max: float | None = None) -> tuple[dict, dict]:
+               share_max: float | None = None, house_idle: dict | None = None) -> tuple[dict, dict]:
     """The room's twins after a night: (the entry to keep, the report). `entry` is the room's twins as kept (jumeaux.json):
     `heat`, `water`, `air`, `particles` with their `…_flow`, and `gestures` ({subject: [[when, forecast, measured]…]}).
     `share_max`: the most of the house's heat (a stove) this room may receive, the other rooms' shares set aside
@@ -242,7 +243,7 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
     report = {"piece": spec.name, "jours": round(days, 1), "appris": days >= MIN_DAYS, "notes": {}}
     if days <= 0:
         return entry, report
-    data = samples(history, spec, outdoor, sun, start, now, location, zone, house_heaters)
+    data = samples(history, spec, outdoor, sun, start, now, location, zone, house_heaters, house_idle)
     split, recent = now - HELD_OUT, max(start, now - timedelta(days=SEARCH_DAYS))
     searched = [s for s in data if s.when >= recent]
 

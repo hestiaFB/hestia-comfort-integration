@@ -82,6 +82,10 @@ class RoomView:
     # The airing on the banner for the humidity: (the outside's water when it starts, g/m³; its local start). The tip then
     # speaks of that moment, not of now (bilan of 11 November: « Aérez 30 min vers 19 h » beside « aérer n'assèche pas »).
     airing_at: tuple | None = None
+    # The stove burning: (the other rooms' mean air, the room's learned share of the stove's heat or None), for
+    # `below_house`; `house_gap`: the household's threshold (°C).
+    house: tuple | None = None
+    house_gap: float = 1.5
     # The share of its forecast the window open now really does (advisor/opening.py), and the humidity when it was opened.
     window_share: float | None = None
     humidity_at_opening: float | None = None
@@ -246,6 +250,25 @@ def outside_water(view: RoomView) -> list[Tip]:
                 "humidity", 3, None, PROVEN)]
 
 
+# A room that gets less than this share of the stove's heat (learned each night): its gap is the house's layout, not
+# a fault (Chambre A, 0,09 on 11 November).
+SMALL_SHARE = 0.15
+
+
+def below_house(view: RoomView) -> list[Tip]:
+    """« 1,8 °C sous la moyenne de la maison (21,2 °C) », the stove burning (Frank, 12 November: the template chauffage
+    said it of Antoine's room, the card said nothing). Its reason when the twin knows it: a small share of the stove's
+    heat; otherwise the questions the template asks (door, radiator, sensor). Information, never a gesture."""
+    if view.house is None or view.air is None or view.asleep:
+        return []
+    mean, share = view.house
+    gap = mean - view.air
+    if gap < view.house_gap:
+        return []
+    kind = "below_house_far" if share is not None and share < SMALL_SHARE else "below_house"
+    return [Tip(kind, {"gap": gap, "mean": mean}, "heat", 2, None, PROVEN)]
+
+
 def window_weak(view: RoomView) -> list[Tip]:
     """The window open now renews little of the air, measured since it was opened: the reason the advice does not count on
     it (advisor/opening.py) — a leaf ajar, a tilted sash."""
@@ -268,7 +291,7 @@ def pollen_today(view: RoomView) -> list[Tip]:
     return [Tip("pollen", {"level": found.level, "main": found.main}, "air", 4, None, PROVEN)]
 
 
-PROVIDERS = [pollen_today, window_weak, outside_water, gesture_seen, mist_tonight, heating_catches_up, heating_planned, heating_is_off, stove_at_its_lowest, shutter_at_night,
+PROVIDERS = [pollen_today, window_weak, outside_water, below_house, gesture_seen, mist_tonight, heating_catches_up, heating_planned, heating_is_off, stove_at_its_lowest, shutter_at_night,
              sun_on_windows]
 
 

@@ -69,6 +69,8 @@ TEXTS = {
         "stove_hold": "Le poêle tourne au minimum : sans lui, la pièce reste au-dessus de {minimum} °C jusqu'à {at}",
         "stove_hold_long": "Le poêle tourne au minimum : sans lui, la pièce reste au-dessus de {minimum} °C au moins jusqu'à {hour} h",
         "stove_rising": "Le poêle tourne au minimum et la pièce monte encore : {change} °C de plus en 30 min",
+        "below_house": "{gap} °C sous la moyenne de la maison ({mean} °C) : porte fermée, radiateur dégagé, sonde bien placée ?",
+        "below_house_far": "{gap} °C sous la moyenne de la maison ({mean} °C) : le poêle chauffe peu cette pièce",
         "doubtful": "Mesure douteuse", "doubtful_air": "La température semble fausse ({why}) : pas de conseil tant qu'elle l'est",
         "doubtful_aside": "Mesure douteuse, laissée de côté : {what}", "doubt": "{measure} ({why})",
         "doubt_range": "{value} : valeur impossible", "doubt_jump": "saut soudain à {value}", "doubt_frozen": "figée depuis {since}",
@@ -150,6 +152,8 @@ TEXTS = {
         "stove_hold": "The stove runs at its lowest: without it, the room stays above {minimum} °C until {at}",
         "stove_hold_long": "The stove runs at its lowest: without it, the room stays above {minimum} °C until {hour}:00 at least",
         "stove_rising": "The stove runs at its lowest and the room is still warming: {change} °C more in 30 min",
+        "below_house": "{gap} °C below the house's mean ({mean} °C): door shut, radiator clear, sensor well placed?",
+        "below_house_far": "{gap} °C below the house's mean ({mean} °C): the stove warms this room little",
         "doubtful": "Doubtful measure", "doubtful_air": "The temperature looks wrong ({why}): no advice while it does",
         "doubtful_aside": "Doubtful measure, left aside: {what}", "doubt": "{measure} ({why})",
         "doubt_range": "{value}: impossible value", "doubt_jump": "sudden jump to {value}", "doubt_frozen": "frozen since {since}",
@@ -231,6 +235,8 @@ TEXTS = {
         "stove_hold": "Der Ofen läuft auf kleinster Stufe: ohne ihn bleibt der Raum bis {at} über {minimum} °C",
         "stove_hold_long": "Der Ofen läuft auf kleinster Stufe: ohne ihn bleibt der Raum mindestens bis {hour} Uhr über {minimum} °C",
         "stove_rising": "Der Ofen läuft auf kleinster Stufe und der Raum wird weiter wärmer: {change} °C mehr in 30 min",
+        "below_house": "{gap} °C unter dem Mittel des Hauses ({mean} °C): Tür zu, Heizkörper frei, Fühler gut platziert?",
+        "below_house_far": "{gap} °C unter dem Mittel des Hauses ({mean} °C): der Ofen heizt diesen Raum wenig",
         "doubtful": "Zweifelhafter Messwert", "doubtful_air": "Die Temperatur scheint falsch ({why}): kein Rat, solange sie es ist",
         "doubtful_aside": "Zweifelhafter Messwert, beiseitegelassen: {what}", "doubt": "{measure} ({why})",
         "doubt_range": "{value}: unmöglicher Wert", "doubt_jump": "plötzlicher Sprung auf {value}", "doubt_frozen": "unverändert seit {since}",
@@ -605,6 +611,8 @@ def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
         return words[key].format(since=_time(v["since"], words), air_then=_number(v["air_then"], language),
                                  air=_number(v["air"], language), humidity_then=round(v["humidity_then"] or 0),
                                  humidity=round(v["humidity"] or 0))
+    if tip.kind in ("below_house", "below_house_far"):
+        return words[tip.kind].format(gap=_number(v["gap"], language), mean=_number(v["mean"], language))
     if tip.kind == "outside_drier_later":
         at = v["at"]
         at = time(at.hour, at.minute // 5 * 5)

@@ -42,7 +42,7 @@ def attribute(history, entity_id, name, scale=1.0) -> Series:
     return Series(points, keep_none=True)
 
 
-def lit_power(history, entity_id) -> Series:
+def lit_power(history, entity_id, idle: float = 0.0) -> Series:
     """Share (0-1) of its power a house heater gave off: what its thermostat asked, nothing while it said it was idle,
     waiting to be lit (the Salon's stove, 10 November: 100 % asked at 6 h and 17 h, never lit — room/advice.py
     `stove_waiting`). A history without the thermostat's action keeps what it asked."""
@@ -54,5 +54,7 @@ def lit_power(history, entity_id) -> Series:
             points.append((_when(state, "last_updated"), None))
             continue
         waiting = value > 0 and action is not None and action != "heating"
-        points.append((_when(state, "last_updated"), 0.0 if waiting else float(value) / 100))
+        # Burning, it gives off its idle flame at least (a pellet stove at 0 %, advisor/physics/heaters.py `idle`).
+        given = max(float(value) / 100, idle) if action == "heating" else float(value) / 100
+        points.append((_when(state, "last_updated"), 0.0 if waiting else given))
     return Series(points, keep_none=True)

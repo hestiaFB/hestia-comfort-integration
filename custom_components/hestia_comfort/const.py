@@ -3,7 +3,7 @@ DOMAIN = "hestia_comfort"
 # The released number, written here and not read from manifest.json: no file is opened when Home Assistant imports the
 # module. The panel and the card are cached by their version, so tests/test_version.py checks it follows the manifest
 # (stuck at 1.1.4 from 1.2.0-beta.1 to 1.2.5-beta.7).
-VERSION = "3.1.0b8"
+VERSION = "3.1.0b10"
 VIEW_VERSION = 1
 # A contact open for less than this is a bounce: shown at once, but advice waits for a real opening.
 OPEN_DEBOUNCE_SECONDS = 30

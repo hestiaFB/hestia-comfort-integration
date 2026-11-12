@@ -4,6 +4,26 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.16.0 — 12 novembre 2026
+
+Dans Confort 3.1.0b10.
+
+### Corrections
+
+- Le poêle au ralenti chauffe toujours. Quand son thermostat demande 0 % mais qu'il brûle encore, il compte pour environ un tiers de sa puissance, dans les prévisions comme dans l'apprentissage de nuit. Exemple : le 12 novembre, poêle à 0 % dès 13 h 07, et la Chambre M a pris 1,8 °C entre 12 h et 13 h 30.
+- Sous une pluie fine, « Gardez fermé : il pleut » reste 30 minutes après la dernière goutte. Avant, il s'allumait et s'éteignait 6 fois en 3 heures dans toutes les pièces.
+- Le soir, une pièce chauffée n'affiche plus « Ouvrez » sans durée : seulement une aération courte, si elle aide vraiment. Exemple : 3 soirs de suite, « Ouvrez » dans les chambres n'a jamais été suivi.
+- « Aérez 25 min » ne devient plus « Aérez 10 min vers 21 h 30 » cinq minutes plus tard.
+- La phrase garde vraiment son sujet 30 minutes sous le même conseil.
+
+## 3.15.1 — 12 novembre 2026
+
+Dans Confort 3.1.0b9.
+
+### Nouveautés
+
+- Quand le poêle chauffe, « À savoir » signale une pièce nettement plus froide que le reste de la maison. Exemple : « 1,8 °C sous la moyenne de la maison (21,2 °C) : le poêle chauffe peu cette pièce ». Si le poêle devrait bien la chauffer, la carte demande plutôt : « porte fermée, radiateur dégagé, sonde bien placée ? ». L'écart minimal est un réglage du foyer, 1,5 °C par défaut.
+
 ## 3.15.0 — 11 novembre 2026
 
 Dans Confort 3.1.0b8.

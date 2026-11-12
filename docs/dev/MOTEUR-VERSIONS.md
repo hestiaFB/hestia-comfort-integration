@@ -20,6 +20,22 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.16.0 — 12 novembre 2026
+
+Bilan du 12 nov. (19 h de prod en 3.15.0), accord de Frank (« ok pour les corrections » + le poêle au ralenti « chauffe quand même ou maintient »). Mineur : la chaleur du poêle change pour toutes les pièces, jour et nuit.
+- Poêle au ralenti : `heaters.Heater.idle` (granulés 0,3) ; `room/advice.py` `house_given_now` (au moins `idle` en `heating`) pour `AdvisorHome.house_heat` et `house_heat_steps` ; `Twins.house_idle` ; `simulate` : brûlant (`now.house_running`), le poêle donne au moins `idle` tant que la consigne de son planning (`scheduled`) ne baisse pas, `heat_stop` l'éteint ; le delta part de `house_start`. Nuit : `lit_power(..., idle)`, `learn_room(..., house_idle)` (dernier argument, `advisor_home` le passe). `house_now` reste ce qui est demandé (`STOVE_LOW`, « Le poêle tourne au minimum »). Constat : 13 h 07 à 0 % « heating », Chambre M 20,0 → 21,7 °C de 12 h à 13 h 30, simulée sans poêle.
+- Pluie : `safety.rain_held`, `RAIN_KEPT` 30 min après la dernière pluie mesurée (`AdvisorHome.rain_last`). Constat : bruine 11 h 11 → 14 h 03, 6 bascules dans 7 pièces.
+- Soir : `open_long` interdit dans une pièce au thermostat en chauffe quand `bed_in` ≤ `habits.tonight_before` h. Rejeu Chambre AL 11 nov. 20 h 35 : « Ouvrez » → « Rien à faire » (une aération courte ne change rien de net).
+- Tenue : `LATER_SLACK` aussi de maintenant à plus tard (`after` None = 0). Rejeu Salon 11 nov. 21 h 00 : « Aérez 10 min vers 21 h 30 » → « Aérez 25 min » gardé. `line_held` clé sur le titre seul (best → kept cassait la tenue).
+- Tests : tests/test_bilan_12_novembre.py (8). 959 OK.
+
+### 3.15.1 — 12 novembre 2026
+
+Demande de Frank (12 nov.) : le template chauffage (`chauffage/maison/3-bilan-template.yaml`, `plus_froide`, `S.ecart_zone`) disait « Antoine est 1,8 °C sous la moyenne de la maison », la carte de la Chambre A rien (19,3 °C « Agréable » dans sa plage).
+- `advisor/knowing.py` `below_house` (fournisseur, information, jamais un geste : aucune porte intérieure connue du moteur) : `RoomView.house` = (moyenne de l'air des autres pièces au dernier pas, part du poêle apprise `twins.heat.share`), seulement quand un chauffage de maison est en `heating` ; dit si moyenne − air ≥ `Habits.house_gap` (réglage `ecart_maison`, 1,5 °C par défaut), pas la nuit. `below_house_far` si la part < `SMALL_SHARE` 0,15 (« le poêle chauffe peu cette pièce »), sinon les questions du template.
+- `room/advice.py` `_house(home, name, twins)` : une pièce par nom (air partagé compté une fois), au moins deux autres pièces.
+- Tests : tests/test_maison_moyenne.py (4). 951 OK.
+
 ### 3.15.0 — 11 novembre 2026
 
 Bilan du 11 nov. (24 h de prod en 3.14.1), accord de Frank (« Les points 1 à 4 » puis « et le reste »). Mineur : le score de l'apprentissage change pour toutes les pièces.

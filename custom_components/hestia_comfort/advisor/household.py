@@ -93,13 +93,16 @@ class Habits:
     empty_day: tuple | None = None
     # The rooms (Confort entries) where the laundry dries in winter; () : outside, or not said.
     laundry: tuple = ()
+    # °C under the other rooms' mean, the stove burning, from which « Bon à savoir » says it (the template chauffage's
+    # own threshold, Frank, 12 November: « la carte arrive à savoir si la chambre d'Antoine est en dessous »).
+    house_gap: float = 1.5
 
     KEYS = {"ouvrir_la_nuit": "open_at_night", "aeration_max_min": "airing_max", "plus_tard_max_min": "later_max",
             "appareils_max_min": "devices_max", "cette_nuit_avant_h": "tonight_before", "buee_avant_h": "mist_before",
             "hors_gel": "frost_guard", "tolerance": "tolerance", "pas_maintenant_min": "not_now",
             "poele_tient_h": "stove_hold", "depassement": "overheat", "depassement_min": "overheat_minutes",
             "volets_absence": "shutters_away", "volets_absence_apres_h": "shutters_away_after", "volets_nuit": "shutters_night", "volets_ete": "shutters_summer",
-            "linge_pieces": "laundry"}
+            "linge_pieces": "laundry", "ecart_maison": "house_gap"}
 
     @property
     def airings(self) -> tuple[int, ...]:

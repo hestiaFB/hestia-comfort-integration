@@ -1,3 +1,26 @@
+## 3.1.0b10 — Le poêle au ralenti compte
+
+### Corrections
+
+- Le poêle au ralenti chauffe toujours : les prévisions et l'apprentissage le comptent.
+- Sous une pluie fine, « Gardez fermé : il pleut » ne clignote plus.
+- Le soir, plus de « Ouvrez » sans durée dans une pièce chauffée.
+- Un conseil d'aération ne change plus d'heure ni de durée pour presque rien.
+
+### Moteur de conseil 3.16.0
+
+- Flamme minimale du poêle à granulés, pluie tenue 30 minutes, aération courte le soir, conseils et phrases plus stables.
+
+## 3.1.0b9 — La pièce comparée à la maison
+
+### Nouveautés
+
+- Quand le poêle chauffe, « À savoir » dit si la pièce est nettement plus froide que le reste de la maison, et pourquoi. Exemple : « 1,8 °C sous la moyenne de la maison (21,2 °C) : le poêle chauffe peu cette pièce ».
+
+### Moteur de conseil 3.15.1
+
+- Nouveau « À savoir » : l'écart avec la moyenne de la maison, poêle allumé.
+
 ## 3.1.0b8 — Des conseils qui tiennent
 
 ### Corrections

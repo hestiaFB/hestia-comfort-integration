@@ -63,6 +63,19 @@ def rained_on(sheltered: bool, facing: float | None, gust: float | None, wind_fr
 RAIN_SOON_WAIT = 10     # minutes
 RAIN_GONE = 60          # minutes: a forecast this far, or none, ends the wait
 RAIN_SOON_KEPT = 40     # minutes: once said, « la pluie arrive » holds while the forecast stays this close
+# Once measured, the rain is held this long after its last drop: a drizzle that comes and goes switched « Gardez fermé :
+# il pleut » on and off six times in three hours in every room (bilan of 12 November, 11 h 15 to 13 h 55).
+RAIN_KEPT = 30          # minutes
+
+
+def rain_held(rate: float | None, last: tuple[float, float] | None, now: float) -> tuple[float | None, tuple | None]:
+    """The rain rate as believed, and (when, rate) of the last rain measured: a dry reading within RAIN_KEPT of it keeps
+    that rain."""
+    if rate is not None and rate > RAIN:
+        return rate, (now, rate)
+    if rate is not None and last is not None and now - last[0] <= RAIN_KEPT * 60:
+        return last[1], last
+    return rate, last if last is not None and now - last[0] <= RAIN_KEPT * 60 else None
 
 
 def rain_believed(rain_in: float | None, rain_rate: float | None, since: float | None,

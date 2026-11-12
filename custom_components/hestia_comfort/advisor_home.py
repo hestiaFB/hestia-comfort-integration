@@ -30,15 +30,16 @@ from .advisor.decide import Thermostat
 from .advisor.household import Habits
 from .advisor.nightly import learn_room
 from .advisor.observe import Series
+from .advisor.physics.heaters import heater
 from .advisor.physics.station_sun import cell, clouds_missed, corrected, learn_shade, share
 from .advisor.physics.sunlight import sun_position, through_windows
 from .advisor.physics.thermal import STEP, Inputs
 from .advisor.physics.water import absolute, relative
-from .advisor.safety import minutes, rain_believed
+from .advisor.safety import minutes, rain_believed, rain_held
 from .advisor_store import AdvisorFiles
 from .const import DOMAIN, VERSION
 from .engine import schedule
-from .room.advice import RoomAdvisor, house_heaters, house_power_now, leads, room_spec
+from .room.advice import RoomAdvisor, heater_kinds, house_given_now, house_heaters, house_power_now, leads, room_spec
 
 _LOGGER = logging.getLogger(__name__)
 DATA = f"{DOMAIN}_advisor"
@@ -368,16 +369,18 @@ class AdvisorHome:
 
     def house_heat(self):
         """W the house's heaters give off now, wherever they stand: none from a stove waiting to be lit."""
-        return sum(house_power_now(self.hass, e) * w for e, w in self.houses.items())
+        kinds = heater_kinds(self.hass)
+        return sum(house_given_now(self.hass, e, kinds) * w for e, w in self.houses.items())
 
     def house_heat_steps(self, now, steps):
         """W the house's heaters give off at each coming step: a stove as its own room simulates it (5 min old at most,
         STOVE_PATH_KEPT), the others as they are now. Kept at its power of the moment, a stove just lit at 100 % warmed
         the other rooms two hours at full power (bilan of 11 November: Chambre M 24,8 °C foreseen, 21,8 °C measured)."""
         out = [0.0] * steps
+        kinds = heater_kinds(self.hass)
         for entity, watts in self.houses.items():
             found = self.stove_paths.get(entity)
-            power = house_power_now(self.hass, entity)
+            power = house_given_now(self.hass, entity, kinds)
             shares = None
             if found is not None and power > 0 and timedelta(0) <= now - found[0] <= STOVE_PATH_KEPT and found[1]:
                 shift = int((now - found[0]).total_seconds() // STEP)
@@ -400,6 +403,7 @@ class AdvisorHome:
                 rate = _number(self.hass, rain["entity_id"])
             elif state.state in ("on", "off"):
                 rate = 1.0 if state.state == "on" else 0.0
+        rate, self.rain_last = rain_held(rate, getattr(self, "rain_last", None), dt_util.utcnow().timestamp())
         gust_entity = (sources.get("wind_gust") or {}).get("entity_id")
         gust = _number(self.hass, gust_entity)
         if gust is not None:
@@ -722,6 +726,8 @@ class AdvisorHome:
             zone = dt_util.get_time_zone(self.hass.config.time_zone)
             location = (self.hass.config.latitude, self.hass.config.longitude)
             reports = []
+            kinds = heater_kinds(self.hass)
+            house_idle = {e: heater(kinds.get(e)).idle for e in self.houses}
             caps = share_caps({e: (a.learned or {}).get("heat", {}).get("share") for e, a in self.rooms.items() if e in specs}) \
                 if self.houses else {}
             for entry_id, spec in specs.items():
@@ -729,7 +735,7 @@ class AdvisorHome:
                 if advisor is None:
                     continue
                 arguments = (spec, advisor.learned, room_history(history, spec, outdoor, outdoor_rh, self.houses), sun, now,
-                             outdoor, outdoor_rh, location, zone, self.houses, None, caps.get(entry_id))
+                             outdoor, outdoor_rh, location, zone, self.houses, None, caps.get(entry_id), house_idle)
                 try:
                     entry, report = await self._learn_room(arguments)
                 except Exception:  # noqa: BLE001 - one room that fails keeps its twins

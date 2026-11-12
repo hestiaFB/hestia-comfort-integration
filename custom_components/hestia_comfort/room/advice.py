@@ -32,6 +32,7 @@ from ..advisor.opening import Opened, closed_cases, disturbed, failed, scaled, s
 from ..advisor.physics.air import AirParams, ParticleParams
 from ..advisor.physics.airfit import TWINS, first, untrained, values
 from ..advisor.physics.fit import HOUR
+from ..advisor.physics.heaters import heater as heater_of
 from ..advisor.physics.sunlight import Overhang, facing, sun_position
 from ..advisor.physics.thermal import STEP, Params, bounded, glazing as glazing_of, ordinary, shutter_insulation, step
 from ..advisor.physics.water import WaterParams, absolute
@@ -186,6 +187,17 @@ def house_power_now(hass, entity_id) -> float:
     if stove_waiting(hass, entity_id):
         return 0.0
     return (_number(hass, entity_id, "power_percent") or 0.0) / 100
+
+
+def house_given_now(hass, entity_id, kinds: dict | None = None) -> float:
+    """Share (0-1) of its power a house heater gives off now: what its thermostat asks, at least its idle flame while it
+    burns (a pellet stove at 0 % still heats), nothing while it waits to be lit."""
+    asked = house_power_now(hass, entity_id)
+    state = hass.states.get(entity_id) if entity_id else None
+    if state is not None and state.attributes.get("hvac_action") == "heating":
+        kind = (kinds if kinds is not None else heater_kinds(hass)).get(entity_id)
+        return max(asked, heater_of(kind).idle)
+    return asked
 
 
 def house_heaters(hass) -> dict:
@@ -651,7 +663,8 @@ class RoomAdvisor:
 
     def _good_to_know(self, now, air, opening, comfort, humidity=None, coldest=None, bedtime=None, asleep=False,
                       shutter_night=None, wake=None, back=None, off=None, end_hour=None, stove=None, sun_warms=None,
-                      outdoor=None, outdoor_rh=None, water=False, share=None, planned=None, pollen=None, airing_at=None):
+                      outdoor=None, outdoor_rh=None, water=False, share=None, planned=None, pollen=None, airing_at=None,
+                      house=None, house_gap=1.5):
         """« Bon à savoir »: the sun on the windows (Adaptive Cover Pro's hours first), a gesture seen to work."""
         local = dt_util.as_local(now)
         acp = {}
@@ -673,8 +686,26 @@ class RoomAdvisor:
                         heating_off=off, end_hour=end_hour, stove_idle=stove, sun_gain=sun_warms,
                         outdoor=outdoor, outdoor_humidity=outdoor_rh, water_matters=water, window_share=share,
                         humidity_at_opening=opening[2] if opening else None, heating_planned=planned, pollen=pollen,
-                        airing_at=airing_at)
+                        airing_at=airing_at, house=house, house_gap=house_gap)
         return tips(view)
+
+    def _house(self, home, name, twins):
+        """The stove burning: (the other rooms' mean air, as their last step measured it; this room's learned share of the
+        stove's heat). None when no house heater heats or fewer than two other rooms are known. A shared air (Salon ·
+        Cuisine) counts once."""
+        hass = self.hass
+        if not any((s := hass.states.get(e)) is not None and s.attributes.get("hvac_action") == "heating" for e in home.houses):
+            return None
+        airs = {}
+        for other in home.rooms.values():
+            result = other.result or {}
+            air = (result.get("mesures") or {}).get("air")
+            if result.get("piece") and result["piece"] != name and isinstance(air, (int, float)):
+                airs[result["piece"]] = air
+        if len(airs) < 2:
+            return None
+        share = twins.heat.share if twins is not None and twins.heat is not None else None
+        return sum(airs.values()) / len(airs), share
 
     def _tonight(self, twins, current, local, bedtime, wake, coming, comfort, proof, marks, taken, habits, pollen=None):
         """« Cette nuit, pensez à… »: in the evening, the windows at the room's bedtime judged over the whole night."""
@@ -757,7 +788,8 @@ class RoomAdvisor:
             # The side each window faces, for the air crossing the room (« Ouvrez aussi la porte-fenêtre »).
             bearings=tuple((room["orientations"].get(e) or (None,))[0] for e in sizes),
             house_thermostat=house_stat, house_power=float(house_power) if house_stat else 0.0,
-            house_now=house_power_now(hass, main) if house_stat else 0.0)
+            house_now=house_power_now(hass, main) if house_stat else 0.0,
+            house_idle=heater_of(kinds.get(main)).idle if house_stat else 0.0)
         orientations = room["orientations"]
         # The manual shutters the household says shut now: away, at night, on summer's sunny side (HABITUDES-FOYER.md).
         # Shut, they keep the sun out and the heat in, as a connected one does; at night, those it shuts for the night.
@@ -827,6 +859,11 @@ class RoomAdvisor:
         taken, reason = forbidden(rain_rate, gust, rain_in, vigilance, rules_alarm, coldest=min(u.outdoor for u, _ in coming),
                                   shelter=shelter, gauge=hint.get("gauge"), intensity=hint.get("intensity"),
                                   chance=hint.get("chance"))
+        # A heated room in the evening: an airing of a set length, never « Ouvrez » left open into the night — three
+        # evenings running, the bedrooms' « Ouvrez » for the mould was never followed (bilan of 12 November).
+        if (twins.thermostat is not None and current.bed_in is not None
+                and current.bed_in <= habits.tonight_before * 60):
+            taken = taken | {"open_long"}
         # The gestures answered « Pas maintenant », put aside for a while (CAHIER-MOTEUR.md § 15).
         aside = declined(self.paused, current, now)
         # The gestures left without being followed, not asked again for a while unless the room gets clearly worse.
@@ -988,11 +1025,12 @@ class RoomAdvisor:
         # four times in an hour (bilan of 11 November, Salon · Cuisine at night). Its figures move, not its subject. A line
         # put aside (« en pause ») or a rule's own (a fact measured, a safety) is said at once.
         held_line = self.line_held
-        if (held_line is not None and held_line[:2] == (words["title"], decision.rule) and "en_pause" not in snap
+        # Keyed on the title only: « best » then « kept » is the same advice (bilan of 12 November, 20 h 50 and 20 h 55).
+        if (held_line is not None and held_line[0] == words["title"] and "en_pause" not in snap
                 and decision.rule not in ("safety", "stale", "ineffective", "overheat", "pollen")
                 and phrase_subject(words["line"]) != phrase_subject(held_line[2]) and now - held_line[3] < LINE_HOLD):
             words = {**words, "line": held_line[2]}
-        elif held_line is not None and held_line[:2] == (words["title"], decision.rule) \
+        elif held_line is not None and held_line[0] == words["title"] \
                 and phrase_subject(words["line"]) == phrase_subject(held_line[2]):
             self.line_held = (words["title"], decision.rule, words["line"], held_line[3])
         else:
@@ -1059,7 +1097,7 @@ class RoomAdvisor:
             airing_at = (coming[min(int(after // (STEP / 60)), len(coming) - 1)][1], local + timedelta(minutes=after))
         good = self._good_to_know(now, air, opening, comfort, current.humidity, coldest, bedtime, night, shutter_night, wake,
                                   back, off, end_hour, stove, sunny, outdoor, outdoor_rh, water,
-                                  share, planned, pollen, airing_at)
+                                  share, planned, pollen, airing_at, self._house(home, name, twins), habits.house_gap)
         good_words = [tip_text(t, now=local) for t in good]
         # An airing that did not work, kept in mind: said until it is judged, an hour after it was shut.
         if self.failed_at is not None and now - self.failed_at[1] < timedelta(minutes=RESTING_MINUTES):

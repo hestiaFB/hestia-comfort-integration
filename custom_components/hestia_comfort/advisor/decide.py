@@ -240,6 +240,8 @@ class Twins:
     house_thermostat: Thermostat | None = None
     house_power: float = 0.0
     house_now: float = 0.0
+    # Share of its power the stove gives off while it burns at 0 % asked (advisor/physics/heaters.py `idle`).
+    house_idle: float = 0.0
     # The side each window faces (°, in the order of `windows`; None when not declared), and how many times more air
     # crosses the room when windows on two sides are open (CAHIER-MOTEUR.md § 9.1, « ouvrir ici et là »): CIBSE AM10
     # gives two to three times a single-sided opening in a moderate wind. Supposed until the room shows it.
@@ -445,7 +447,10 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
     # window open now finds the core cooled), the stove's as measured.
     given = (twins.thermostat.power(now.air, coming[0][0].outdoor, now.opened)
              if twins.thermostat is not None and coming else 0.0)
-    house_given = twins.house_now
+    # A stove burning gives off its idle flame at least, whatever its thermostat asks (bilan of 12 November).
+    burning = now.house_running and twins.house_thermostat is not None
+    house_given = max(twins.house_now, twins.house_idle) if burning else twins.house_now
+    house_start = house_given
     for k, (u, outdoor_water) in enumerate(coming):
         windows = _open(gesture, now, twins, k)
         boost = twins.boost if _running(gesture, "boost", now.boosting, k) else 0.0
@@ -466,9 +471,13 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
         if twins.house_thermostat is not None:
             # The stove follows the room too; the other house heaters stay as they are.
             stove = twins.house_thermostat.heater
-            running = 0.0 if gesture.kind == "heat_stop" else twins.house_thermostat.power(felt, u.outdoor, windows)
+            stat = twins.house_thermostat.scheduled(k * STEP / 60)
+            running = 0.0 if gesture.kind == "heat_stop" else stat.power(felt, u.outdoor, windows)
+            # Still burning while its set point holds: the idle flame at least; its schedule's lower slot puts it out.
+            if burning and gesture.kind != "heat_stop" and stat.target >= twins.house_thermostat.target:
+                running = max(running, twins.house_idle)
             house_given = given_off(house_given, running, stove.lag, STEP)
-            u = replace(u, house_heat=max(0.0, u.house_heat + twins.house_power * (house_given - twins.house_now)))
+            u = replace(u, house_heat=max(0.0, u.house_heat + twins.house_power * (house_given - house_start)))
             path.stove.append(house_given)
         before = air
         air, walls = step(twins.heat, air, walls, u)
@@ -948,9 +957,10 @@ def _decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weight
               and previous.after == best.after)
     # Nor only when: « Aérez 15 min vers 19 h 45 », « 20 min vers 19 h 50 », « 20 min vers 20 h 10 » in ten minutes
     # (bilan of 11 November, Salon · Cuisine). The airing said for later stays while it is about as good and still helps.
+    # Nor from now to later: « Aérez 25 min », then « Aérez 10 min vers 21 h 30 » five minutes after (bilan of
+    # 12 November, Salon · Cuisine at 20 h 55 and 21 h 00).
     longer = longer or (previous is not None and previous in costs and best.kind == previous.kind == "open"
-                        and previous.after and best.after is not None
-                        and abs(previous.after - best.after) <= LATER_SLACK
+                        and abs((previous.after or 0) - (best.after or 0)) <= LATER_SLACK
                         and nothing - costs[previous]["total"] >= GAIN / 2)
     if ((previous in worth or previous == Gesture("nothing") or longer) and previous != best
             and costs[previous]["total"] - costs[best]["total"] < MARGIN * max(costs[previous]["total"], GAIN)):
