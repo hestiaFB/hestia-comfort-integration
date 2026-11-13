@@ -11,7 +11,7 @@ import math
 from ..notes import SETTLE_STEPS, SHORTEST_STEPS, case, episodes, left_out, put_aside
 from .air import AirParams, ParticleParams, air_step, particles_step
 from .vents import leak_flow, window_flow
-from .water import WaterParams, water_step
+from .water import WaterParams, bounded, water_step
 
 HOUR, THREE = 12, 36
 # Eight hours ahead, from every sixth hour, without the last hour's correction (it fades within two): a twin good at one
@@ -48,7 +48,7 @@ def _stepper(kind, x, volume, rows):
         s = sample or s
         flow = _flow(x, volume, s)
         if kind == "water":
-            p = WaterParams(volume, _e(x[2]), _e(x[3]), x[4], x[5], x[6])
+            p = WaterParams(volume, *bounded(_e(x[2]), _e(x[3]), x[4], x[5], x[6]))
             return water_step(p, value, hidden, outdoor, flow, s.inputs.hour)
         if kind == "particles":
             p = ParticleParams(volume, _e(x[2]), x[3], x[4], x[5], x[6])
@@ -223,8 +223,9 @@ def values(kind: str, x, volume: float) -> tuple[dict, list[float]]:
     """The search's vector as a twin's parameters to keep, and its leaks and windows multipliers."""
     flow = [_e(x[0]), _e(x[1])]
     if kind == "water":
-        return {"volume": volume, "exchange": _e(x[2]), "reserve": _e(x[3]), "sources": x[4], "rhythm_cos": x[5],
-                "rhythm_sin": x[6]}, flow
+        exchange, reserve, steady, cos_, sin_ = bounded(_e(x[2]), _e(x[3]), x[4], x[5], x[6])
+        return {"volume": volume, "exchange": exchange, "reserve": reserve, "sources": steady, "rhythm_cos": cos_,
+                "rhythm_sin": sin_}, flow
     if kind == "air":
         return {"volume": volume, "sources": x[2], "rhythm_cos": x[3], "rhythm_sin": x[4]}, flow
     return {"volume": volume, "settling": _e(x[2]), "outdoor": x[3], "sources": x[4], "rhythm_cos": x[5],

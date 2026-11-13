@@ -34,6 +34,32 @@ class WaterParams:
     rhythm_sin: float = 0.0
 
 
+# What a room's water can physically be (bilan of 13 November: Chambre AL learned −150 g/h of sources, the air renewed
+# 55 times an hour against a reserve of 0.02 volumes; the Buanderie −8 g/h; the Chambre P 147 g/h swinging by 185). The
+# household and the walls only add water: the steady sources are never negative and their daily rhythm never takes them
+# below zero; the walls trade it within hours, not minutes, and hold at least two rooms of air (the realistic twins: 2 to 6).
+EXCHANGE = (0.05, 5.0)      # h⁻¹
+RESERVE = (2.0, 50.0)       # volumes of the room's air: the walls and the furniture of a lived-in room hold some
+SOURCES_MAX = 150.0         # g/h, steady
+
+
+def bounded(exchange: float, reserve: float, steady: float, rhythm_cos: float, rhythm_sin: float) -> tuple:
+    """A twin's values within what a room can do: (exchange, reserve, sources, rhythm_cos, rhythm_sin)."""
+    exchange = min(EXCHANGE[1], max(EXCHANGE[0], exchange))
+    reserve = min(RESERVE[1], max(RESERVE[0], reserve))
+    steady = min(SOURCES_MAX, max(0.0, steady))
+    swing = math.hypot(rhythm_cos, rhythm_sin)
+    if swing > steady:
+        scale = steady / swing if swing else 0.0
+        rhythm_cos, rhythm_sin = rhythm_cos * scale, rhythm_sin * scale
+    return exchange, reserve, steady, rhythm_cos, rhythm_sin
+
+
+def within(p: WaterParams) -> WaterParams:
+    """A learned twin brought within what a room can do (`bounded`)."""
+    return WaterParams(p.volume, *bounded(p.exchange, p.reserve, p.sources, p.rhythm_cos, p.rhythm_sin))
+
+
 def sources(p: WaterParams, hour: float | None) -> float:
     if hour is None:
         return p.sources

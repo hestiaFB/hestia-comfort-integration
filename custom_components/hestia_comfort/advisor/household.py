@@ -96,13 +96,16 @@ class Habits:
     # °C under the other rooms' mean, the stove burning, from which « Bon à savoir » says it (the template chauffage's
     # own threshold, Frank, 12 November: « la carte arrive à savoir si la chambre d'Antoine est en dessous »).
     house_gap: float = 1.5
+    # Minutes a stove keeps its idle flame once its thermostat asks 0 %, before the household's automation puts it out
+    # (Salon, 11-13 November: 42 to 66 min).
+    stove_idle_hold: int = 45
 
     KEYS = {"ouvrir_la_nuit": "open_at_night", "aeration_max_min": "airing_max", "plus_tard_max_min": "later_max",
             "appareils_max_min": "devices_max", "cette_nuit_avant_h": "tonight_before", "buee_avant_h": "mist_before",
             "hors_gel": "frost_guard", "tolerance": "tolerance", "pas_maintenant_min": "not_now",
             "poele_tient_h": "stove_hold", "depassement": "overheat", "depassement_min": "overheat_minutes",
             "volets_absence": "shutters_away", "volets_absence_apres_h": "shutters_away_after", "volets_nuit": "shutters_night", "volets_ete": "shutters_summer",
-            "linge_pieces": "laundry", "ecart_maison": "house_gap"}
+            "linge_pieces": "laundry", "ecart_maison": "house_gap", "poele_ralenti_min": "stove_idle_hold"}
 
     @property
     def airings(self) -> tuple[int, ...]:

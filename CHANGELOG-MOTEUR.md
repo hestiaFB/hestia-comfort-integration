@@ -4,6 +4,22 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.17.0 — 13 novembre 2026
+
+Dans Confort 3.1.0b11.
+
+### Corrections
+
+- En saison de chauffe, plus de « Ouvrez » ni de « Laissez ouvert » sans fin : une aération d'une durée précise, dont la carte annonce ce qui reste une heure après avoir refermé. Exemple : le 13 novembre, « Ouvrez » promettait 53 % à 11 h dans la Chambre A pour une fenêtre ouverte toute la matinée ; ouverte 25 minutes, la chambre est remontée à 65 %. Le rejeu annonce maintenant 65 %.
+- Une fenêtre ouverte sans conseil est supposée refermée à la fin de l'aération habituelle du foyer (30 min par défaut), et non laissée ouverte jusqu'à midi.
+- L'eau gardée par les murs, la literie et les meubles est suivie à chaque pas. Après une aération ou une douche, l'humidité qui remonte est prévue. Exemple : la Chambre M annonçait « sous 60 % vers 12 h », elle est restée à 64 % ; le rejeu prévoit maintenant 65 %.
+- Le poêle au ralenti s'éteint dans les prévisions après 45 minutes à 0 %, comme le fait l'automatisation du foyer (réglage « poele_ralenti_min »).
+- « Laissez ouvert » ne s'affiche plus quelques secondes à chaque passage par une porte-fenêtre.
+- Une aération annoncée pour plus tard garde son heure tant qu'un autre moment n'est pas nettement meilleur (jusqu'à une heure d'écart).
+- La phrase garde son sujet tant que le geste fait à peu près autant pour lui.
+- Les rejeux de l'Atelier gardent la flamme minimale du poêle.
+- Le jumeau d'humidité reste dans ce qu'une pièce peut faire : une pièce ne fait pas disparaître d'eau, ses murs échangent l'humidité en heures et non en minutes. Exemple : la Chambre AL avait appris qu'elle « absorbait » 150 g d'eau par heure ; au labo, la Buanderie promettait « 59 % au lieu de 71 % » pour 5 minutes d'aération, elle annonce maintenant une remontée à 68 %.
+
 ## 3.16.0 — 12 novembre 2026
 
 Dans Confort 3.1.0b10.

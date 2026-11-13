@@ -242,6 +242,9 @@ class Twins:
     house_now: float = 0.0
     # Share of its power the stove gives off while it burns at 0 % asked (advisor/physics/heaters.py `idle`).
     house_idle: float = 0.0
+    # Minutes its idle flame still lasts once its thermostat asks 0 %, before the household's own automation puts it out
+    # (Habits.stove_idle_hold); None: until its schedule's lower slot.
+    house_idle_for: float | None = None
     # The side each window faces (°, in the order of `windows`; None when not declared), and how many times more air
     # crosses the room when windows on two sides are open (CAHIER-MOTEUR.md § 9.1, « ouvrir ici et là »): CIBSE AM10
     # gives two to three times a single-sided opening in a moderate wind. Supposed until the room shows it.
@@ -256,6 +259,9 @@ class Now:
     opened: tuple[tuple[float, float], ...]     # the windows open now
     humidity: float | None = None               # %
     reserve: float | None = None                # g/m³, the walls' water
+    # Minutes after which the windows open now are taken as shut when nothing is done: the household's usual airing in
+    # the cold season (room/advice.py), None: left open over the whole horizon.
+    closing_in: float | None = None
     co2: float | None = None                    # ppm
     particles: float | None = None              # µg/m³
     voc: float | None = None                    # VOC index
@@ -408,6 +414,8 @@ def _open(gesture: Gesture, now: Now, twins: Twins, k: int):
     if gesture.kind not in ("open", "close", "nothing"):
         return now.opened
     waited = k * STEP / 60 - (gesture.after or 0)
+    if gesture.kind == "nothing" and now.closing_in is not None and k * STEP / 60 >= now.closing_in:
+        return ()
     if gesture.kind == "nothing" or waited < 0:
         return now.opened if gesture.kind != "open" else ()
     if gesture.kind == "close":
@@ -451,6 +459,7 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
     burning = now.house_running and twins.house_thermostat is not None
     house_given = max(twins.house_now, twins.house_idle) if burning else twins.house_now
     house_start = house_given
+    idle_minutes = 0.0
     for k, (u, outdoor_water) in enumerate(coming):
         windows = _open(gesture, now, twins, k)
         boost = twins.boost if _running(gesture, "boost", now.boosting, k) else 0.0
@@ -474,7 +483,12 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
             stat = twins.house_thermostat.scheduled(k * STEP / 60)
             running = 0.0 if gesture.kind == "heat_stop" else stat.power(felt, u.outdoor, windows)
             # Still burning while its set point holds: the idle flame at least; its schedule's lower slot puts it out.
-            if burning and gesture.kind != "heat_stop" and stat.target >= twins.house_thermostat.target:
+            # It idles a while at 0 %, then the household's automation puts it out (bilan of 13 November: at 0 % from
+            # 11 h 14, out at 11 h 56; 66 min on 11 November).
+            if running <= 0.0 and burning:
+                idle_minutes += STEP / 60
+            lasting = twins.house_idle_for is None or idle_minutes <= twins.house_idle_for
+            if burning and gesture.kind != "heat_stop" and stat.target >= twins.house_thermostat.target and lasting:
                 running = max(running, twins.house_idle)
             house_given = given_off(house_given, running, stove.lag, STEP)
             u = replace(u, house_heat=max(0.0, u.house_heat + twins.house_power * (house_given - house_start)))
@@ -700,7 +714,7 @@ FAST_SUBJECTS = ("co2", "particles", "voc")
 # A gesture shown stays at least this long while it still helps (CAHIER-MOTEUR.md § 18.3: one change per half hour).
 HOLD_MINUTES = 30
 # An airing said for later is kept rather than another moment this close to it (minutes).
-LATER_SLACK = 30
+LATER_SLACK = 60
 
 
 # Among gestures of one kind, one costing this share more than the best (of its cost, or of GAIN) still counts as enough.

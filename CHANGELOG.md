@@ -1,3 +1,17 @@
+## 3.1.0b11 — Des promesses justes
+
+### Corrections
+
+- En saison de chauffe, la carte propose une aération d'une durée précise et annonce l'humidité qui restera une fois la fenêtre refermée. Exemple : « 65 % » au lieu de « 53 % », qui supposait la fenêtre ouverte toute la matinée.
+- L'humidité qui remonte après une aération ou une douche est prévue.
+- Le poêle au ralenti s'éteint dans les prévisions après 45 minutes.
+- Plus de « Laissez ouvert » affiché quelques secondes au passage d'une porte-fenêtre.
+- L'apprentissage de l'humidité reste dans des valeurs physiquement possibles : plus de promesses trop belles pour une aération courte.
+
+### Moteur de conseil 3.17.0
+
+- Aérations chronométrées en saison de chauffe, eau des murs suivie, fin du ralenti du poêle, conseils et phrases plus stables.
+
 ## 3.1.0b10 — Le poêle au ralenti compte
 
 ### Corrections

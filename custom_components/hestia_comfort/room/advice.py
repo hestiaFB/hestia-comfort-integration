@@ -19,6 +19,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from ..advisor.checks import GOOD, KINDS, Checker
+from ..advisor.decide import _flow as _water_flow
 from ..advisor.decide import (SHUT_SHADE, SIGNIFICANT, RESTING_MINUTES, Gesture, Now, Twins, aged, decide, for_season, gesture_energy, remembered, from_thermostat, heating_back,
                               heating_off, main_subject, recent_sources, shutter_tonight, simulate, stove_idle, sun_gain,
                               tonight)
@@ -35,7 +36,7 @@ from ..advisor.physics.fit import HOUR
 from ..advisor.physics.heaters import heater as heater_of
 from ..advisor.physics.sunlight import Overhang, facing, sun_position
 from ..advisor.physics.thermal import STEP, Params, bounded, glazing as glazing_of, ordinary, shutter_insulation, step
-from ..advisor.physics.water import WaterParams, absolute
+from ..advisor.physics.water import WaterParams, absolute, water_step, within
 from ..advisor.proof import CASES, ORDER, PROVEN, level, live, window_reinforced
 from ..advisor.pollen import today as pollen_today
 from ..advisor.safety import RAIN, RAIN_SOON, forbidden, holidays, rained_on
@@ -389,6 +390,13 @@ class RoomAdvisor:
         self.room = None
         self.learned, self.learned_at, self.earlier, self.report = None, None, [], None
         self.walls, self.hot_since = None, None
+        # The water the walls, the bedding and the furniture hold (g/m³ of the room's air), followed step by step with the
+        # measured humidity, as the walls' heat is: taken equal to the air, a shower's damp air or an airing's dry one was
+        # held by the walls too, and the twin foresaw 91 % at 7 h for 81 % (Chambre P, 12-13 November) or « sous 60 % vers
+        # 12 h » for 64 % after an airing (Chambre M, 13 November). None until the first step: then the air's.
+        self.reserve = None
+        # Since when the stove has burnt at 0 % (its idle flame), for `_idle_for`.
+        self.idle_since = None
         # The last hour, five minutes at a time: (when, air, walls, what acted on it), for the twin's trend; the last
         # half hour: (when, the room as measured, what acted on it, outdoor water), for the sources running now.
         self.trail, self.air_trail = deque(maxlen=HOUR), deque(maxlen=8)
@@ -689,6 +697,28 @@ class RoomAdvisor:
                         airing_at=airing_at, house=house, house_gap=house_gap)
         return tips(view)
 
+    def _idle_for(self, entity_id, now, habits):
+        """Minutes the stove's idle flame still lasts: the household's hold, less the time it has already idled at 0 %."""
+        state = self.hass.states.get(entity_id) if entity_id else None
+        burning = state is not None and state.attributes.get("hvac_action") == "heating"
+        asked = state.attributes.get("power_percent") if state is not None else None
+        if burning and isinstance(asked, (int, float)) and asked <= 0:
+            self.idle_since = self.idle_since or now
+        else:
+            self.idle_since = None
+        spent = (now - self.idle_since).total_seconds() / 60 if self.idle_since else 0.0
+        return max(0.0, habits.stove_idle_hold - spent)
+
+    def _reserve_step(self, twins, current, acting, outdoor_water):
+        """The walls' water five minutes on, the room's air as measured (advisor/physics/water.py `water_step`)."""
+        if twins.water is None or current.humidity is None or outdoor_water is None:
+            return None
+        water = absolute(current.air, current.humidity)
+        reserve = self.reserve if self.reserve is not None else water
+        flow = _water_flow(twins.water_flow, twins.water.volume, acting.windows, current.air, acting.outdoor, acting.wind,
+                           acting.cross) + (twins.boost if current.boosting else 0.0)
+        return water_step(twins.water, water, reserve, outdoor_water, flow, acting.hour)[1]
+
     def _house(self, home, name, twins):
         """The stove burning: (the other rooms' mean air, as their last step measured it; this room's learned share of the
         stove's heat). None when no house heater heats or fewer than two other rooms are known. A shared air (Salon ·
@@ -774,7 +804,7 @@ class RoomAdvisor:
         house_heat = home.house_heat()
         twins = Twins(
             heat=heat, windows=tuple(sizes.values()),
-            water=WaterParams(**learned["water"]) if "water" in learned else None, water_flow=tuple(learned.get("water_flow", (1, 1))),
+            water=within(WaterParams(**learned["water"])) if "water" in learned else None, water_flow=tuple(learned.get("water_flow", (1, 1))),
             air=AirParams(**learned["air"]) if "air" in learned else None, air_flow=tuple(learned.get("air_flow", (1, 1))),
             particles=ParticleParams(**learned["particles"]) if "particles" in learned else None,
             particles_flow=tuple(learned.get("particles_flow", (1, 1))),
@@ -789,7 +819,8 @@ class RoomAdvisor:
             bearings=tuple((room["orientations"].get(e) or (None,))[0] for e in sizes),
             house_thermostat=house_stat, house_power=float(house_power) if house_stat else 0.0,
             house_now=house_power_now(hass, main) if house_stat else 0.0,
-            house_idle=heater_of(kinds.get(main)).idle if house_stat else 0.0)
+            house_idle=heater_of(kinds.get(main)).idle if house_stat else 0.0,
+            house_idle_for=self._idle_for(main, now, habits) if house_stat else None)
         orientations = room["orientations"]
         # The manual shutters the household says shut now: away, at night, on summer's sunny side (HABITUDES-FOYER.md).
         # Shut, they keep the sun out and the heat in, as a connected one does; at night, those it shuts for the night.
@@ -840,7 +871,8 @@ class RoomAdvisor:
         # °C the room gained over the last half hour, measured.
         earlier = [a for t, a, *_ in self.trail if now - t >= timedelta(minutes=27.5)]
         rise = air - earlier[-1] if earlier else None
-        current = Now(air=air, walls=walls, opened=opened, humidity=measures["humidity"], co2=measures["co2"],
+        reserve = self.reserve if twins.water is not None and measures["humidity"] is not None else None
+        current = Now(air=air, walls=walls, opened=opened, humidity=measures["humidity"], co2=measures["co2"], reserve=reserve,
                       particles=measures["particles"], voc=measures["voc"],
                       boosting=self._on(room["boost"]), purifying=self._on(room["purifier"]),
                       night=night, missed=missed,
@@ -859,11 +891,6 @@ class RoomAdvisor:
         taken, reason = forbidden(rain_rate, gust, rain_in, vigilance, rules_alarm, coldest=min(u.outdoor for u, _ in coming),
                                   shelter=shelter, gauge=hint.get("gauge"), intensity=hint.get("intensity"),
                                   chance=hint.get("chance"))
-        # A heated room in the evening: an airing of a set length, never « Ouvrez » left open into the night — three
-        # evenings running, the bedrooms' « Ouvrez » for the mould was never followed (bilan of 12 November).
-        if (twins.thermostat is not None and current.bed_in is not None
-                and current.bed_in <= habits.tonight_before * 60):
-            taken = taken | {"open_long"}
         # The gestures answered « Pas maintenant », put aside for a while (CAHIER-MOTEUR.md § 15).
         aside = declined(self.paused, current, now)
         # The gestures left without being followed, not asked again for a while unless the room gets clearly worse.
@@ -876,6 +903,17 @@ class RoomAdvisor:
         away = holidays(alarm)
         # The room's range as set in Confort, for the home's season (CAHIER-MOTEUR.md § 10.3).
         comfort = for_season(**room["comfort"], season=self.coordinator.season_name)
+        # A heated room with the outside colder than its minimum: an airing of a set length (« Aérez 25 min ») or « Laissez
+        # ouvert encore 10 min », never « Ouvrez » or « Laissez ouvert » with no end. Nobody leaves a window open all morning
+        # at 9 °C: the card promised 53 % for a window open till noon, the household opened 25 min and the room came back
+        # to 65 % (bilan of 13 November, Chambre A) ; three evenings running, the bedrooms' « Ouvrez » was never followed
+        # (12 November). An airing of a set length says what stays an hour after shutting (advisor/words.py `_lasting`).
+        heated = twins.thermostat is not None or twins.idle_thermostat is not None or twins.house_thermostat is not None \
+            or bool(house_heat)
+        cold_season = heated and outdoor < comfort.minimum
+        if cold_season:
+            endless = frozenset({"open_long", "keep"})
+            taken, safe_taken = taken | endless, safe_taken | endless
         # The thermostat's set point stands as the room's minimum, eco included (CAHIER-MOTEUR.md § 6.8), unless the
         # room says otherwise; the room's main thermostat when it is not its own (the Salon follows the stove).
         main = room["thermostat_plage"] or room["thermostat"]
@@ -886,6 +924,11 @@ class RoomAdvisor:
                                       aimed.get("preset", stat.attributes.get("preset_mode")),
                                       (stat.attributes.get("preset_temperatures") or {}).get("comfort_temp"))
         opening = self._opening(now, opened, air, current.humidity)
+        if cold_season and opened and opening:
+            # Left as it is, the window is shut once the household's usual airing is over, not left open till noon: the
+            # card said « repasse seule sous 60 % » for a window it supposed open all morning (bilan of 13 November).
+            open_for = (now - opening[0]).total_seconds() / 60
+            current = replace(current, closing_in=max(STEP / 60, habits.airing_max - open_for))
         # A day of high pollens, for a household that said someone is allergic (« Réglages du foyer », advisor/pollen.py).
         raining = rain_rate is not None and rain_rate > RAIN
         if raining:
@@ -944,6 +987,8 @@ class RoomAdvisor:
 
         # What the last « Rien à faire » said of the measures (« Au mieux »), kept near a bound (advisor/words.py EDGE).
         beyond_before = (self.result or {}).get("au_dela")
+        # What the last line was about, kept while the gesture still does about as much for it (advisor/words.py).
+        subject_before = (self.result or {}).get("sujet")
         # Since when the forecast is back in its range under « Au mieux » kept (CALM_MINUTES).
         calm_since = self.calm_since
 
@@ -962,9 +1007,13 @@ class RoomAdvisor:
                                       holidays=away, habits=habits, held=held, tried=tried, aired=aired, failed=failure,
                                       pollen=pollen, tried_held=tried_held)
             decided_on = current
-            if (decision.gesture.kind == "close" and not decision.gesture.after and decision.rule in ("best", "kept")
-                    and opening and now - opening[0] < timedelta(minutes=GRACE_MINUTES)
-                    and (shown_before is None or shown_before.kind != "close")):
+            # « Laissez ouvert » too, unless an airing was asked: a few seconds at each passage through the French window
+            # (bilan of 13 November, Salon · Cuisine at 19 h 46, 20 h 27 and 22 h 17).
+            passing = (decision.gesture.kind == "close" and not decision.gesture.after and decision.rule in ("best", "kept")
+                       and (shown_before is None or shown_before.kind != "close")) or \
+                (decision.gesture.kind == "keep" and decision.rule == "best"
+                 and (shown_before is None or shown_before.kind not in ("open", "open_more", "keep")))
+            if passing and opening and now - opening[0] < timedelta(minutes=GRACE_MINUTES):
                 # Just opened, maybe only to go through: for comfort, the room is judged shut a few minutes more, and the
                 # card goes on as before (Buanderie, 7 November: « Refermez » four times, 20 s to 2 min, at each passage
                 # through the door). The rain, the gusts and the pollens still shut at once.
@@ -978,13 +1027,13 @@ class RoomAdvisor:
                            room=name, when=now.isoformat(), version=home.version, beyond_before=beyond_before)
             # The local time now: a later gesture says its hour (« Aérez 5 min vers 13 h 50 »), never only its length.
             words = phrase(decision, end_hour, marks=marks, hour=local.hour + local.minute / 60, reason=reason,
-                           beyond_before=beyond_before)
+                           beyond_before=beyond_before, subject_before=subject_before)
             calm = None
             if decision.gesture.kind == "nothing" and beyond_before and not words.get("beyond"):
                 calm = calm_since or now
                 if now - calm < timedelta(minutes=CALM_MINUTES):
                     words = phrase(decision, end_hour, marks=marks, hour=local.hour + local.minute / 60, reason=reason,
-                                   beyond_before=beyond_before, keep_beyond=True)
+                                   beyond_before=beyond_before, keep_beyond=True, subject_before=subject_before)
                     snap["keep_beyond"] = True
                 else:
                     calm = None
@@ -1078,6 +1127,7 @@ class RoomAdvisor:
             self.trail.append((now, air, walls, acting))
             self.air_trail.append((now, measured_now, acting, coming[0][1]))
             _, self.walls = step(heat, air, walls, acting)
+            self.reserve = self._reserve_step(twins, current, acting, coming[0][1])
         coldest = min(u.outdoor for u, _ in night_coming) if night_coming else None
         # The humidity in question: a window open, above its mark, or a gesture for it — then the outside air is said in
         # water, the reason an airing dries the room even at 78 % outside (advisor/knowing.py `outside_water`).

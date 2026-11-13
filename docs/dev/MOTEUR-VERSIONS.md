@@ -20,6 +20,18 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.17.0 — 13 novembre 2026
+
+Bilan du 13 nov. (jour 1 du gel en 3.16.0) et remarque de Frank sur la Chambre A (« prévu 57 %, c'est quand même assez flou et optimiste » : 72 → 57 % fenêtre ouverte, puis 65 %), accord « corrige tous les points ». Le gel repart de zéro.
+- Saison de chauffe (`room/advice.py` `cold_season` : pièce chauffée — thermostat, thermostat éteint, poêle ou chaleur de maison — et dehors sous le minimum de la plage) : `open_long` et `keep` interdits, jusque dans la décision de « en pause » (`safe_taken`) ; remplace la règle du soir de 3.16.0. Fenêtre ouverte : `Now.closing_in` = `habits.airing_max` − minutes d'ouverture ; `decide._open` ferme la fenêtre du scénario « rien » à ce moment. Rejeux Chambre A : 7 h 04 « Ouvrez » → « Aérez 30 min » ; 9 h 10 « Laissez ouvert 51 % à 12 h » → « Rien à faire — Humidité 65 % à 12 h » (mesuré 65-66 %).
+- Eau des murs : `RoomAdvisor.reserve` suivi à chaque pas (`_reserve_step`, `water_step` sur l'humidité mesurée), passé dans `Now.reserve` (toujours None avant : la réserve partait de l'air). Rejeu Chambre M 11 h 09 : 59 % → 65 % prévus à 13 h (mesuré 64-65 %). Attendu aussi sur la nuit de la Chambre P (pic de douche 92 % à 22 h 34, 91 % prévus à 7 h, 81 % mesurés).
+- Poêle : `Twins.house_idle_for` (`RoomAdvisor._idle_for` : `Habits.stove_idle_hold` 45 min, réglage `poele_ralenti_min`, moins le temps déjà passé à 0 %) ; `simulate` compte les minutes à 0 % et coupe la flamme minimale au-delà. Constat : 0 % à 11 h 14, éteint à 11 h 56 ; 66 min le 11 nov.
+- Passage : la grâce de `GRACE_MINUTES` vaut aussi pour `keep` (sauf après un « Aérez »/« Ouvrez »).
+- Tenue : `LATER_SLACK` 60 min ; `words.phrase(subject_before=)` garde le sujet précédent si le geste le baisse d'au moins `SUBJECT_KEPT` 0,8 fois le sujet principal.
+- Outil : `snapshot.restore` reprend `house_idle` et `house_idle_for`.
+- Bornes physiques du jumeau d'eau (accord de Frank « Oui, ajoute-les ») : `physics/water.bounded` / `within` — `EXCHANGE` 0,05-5 h⁻¹, `RESERVE` 2-50 volumes, sources 0-`SOURCES_MAX` 150 g/h, amplitude du rythme ≤ sources (jamais négatives). Appliquées dans la recherche (`airfit._stepper`), à l'enregistrement (`airfit.values`) et à l'usage (`room/advice.py`, jumeaux déjà appris corrigés sans attendre la nuit). Constat maison : AL −150 g/h, échange 54,6, réserve 0,02 ; Buanderie −7,6 ; P 147 ± 185 ; SdB réserve 44 (gardée). Rejeu Buanderie du labo : « Aérez 5 min : 59 % au lieu de 71 % » → 64 % puis 68 %.
+- Tests : tests/test_bilan_13_novembre.py (9). 967 OK.
+
 ### 3.16.0 — 12 novembre 2026
 
 Bilan du 12 nov. (19 h de prod en 3.15.0), accord de Frank (« ok pour les corrections » + le poêle au ralenti « chauffe quand même ou maintient »). Mineur : la chaleur du poêle change pour toutes les pièces, jour et nuit.

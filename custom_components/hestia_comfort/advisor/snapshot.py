@@ -65,6 +65,7 @@ def restore(snap: dict) -> dict:
                   idle_thermostat=Thermostat(**t["idle_thermostat"]) if t.get("idle_thermostat") else None,
                   house_thermostat=Thermostat(**t["house_thermostat"]) if t.get("house_thermostat") else None,
                   house_power=t.get("house_power", 0.0), house_now=t.get("house_now", 0.0),
+                  house_idle=t.get("house_idle", 0.0), house_idle_for=t.get("house_idle_for"),
                   bearings=tuple(t.get("bearings", ())), cross=t.get("cross", 2.0))
     now = Now(**{**snap["now"], "opened": _pairs(snap["now"]["opened"])})
     coming = [(Inputs(**{**u, "windows": _pairs(u["windows"])}), water) for u, water in snap["coming"]]

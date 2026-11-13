@@ -330,9 +330,13 @@ def _name(gesture: Gesture, path, words, opened: bool) -> str:
     return words["shut"]
 
 
+# The subject said before is kept while the gesture lowers it by this share of what it lowers most (`phrase`).
+SUBJECT_KEPT = 0.8
+
+
 def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool = True,
            marks: dict | None = None, hour: float | None = None, reason: str | None = None,
-           beyond_before: bool | None = None, keep_beyond: bool = False) -> dict:
+           beyond_before: bool | None = None, keep_beyond: bool = False, subject_before: str | None = None) -> dict:
     """The banner's title and line, and the lines of « Pourquoi ? »; `hour`: the local time now, for a later gesture;
     `marks`: the room's range and marks, as `Comfort` holds them; `reason`: the safety rule that shuts, if one does
     (advisor/safety.py); `beyond_before`: whether the last « Rien à faire » said a measure out of its range or mark
@@ -357,6 +361,13 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     # Something is open when closing is one of the scenarios.
     opened = any(g.kind == "close" for g in decision.scenarios)
     gesture, subject = decision.gesture, subject_of(decision)
+    # The subject said before stays while the gesture still does about as much for it: the mould and the humidity took
+    # turns every half hour on an « Ouvrez » held two hours (bilan of 13 November, Chambre A, 7 h 04 to 8 h 34).
+    if subject_before and subject and subject_before != subject and gesture.kind != "nothing":
+        idle, chosen = decision.scenarios.get(reference(decision.scenarios, gesture)), decision.scenarios.get(gesture)
+        if idle and chosen and subject_before in idle and subject_before in chosen:
+            if idle[subject_before] - chosen[subject_before] >= SUBJECT_KEPT * (idle[subject] - chosen[subject]):
+                subject = subject_before
     if decision.rule == "stale":
         # Asked for the CO₂ measured: what the airing will be judged on (room/advice.py `aim`).
         subject = "co2"
