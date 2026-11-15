@@ -1,3 +1,16 @@
+## 3.1.0b12 — Plus de faux « Refermez »
+
+### Corrections
+
+- Plus de « Refermez : il pleut » pour une fenêtre ouverte après la pluie.
+- Plus de « Coupez le poêle » dans une pièce encore sous sa plage.
+- « Le gel est annoncé » ne clignote plus la nuit.
+- Le soir, moins d'aérations proposées pour une petite différence.
+
+### Moteur de conseil 3.17.1
+
+- Pluie, poêle, gel et aérations du soir corrigés.
+
 ## 3.1.0b11 — Des promesses justes
 
 ### Corrections

@@ -403,6 +403,8 @@ class AdvisorHome:
                 rate = _number(self.hass, rain["entity_id"])
             elif state.state in ("on", "off"):
                 rate = 1.0 if state.state == "on" else 0.0
+        # The rain measured now, before it is held: a window opened after the last drop is not told « il pleut ».
+        self.rain_now = rate
         rate, self.rain_last = rain_held(rate, getattr(self, "rain_last", None), dt_util.utcnow().timestamp())
         gust_entity = (sources.get("wind_gust") or {}).get("entity_id")
         gust = _number(self.hass, gust_entity)

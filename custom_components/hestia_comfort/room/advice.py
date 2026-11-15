@@ -39,7 +39,7 @@ from ..advisor.physics.thermal import STEP, Params, bounded, glazing as glazing_
 from ..advisor.physics.water import WaterParams, absolute, water_step, within
 from ..advisor.proof import CASES, ORDER, PROVEN, level, live, window_reinforced
 from ..advisor.pollen import today as pollen_today
-from ..advisor.safety import RAIN, RAIN_SOON, forbidden, holidays, rained_on
+from ..advisor.safety import RAIN, RAIN_SOON, forbidden, holidays, rain_for, rained_on
 from ..advisor.snapshot import capture
 from ..advisor.words import TEXTS, aside_line, doubt_text, doubtful_air, measured_out, phrase, tip_text, tonight_text
 from ..const import DOMAIN
@@ -163,6 +163,8 @@ def heater_power(hass, entity_id, declared=None):
 FIGURES = re.compile(r"\d+(?:[,.]\d+)?")
 
 
+# In the cold season's evening, a gesture must make this many times the usual difference to be asked.
+EVENING_TOLERANCE = 2.0
 # A line's subject is held this long under the same advice (`line_held`).
 LINE_HOLD = timedelta(minutes=30)
 
@@ -882,6 +884,11 @@ class RoomAdvisor:
                       house_running=burning, house_rise=rise, overheated=overheated,
                       bed_in=None if night else (bedtime - local).total_seconds() / 60)
         rain_rate, gust, rain_in, vigilance, wind_from = home.safety()
+        # The rain held after its last drop (advisor/safety.py RAIN_KEPT) keeps « Gardez fermé », never « Refermez » for
+        # a window opened once it had stopped: « Refermez : il pleut » at 16 h 21 in three rooms, the rain over at 16 h 03
+        # (bilan of 15 November, the household airing the house).
+        opened_since = ((self.opening[0] if self.opening else now).timestamp()) if opened else None
+        rain_rate = rain_for(rain_rate, getattr(home, "rain_now", None), getattr(home, "rain_last", None), opened_since)
         wet = {e for e in sizes if rained_on(room.get("sheltered", {}).get(e, False), (orientations.get(e) or (None,))[0], gust, wind_from)}
         wet_open = {e for i, e in enumerate(sizes) if i in opened_index} & wet
         shelter = "all" if sizes and not wet else "opened" if opened and not wet_open else None
@@ -914,6 +921,14 @@ class RoomAdvisor:
         if cold_season:
             endless = frozenset({"open_long", "keep"})
             taken, safe_taken = taken | endless, safe_taken | endless
+            if reason == "frost":
+                # The long openings are already left out: « Gardez fermé : le gel est annoncé » only came and went every
+                # half hour with a forecast hovering at 1 °C, in every room, all night (bilan of 14 November).
+                reason = None
+            if current.bed_in is not None and current.bed_in <= habits.tonight_before * 60:
+                # The evening: a gesture must make twice the difference to be asked. « Aérez 25-30 min » for 4 points
+                # of humidity, asked three times in two bedrooms, never followed (bilan of 14 November).
+                habits = replace(habits, tolerance=habits.tolerance * EVENING_TOLERANCE)
         # The thermostat's set point stands as the room's minimum, eco included (CAHIER-MOTEUR.md § 6.8), unless the
         # room says otherwise; the room's main thermostat when it is not its own (the Salon follows the stove).
         main = room["thermostat_plage"] or room["thermostat"]

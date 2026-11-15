@@ -4,6 +4,17 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.17.1 — 15 novembre 2026
+
+Dans Confort 3.1.0b12.
+
+### Corrections
+
+- Plus de « Refermez : il pleut » pour une fenêtre ouverte après la pluie. La pluie reste dite 30 minutes après la dernière goutte seulement pour une pièce fermée (« Gardez fermé »). Exemple : le 14 novembre à 16 h 21, trois chambres affichaient « Refermez » alors que la pluie s'était arrêtée à 16 h 03.
+- Plus de « Coupez le poêle » dans une pièce encore sous sa plage. Exemple : le 14 novembre à 19 h 55, le Salon à 19,5 °C (plage à partir de 20 °C) était en train de chauffer pour le boost de 20 h 29.
+- « Gardez fermé : le gel est annoncé » ne clignote plus la nuit en saison de chauffe.
+- Le soir, en saison de chauffe, un geste doit faire deux fois plus de différence pour être proposé. Exemple : « Aérez 25 min » pour 4 points d'humidité, redemandé trois fois dans les chambres, n'est plus proposé.
+
 ## 3.17.0 — 13 novembre 2026
 
 Dans Confort 3.1.0b11.

@@ -20,6 +20,16 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.17.1 — 15 novembre 2026
+
+Bilan du dimanche 15 nov. (3.17.0 depuis le 13 nov. 15 h 08), accord de Frank (« Oui, corrige »).
+- Pluie : `safety.rain_for(held, measured, last, opened_since)` — la pluie tenue (`RAIN_KEPT`) ne vaut que pour une pièce fermée ou dont la fenêtre était déjà ouverte pendant la pluie ; `AdvisorHome.rain_now` garde la mesure avant tenue. Constat : 15 h 04 (pluie finie 14 h 52) et 16 h 21 en A, M, SdB (pluie finie 16 h 03), grande aération de la famille.
+- Poêle : la règle `overheat` exige `now.air > comfort.minimum` et se tait à `STOVE_BOOST_SOON` 90 min d'un créneau plus chaud du planning. Rejeux : Salon 14 nov. 19 h 55 « Coupez le poêle : 19,5 °C pour 14 °C visés » → « Rien à faire » ; 13 h 50 « 24,1 °C pour 21,5 » gardé. Le boost de 20 h 29 venait de l'automatisation du foyer, pas du planning du thermostat.
+- Gel : en saison de chauffe (`cold_season`), la raison `frost` est retirée (les ouvertures longues le sont déjà) : plus de bascule « Gardez fermé : le gel est annoncé » toutes les 30 min (nuit du 13 au 14 nov., prévision à 1 °C, 3,7 °C mesurés).
+- Soir : en saison de chauffe, à `tonight_before` h du coucher, `habits.tolerance` × `EVENING_TOLERANCE` 2 (seuils de signification doublés). Constat : « Aérez 25-30 min » A et M pour 4 points, 3 fois, jamais suivi.
+- Reste : effet de la VMC rapide de la Chambre P trop optimiste (« sous 60 % vers 23 h 15 », 68 % mesuré) — à étudier après la stable.
+- Tests : tests/test_bilan_15_novembre.py (4). 971 OK.
+
 ### 3.17.0 — 13 novembre 2026
 
 Bilan du 13 nov. (jour 1 du gel en 3.16.0) et remarque de Frank sur la Chambre A (« prévu 57 %, c'est quand même assez flou et optimiste » : 72 → 57 % fenêtre ouverte, puis 65 %), accord « corrige tous les points ». Le gel repart de zéro.

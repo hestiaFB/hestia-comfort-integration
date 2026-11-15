@@ -93,6 +93,8 @@ WARMING = 0.5
 
 # The stove's flame at its lowest: its thermostat asks this share of the power or less (0 to 1).
 STOVE_LOW = 0.1
+# Minutes before its schedule's warmer slot within which a stove burning above its set point is warming up for it.
+STOVE_BOOST_SOON = 90
 # The room still warming by this much over the last half hour, the stove at its lowest, is worth saying (°C).
 STOVE_RISE = 0.3
 
@@ -988,7 +990,13 @@ def _decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weight
     stove = twins.house_thermostat
     if (stove is not None and now.house_running and not now.night and "heat_stop" not in forbidden
             # Half a step of slack: the steps are not exactly five minutes apart (1 November, 29 min 44 s at 21 h 13).
-            and now.overheated is not None and now.overheated >= habits.overheat_minutes - STEP / 120):
+            and now.overheated is not None and now.overheated >= habits.overheat_minutes - STEP / 120
+            # Never a room still under its range, nor while the stove warms up for its schedule's next, warmer slot: lit
+            # at 19 h 24 by the household's automation for the 20 h 29 boost, the Salon at 19,5 °C « pour 14 °C visés »
+            # (its range from 20 °C) was told to stop it (bilan of 15 November).
+            and now.air > comfort.minimum
+            and not (stove.then is not None and stove.at is not None and stove.then > stove.target
+                     and stove.at <= STOVE_BOOST_SOON)):
         # The stove does not stop by itself (Frank, 1 November): the room measured above its set point by the household's
         # margin for long enough asks to stop it, before any gesture of the twin. A fact measured, not a forecast.
         stop = Gesture("heat_stop")

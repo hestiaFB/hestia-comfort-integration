@@ -68,6 +68,18 @@ RAIN_SOON_KEPT = 40     # minutes: once said, « la pluie arrive » holds while 
 RAIN_KEPT = 30          # minutes
 
 
+def rain_for(held: float | None, measured: float | None, last: tuple[float, float] | None,
+             opened_since: float | None) -> float | None:
+    """The rain a room is told of: the rain held after its last drop (`rain_held`) only for a room shut, or whose window
+    was already open while it rained — never « Refermez : il pleut » for a window opened once it had stopped (bilan of
+    15 November: three rooms at 16 h 21, the rain over at 16 h 03). `opened_since`: when its window was opened, None
+    when shut (timestamps)."""
+    if (opened_since is not None and measured is not None and measured <= RAIN and held is not None and held > RAIN
+            and last is not None and opened_since > last[0]):
+        return measured
+    return held
+
+
 def rain_held(rate: float | None, last: tuple[float, float] | None, now: float) -> tuple[float | None, tuple | None]:
     """The rain rate as believed, and (when, rate) of the last rain measured: a dry reading within RAIN_KEPT of it keeps
     that rain."""
