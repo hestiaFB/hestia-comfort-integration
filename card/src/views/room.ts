@@ -20,12 +20,12 @@ const offWords:Record<string,string>={window:'fenêtre ouverte',auto_start_stop:
 /** The banner's mood, which sets the ring and the light: « Au mieux » is calm, but not « Tout va bien ». */
 export const mood=(s:{level:Level;pill?:string}|undefined,level:Level)=>s?.pill==='Au mieux'?'best':s?.level??level;
 /** Each pill carries its mark, so states read apart without relying on colour alone. */
-const PILL_MARKS:Record<string,string>={'Tout va bien':'check','Au mieux':'best','Conseil optimisé':'flask','Trop frais':'temp','Démarrage':'clock','Capteurs muets':'mute','Un capteur muet':'mute','Plus tard':'clock'};
+const PILL_MARKS:Record<string,string>={'En cours':'clock','Tout va bien':'check','Au mieux':'best','Conseil optimisé':'flask','Trop frais':'temp','Démarrage':'clock','Capteurs muets':'mute','Un capteur muet':'mute','Plus tard':'clock'};
 const LEVEL_MARKS:Record<string,string>={calm:'check',benefit:'spark',action:'hand',urgent:'alert',neutral:'help'};
 export const pillMark=(pill:string,level:Level,learned=false)=>html`<span class="nc-mark">${icon(learned?'flask':PILL_MARKS[pill]??LEVEL_MARKS[level]??'info')}${tx(pill)}</span>`;
 export const pills:Record<Level,string>={calm:'Tout va bien',benefit:'À saisir',action:'Geste conseillé',urgent:'Attention',neutral:'À vérifier'};
 /** The banner's pill, the room's state alone (30 October, evening): what the advice learned or what is out goes elsewhere. */
-const STATE_PILLS=new Set(['Tout va bien','Au mieux','À saisir','Geste conseillé','Attention','À vérifier','Démarrage','Capteurs muets','Un capteur muet']);
+const STATE_PILLS=new Set(['Tout va bien','Au mieux','À saisir','Geste conseillé','Bon moment','À faire','En cours','Attention','À vérifier','Démarrage','Capteurs muets','Un capteur muet']);
 export const statePill=(s:{level:Level;pill?:string}|undefined,level:Level)=>s?.pill&&STATE_PILLS.has(s.pill)?s.pill:pills[s?.level??level];
 const hour=(iso:string)=>{const h=new Date(iso).getHours();return h===0?'minuit':h===12?'midi':h+' h';};
 /** « 15 h 20 », to the five minutes: when to shut before a coming rain. */
@@ -37,7 +37,8 @@ export interface Advice {title:string;line:TemplateResult|string;disk:string;cap
   /** Learned on this room by its twin: the basis, said under the gesture (« d'après 31 aérations »). */ learned?:string;
   /** A state that is not advice (sensors loading or silent) brings its own words and colour. */ pill?:string;level?:Level;
   /** The banner's scene (window, VMC, radiator) in place of the pictogram; none keeps the pictogram. */ scene?:Scene|null;
-  /** The room sleeps: its waking hour (« 7 h »), a small moon on the banner's picture. */ night?:string}
+  /** The room sleeps: its waking hour (« 7 h »), a small moon on the banner's picture. */ night?:string;
+  /** When the gesture is for, said above it: the slot of a slot's gesture (« Cet après-midi », moteur 3.18.0). */ when?:string}
 /** Reasons that only say « keep closed »: the engine lowers them to calm when nothing is open and no reflex is at stake. */
 const QUIET=['drying_unavailable','drying_slow','drying_night','drying_alone','opening_blocked','cooling_unavailable','precool_later'];
 /** The banner: the gesture in a few words, then why in one line. The full explanation stays behind « i ». */
@@ -1118,7 +1119,7 @@ export class HestiaAdviceTicker extends LitElement {
   /** The banner's layout: its tinted square with the pictogram, then « Action à faire », the advice, why, and what to touch. */
   private banner(list:Slide[],many:boolean,i:number){
     // The kicker says when: now, or under way; nothing when there is nothing to do.
-    const when=(s:Slide)=>s.cap==='À essayer'?t('À essayer'):/^(Encore |Laissez ouvert)|^Aération en cours$/.test(s.title)?t('En cours'):s.title==='Rien à faire'||s.level==='neutral'||s.level==='calm'?'':t('Maintenant');
+    const when=(s:Slide)=>s.when&&s.cap!=='À essayer'?tx(s.when):s.cap==='À essayer'?t('À essayer'):/^(Encore |Laissez ouvert)|^Aération en cours$/.test(s.title)?t('En cours'):s.title==='Rien à faire'||s.level==='neutral'||s.level==='calm'?'':t('Maintenant');
     // « Puis refermez » is the gesture's second half: in the title. The other tags were said elsewhere (À savoir, the « i »).
     const title=(s:Slide)=>s.cap==='Puis refermez'?`${tx(s.title)}, ${tx('puis refermez')}`:tx(s.title);
     return html`<div class="nw-band-row" @mouseenter=${()=>this.hold(true)} @mouseleave=${()=>this.hold(false)} @focusin=${()=>this.hold(true)} @focusout=${()=>this.hold(false)}>

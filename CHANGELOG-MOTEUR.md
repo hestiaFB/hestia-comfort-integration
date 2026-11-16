@@ -4,6 +4,25 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.18.0 — 16 novembre 2026
+
+Dans Confort 3.1.0b13.
+
+### Nouveautés
+
+- Le conseil vient par créneaux : un geste au plus par pièce le matin, l'après-midi et le soir, au meilleur moment du créneau, fixé à son début. Exemple : « Aérez 45 min vers 14 h 30 » reste affiché tel quel jusqu'à 15 h 15, puis disparaît s'il n'a pas été suivi.
+- Les urgences restent à toute heure, sur une mesure : CO₂, particules fines, COV, humidité bien au-dessus de la normale de la pièce. Chacune est dite une fois, puis mise en pause 2 h si elle n'est pas suivie.
+- Chaque pièce a sa carte d'identité, refaite chaque nuit : sa normale, son isolation, son inertie, son chauffage, ce que fait une aération, les habitudes du foyer. La Chambre P vit à 77 % d'humidité : c'est sa normale, les conseils en tiennent compte.
+- Ce qui est permanent devient un conseil du logement. Exemple : « Humide en permanence : aérer ne suffira pas ».
+- Un événement Home Assistant à chaque nouveau conseil, pour l'envoyer sur le téléphone.
+- Une urgence dit sa mesure. Exemple : « CO₂ 1 450 ppm : l'air redevient sain en 15 min ».
+
+### Corrections
+
+- Plus de conseil qui part et revient : en 10 jours, 43 allers-retours sans fenêtre touchée.
+- Sous « Rien à faire », la phrase garde son sujet.
+- Une fenêtre ouverte moins d'une minute ne change plus le conseil.
+
 ## 3.17.1 — 15 novembre 2026
 
 Dans Confort 3.1.0b12.

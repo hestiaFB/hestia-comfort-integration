@@ -99,13 +99,20 @@ class Habits:
     # Minutes a stove keeps its idle flame once its thermostat asks 0 %, before the household's automation puts it out
     # (Salon, 11-13 November: 42 to 66 min).
     stove_idle_hold: int = 45
+    # The day's slots (advisor/slots.py): the morning ends and the evening begins at these hours; the longest airing a
+    # slot's plan may say (minutes): long ones when the outside is mild, as the household does (Frank, 16 November: « elles
+    # sont longues parce que ces jours-ci l'extérieur est doux et ne refroidit pas la maison »).
+    noon: int = 12
+    evening: int = 18
+    plan_max: int = 60
 
     KEYS = {"ouvrir_la_nuit": "open_at_night", "aeration_max_min": "airing_max", "plus_tard_max_min": "later_max",
             "appareils_max_min": "devices_max", "cette_nuit_avant_h": "tonight_before", "buee_avant_h": "mist_before",
             "hors_gel": "frost_guard", "tolerance": "tolerance", "pas_maintenant_min": "not_now",
             "poele_tient_h": "stove_hold", "depassement": "overheat", "depassement_min": "overheat_minutes",
             "volets_absence": "shutters_away", "volets_absence_apres_h": "shutters_away_after", "volets_nuit": "shutters_night", "volets_ete": "shutters_summer",
-            "linge_pieces": "laundry", "ecart_maison": "house_gap", "poele_ralenti_min": "stove_idle_hold"}
+            "linge_pieces": "laundry", "ecart_maison": "house_gap", "poele_ralenti_min": "stove_idle_hold",
+            "midi_h": "noon", "soir_h": "evening", "aeration_creneau_max_min": "plan_max"}
 
     @property
     def airings(self) -> tuple[int, ...]:

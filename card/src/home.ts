@@ -335,7 +335,7 @@ export class HestiaComfortHomeCard extends LitElement {
     const chipLevel=gestures?(slides.some(s=>s.level==='urgent')?'urgent':'action'):first?.level??'calm';
     // The same pill and mark as the room cards: « Au mieux » with its half disk, « Tout va bien » with its tick; a hand for gestures.
     const chip=gestures?html`<span class="nc-mark">${icon(chipLevel==='urgent'?'alert':'hand')}${gestures>1?tt('{n} gestes',{n:gestures}):tt('1 geste')}</span>`
-      :pillMark(chipLevel==='benefit'?'À saisir':statePill(first,chipLevel as Level),chipLevel as Level);
+      :pillMark(chipLevel==='benefit'?'Bon moment':statePill(first,chipLevel as Level),chipLevel as Level);
     const out=h.outdoor_temperature,day=this.periods?.day?.outdoor;
     // Or the home itself (7 November): the mean of the declared rooms that measure, the coolest and warmest under it.
     const inside=c.hero_temperature==='home'?this.rooms.map(r=>numeric(r.observations.indoor_temperature)).filter((x):x is number=>x!=null):[];

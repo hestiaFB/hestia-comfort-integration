@@ -821,11 +821,13 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
            previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
            proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits(),
            held: float | None = None, tried: Gesture | None = None, aired: float | None = None,
-           failed: dict | None = None, pollen: Pollen | None = None, tried_held: float | None = None) -> Decision:
+           failed: dict | None = None, pollen: Pollen | None = None, tried_held: float | None = None,
+           given: list[Gesture] | None = None) -> Decision:
     """The gesture to advise (`_decide`), and the air measured stale asked to renew (STALE_CO2) when nothing else is.
-    `tried_held`: minutes « À essayer » has shown the same gesture (HOLD_MINUTES)."""
+    `tried_held`: minutes « À essayer » has shown the same gesture (HOLD_MINUTES); `given`: the gestures weighed, instead
+    of the room's `candidates` (a slot's plan, advisor/slots.py `plan_pool`)."""
     decision = _decide(twins, now, coming, comfort, weights, previous, forbidden, proof, holidays, habits, held, tried,
-                       aired, failed, pollen, tried_held)
+                       aired, failed, pollen, tried_held, given)
     airing = Gesture("open", minutes=STALE_AIRING)
     said = previous is not None and previous == airing
     if (said and decision.gesture == airing and decision.rule == "kept" and now.co2 is not None
@@ -847,7 +849,8 @@ def _decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weight
             previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
             proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits(),
             held: float | None = None, tried: Gesture | None = None, aired: float | None = None,
-            failed: dict | None = None, pollen: Pollen | None = None, tried_held: float | None = None) -> Decision:
+            failed: dict | None = None, pollen: Pollen | None = None, tried_held: float | None = None,
+            given: list[Gesture] | None = None) -> Decision:
     """The gesture to advise. `forbidden`: kinds a safety rule takes away (« open » under the rain, in gusts…).
     `proof`: the level of the windows' effect on each subject (advisor/proof.py); None, all taken as proven.
     `held`: minutes `previous` has been on the card (HOLD_MINUTES); `tried`: the gesture shown « À essayer », as it
@@ -867,7 +870,7 @@ def _decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weight
     # While the household sleeps, nobody gets up to open a window, unless it says it would (Frank, 31 October: « en plein
     # hiver, il y a très peu de chance que je laisse ouvert, même 20 min pour aérer en pleine nuit »): the night keeps
     # closing what was left open and the devices; a window for the night is said in the evening (`tonight`).
-    pool = candidates(now, twins, habits, comfort)
+    pool = list(given) if given is not None else candidates(now, twins, habits, comfort)
     previous = under_way(previous, now)
     # An airing « À essayer » followed is under way as well: it holds from the moment the window opens.
     if (previous is None or previous.kind == "nothing") and under_way(tried, now) != tried:

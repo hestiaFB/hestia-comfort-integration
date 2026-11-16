@@ -22,7 +22,7 @@ export const SECTION_LABELS:Record<Section,string>={themes:fr('Les 4 thèmes du 
 export const SHOWN_SECTIONS:Section[]=[...SECTIONS];
 export const FOLDED_SECTIONS:Section[]=['curve','rooms','details'];
 
-const KIND:Partial<Record<Level,string>>={action:fr('Geste conseillé'),urgent:fr('Attention'),benefit:fr('À saisir')};
+const KIND:Partial<Record<Level,string>>={action:fr('À faire'),urgent:fr('Attention'),benefit:fr('Bon moment')};
 
 /** The banner, the charter's (.nw-band): a glass frame, the gesture's scene (the room's window, VMC or radiator; the pictogram
  *  in a tinted box only when there is none, sensors loading or silent), the room named above the

@@ -13,7 +13,9 @@ export interface Advisor3 {
   /** What the last opinion sent answered, shown in place of the buttons. */
   said?:string;
 }
-interface Slide3 {title:string;line:string;disk:string;level:Level;pill:string;learned?:string;cap?:string;night?:string}
+interface Slide3 {title:string;line:string;disk:string;level:Level;pill:string;learned?:string;cap?:string;night?:string;when?:string}
+/** A slot's gesture is said for its slot (advisor/slots.py), never « Maintenant » above « vers 15 h ». */
+const SLOTS:Record<string,string>={matin:'Ce matin',apres_midi:'Cet après-midi',soir:'Ce soir',nuit:'Cette nuit'};
 
 const str=(x:unknown)=>typeof x==='string'?x:'';
 const list=(x:unknown)=>Array.isArray(x)?x.filter((i):i is string=>typeof i==='string'):[];
@@ -30,7 +32,9 @@ const RULES:Record<string,string>={nothing:'Aucun geste ne ferait mieux : la pi�
   overheat:'La pièce dépasse sa consigne depuis un moment : c’est une mesure, pas une prévision.',
   stale:'Le CO₂ mesuré est trop haut : l’air est à renouveler. C’est une mesure, pas une prévision.',
   doubtful:'Une mesure semble fausse : pas de conseil tant qu’elle l’est.',
-  waiting:'Le moteur de conseil redémarre ; il reprend la pièce dès son premier passage.'};
+  waiting:'Le moteur de conseil redémarre ; il reprend la pièce dès son premier passage.',
+  creneau:'C’est le meilleur moment de ce créneau, choisi à son début : il ne changera plus d’ici là.',
+  urgent:'Une mesure est trop haute : à faire maintenant. C’est une mesure, pas une prévision.'};
 const LIMITS:Record<string,string>={rain:'il pleut',rain_soon:'la pluie pourrait arriver',rain_maybe:'la pluie pourrait arriver : pas de nouvelle aération',gusts:'rafales de vent',vigilance:'vigilance météo',
   away:'la maison est en mode absence',frost:'le gel est annoncé'};
 const SOURCES:Record<string,string>={co2:'CO₂',voc:'COV',particles:'particules',humidity:'humidité'};
@@ -48,11 +52,25 @@ export function countdown(a:Record<string,unknown>,now=Date.now()):string|null{
   return left>0?`Laissez ouvert encore ${left} min`:'Refermez';
 }
 
-/** The colour and the pill: orange for a gesture, red for safety, green for one to try, blue otherwise (the charter). */
+/** The colour and the pill, the charter's meanings on the family the engine says (room/advice.py `famille`, moteur 3.18.0,
+ *  niak-comfort/docs/ETAT-DES-LIEUX-MOTEUR.md): blue, nothing to do (« Tout va bien », « Au mieux », an airing « En cours »);
+ *  green, a slot's good moment to seize (« Bon moment »); orange, a gesture that matters now (« À faire »: an urgency, or
+ *  shutting what is open); red, a warning (« Attention »); grey when the card cannot tell. Frank, 16 November: one family,
+ *  one colour, one pill — orange stays rare, so it means it. Before 3.18.0, from the gesture: orange for a gesture, red for
+ *  safety, green for one to try, blue otherwise. */
 export function level3(x:Advisor3):{level:Level;pill:string}{
-  const a=x.attributes,rule=str(a.regle),gesture=str(a.geste)||'nothing';
+  const a=x.attributes,rule=str(a.regle),gesture=str(a.geste)||'nothing',family=str(a.famille);
   if(rule==='doubtful')return {level:'neutral',pill:'À vérifier'};
   if(rule==='waiting')return {level:'neutral',pill:'Démarrage'};
+  if(family){
+    if(family==='securite')return {level:'urgent',pill:'Attention'};
+    if(family==='urgence')return {level:'action',pill:'À faire'};
+    if(family==='creneau')return {level:'benefit',pill:'Bon moment'};
+    // Shutting now, or the countdown over between two steps of the engine (`countdown`): « Refermez » is to do now.
+    if(family==='reponse'&&gesture!=='nothing')
+      return gesture==='close'&&(!a.apres||countdown(a)==='Refermez')?{level:'action',pill:'À faire'}:{level:'calm',pill:'En cours'};
+    return {level:'calm',pill:a.hors_plage===true?'Au mieux':'Tout va bien'};
+  }
   if(rule==='safety')return {level:'urgent',pill:'Attention'};
   // « Laissez ouvert »: the gesture is done, nothing more to do (advisor/decide.py `keep`).
   if(gesture==='keep')return {level:'calm',pill:'Au mieux'};
@@ -78,13 +96,13 @@ export function trial3(a:Record<string,unknown>):{title:string;line:string;disk:
 
 export function slides3(x:Advisor3):Slide3[]{
   const a=x.attributes,gesture=str(a.geste)||'nothing',{level,pill}=level3(x),tried=level==='benefit'?trial3(a):null;
-  const night=wake3(a);
+  const night=wake3(a),when=str(a.famille)==='creneau'?SLOTS[str(a.creneau)]:undefined;
   if(tried)return [{...tried,level,pill,cap:'À essayer',night}];
   const proof=gesture!=='nothing'&&!['safety','overheat','stale'].includes(str(a.regle))?PROOF[str(a.preuve)]:undefined;
   // « Optimisé par l'apprentissage » only for an effect this room has shown: a probable one is said « sans doute » in the line
   // (Chambre P, 3 November: the flask over a window it had never seen open).
   return [{title:countdown(a)??x.title,line:str(a.phrase),disk:str(a.regle)==='safety'?'rain':str(a.regle)==='waiting'?'clock':DISKS[gesture]??'check',level,pill,
-    learned:str(a.preuve)==='proven'?proof:undefined,night}];
+    learned:str(a.preuve)==='proven'?proof:undefined,night,when}];
 }
 
 /** « À savoir » from the 3.0 decision: what to try and the night first, then what is worth watching, then the passive advice.

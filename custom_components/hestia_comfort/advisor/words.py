@@ -66,6 +66,12 @@ TEXTS = {
         "stove_off": "Poêle coupé",
         "overheat": "{air} °C pour {target} °C visés, depuis {minutes} min",
         "stale": "CO₂ mesuré à {co2} ppm : l'air est à renouveler",
+        "urgent_co2": "CO₂ {value} ppm : {line}", "urgent_humidity": "Humidité {value} % : {line}",
+        "urgent_particles": "Particules {value} µg/m³ : {line}", "urgent_voc": "COV {value} : {line}",
+        "dwelling_humid": "Humide en permanence : {median} % d'humidité en moyenne depuis deux semaines. Aérer ne suffira "
+                          "pas ; un déshumidificateur ou un chauffage doux et continu aideront",
+        "dwelling_co2": "Air souvent confiné : le CO₂ monte jusqu'à {high} ppm. Une aération plus régulière ou une VMC "
+                        "aideront",
         "stove_hold": "Le poêle tourne au minimum : sans lui, la pièce reste au-dessus de {minimum} °C jusqu'à {at}",
         "stove_hold_long": "Le poêle tourne au minimum : sans lui, la pièce reste au-dessus de {minimum} °C au moins jusqu'à {hour} h",
         "stove_rising": "Le poêle tourne au minimum et la pièce monte encore : {change} °C de plus en 30 min",
@@ -149,6 +155,12 @@ TEXTS = {
         "stove_off": "Stove off",
         "overheat": "{air} °C for {target} °C aimed at, for {minutes} min",
         "stale": "CO₂ measured at {co2} ppm: the air needs renewing",
+        "urgent_co2": "CO₂ {value} ppm: {line}", "urgent_humidity": "Humidity {value} %: {line}",
+        "urgent_particles": "Particles {value} µg/m³: {line}", "urgent_voc": "VOC {value}: {line}",
+        "dwelling_humid": "Always humid: {median} % on average over two weeks. Airing will not be enough; a dehumidifier "
+                          "or a gentle, steady heating will help",
+        "dwelling_co2": "Often stuffy: the CO₂ rises up to {high} ppm. Airing more regularly or a ventilation unit will "
+                        "help",
         "stove_hold": "The stove runs at its lowest: without it, the room stays above {minimum} °C until {at}",
         "stove_hold_long": "The stove runs at its lowest: without it, the room stays above {minimum} °C until {hour}:00 at least",
         "stove_rising": "The stove runs at its lowest and the room is still warming: {change} °C more in 30 min",
@@ -232,6 +244,12 @@ TEXTS = {
         "stove_off": "Ofen aus",
         "overheat": "{air} °C bei {target} °C Ziel, seit {minutes} min",
         "stale": "CO₂ gemessen bei {co2} ppm: die Luft muss erneuert werden",
+        "urgent_co2": "CO₂ {value} ppm: {line}", "urgent_humidity": "Feuchte {value} %: {line}",
+        "urgent_particles": "Feinstaub {value} µg/m³: {line}", "urgent_voc": "VOC {value}: {line}",
+        "dwelling_humid": "Dauerhaft feucht: im Mittel {median} % seit zwei Wochen. Lüften allein reicht nicht; ein "
+                          "Luftentfeuchter oder eine milde, gleichmäßige Heizung helfen",
+        "dwelling_co2": "Oft stickige Luft: das CO₂ steigt bis {high} ppm. Regelmäßigeres Lüften oder eine Lüftungsanlage "
+                        "helfen",
         "stove_hold": "Der Ofen läuft auf kleinster Stufe: ohne ihn bleibt der Raum bis {at} über {minimum} °C",
         "stove_hold_long": "Der Ofen läuft auf kleinster Stufe: ohne ihn bleibt der Raum mindestens bis {hour} Uhr über {minimum} °C",
         "stove_rising": "Der Ofen läuft auf kleinster Stufe und der Raum wird weiter wärmer: {change} °C mehr in 30 min",
@@ -336,7 +354,8 @@ SUBJECT_KEPT = 0.8
 
 def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool = True,
            marks: dict | None = None, hour: float | None = None, reason: str | None = None,
-           beyond_before: bool | None = None, keep_beyond: bool = False, subject_before: str | None = None) -> dict:
+           beyond_before: bool | None = None, keep_beyond: bool = False, subject_before: str | None = None,
+           calm_subject: str | None = None) -> dict:
     """The banner's title and line, and the lines of « Pourquoi ? »; `hour`: the local time now, for a later gesture;
     `marks`: the room's range and marks, as `Comfort` holds them; `reason`: the safety rule that shuts, if one does
     (advisor/safety.py); `beyond_before`: whether the last « Rien à faire » said a measure out of its range or mark
@@ -371,6 +390,9 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     if decision.rule == "stale":
         # Asked for the CO₂ measured: what the airing will be judged on (room/advice.py `aim`).
         subject = "co2"
+    elif decision.rule == "urgent" and decision.measured:
+        # An urgency (advisor/board.py): asked for the measure that set it off, said on it.
+        subject = next(iter(decision.measured))
     if gesture.kind == "close" and gesture.after and gesture.after < SOON:
         # Shut in a few minutes: how long is left, said again at each step until « Refermez » (Frank, 1 November).
         title = words["close_soon"].format(after=gesture.after)
@@ -388,23 +410,36 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     paths = decision.paths
     line = ""
     beyond_now = False
+    calm = None
     if gesture.kind == "nothing":
         # « Open or shut » only when something is open; « in your range » only when it is true (31 October, Chambre P at
         # 18 °C, its window open: « la pièce restera dans votre plage » was not).
         idle = paths.get(Gesture("nothing"))
-        if decision.passive is not None and idle is not None and idle.air:
+        # The subject said while the room stays calm, kept while it is still true within its EDGE (advisor/board.py):
+        # « 17,2 °C à 20 h » and « Humidité 70 % à 23 h » took turns nine times a day in each room (bilan of 16 November).
+        held_values = getattr(idle, calm_subject, None) if idle is not None and calm_subject in EDGE and calm_subject != "heat" else None
+        if decision.passive is None and calm_subject == "heat" and idle is not None and idle.air \
+                and _outside(idle.air[-1], marks["minimum"], marks["maximum"], EDGE["heat"], True):
+            line = words["nothing_out" if opened else "nothing_out_shut"].format(air=_number(idle.air[-1], language), hour=end_hour)
+            beyond_now, calm = True, "heat"
+        elif decision.passive is None and held_values \
+                and _outside(held_values[-1], float("-inf"), marks[calm_subject], EDGE[calm_subject], True):
+            what = words[f"out_{calm_subject}"].format(value=round(held_values[-1]), hour=end_hour)
+            line = words["out_nothing"].format(what=what)
+            beyond_now, calm = True, calm_subject
+        elif decision.passive is not None and idle is not None and idle.air:
             # A gesture held back for want of proof: « open or shut » would say it changes nothing, which is untrue.
             line = words["held_open" if opened else "held_shut"].format(air=_number(idle.air[-1], language), hour=end_hour)
         elif idle is not None and idle.air and _outside(idle.air[-1], marks["minimum"], marks["maximum"], EDGE["heat"],
                                                         beyond_before):
             line = words["nothing_out" if opened else "nothing_out_shut"].format(air=_number(idle.air[-1], language), hour=end_hour)
-            beyond_now = True
+            beyond_now, calm = True, "heat"
         elif idle is not None and (beyond := _beyond(idle, marks, beyond_before)):
             # The heat in its range, not the rest (rejeu of 10 days: « dans votre plage » at 77 % of humidity).
             measure, value = beyond
             what = words[f"out_{measure}"].format(value=round(value), hour=end_hour)
             line = words["out_nothing"].format(what=what)
-            beyond_now = True
+            beyond_now, calm = True, measure
         elif idle is not None and (back := _back_alone(idle, marks)):
             # Above its mark now, back under it by itself before the end: not « la pièce restera dans votre plage » at
             # 1 118 ppm (Salon · Cuisine, 8 November at 10 h 40), nor at a VOC of 441 while cooking (13 h 05).
@@ -416,7 +451,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
                 when = words["back_in"].format(minutes=minutes)
             what = words[f"back_{measure}"].format(mark=round(marks[measure]), when=when)
             line = words["out_nothing"].format(what=what)
-            beyond_now = True
+            beyond_now, calm = True, measure
         elif idle is not None and idle.air and keep_beyond:
             # « Au mieux » kept: what it says stays true, no gesture would do better (room/advice.py CALM_MINUTES).
             line = words["nothing_out" if opened else "nothing_out_shut"].format(air=_number(idle.air[-1], language), hour=end_hour)
@@ -496,6 +531,13 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             line = words["maybe"].format(line=line) if tier == "_maybe" else line
         else:
             line = words["sure" if sure else "unsure"].format(line=line)
+    if decision.rule == "urgent" and decision.measured and line:
+        # An urgency says the measure that set it off first (advisor/board.py): « CO₂ 1 450 ppm : … ».
+        what, value = next(iter(decision.measured.items()))
+        if f"urgent_{what}" in words:
+            # « 1 450 ppm », the thousands apart as the card says them (a narrow space in French).
+            shown = f"{round(value):,}".replace(",", "\u202f" if language == "fr" else ",")
+            line = words[f"urgent_{what}"].format(value=shown, line=line)
     # « Pourquoi ? » compares two or three scenarios (CAHIER-MOTEUR.md § 14): doing nothing, the advice, and the best
     # other one when it differs.
     # « Laissez ouvert » is the scenario of doing nothing: said against shutting now, as its line is.
@@ -510,7 +552,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             if path.humidity:
                 text += words["why_humidity"].format(humidity=round(path.humidity[-1]))
             why.append(text)
-    out = {"title": title, "line": line, "subject": subject, "why": why, "try": None, "beyond": beyond_now}
+    out = {"title": title, "line": line, "subject": subject, "why": why, "try": None, "beyond": beyond_now, "calm": calm}
     if decision.passive is not None:
         # Held back for want of proof: said as a passive advice, to try.
         tried = phrase(replace(decision, gesture=decision.passive, passive=None, rule="best"), end_hour, language,
@@ -582,6 +624,20 @@ def tonight_text(decision: Decision, wake_hour: int, language: str = "fr", marks
 
 def _time(when, words) -> str:
     return words["time_hour"].format(h=when.hour) if when.minute == 0 else words["time"].format(h=when.hour, m=when.minute)
+
+
+def dwelling_lines(card: dict | None, language: str = "fr") -> list[str]:
+    """What is chronic in a room (advisor/identity.py), said as an advice for the dwelling, not a daily one: the Chambre
+    P, an old garage, lives at 75-80 % of humidity (Frank, 16 November: « cela peut se transformer en conseil du
+    logement »)."""
+    words = TEXTS[language]
+    out = []
+    for found in (card or {}).get("chronique") or ():
+        if found.get("sujet") == "humidite":
+            out.append(words["dwelling_humid"].format(median=round(found["mediane"])))
+        elif found.get("sujet") == "co2":
+            out.append(words["dwelling_co2"].format(high=round(found["haut"])))
+    return out
 
 
 def aside_line(alternative: dict, until, language: str = "fr") -> str:

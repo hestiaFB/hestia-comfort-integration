@@ -16,7 +16,9 @@ COMPASS = ("nord", "nord-est", "est", "sud-est", "sud", "sud-ouest", "ouest", "n
 # The pill, as a stable state for automations; its words stay in the translations.
 STATES = {"Tout va bien": "calm", "Au mieux": "best", "À saisir": "benefit", "Geste conseillé": "action", "Attention": "urgent",
           "À vérifier": "neutral", "Conseil optimisé": "optimized", "Trop frais": "too_cold", "Démarrage": "starting",
-          "Capteurs muets": "sensors_silent", "Un capteur muet": "sensor_silent"}
+          "Capteurs muets": "sensors_silent", "Un capteur muet": "sensor_silent",
+          # The pills of the advice by slots (moteur 3.18.0, room/advice.py `banner_level`).
+          "Bon moment": "benefit", "À faire": "action", "En cours": "calm"}
 # The card's colours (hestia-charte.css, oklch converted to sRGB): blue all is well, green a benefit, orange a gesture.
 COLOURS = {"calm": (170, 214, 229), "best": (170, 214, 229), "benefit": (165, 214, 174), "action": (241, 178, 119),
            "urgent": (234, 140, 143), "neutral": (177, 177, 177)}

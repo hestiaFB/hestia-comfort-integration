@@ -11,17 +11,21 @@
 /* La police et les angles de la carte sont ceux de la charte (hestia-charte). */
 ha-card.nc-c { --nc-base:var(--nw-bg); overflow:hidden; background:var(--nw-bg); color:var(--nw-fg); container-type:inline-size; }
 .nc-hero { position:relative; isolation:isolate; overflow:hidden; padding:18px 20px 16px;
-  background:linear-gradient(115deg, var(--nc-base) 40%, color-mix(in oklab, var(--c) 16%, var(--nc-base)) 100%); }
+  background:linear-gradient(115deg, var(--nc-base) 40%, color-mix(in oklab, var(--c) var(--nc-wash, 16%), var(--nc-base)) 100%); }
 /* Followed by « À savoir », the banner's light goes on behind it and fades out, seen through its frosted box: no
    hard edge where the banner ends. */
 .nc-hero:has(+ .nc-facts) { overflow:visible; z-index:0;
-  background:linear-gradient(to bottom, transparent 55%, var(--nc-base) 100%), linear-gradient(115deg, var(--nc-base) 40%, color-mix(in oklab, var(--c) 16%, var(--nc-base)) 100%); }
+  background:linear-gradient(to bottom, transparent 55%, var(--nc-base) 100%), linear-gradient(115deg, var(--nc-base) 40%, color-mix(in oklab, var(--c) var(--nc-wash, 16%), var(--nc-base)) 100%); }
 .nc-hero:has(+ .nc-facts)::after { mask-image:linear-gradient(to bottom, #000 45%, transparent 85%); -webkit-mask-image:linear-gradient(to bottom, #000 45%, transparent 85%); }
 /* La lumière du bandeau : centrée sur le bord droit du cadre, un peu au-dessus du milieu, diffuse en paliers
    (aucune tache, aucune arête). Son mouvement dit l'état, accordé à l'anneau du rond. */
 .nc-hero::after { content:''; position:absolute; width:420px; height:420px; right:-210px; top:calc(36% - 210px); z-index:-1; pointer-events:none;
-  background:radial-gradient(closest-side, color-mix(in oklab, var(--c) 30%, transparent) 0%, color-mix(in oklab, var(--c) 16%, transparent) 40%,
-    color-mix(in oklab, var(--c) 6%, transparent) 70%, transparent 100%); }
+  background:radial-gradient(closest-side, color-mix(in oklab, var(--c) var(--nc-glow, 30%), transparent) 0%,
+    color-mix(in oklab, var(--c) calc(var(--nc-glow, 30%) * .53), transparent) 40%,
+    color-mix(in oklab, var(--c) calc(var(--nc-glow, 30%) * .2), transparent) 70%, transparent 100%); }
+/* Le thème sombre : plus de couleur dans le fond et la lumière du bandeau (hestia-charte.css, même raison : le bleu et le vert
+   se fondaient en gris, 16 novembre). */
+:host([theme="dark"]) { --nc-wash:32%; --nc-glow:56%; }
 .nc-top { display:flex; align-items:center; gap:8px; min-width:0; }
 .nc-top h2 { margin:0; font-size:var(--nw-fs-title); font-weight:700; letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .nc-top .nw-info { min-height:0; }
@@ -135,7 +139,8 @@ button.nc-tile { font:inherit; color:inherit; text-align:left; cursor:pointer; b
 .nc-hero[data-mood="best"]::after { opacity:.85; animation:nc-tide 14s ease-in-out infinite alternate; }
 .nc-hero[data-mood="benefit"]::after { animation:nc-tide 9s ease-in-out infinite alternate; }
 .nc-hero[data-mood="benefit"]::before { content:''; position:absolute; width:320px; height:320px; right:-160px; top:calc(15% - 160px); z-index:-1; pointer-events:none;
-  background:radial-gradient(closest-side, color-mix(in oklab, var(--nw-ok) 20%, transparent), color-mix(in oklab, var(--nw-ok) 7%, transparent) 55%, transparent);
+  /* Vert sur vert : la seconde lumière bleue tirait le vert vers le bleu, et les deux états se confondaient (16 novembre). */
+  background:radial-gradient(closest-side, color-mix(in oklab, var(--c) 20%, transparent), color-mix(in oklab, var(--c) 7%, transparent) 55%, transparent);
   animation:nc-tide 11s ease-in-out -4s infinite alternate-reverse; }
 .nc-hero[data-mood="action"]::after { animation:nc-pulse 2.2s ease-out infinite; }
 .nc-hero[data-mood="urgent"]::after { animation:nc-throb 1.4s ease-in-out infinite; }

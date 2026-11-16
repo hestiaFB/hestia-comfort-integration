@@ -1,3 +1,24 @@
+## 3.1.0b13 — Le conseil par créneaux
+
+### Nouveautés
+
+- Un conseil au plus par pièce le matin, l'après-midi et le soir, au meilleur moment.
+- Les urgences à toute heure : CO₂, particules, COV, humidité très au-dessus de la normale de la pièce.
+- La carte d'identité de chaque pièce, refaite chaque nuit.
+- Un conseil du logement pour ce qui est permanent.
+- Un événement pour envoyer les conseils sur le téléphone.
+- Les couleurs suivent le conseil : bleu rien à faire, vert « Bon moment », orange « À faire », rouge « Attention ». Au-dessus du geste, son créneau (« Cet après-midi »).
+
+### Corrections
+
+- Plus de conseil qui part et revient.
+- En mode sombre, le bleu et le vert se distinguent nettement.
+- « Refermez » passe en orange dès la fin du compte à rebours.
+
+### Moteur de conseil 3.18.0
+
+- Créneaux, urgences, carte d'identité et mémoire de la carte.
+
 ## 3.1.0b12 — Plus de faux « Refermez »
 
 ### Corrections

@@ -11,6 +11,7 @@ import math
 from .bench.history import attribute, contacts, lit_power, numbers
 from .decide import CROSS, SHUT_SHADE, sides_apart
 from .household import AWAY
+from .identity import identity
 from .observe import Series
 from .physics.thermal import glazing as glazing_of
 from .notes import prune, settle
@@ -342,4 +343,9 @@ def learn_room(spec: RoomSpec, entry: dict, history, sun, now: datetime, outdoor
 
     report["gestes"] = {s: len(g) for s, g in entry["gestures"].items()}
     report["preuves"] = {s: level([(f, m) for _, f, m in g]) for s, g in entry["gestures"].items()}
+    # The room's identity card, made again with its twins (advisor/identity.py): a plus, the twins are kept without it.
+    try:
+        entry["identite"] = identity(spec, entry, history, now, zone, outdoor, report)
+    except Exception as error:  # noqa: BLE001
+        report["identite"] = f"erreur : {error!r}"
     return entry, report

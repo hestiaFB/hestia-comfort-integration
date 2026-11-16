@@ -20,6 +20,16 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.18.0 — 16 novembre 2026
+
+Refonte de l'affichage (niak-comfort/docs/ETAT-DES-LIEUX-MOTEUR.md), demande de Frank du 16 nov. (« Tous les jours on a le même type d'erreur yoyo ») : 10 jours de maison, 43 yoyos (titre qui part et revient en 5 à 60 min sans fenêtre), 39 aérations sur 47 retirées sans geste, le plus souvent à 30 min pile (`HOLD_MINUTES`).
+- `advisor/slots.py` : quatre créneaux (matin du lever à `noon` 12 h, après-midi jusqu'à `evening` 18 h, soir jusqu'au coucher, nuit). Un geste par pièce et par créneau, décidé une fois au début du créneau par `decide(given=plan_pool(...))` : aérations `PLAN_AIRINGS` 10 à 60 min (`plan_max`, réglage `aeration_creneau_max_min`), moments toutes les `PLAN_EVERY` 30 min jusqu'à la fin du créneau, prévision jusqu'à `PLAN_AFTER` 120 min après. Signification jugée au bout fixe de cette prévision.
+- `advisor/board.py` : la mémoire de la carte. Familles : sécurité (`SAFE_RULES`), réponse à un geste (fenêtre ouverte depuis `OPEN_LEAST` 60 s ; urgente si fermer et la pièce sous son minimum), urgence mesurée (`URGENT` CO₂ 1400/1100, particules 25/15, COV 250/150 ; humidité normale de la pièce + `HUMID_ENTER` 8 / + `HUMID_LEAVE` 3, jamais sous `HUMID_FLOOR` 70, dehors plus sec de `DRIER` 2 g/m³), créneau, calme. Entrée d'une urgence après `ENTER_STEPS` 2 pas, `PATIENCE` 45 min puis de côté `ASIDE` 120 min sauf `WORSE`. Pas d'urgence la nuit. Geste d'urgence : `urgent_decision` (le moins cher qui baisse le sujet, le plus court à 80 %).
+- `advisor/identity.py` : carte d'identité refaite chaque nuit dans `learn_room` (`entry["identite"]`) : normale par créneau (14 j, p10/médiane/p90 air, humidité, CO₂), retard sur le dehors (corrélation 0-24 h), chaleur du jumeau en chiffres (perte en 1 h à −10 °C, inertie, chauffage, aération 20 min), eau aux bornes, aérations mesurées contre promises par créneau, habitudes d'ouverture (28 j, ≥ 3 min), chronique (humidité médiane ≥ 70 %, CO₂ p90 ≥ 1400) → `words.dwelling_lines` (« conseil du logement »).
+- `words.phrase(calm_subject=)` : sous « Rien à faire », le sujet dit reste tant qu'il est vrai (bande `EDGE`) ; règle `urgent` dite sur sa mesure.
+- `room/advice.py` : `decide` sans `held`, `tried`, `tried_held` (seul le compte à rebours en cours) ; retirés de l'affichage : `LINE_HOLD`, `EVENING_TOLERANCE`, `GRACE_MINUTES` (→ `OPEN_LEAST`), mise de côté `IGNORED` ; « À essayer » seulement pour le geste d'un créneau. Événement `hestia_comfort_conseil` à chaque nouveau conseil de créneau, urgence ou sécurité. Résultat : `famille`, `creneau`, `identite`, `conseil_logement`.
+- Couleurs (carte, `banner_level`) par famille : sécurité rouge « Attention », urgence orange « À faire », créneau vert « Bon moment », réponse bleu « En cours » (orange « À faire » pour refermer maintenant), calme bleu. Urgence dite avec sa mesure (`words` `urgent_*`). Mode sombre : `--nw-chip-tint` / `--nw-ink` (charte) et `--nc-wash` / `--nc-glow` (carte) relevés, palette inchangée.
+
 ### 3.17.1 — 15 novembre 2026
 
 Bilan du dimanche 15 nov. (3.17.0 depuis le 13 nov. 15 h 08), accord de Frank (« Oui, corrige »).
