@@ -1,4 +1,4 @@
-"""The 3.0 settings as saved (niak-comfort/docs/REGLAGES-3.md, validated by Frank on 1 November 2026): the household's
+"""The 3.0 settings as saved (docs/REGLAGES-3.md, validated by Frank on 1 November 2026): the household's
 page, and what a room says more (heatings, flows, equipment, how it is built). Only what the person set is written."""
 from homeassistant.helpers import area_registry as ar
 import test_configuration_workspace as workspace  # a module, so that its tests are not run again from here

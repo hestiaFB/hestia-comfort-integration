@@ -1,4 +1,4 @@
-"""The day's slots (niak-comfort/docs/ETAT-DES-LIEUX-MOTEUR.md § 4.2): one gesture per room and per slot, fixed when
+"""The day's slots (docs/ETAT-DES-LIEUX-MOTEUR.md § 4.2): one gesture per room and per slot, fixed when
 the slot begins, at the best moment within it.
 
 Frank, 16 November: « dans la vie de tous les jours on ne regarde pas l'application pour savoir si à un instant T il

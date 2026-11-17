@@ -1,4 +1,4 @@
-"""The household's habits and « Votre maison » (niak-comfort/docs/HABITUDES-FOYER.md, validated by Frank on 5 November)."""
+"""The household's habits and « Votre maison » (docs/HABITUDES-FOYER.md, validated by Frank on 5 November)."""
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys

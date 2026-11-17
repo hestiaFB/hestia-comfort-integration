@@ -1,4 +1,4 @@
-"""The 3.0 advisor's house part (niak-comfort/docs/PASSAGE-CONFORT-3.md § 2.1, § 2.2): created once, for every room.
+"""The 3.0 advisor's house part (docs/PASSAGE-CONFORT-3.md § 2.1, § 2.2): created once, for every room.
 
 It holds what the rooms share — the forecast (Hestia Weather's air, Open-Meteo's sun), the station's own shade and the
 clouds the forecast missed, the house's heaters, the safety signals — and the rooms' clock: a decision every five

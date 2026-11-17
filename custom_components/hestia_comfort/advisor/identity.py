@@ -1,4 +1,4 @@
-"""A room's identity card (niak-comfort/docs/ETAT-DES-LIEUX-MOTEUR.md § 4.3 bis), made again every night with its
+"""A room's identity card (docs/ETAT-DES-LIEUX-MOTEUR.md § 4.3 bis), made again every night with its
 twins: what the room is, as measured, learned and declared — its normal, its insulation, its inertia, its heating, what
 an airing does to it, its sources, its household's habits, what is still badly understood, what is chronic.
 

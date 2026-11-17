@@ -80,7 +80,7 @@ class Habits:
     stove_hold: float = 3.0                 # hours
     overheat: float = 1.0                   # °C
     overheat_minutes: int = 30              # minutes
-    # What the sensors do not see (niak-comfort/docs/HABITUDES-FOYER.md, validated by Frank on 5 November): the manual
+    # What the sensors do not see (docs/HABITUDES-FOYER.md, validated by Frank on 5 November): the manual
     # shutters, « fermes », « ouverts » or « variable » (the advisor then keeps what it learned on average), while the
     # household is away, at night, and on summer's hot hours on the sunny side.
     shutters_away: str = "variable"

@@ -1,4 +1,4 @@
-"""The 3.0 advisor for one room, or for one shared air (niak-comfort/docs/PASSAGE-CONFORT-3.md § 2).
+"""The 3.0 advisor for one room, or for one shared air (docs/PASSAGE-CONFORT-3.md § 2).
 
 The room as the advisor sees it is read from Confort's own settings (`spec`): its sensors, its openings and their sizes,
 its heatings, its devices and their flows, its range and its household settings. Rooms sharing one air (« Salon ·
