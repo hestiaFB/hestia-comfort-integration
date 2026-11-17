@@ -47,13 +47,19 @@ def listen(hass, entry_id, update):
     return link.add_listener(entry_id, update)
 
 
+def _without_time(found):
+    """A reading of Hestia Weather without `at`, its time of calculation, which changes at every update."""
+    return {k: v for k, v in found.items() if k != "at"} if isinstance(found, dict) else found
+
+
 def fingerprint(hass, entry_id):
-    """What a room reads of Hestia Weather: its outlook, season, air (without the time of the calculation) and pollens. A
-    Hestia Weather update recomputes the rooms only when it changed (PLAN-OPTIMISATION.md, point 3): it updates every
-    minute, mostly for its wind and pressure, which no room reads."""
-    found = air(hass, entry_id)
-    return (outlook(hass, entry_id), season(hass, entry_id), {k: v for k, v in found.items() if k != "at"} if found else None,
-            pollen(hass, entry_id))
+    """What a room reads of Hestia Weather: its outlook, season, air and pollens, without the time of the calculation that
+    rain, air and pollens carry. A Hestia Weather update recomputes the rooms only when it changed (PLAN-OPTIMISATION.md,
+    point 3): it updates every minute, mostly for its wind and pressure, which no room reads."""
+    seen = outlook(hass, entry_id)
+    if "rain" in seen:
+        seen = {**seen, "rain": _without_time(seen["rain"])}
+    return (seen, season(hass, entry_id), _without_time(air(hass, entry_id)), _without_time(pollen(hass, entry_id)))
 
 
 def entity(hass, entry_id, key):
