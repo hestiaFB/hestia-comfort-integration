@@ -21,7 +21,7 @@ from advisor.house import Opening, Room  # noqa: E402
 from advisor.identity import chronic, heat_card, normal_of, normals, opening_habits  # noqa: E402
 from advisor.nightly import RoomSpec  # noqa: E402
 from advisor.physics.thermal import ordinary  # noqa: E402
-from advisor.slots import PLAN_EVERY, following, plan_pool, slot_at  # noqa: E402
+from advisor.slots import PLAN_EVERY, following, moments, plan_pool, slot_at  # noqa: E402
 from advisor.words import aside_urgent, before_after, dwelling_lines, next_moment, normal_humidity, phrase  # noqa: E402
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -259,6 +259,18 @@ class IdentityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HalfHourTests(unittest.TestCase):
+    def test_the_moments_fall_on_the_half_hours(self):
+        # 10 h 53 (23 minutes past the half hour): the afternoon from noon, every half hour: 12 h, 12 h 30…, never 12 h 20.
+        found = moments(67, 427, 30, offset=23)
+        self.assertEqual(found[:2], [67, 97])
+        self.assertTrue(all((a + 23) % PLAN_EVERY == 0 for a in found))
+        # Within the slot at 12 h 04: 12 h 30, 13 h…
+        self.assertEqual(moments(0, 360, 30, offset=4)[0], 26)
+        # On the half hour itself: the next one, not now.
+        self.assertEqual(moments(0, 360, 30, offset=0)[0], 30)
 
 
 class DayTests(unittest.TestCase):

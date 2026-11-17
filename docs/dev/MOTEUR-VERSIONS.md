@@ -20,6 +20,10 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.19.1 — 17 novembre 2026
+
+- Les moments des créneaux et des gestes probables tombent sur les demi-heures de l'horloge (`slots.moments`, `offset` = minutes depuis la dernière demi-heure) : « vers 12 h 20 » lu comme une heure au hasard à la maison le 17 nov. ; `LIKELY_FORM` 3 pour les recalculer.
+
 ### 3.19.0 — 17 novembre 2026
 
 Premier matin de la 3.18.0 à la maison et choix de Frank pour le bandeau (« C · Maintenant, puis », maquette hestia-ecosysteme/maquettes/maquette-bandeau-journee.html).

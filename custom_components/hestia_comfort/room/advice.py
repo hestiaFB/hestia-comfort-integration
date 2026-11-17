@@ -69,7 +69,7 @@ HOUSE_SHARE, HOUSE_SHARE_OWN = 0.05, 0.6
 CALM_MINUTES = 60
 # The way the later slots' likely gestures are found: a new one finds them again at once, without waiting for the next slot
 # (2: judged at their own slot's end, 17 November).
-LIKELY_FORM = 2
+LIKELY_FORM = 3
 # The event sent with each new slot's gesture, urgency or safety rule, for the notifications (advisor/board.py).
 EVENT = f"{DOMAIN}_conseil"
 NOTIFIED = ("creneau", "urgence", "securite")
@@ -1111,13 +1111,13 @@ class RoomAdvisor:
             if coming_plan:
                 plan = decide(twins, decided_on, coming_plan, comfort, forbidden=taken, proof=proof, holidays=away,
                               habits=plan_habits(habits, plan_left), aired=aired, pollen=pollen,
-                              given=plan_pool(decided_on, twins, habits, comfort, plan_left, plan_outdoor))
+                              given=plan_pool(decided_on, twins, habits, comfort, plan_left, plan_outdoor, local.minute % 30))
             likely = []
             for slot_name_l, a0_l, b0_l, out_l in later_spans:
                 # Judged at its own slot's end and PLAN_AFTER more, as the slot's plan is: at the day's end, an airing of the
                 # afternoon had long done its work (17 November at the lab: no likely gesture at all).
                 found_l = probable(twins, decided_on, coming_day[:int((b0_l + PLAN_AFTER) // (STEP / 60))], comfort, Weights(),
-                                   habits, a0_l, b0_l, out_l)
+                                   habits, a0_l, b0_l, out_l, local.minute % 30)
                 if found_l:
                     likely.append((slot_name_l, found_l))
             # The slot's gesture once its moment has come: its promise said again on the room as it stands now, never a

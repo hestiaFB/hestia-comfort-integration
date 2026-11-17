@@ -71,7 +71,16 @@ def slot_name(local: datetime, habits: Habits = Habits()) -> str:
     return slot_at(local, habits).name
 
 
-def plan_pool(now, twins, habits: Habits, comfort, minutes_left: float, outdoor: float | None = None) -> list[Gesture]:
+def moments(start: float, end: float, minutes: int, offset: int = 0) -> list[int]:
+    """The moments a gesture of `minutes` may start (minutes from now), between `start` and `end`, on the clock's half hours:
+    `offset` is how many minutes past the last half hour it is now. « vers 12 h 20 » read as a time picked at random
+    (bilan of 17 November): « vers 12 h 30 » is the one the household reads."""
+    first = max(PLAN_EVERY - offset, int(-(-(start + offset) // PLAN_EVERY) * PLAN_EVERY) - offset)
+    return [a for a in range(first, int(end) - minutes + 1, PLAN_EVERY) if a >= 5]
+
+
+def plan_pool(now, twins, habits: Habits, comfort, minutes_left: float, outdoor: float | None = None,
+              offset: int = 0) -> list[Gesture]:
     """The gestures a slot's plan weighs: the room's own (its devices, its shutter, its heating), and the airings of
     PLAN_AIRINGS now or at a moment of the slot, every PLAN_EVERY minutes, that ends before the slot does. `outdoor`: the
     slot's mean outdoor temperature; mild (MILD_GAP), the airings may last up to `plan_max`."""
@@ -80,7 +89,7 @@ def plan_pool(now, twins, habits: Habits, comfort, minutes_left: float, outdoor:
     airings = [m for m in PLAN_AIRINGS if m <= longest]
     pool = [g for g in candidates(now, twins, habits, comfort) if g.kind != "open"]
     pool += [Gesture("open", m) for m in airings]
-    pool += [Gesture("open", m, after=a) for m in airings for a in range(PLAN_EVERY, int(minutes_left) - m + 1, PLAN_EVERY)]
+    pool += [Gesture("open", m, after=a) for m in airings for a in moments(0, minutes_left, m, offset)]
     return pool
 
 
@@ -100,7 +109,8 @@ def following(local: datetime, habits: Habits = Habits()) -> list[Slot]:
     return out
 
 
-def probable(twins, now, coming, comfort, weights, habits: Habits, start: float, end: float, outdoor: float | None = None):
+def probable(twins, now, coming, comfort, weights, habits: Habits, start: float, end: float, outdoor: float | None = None,
+             offset: int = 0):
     """The gesture a later slot of the day will likely ask (the card's « Maintenant, puis »: « 15 h · Aérer 30 min,
     probable »), confirmed when that slot begins: (gesture, gain, subject), or None. `start`, `end`: the slot, in minutes
     from now. Simulated the plan's way, on the forecast, the room as it stands now; a guess, never a gesture shown."""
@@ -109,10 +119,9 @@ def probable(twins, now, coming, comfort, weights, habits: Habits, start: float,
     base = cost(idle, comfort, weights, nothing, now.night)
     mild = outdoor is not None and comfort is not None and outdoor >= comfort.minimum - MILD_GAP
     longest = max(habits.plan_max if mild else habits.airing_max, PLAN_AIRINGS[0])
-    first = int(-(-start // PLAN_EVERY) * PLAN_EVERY)
     found = []
     for minutes in (m for m in PLAN_AIRINGS if m <= longest):
-        for after in range(max(first, PLAN_EVERY), int(end) - minutes + 1, PLAN_EVERY):
+        for after in moments(start, end, minutes, offset):
             g = Gesture("open", minutes, after=after)
             path = simulate(twins, now, coming, g)
             costs = cost(path, comfort, weights, g, now.night)

@@ -4,6 +4,14 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.19.1 — 17 novembre 2026
+
+Dans Confort 3.1.0b15.
+
+### Corrections
+
+- Les heures annoncées tombent sur la demi-heure. Exemple : « vers 12 h » au lieu de « vers 12 h 20 ».
+
 ## 3.19.0 — 17 novembre 2026
 
 Dans Confort 3.1.0b14.

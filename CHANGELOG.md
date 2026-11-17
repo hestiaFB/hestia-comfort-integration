@@ -1,3 +1,13 @@
+## 3.1.0b15 — Des heures rondes
+
+### Corrections
+
+- Les heures des conseils tombent sur la demi-heure : « vers 12 h », « vers 15 h 30 ».
+
+### Moteur de conseil 3.19.1
+
+- Heures calées sur la demi-heure.
+
 ## 3.1.0b14 — Maintenant, puis
 
 ### Nouveautés
