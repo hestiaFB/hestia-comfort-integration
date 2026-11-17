@@ -11,7 +11,7 @@ import {build} from 'esbuild';
 import {chromium} from '../../card/node_modules/playwright/index.mjs';
 import {harness,SHELL} from './hub-harness.mjs';
 const at=path=>fileURLToPath(new URL(path,import.meta.url));
-const socle=at('../socle/'),comfort=at('../../custom_components/hestia_comfort/frontend/'),weather=at('../../../niak-weather-integration/custom_components/hestia_weather/frontend/');
+const socle=at('../socle/'),comfort=at('../../custom_components/hestia_comfort/frontend/'),weather=at('../../../hestia-weather/custom_components/hestia_weather/frontend/');
 const withWeather=existsSync(join(weather,'panel.js'));
 const out=mkdtempSync(join(tmpdir(),'hestia-hub-'));
 async function variant(name,stamp){

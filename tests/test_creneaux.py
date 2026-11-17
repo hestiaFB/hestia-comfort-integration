@@ -1,4 +1,4 @@
-"""The advice by slots (moteur 3.18.0, niak-comfort/docs/ETAT-DES-LIEUX-MOTEUR.md § 4-6): the card changes on an event,
+"""The advice by slots (moteur 3.18.0, docs/ETAT-DES-LIEUX-MOTEUR.md § 4-6): the card changes on an event,
 never because a timer ran out.
 
 Ten days of the house (6 to 16 November): 43 advices came and went within the hour with no window touched; 39 airings

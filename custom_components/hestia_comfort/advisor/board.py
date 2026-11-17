@@ -1,4 +1,4 @@
-"""The card's memory (niak-comfort/docs/ETAT-DES-LIEUX-MOTEUR.md § 4-5): what is shown changes on an event, never because
+"""The card's memory (docs/ETAT-DES-LIEUX-MOTEUR.md § 4-5): what is shown changes on an event, never because
 a timer ran out.
 
 Ten days of the house (6 to 16 November): 43 advices came and went within the hour with no window touched; of 47
