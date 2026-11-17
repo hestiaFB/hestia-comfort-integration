@@ -11,7 +11,7 @@ export const EN_ROOM:Record<string,string>={"Puissance de chauffe, dernière dem
  'Vous pouvez refermer':'You can close it','Encore {n} min d’aération':'{n} more min of airing','Ouvrez vers {hour}':'Open around {hour}','Aérez vers {hour}':'Air around {hour}',
  'Encore mieux vers {hour}':'Even better around {hour}','Ouvrez {windows}':'Open {windows}','Ouvrez aussi {windows}':'Also open {windows}','Pas {window}':'Not {window}',
  // Banner: pills and states
- 'Tout va bien':'All good','Au mieux':'At its best','À saisir':'Worth doing','Bon moment':'Good moment','À faire':'To do','Ce matin':'This morning','Cet après-midi':'This afternoon','Geste conseillé':'Advised','Attention':'Warning','À vérifier':'To check','Conseil optimisé':'Optimised advice',
+ 'Tout va bien':'All good','Au mieux':'At its best','À saisir':'Worth doing','Bon moment':'Good moment','À faire':'To do','Aujourd’hui':'Today','Ce matin':'This morning','Cet après-midi':'This afternoon','Geste conseillé':'Advised','Attention':'Warning','À vérifier':'To check','Conseil optimisé':'Optimised advice',
  'Trop frais':'Too cool','Trop chaud':'Too warm','Trop humide':'Too humid','Air à renouveler':'Air to renew','Démarrage':'Starting','Capteurs muets':'Silent sensors','Un capteur muet':'A silent sensor',
  'Plus tard':'Later','Potentiel détecté':'Potential found','Attention nécessaire':'Attention needed','Information':'Information',
  // Banner: under the disk

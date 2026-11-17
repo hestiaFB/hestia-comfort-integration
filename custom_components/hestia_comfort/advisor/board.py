@@ -36,8 +36,10 @@ WORSE = {"co2": 300.0, "particles": 10.0, "voc": 100.0, "humidity": 5.0}
 ORDER = ("co2", "particles", "voc", "humidity")
 # A window open less than this (seconds) does not count for comfort: someone going through. The safety acts at once.
 OPEN_LEAST = 60
-# Minutes a slot's gesture stays once its moment has come, for the household to do it.
-PLAN_GRACE = 45
+# A slot's gesture stays until its slot ends, unless followed (bilan of 17 November: « Aérez 10 min » planned at 7 h 04,
+# gone at 7 h 49, before anyone was up to see it).
+# An airing this long or more is one the day's list says done (« Aérée 15 min à 9 h 05 : 68 % → 61 % »).
+DONE_LEAST = 3
 # The gestures an urgency may ask: open the windows now, or run a device.
 URGENT_KINDS = ("open", "open_more", "boost", "purify")
 
@@ -98,6 +100,15 @@ class Board:
         self.urgent: dict[str, Urgent] = {}
         self.plan: Plan | None = None
         self.calm: str | None = None
+        # The gesture each urgency asked, (kind, minutes): said again when it waits (`aside_urgent`).
+        self.asked: dict[str, tuple] = {}
+        # The household's day (the card's « Maintenant, puis »): its key, what was done or missed, what is likely later.
+        self.day: str | None = None
+        self.today: list[dict] = []
+        self.likely: list[dict] = []
+        self.likely_for: str | None = None
+        # The airing under way: when it began, the measures then, what it was for.
+        self.airing: dict | None = None
 
     # The urgencies.
     def urgent_now(self, measures: dict, normal_humidity: float | None, drier: float | None, opened: bool,
@@ -144,9 +155,8 @@ class Board:
         return self.plan is None or self.plan.slot != slot_key
 
     def set_plan(self, slot_key: str, now: datetime, slot_end: datetime, gesture: Gesture, words: dict, trial: bool):
-        moment = now + timedelta(minutes=gesture.after or 0)
-        until = min(slot_end, moment + timedelta(minutes=PLAN_GRACE)) if gesture.kind != "nothing" else slot_end
-        self.plan = Plan(slot_key, now, until, gesture, dict(words), trial)
+        self.close_missed(now)
+        self.plan = Plan(slot_key, now, slot_end, gesture, dict(words), trial)
 
     def plan_shown(self, now: datetime) -> Plan | None:
         """The slot's gesture to show now: planned, not followed, its moment not past."""
@@ -160,6 +170,41 @@ class Board:
         if self.plan is not None:
             self.plan.done = True
 
+    def close_missed(self, now: datetime):
+        """A slot's gesture whose slot ended unfollowed: in the day's list, « pas fait », without reproach."""
+        p = self.plan
+        if p is not None and not p.done and p.gesture.kind != "nothing" and now >= p.until:
+            self.today.append({"at": p.moment().isoformat(), "genre": "rate", "kind": p.gesture.kind, "minutes": p.gesture.minutes})
+            p.done = True
+
+    # The household's day.
+    def new_day(self, key: str):
+        """A new day (the morning slot's date): yesterday's list goes."""
+        if key != self.day:
+            self.day, self.today, self.likely = key, [], []
+
+    def set_likely(self, slot_key: str, items: list[dict]):
+        """The gestures the later slots will likely ask: [{at, kind, minutes, slot, subject}], from the slot `slot_key`."""
+        self.likely, self.likely_for = list(items), slot_key
+
+    def start_airing(self, now: datetime, measures: dict, subject: str | None):
+        if self.airing is None:
+            self.airing = {"since": now.isoformat(), "before": dict(measures), "subject": subject}
+
+    def end_airing(self, now: datetime, measures: dict):
+        """The windows shut: an airing of DONE_LEAST minutes or more joins the day's list, with what it did."""
+        a, self.airing = self.airing, None
+        if a is None:
+            return
+        since = datetime.fromisoformat(a["since"])
+        minutes = (now - since).total_seconds() / 60
+        if minutes < DONE_LEAST:
+            return
+        subject = a.get("subject") or "humidity"
+        before, after = a["before"].get(subject), measures.get(subject)
+        self.today.append({"at": a["since"], "genre": "fait", "kind": "open", "minutes": round(minutes), "subject": subject,
+                           "before": before, "after": after})
+
     # Kept across a restart.
     def state(self) -> dict:
         plan = None
@@ -168,7 +213,9 @@ class Board:
             plan = {"slot": p.slot, "at": p.at.isoformat(), "until": p.until.isoformat(), "gesture": asdict(p.gesture),
                     "words": p.words, "trial": p.trial, "done": p.done}
         return {"urgent": {s: {k: _plain(v) for k, v in asdict(u).items()} for s, u in self.urgent.items()},
-                "plan": plan, "calm": self.calm}
+                "plan": plan, "calm": self.calm, "asked": {s: list(v) for s, v in self.asked.items()},
+                "day": self.day, "today": self.today, "likely": self.likely, "likely_for": self.likely_for,
+                "airing": self.airing}
 
     def load(self, state: dict | None):
         state = state or {}
@@ -178,6 +225,10 @@ class Board:
             self.plan = Plan(p["slot"], _when(p["at"]), _when(p["until"]), Gesture(**p["gesture"]), p.get("words") or {},
                              p.get("trial", False), p.get("done", False))
         self.calm = state.get("calm")
+        self.asked = {s: tuple(v) for s, v in (state.get("asked") or {}).items()}
+        self.day, self.today, self.likely = state.get("day"), list(state.get("today") or []), list(state.get("likely") or [])
+        self.airing = state.get("airing")
+        self.likely_for = state.get("likely_for")
 
 
 # The rules that speak at once, whatever else is on: a fact measured or a safety (advisor/decide.py).

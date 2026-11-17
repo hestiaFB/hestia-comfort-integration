@@ -1,6 +1,7 @@
 import {html,nothing,type TemplateResult} from 'lit';
 import {INSIGHT_GROUPS,type Level,type InsightGroup} from '../types';
 import {icon} from '../ui/icons';
+import {t,tx} from '../i18n';
 
 /** The 3.0 advisor's decision for the room, as the HA de test publishes it (`sensor.conseil_3_<pièce>`), read by the card
  *  in place of the 2.1 advice: the banner, « À savoir » and « Pourquoi ? » (PASSAGE-CONFORT-3.md, the bridge of 1 November).
@@ -81,7 +82,7 @@ export function level3(x:Advisor3):{level:Level;pill:string}{
   return {level:'calm',pill:['insignificant','unproven'].includes(rule)||beyond(a)?'Au mieux':'Tout va bien'};
 }
 /** « Rien à faire » while a measure stays out of its range or mark: the engine's line says so (advisor/words.py). */
-const beyond=(a:Record<string,unknown>)=>/aucun geste ne ferait vraiment mieux|^(Ouverte ou fermée|Ouverte|Fermée) :/i.test(str(a.phrase));
+const beyond=(a:Record<string,unknown>)=>/aucun geste ne ferait vraiment mieux|rien de mieux à faire pour l’instant|rien de mieux à faire pour l'instant|^(Ouverte ou fermée|Ouverte|Fermée) :/i.test(str(a.phrase));
 
 /** The pictogram of a gesture to try, from its first words (« Aérez 20 min », « Lancez la VMC »…). */
 const TRY_DISKS:[RegExp,string][]=[[/^(Aérez|Ouvrez|Entrouvrez)/i,'open'],[/VMC/i,'vmc'],[/purificateur/i,'fan'],[/chauff|poêle|radiateur/i,'flame'],[/volet/i,'window'],[/^(Fermez|Refermez)/i,'shut']];
@@ -120,6 +121,23 @@ export function factBox3(x:Advisor3,o:{show?:boolean;groups?:readonly InsightGro
   ].filter(g=>kept.has(g.id)).map(g=>{const lines=g.lines.slice(0,Math.max(0,left));left-=lines.length;return {...g,lines};}).filter(g=>g.lines.length);
   return groups.length?html`<div class="nc-facts"><div class="nw-label">À savoir</div><div class="nc-facts-box nw-glass">${groups.map(g=>html`<section class="nc-facts-g" data-group=${g.id}>
     <h4>${icon(g.ic)}${g.title}</h4><ul>${g.lines.map(l=>html`<li>${icon(g.ic)}<span>${l}</span></li>`)}</ul></section>`)}</div></div>`:nothing;
+}
+
+interface DayRow {when:number;at:string;ic:string;kind:string;text:string;note?:string|TemplateResult}
+const clock=(ms:number)=>{const d=new Date(ms),h=d.getHours(),m=d.getMinutes();return m?`${h} h ${String(m).padStart(2,'0')}`:`${h} h`;};
+/** « Maintenant, puis » (Frank, 17 November): under the advice, the room's day — what was done, with what it did, what was
+ *  missed, without reproach, then what comes, hour by hour: the gestures the later slots will likely ask and what « À
+ *  venir » said (the heating, the rain). Two past lines at most, three to come. */
+export function day3(a:Record<string,unknown>,events:{when:number;at:string;ic:string;text:string;note?:string|TemplateResult}[]=[],now=Date.now()):TemplateResult|typeof nothing{
+  const items:DayRow[]=(Array.isArray(a.journee)?a.journee:[]).flatMap((x:unknown)=>{
+    const r=x as Record<string,unknown>,when=Date.parse(str(r.heure));
+    return Number.isNaN(when)?[]:[{when,at:clock(when),ic:str(r.genre)==='fait'?'check':'open',kind:str(r.genre),text:str(r.titre),note:str(r.detail)||undefined}];});
+  const past=items.filter(i=>i.when<=now).slice(-2);
+  const next=[...items.filter(i=>i.when>now),...events.filter(e=>e.when>now).map(e=>({...e,kind:e.ic==='heat'?'heat':e.ic==='rain'?'rain':'info'}))]
+    .sort((x,y)=>x.when-y.when).slice(0,3);
+  const rows=[...past,...next];
+  return rows.length?html`<div class="nc-day"><div class="nc-day-h">${t('Aujourd’hui')}</div>${rows.map(r=>html`<div class="nc-day-r" data-k=${r.kind}>
+    <span class="nc-day-t">${r.at}</span><span class="nc-day-d">${icon(r.ic)}</span><span class="nc-day-s"><b>${tx(r.text)}</b>${r.note?html` · ${typeof r.note==='string'?tx(r.note):r.note}`:nothing}</span></div>`)}</div>`:nothing;
 }
 
 const OPINIONS:[string,string][]=[['faux','Faux'],['inutile','Inutile'],['pas_maintenant','Pas maintenant']];

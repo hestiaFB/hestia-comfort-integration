@@ -1,3 +1,20 @@
+## 3.1.0b14 — Maintenant, puis
+
+### Nouveautés
+
+- Sous le conseil, la journée de la pièce : ce qui est fait, ce qui ne l'est pas, puis la suite heure par heure, chauffage compris.
+- Le prochain bon moment quand il n'y a rien à faire.
+
+### Corrections
+
+- Le conseil du créneau reste affiché jusqu'à la fin du créneau.
+- Plus de conseil quotidien pour une pièce humide par nature.
+- Des phrases simples, sans mots techniques.
+
+### Moteur de conseil 3.19.0
+
+- La journée de la pièce, le prochain bon moment, trois corrections.
+
 ## 3.1.0b13 — Le conseil par créneaux
 
 ### Nouveautés

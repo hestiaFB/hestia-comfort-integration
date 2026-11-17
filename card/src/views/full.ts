@@ -263,6 +263,12 @@ function devices(v:View,partners:View[],config:Config,src?:string):TemplateResul
     return c.entity?html`<button type="button" class=${cls} style=${`--c:${C[c.tone]}`} @click=${(e:Event)=>moreInfo(e,c.entity!)}>${body}</button>`:html`<span class=${cls} style=${`--c:${C[c.tone]}`}>${body}</span>`;})}</div></section>`:nothing;
 }
 
+/** What « À venir » says that is not a gesture (the heating's schedule, the rain, the room crossing its range): the
+ *  banner's day lists it among the gestures (« Maintenant, puis », 17 November). The 2.1 engine's airings are left out:
+ *  the 3.0 engine says its own, by slot. */
+export function dayEvents(v:View):{when:number;at:string;ic:string;text:string;note?:string|TemplateResult}[] {
+  return coming(v,spread(v),plageOf(v)).filter(e=>['heat','rain','temp'].includes(e.ic)).map(({when,at,ic,text,note})=>({when,at,ic,text,note}));
+}
 /** « À venir » in its panel: what will change, dated, each with its source; nothing to say, nothing. */
 function comingList(next:Coming[]):TemplateResult {
   return html`<ol class="nc-mod nw-panel nc-coming">${next.map(e=>html`<li class="nc-ev" style=${`--c:${C[e.tone]}`}><span class="nc-ev-at">${e.at}</span><span class="nc-ev-dot" aria-hidden="true"></span>
@@ -296,7 +302,8 @@ function now(v:View,config:Config,said:Said,uid:string,partners:View[]){
 export function fullBody(v:View,config:Config,st:CardState,partners:View[],blocks?:readonly string[]):TemplateResult {
   const said=spread(v),plage=plageOf(v),show=(b:string)=>!blocks||blocks.includes(b);
   const parts=show('measures')?now(v,config,said,st.uid,partners):{feel:nothing,air:nothing,devs:nothing},{feel,air}=parts;
-  const next=config.show_horizon===false||!show('horizon')?[]:coming(v,said,plage);
+  // With the 3.0 engine, « À venir » is said in the banner's day (« Maintenant, puis »): not twice.
+  const next=config.show_horizon===false||!show('horizon')||v.advisor?[]:coming(v,said,plage);
   const sensors=new Set([v,...partners].flatMap(r=>Object.values(r.observations).map(o=>o?.source).filter((x):x is string=>!!x))).size;
   const rows=[...details(v,config),...said.doubts.map(x=>html`<li><b>${t('À vérifier')}</b><span> · ${x}</span></li>`)];
   return html`<div class="nc-body nc-sections nc-full">

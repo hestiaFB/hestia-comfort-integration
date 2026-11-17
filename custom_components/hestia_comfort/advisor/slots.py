@@ -11,7 +11,7 @@ evening to its bedtime, the night to its waking. The night's gesture is said in 
 from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
 
-from .decide import Gesture, candidates
+from .decide import GAIN, Gesture, candidates, cost, main_subject, significant, simulate
 from .household import Habits
 
 SLOTS = ("matin", "apres_midi", "soir", "nuit")
@@ -87,3 +87,38 @@ def plan_pool(now, twins, habits: Habits, comfort, minutes_left: float, outdoor:
 def plan_habits(habits: Habits, minutes_left: float) -> Habits:
     """The habits a plan is decided with: its later moments up to the slot's end."""
     return replace(habits, later_max=max(0, int(minutes_left)))
+
+
+def following(local: datetime, habits: Habits = Habits()) -> list[Slot]:
+    """The slots of the day after the one `local` falls in, up to bedtime: the afternoon and the evening at 9 h."""
+    out, at = [], slot_at(local, habits)
+    while at.name not in ("soir", "nuit"):
+        at = slot_at(at.end, habits)
+        if at.name == "nuit":
+            break
+        out.append(at)
+    return out
+
+
+def probable(twins, now, coming, comfort, weights, habits: Habits, start: float, end: float, outdoor: float | None = None):
+    """The gesture a later slot of the day will likely ask (the card's « Maintenant, puis »: « 15 h · Aérer 30 min,
+    probable »), confirmed when that slot begins: (gesture, gain, subject), or None. `start`, `end`: the slot, in minutes
+    from now. Simulated the plan's way, on the forecast, the room as it stands now; a guess, never a gesture shown."""
+    nothing = Gesture("nothing")
+    idle = simulate(twins, now, coming, nothing)
+    base = cost(idle, comfort, weights, nothing, now.night)
+    mild = outdoor is not None and comfort is not None and outdoor >= comfort.minimum - MILD_GAP
+    longest = max(habits.plan_max if mild else habits.airing_max, PLAN_AIRINGS[0])
+    first = int(-(-start // PLAN_EVERY) * PLAN_EVERY)
+    found = []
+    for minutes in (m for m in PLAN_AIRINGS if m <= longest):
+        for after in range(max(first, PLAN_EVERY), int(end) - minutes + 1, PLAN_EVERY):
+            g = Gesture("open", minutes, after=after)
+            path = simulate(twins, now, coming, g)
+            costs = cost(path, comfort, weights, g, now.night)
+            if base["total"] - costs["total"] >= GAIN and significant(idle, path, comfort, now.night, tolerance=habits.tolerance):
+                found.append((costs["total"], minutes, g, base["total"] - costs["total"], costs))
+    if not found:
+        return None
+    total, _, g, gain, costs = min(found, key=lambda x: (round(x[0], 3), x[1]))
+    return g, gain, main_subject({nothing: base, g: costs}, g)

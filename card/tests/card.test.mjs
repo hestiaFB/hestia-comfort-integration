@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import {build} from 'esbuild';
 const root=new URL('../',import.meta.url),temp=await mkdtemp(join(tmpdir(),'hestia-comfort-card-'));
-await build({entryPoints:['src/types.ts','src/view.ts','src/live.ts','src/views/room.ts','src/views/full.ts','src/views/horizon.ts','src/ui/scene.ts','src/editor.ts','src/hass-change.ts'].map(p=>fileURLToPath(new URL(p,root))),outdir:temp,
+await build({entryPoints:['src/types.ts','src/view.ts','src/live.ts','src/views/room.ts','src/views/full.ts','src/views/advisor3.ts','src/views/horizon.ts','src/ui/scene.ts','src/editor.ts','src/hass-change.ts'].map(p=>fileURLToPath(new URL(p,root))),outdir:temp,
   bundle:true,platform:'node',format:'esm',outExtension:{'.js':'.mjs'},logLevel:'silent'});
 const {cleanConfig,cleanHomeConfig,homeAction,cleanReviewConfig,kindOf,KINDS}=await import(pathToFileURL(join(temp,'types.mjs')));
 const {isView,numeric,summary,readingStatus,coverageText,windFrom,evolutionLines,co2Metric,solarMetric}=await import(pathToFileURL(join(temp,'view.mjs')));
@@ -795,12 +795,30 @@ test('« Bon à savoir » of the full card: one folded box, the dated lines in �
   assert.doesNotMatch(folded,/plus sec qu/);
   // Unfolded: the three lines without a time to come, the past and the horizon among them.
   for(const x of [/plus sec qu/,/Ouverte depuis 9 h 05/,/d'ici 22 h/])assert.match(opened.split('nc-know')[1]??'',x);
-  // The heating's change once in « À venir », in the engine's words.
-  assert.equal((opened.match(/Chauffage prévu/g)??[]).length,1);
-  assert.doesNotMatch(opened,/confort \(20/);
+  // The heating's change is said once, in the banner's day (« Maintenant, puis », 17 November), no longer in « À venir ».
+  assert.equal((opened.match(/Chauffage prévu/g)??[]).length,0);
+  const {dayEvents}=await import(pathToFileURL(join(temp,'views/full.mjs')));
+  const said=dayEvents(v).map(e=>flat(e.text)+' '+flat(e.note)).join(' | ');
+  assert.equal((said.match(/Chauffage prévu/g)??[]).length,1);
+  assert.doesNotMatch(said,/confort \(20/);
   // Without the engine's line, the card says the schedule's change itself.
   const alone={...v,advisor:{...v.advisor,attributes:{...v.advisor.attributes,bon_a_savoir:[]}}};
-  assert.match(flat(fullBody(alone,config,st(false),[])),/confort \(20/);
+  assert.match(dayEvents(alone).map(e=>flat(e.text)+' '+flat(e.note)).join(' '),/confort \(20/);
+});
+
+test('« Maintenant, puis »: under the advice, the day done then what comes, hour by hour (17 November)',async()=>{
+  const {day3}=await import(pathToFileURL(join(temp,'views/advisor3.mjs')));
+  const flat=t=>t==null?'':Array.isArray(t)?t.map(flat).join(''):typeof t!=='object'?String(t):t.strings?t.strings.map((x,i)=>x+(i<t.values.length?flat(t.values[i]):'')).join(''):'';
+  const now=Date.now(),iso=(h)=>new Date(now+h*3600e3).toISOString();
+  const out=flat(day3({journee:[{heure:iso(-2),genre:'fait',titre:'Aérée 15 min',detail:'68 % → 61 %'},{heure:iso(-1),genre:'rate',titre:'Aérer 10 min',detail:'pas fait'},
+    {heure:iso(3),genre:'probable',titre:'Aérer 30 min',detail:'probable'}]},[{when:now+3600e3,at:'+1 h',ic:'heat',text:'Chauffage',note:'21,5 °C'}],now));
+  assert.match(out,/Aujourd’hui/);
+  // Done, then missed, then the heating, then the likely airing: in time order.
+  const order=['Aérée 15 min','Aérer 10 min','Chauffage','Aérer 30 min'].map(x=>out.indexOf(x));
+  assert.deepEqual([...order].sort((x,y)=>x-y),order);
+  assert.ok(order.every(i=>i>=0));
+  // Nothing to say: nothing drawn.
+  assert.equal(typeof day3({},[],now),'symbol');
 });
 
 test('the room asleep: a small moon on the banner, its waking hour said, none by day (8 November)',()=>{

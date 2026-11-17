@@ -13,7 +13,7 @@ import unittest
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components" / "hestia_comfort"))
-from advisor.board import (ASIDE, ENTER_STEPS, PATIENCE, PLAN_GRACE, Board, choose, thresholds,  # noqa: E402
+from advisor.board import (ASIDE, ENTER_STEPS, PATIENCE, Board, choose, thresholds,  # noqa: E402
                            urgent_decision)
 from advisor.decide import Decision, Gesture, Path as Scenario  # noqa: E402
 from advisor.household import Habits, Sleep  # noqa: E402
@@ -21,8 +21,8 @@ from advisor.house import Opening, Room  # noqa: E402
 from advisor.identity import chronic, heat_card, normal_of, normals, opening_habits  # noqa: E402
 from advisor.nightly import RoomSpec  # noqa: E402
 from advisor.physics.thermal import ordinary  # noqa: E402
-from advisor.slots import PLAN_EVERY, plan_pool, slot_at  # noqa: E402
-from advisor.words import dwelling_lines, phrase  # noqa: E402
+from advisor.slots import PLAN_EVERY, following, plan_pool, slot_at  # noqa: E402
+from advisor.words import aside_urgent, before_after, dwelling_lines, next_moment, normal_humidity, phrase  # noqa: E402
 
 PARIS = ZoneInfo("Europe/Paris")
 HABITS = Habits(sleep=Sleep(start=time(22, 0), end=time(7, 0)))
@@ -144,11 +144,16 @@ class PlanTests(unittest.TestCase):
             plan = board.plan_shown(now)
             titles.append(None if plan is None else (plan.words["title"] if plan.left(now).after else plan.words["title_now"]))
         changes = [i for i, (a, b) in enumerate(zip(titles, titles[1:])) if a != b]
-        # « vers 9 h » until 9 h, then « Aérez 30 min » until 9 h 45, then nothing: two changes in five hours.
+        # « vers 9 h » until 9 h, then « Aérez 30 min » until the slot ends at noon (bilan of 17 November: gone at 7 h 49,
+        # before anyone was up), then nothing: two changes in five hours.
         self.assertEqual(len(changes), 2)
         self.assertEqual(titles[0], "Aérez 30 min vers 9 h")
+        self.assertEqual(titles[-2], "Aérez 30 min")
         self.assertIsNone(titles[-1])
-        self.assertEqual(board.plan.until, at(9) + timedelta(minutes=PLAN_GRACE))
+        self.assertEqual(board.plan.until, at(12))
+        # Missed, it joins the day as « pas fait ».
+        board.close_missed(at(12))
+        self.assertEqual([x["genre"] for x in board.today], ["rate"])
         self.assertFalse(board.needs_plan("2026-11-16/matin"))
         self.assertTrue(board.needs_plan("2026-11-16/apres_midi"))
 
@@ -165,7 +170,7 @@ class PlanTests(unittest.TestCase):
         board.calm = "humidity"
         again = Board()
         again.load(board.state())
-        self.assertEqual((again.plan.gesture, again.plan.trial, again.plan.until), (Gesture("open", 45, after=150), True, at(15, 15)))
+        self.assertEqual((again.plan.gesture, again.plan.trial, again.plan.until), (Gesture("open", 45, after=150), True, at(18)))
         self.assertEqual(again.urgent["co2"].above, 1)
         self.assertEqual(again.calm, "humidity")
 
@@ -254,6 +259,40 @@ class IdentityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DayTests(unittest.TestCase):
+    def test_an_airing_done_says_what_it_did(self):
+        board = Board()
+        board.new_day("2026-11-17")
+        board.start_airing(at(9, 5), {"humidity": 68.0}, "humidity")
+        board.end_airing(at(9, 20), {"humidity": 61.0})
+        item = board.today[0]
+        self.assertEqual((item["genre"], item["minutes"]), ("fait", 15))
+        self.assertEqual(before_after("humidity", item["before"], item["after"]), "68 % → 61 %")
+        # Someone going through: not an airing.
+        board.start_airing(at(10), {"humidity": 61.0}, "humidity")
+        board.end_airing(at(10, 1), {"humidity": 61.0})
+        self.assertEqual(len(board.today), 1)
+        # A new day starts afresh.
+        board.new_day("2026-11-18")
+        self.assertEqual(board.today, [])
+
+    def test_the_later_slots_of_the_day(self):
+        self.assertEqual([s.name for s in following(at(9), HABITS)], ["apres_midi", "soir"])
+        self.assertEqual([s.name for s in following(at(15), HABITS)], ["soir"])
+        self.assertEqual(following(at(19), HABITS), [])
+        self.assertEqual(following(at(23), HABITS), [])
+
+    def test_the_words_of_the_day(self):
+        # Frank, 17 November: « « Aérez 10 min » en pause jusqu'à 10 h 45 », « on ne sait pas comment interpréter ».
+        self.assertEqual(aside_urgent("voc", 387, "open", 5), "COV encore élevé (387) : aérer 5 min aiderait, quand vous pourrez")
+        self.assertEqual(aside_urgent("co2", 1450, "open", 10),
+                         "CO₂ encore élevé (1\u202f450 ppm) : aérer 10 min aiderait, quand vous pourrez")
+        self.assertEqual(next_moment("apres_midi", at(15, 2), "open", 30), "Prochain bon moment : cet après-midi vers 15 h, aérer 30 min")
+        self.assertEqual(normal_humidity(77.4), "Humidité 77 % : normal pour cette pièce")
+        self.assertNotIn("aucun geste", phrase(CalmSubjectTests().decision(18.9, 72.0), 23,
+                                                 marks={"minimum": 19.0, "maximum": 24.0, "humidity": 60.0})["line"])
 
 
 class NoShadowTests(unittest.TestCase):

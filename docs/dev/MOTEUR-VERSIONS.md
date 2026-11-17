@@ -20,6 +20,15 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.19.0 — 17 novembre 2026
+
+Premier matin de la 3.18.0 à la maison et choix de Frank pour le bandeau (« C · Maintenant, puis », maquette hestia-ecosysteme/maquettes/maquette-bandeau-journee.html).
+- La journée de la pièce (`Board.today`, `likely`, `airing`) : aération faite avec sa mesure avant / après (`start_airing` / `end_airing`, `DONE_LEAST` 3 min), geste de créneau manqué (`close_missed`, « pas fait »), gestes probables des créneaux suivants (`slots.following`, `slots.probable`, calculés une fois par créneau ou dès qu'ils manquent, `likely_for`). Résultat `journee` : [{heure, genre fait | rate | probable, titre, detail}].
+- Le geste du créneau reste jusqu'à la fin du créneau (`PLAN_GRACE` retiré) ; son heure venue, sa promesse est recalculée sur la pièce telle qu'elle est (`refresh`), et il s'efface s'il n'aide plus (gain < GAIN/3). Constat : « Aérez 10 min » de 7 h 04 effacé à 7 h 49.
+- Pièce humide par nature (carte d'identité, chronique humidité) : pas de geste de créneau ni de geste probable pour l'humidité ou la moisissure tant qu'elle reste à moins de `HUMID_LEAVE` de sa normale (`near_normal`). Constat : Chambre P « Aérez 45 min : moisissure » à 79 %.
+- Phrases sans mots du moteur : « rien de mieux à faire pour l'instant » ; urgence non suivie « COV encore élevé (387) : aérer 5 min aiderait, quand vous pourrez » (`aside_urgent`, le vrai geste gardé dans `Board.asked`) ; au calme, « Prochain bon moment : cet après-midi vers 15 h, aérer 30 min » (`next_moment`) ou « Humidité 77 % : normal pour cette pièce » (`normal_humidity`).
+- Carte : « Aujourd'hui » sous le conseil (`advisor3.ts` `day3`), avec le chauffage et la pluie de « À venir » (`full.ts` `dayEvents`) ; la section « À venir » n'est plus répétée sous le bandeau avec le moteur 3.
+
 ### 3.18.0 — 16 novembre 2026
 
 Refonte de l'affichage (niak-comfort/docs/ETAT-DES-LIEUX-MOTEUR.md), demande de Frank du 16 nov. (« Tous les jours on a le même type d'erreur yoyo ») : 10 jours de maison, 43 yoyos (titre qui part et revient en 5 à 60 min sans fenêtre), 39 aérations sur 47 retirées sans geste, le plus souvent à 30 min pile (`HOLD_MINUTES`).

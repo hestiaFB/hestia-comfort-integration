@@ -62,7 +62,7 @@ class WordsTest(unittest.TestCase):
         words = phrase(decision, end_hour=17, marks={"minimum": 18.0, "maximum": 24.0})
         if decision.gesture.kind == "nothing":
             self.assertNotIn("plage", words["line"])
-            self.assertRegex(words["line"], r"^Humidité \d+ % à 17 h : aucun geste ne ferait vraiment mieux$")
+            self.assertRegex(words["line"], r"^Humidité \d+ % à 17 h : rien de mieux à faire pour l'instant$")
 
     def test_every_language_has_every_phrase(self):
         self.assertEqual(set(TEXTS["en"]), set(TEXTS["fr"]))
@@ -135,7 +135,7 @@ class BackAlone(unittest.TestCase):
     def test_a_measure_above_its_mark_now_says_it_comes_back_alone(self):
         decision = self._nothing(co2=[1090.0, 1060.0, 1020.0, 990.0] + [900.0] * 32)
         words = phrase(decision, end_hour=13, hour=10 + 40 / 60, marks={"minimum": 20.0, "maximum": 24.0})
-        self.assertEqual(words["line"], "Le CO₂ repasse seul sous 1000 ppm vers 11 h : aucun geste ne ferait vraiment mieux")
+        self.assertEqual(words["line"], "Le CO₂ repasse seul sous 1000 ppm vers 11 h : rien de mieux à faire pour l'instant")
         self.assertTrue(words["beyond"])
         self.assertIn("within 20 min", phrase(decision, 13, "en", marks={"minimum": 20.0, "maximum": 24.0})["line"])
 
@@ -149,5 +149,5 @@ class BackAlone(unittest.TestCase):
         # « Au mieux » kept a while (room/advice.py CALM_MINUTES): its line stays true, as the card's pill reads it.
         decision = self._nothing(co2=[700.0] * 36)
         words = phrase(decision, end_hour=13, marks={"minimum": 20.0, "maximum": 24.0}, beyond_before=True, keep_beyond=True)
-        self.assertEqual(words["line"], "Aucun geste ne ferait vraiment mieux : 21,0 °C à 13 h")
+        self.assertEqual(words["line"], "21,0 °C à 13 h : rien de mieux à faire pour l'instant")
         self.assertTrue(words["beyond"])

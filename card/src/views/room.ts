@@ -1,5 +1,5 @@
-import {factBox3,slides3,why3} from './advisor3';
-import {fullBody,fullPiece} from './full';
+import {day3,factBox3,slides3,why3} from './advisor3';
+import {dayEvents,fullBody,fullPiece} from './full';
 import {html,svg,nothing,LitElement,type TemplateResult} from 'lit';
 import {property,state} from 'lit/decorators.js';
 import {SCALE_MARKS,CHIPS,TILE_BLOCKS,DETAIL_ROWS,INSIGHT_TOPICS,INSIGHT_GROUPS,PIECES,type Piece,type Config,type View,type Level,type Format,type BannerBlock,type Chip,type HorizonSubject,type Horizon,type NextChange} from '../types';
@@ -802,7 +802,7 @@ export function hero(o:{name:string;level:Level;slides:Slide[];scaleLabel:string
 }
 /** The room card's banner (30 October, evening): the room and its day, the state's pill, then the advice beside its tinted
  * square and « En ce moment » on the right. A still light of the advice's colour starts here and runs on behind « À savoir ». */
-export function banner(o:{name:string;sub?:string;level:Level;slides:Slide[];st:CardState;why:TemplateResult;still?:boolean;now?:TemplateResult|typeof nothing;compact?:boolean;after?:TemplateResult|typeof nothing}):TemplateResult {
+export function banner(o:{name:string;sub?:string;level:Level;slides:Slide[];st:CardState;why:TemplateResult;still?:boolean;now?:TemplateResult|typeof nothing;compact?:boolean;after?:TemplateResult|typeof nothing;day?:TemplateResult|typeof nothing}):TemplateResult {
   const first=o.slides[0];
   const pill=html`<span class="nw-chip nc-level">${pillMark(statePill(first,o.level),first?.level??o.level)}</span>`;
   return html`<div class=${'nc-b'+(o.compact?' compact':'')} data-mood=${mood(o.slides[0],o.level)}>
@@ -810,7 +810,7 @@ export function banner(o:{name:string;sub?:string;level:Level;slides:Slide[];st:
     <div class="nc-b-top"><div class="nc-b-id"><div class="nc-b-name"><h2 class="nw-title">${o.name}</h2><button class="nw-info" aria-label=${t('Pourquoi ce conseil ?')} aria-expanded=${o.st.why} aria-controls=${o.st.uid+'-why'} @click=${(e:Event)=>{e.stopPropagation();o.st.toggle('why');}}></button>${pill}</div>${o.sub?html`<span class="nc-b-sub">${o.sub}</span>`:nothing}</div>
       ${o.now&&o.now!==nothing?html`<div class="nc-b-now">${o.now}</div>`:nothing}</div>
     <div class="nc-why nc-b-why nw-glass" id=${o.st.uid+'-why'} ?hidden=${!o.st.why}>${o.why}</div>
-    <div class="nc-b-main nw-glass nw-band" data-level=${first?.level??o.level}><hestia-advice-ticker layout="banner" .slides=${o.slides.slice(0,1)} .still=${!!o.still}></hestia-advice-ticker></div>
+    <div class="nc-b-main nw-glass nw-band" data-level=${first?.level??o.level}><hestia-advice-ticker layout="banner" .slides=${o.slides.slice(0,1)} .still=${!!o.still}></hestia-advice-ticker>${o.day??nothing}</div>
     ${o.after??nothing}
   </div>`;
 }
@@ -1059,12 +1059,12 @@ export function roomCard(v:View,config:Config,st:CardState,format:Format='full',
     const blocks=(config.tile_blocks??TILE_BLOCKS).filter(b=>b!=='scale');
     const chips=open?nothing:chipRow([...chipValues(v,(config.tile_chips??CHIPS).filter(c=>c!=='temperature')),...partners.flatMap(p=>chipValues(p,['humidity']).map(c=>({...c,text:p.title+' '+c.text})))]);
     return html`<ha-card class=${'nc-c nc-tile-card'+(open?' open':' folded')} data-level=${top} ?data-starting=${!!v.starting}>
-      ${banner({name,level:top,slides:all,st,why:whyRoom(v,all[0]),still,now,compact:true,after:html`${chips}${format==='tile'?html`<span class="nc-handle" aria-hidden="true"></span>`:nothing}`})}
+      ${banner({name,level:top,slides:all,st,why:whyRoom(v,all[0]),still,now,compact:true,day:v.advisor?day3(v.advisor.attributes,dayEvents(v)):nothing,after:html`${chips}${format==='tile'?html`<span class="nc-handle" aria-hidden="true"></span>`:nothing}`})}
       ${open?html`${fullBody(v,config,st,partners,blocks)}<div class="nc-foot"><span>${partners.length?t('Capteurs de {rooms}',{rooms:[v,...partners].map(r=>r.title).join(' et ')}):t('Capteurs de la pièce')}</span><span>${format==='tile'?t('Appui : replier · '):''}${t('Appui long : carte complète')}</span></div>`:nothing}
     </ha-card>`;
   }
   return html`<ha-card class="nc-c nc-full-card" data-level=${top} ?data-starting=${!!v.starting}>
-    ${banner({name,level:top,slides:all,st,why:whyRoom(v,all[0]),still,now})}
+    ${banner({name,level:top,slides:all,st,why:whyRoom(v,all[0]),still,now,day:v.advisor?day3(v.advisor.attributes,dayEvents(v)):nothing})}
     ${fullBody(v,config,st,partners)}
   </ha-card>`;
 }

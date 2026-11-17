@@ -66,6 +66,16 @@ TEXTS = {
         "stove_off": "Poêle coupé",
         "overheat": "{air} °C pour {target} °C visés, depuis {minutes} min",
         "stale": "CO₂ mesuré à {co2} ppm : l'air est à renouveler",
+        "normal_humidity": "Humidité {value} % : normal pour cette pièce",
+        "next_moment": "Prochain bon moment : {when} vers {at}, {gesture}",
+        "slot_matin": "ce matin", "slot_apres_midi": "cet après-midi", "slot_soir": "ce soir", "slot_demain": "demain matin",
+        "act_open": "aérer {minutes} min", "act_boost": "lancer la VMC rapide {minutes} min", "act_purify": "lancer le purificateur {minutes} min",
+        "day_open": "Aérer {minutes} min", "day_boost": "VMC rapide {minutes} min", "day_purify": "Purificateur {minutes} min",
+        "day_done": "Aérée {minutes} min", "day_missed": "pas fait", "day_probable": "probable",
+        "aside_urgent_co2": "CO₂ encore élevé ({value} ppm) : {gesture} aiderait, quand vous pourrez",
+        "aside_urgent_voc": "COV encore élevé ({value}) : {gesture} aiderait, quand vous pourrez",
+        "aside_urgent_particles": "Particules encore élevées ({value} µg/m³) : {gesture} aiderait, quand vous pourrez",
+        "aside_urgent_humidity": "Humidité encore élevée ({value} %) : {gesture} aiderait, quand vous pourrez",
         "urgent_co2": "CO₂ {value} ppm : {line}", "urgent_humidity": "Humidité {value} % : {line}",
         "urgent_particles": "Particules {value} µg/m³ : {line}", "urgent_voc": "COV {value} : {line}",
         "dwelling_humid": "Humide en permanence : {median} % d'humidité en moyenne depuis deux semaines. Aérer ne suffira "
@@ -97,9 +107,9 @@ TEXTS = {
         "north": "nord", "north_east": "nord-est", "east": "est", "south_east": "sud-est", "south": "sud",
         "south_west": "sud-ouest", "west": "ouest", "north_west": "nord-ouest",
         "out_humidity": "Humidité {value} % à {hour} h", "out_co2": "CO₂ {value} ppm à {hour} h",
-        "out_particles": "Particules {value} µg/m³ à {hour} h", "out_voc": "COV {value} à {hour} h", "out_nothing": "{what} : aucun geste ne ferait vraiment mieux", "aside_line": "« {title} » en pause jusqu'à {at} : {line}",
+        "out_particles": "Particules {value} µg/m³ à {hour} h", "out_voc": "COV {value} à {hour} h", "out_nothing": "{what} : rien de mieux à faire pour l'instant", "aside_line": "« {title} » en pause jusqu'à {at} : {line}",
         "held_open": "Ouverte : {air} °C à {hour} h", "held_shut": "Fermée : {air} °C à {hour} h",
-        "nothing_out": "Ouverte ou fermée : {air} °C à {hour} h", "nothing_out_shut": "Aucun geste ne ferait vraiment mieux : {air} °C à {hour} h",
+        "nothing_out": "Ouverte ou fermée : {air} °C à {hour} h", "nothing_out_shut": "{air} °C à {hour} h : rien de mieux à faire pour l'instant",
         "back_humidity": "L'humidité repasse seule sous {mark} % {when}", "back_co2": "Le CO₂ repasse seul sous {mark} ppm {when}",
         "back_particles": "Les particules repassent seules sous {mark} µg/m³ {when}", "back_voc": "Les COV repassent seuls sous {mark} {when}",
         "back_at": "vers {at}", "back_in": "d'ici {minutes} min",
@@ -155,6 +165,16 @@ TEXTS = {
         "stove_off": "Stove off",
         "overheat": "{air} °C for {target} °C aimed at, for {minutes} min",
         "stale": "CO₂ measured at {co2} ppm: the air needs renewing",
+        "normal_humidity": "Humidity {value} %: normal for this room",
+        "next_moment": "Next good moment: {when} around {at}, {gesture}",
+        "slot_matin": "this morning", "slot_apres_midi": "this afternoon", "slot_soir": "this evening", "slot_demain": "tomorrow morning",
+        "act_open": "air {minutes} min", "act_boost": "run the fast ventilation {minutes} min", "act_purify": "run the purifier {minutes} min",
+        "day_open": "Air {minutes} min", "day_boost": "Fast ventilation {minutes} min", "day_purify": "Purifier {minutes} min",
+        "day_done": "Aired {minutes} min", "day_missed": "not done", "day_probable": "likely",
+        "aside_urgent_co2": "CO₂ still high ({value} ppm): to {gesture} would help, when you can",
+        "aside_urgent_voc": "VOC still high ({value}): to {gesture} would help, when you can",
+        "aside_urgent_particles": "Particles still high ({value} µg/m³): to {gesture} would help, when you can",
+        "aside_urgent_humidity": "Humidity still high ({value} %): to {gesture} would help, when you can",
         "urgent_co2": "CO₂ {value} ppm: {line}", "urgent_humidity": "Humidity {value} %: {line}",
         "urgent_particles": "Particles {value} µg/m³: {line}", "urgent_voc": "VOC {value}: {line}",
         "dwelling_humid": "Always humid: {median} % on average over two weeks. Airing will not be enough; a dehumidifier "
@@ -186,9 +206,9 @@ TEXTS = {
         "north": "north", "north_east": "north-east", "east": "east", "south_east": "south-east", "south": "south",
         "south_west": "south-west", "west": "west", "north_west": "north-west",
         "out_humidity": "Humidity {value} % at {hour}:00", "out_co2": "CO₂ {value} ppm at {hour}:00",
-        "out_particles": "Particles {value} µg/m³ at {hour}:00", "out_voc": "VOC {value} at {hour}:00", "out_nothing": "{what}: no gesture would really do better", "aside_line": "« {title} » paused until {at}: {line}",
+        "out_particles": "Particles {value} µg/m³ at {hour}:00", "out_voc": "VOC {value} at {hour}:00", "out_nothing": "{what}: nothing better to do for now", "aside_line": "« {title} » paused until {at}: {line}",
         "held_open": "Open: {air} °C at {hour}:00", "held_shut": "Shut: {air} °C at {hour}:00",
-        "nothing_out": "Open or shut: {air} °C at {hour}:00", "nothing_out_shut": "No gesture would really do better: {air} °C at {hour}:00",
+        "nothing_out": "Open or shut: {air} °C at {hour}:00", "nothing_out_shut": "{air} °C at {hour}:00: nothing better to do for now",
         "back_humidity": "Humidity falls back under {mark} % on its own {when}", "back_co2": "CO₂ falls back under {mark} ppm on its own {when}",
         "back_particles": "Particles fall back under {mark} µg/m³ on their own {when}", "back_voc": "VOCs fall back under {mark} on their own {when}",
         "back_at": "around {at}", "back_in": "within {minutes} min",
@@ -244,6 +264,16 @@ TEXTS = {
         "stove_off": "Ofen aus",
         "overheat": "{air} °C bei {target} °C Ziel, seit {minutes} min",
         "stale": "CO₂ gemessen bei {co2} ppm: die Luft muss erneuert werden",
+        "normal_humidity": "Feuchte {value} %: normal für diesen Raum",
+        "next_moment": "Nächster guter Moment: {when} gegen {at}, {gesture}",
+        "slot_matin": "heute Morgen", "slot_apres_midi": "heute Nachmittag", "slot_soir": "heute Abend", "slot_demain": "morgen früh",
+        "act_open": "{minutes} Min. lüften", "act_boost": "Lüftung {minutes} Min. auf Stufe 2", "act_purify": "Luftreiniger {minutes} Min. laufen lassen",
+        "day_open": "{minutes} Min. lüften", "day_boost": "Lüftung {minutes} Min.", "day_purify": "Luftreiniger {minutes} Min.",
+        "day_done": "{minutes} Min. gelüftet", "day_missed": "nicht gemacht", "day_probable": "wahrscheinlich",
+        "aside_urgent_co2": "CO₂ noch hoch ({value} ppm): {gesture} würde helfen, wenn Sie können",
+        "aside_urgent_voc": "VOC noch hoch ({value}): {gesture} würde helfen, wenn Sie können",
+        "aside_urgent_particles": "Partikel noch hoch ({value} µg/m³): {gesture} würde helfen, wenn Sie können",
+        "aside_urgent_humidity": "Feuchte noch hoch ({value} %): {gesture} würde helfen, wenn Sie können",
         "urgent_co2": "CO₂ {value} ppm: {line}", "urgent_humidity": "Feuchte {value} %: {line}",
         "urgent_particles": "Feinstaub {value} µg/m³: {line}", "urgent_voc": "VOC {value}: {line}",
         "dwelling_humid": "Dauerhaft feucht: im Mittel {median} % seit zwei Wochen. Lüften allein reicht nicht; ein "
@@ -275,9 +305,9 @@ TEXTS = {
         "north": "Norden", "north_east": "Nordosten", "east": "Osten", "south_east": "Südosten", "south": "Süden",
         "south_west": "Südwesten", "west": "Westen", "north_west": "Nordwesten",
         "out_humidity": "Feuchte {value} % um {hour} Uhr", "out_co2": "CO₂ {value} ppm um {hour} Uhr",
-        "out_particles": "Partikel {value} µg/m³ um {hour} Uhr", "out_voc": "VOC {value} um {hour} Uhr", "out_nothing": "{what}: keine Geste wäre wirklich besser", "aside_line": "„{title}“ pausiert bis {at}: {line}",
+        "out_particles": "Partikel {value} µg/m³ um {hour} Uhr", "out_voc": "VOC {value} um {hour} Uhr", "out_nothing": "{what}: im Moment nichts Besseres zu tun", "aside_line": "„{title}“ pausiert bis {at}: {line}",
         "held_open": "Offen: {air} °C um {hour} Uhr", "held_shut": "Geschlossen: {air} °C um {hour} Uhr",
-        "nothing_out": "Offen oder geschlossen: {air} °C um {hour} Uhr", "nothing_out_shut": "Keine Geste wäre wirklich besser: {air} °C um {hour} Uhr",
+        "nothing_out": "Offen oder geschlossen: {air} °C um {hour} Uhr", "nothing_out_shut": "{air} °C um {hour} Uhr: im Moment nichts Besseres zu tun",
         "back_humidity": "Feuchte sinkt von selbst unter {mark} % {when}", "back_co2": "CO₂ sinkt von selbst unter {mark} ppm {when}",
         "back_particles": "Partikel sinken von selbst unter {mark} µg/m³ {when}", "back_voc": "VOC sinken von selbst unter {mark} {when}",
         "back_at": "gegen {at}", "back_in": "in {minutes} Min.",
@@ -624,6 +654,57 @@ def tonight_text(decision: Decision, wake_hour: int, language: str = "fr", marks
 
 def _time(when, words) -> str:
     return words["time_hour"].format(h=when.hour) if when.minute == 0 else words["time"].format(h=when.hour, m=when.minute)
+
+
+def _thousands(value: float, language: str) -> str:
+    return f"{round(value):,}".replace(",", "\u202f" if language == "fr" else ",")
+
+
+def act_text(kind: str, minutes: int | None, language: str = "fr") -> str:
+    """A gesture said as one does it, lower case: « aérer 5 min », « lancer la VMC rapide 30 min »."""
+    words = TEXTS[language]
+    key = f"act_{kind if kind in ('boost', 'purify') else 'open'}"
+    return words[key].format(minutes=minutes or 10)
+
+
+def day_title(kind: str, minutes: int | None, language: str = "fr") -> str:
+    """A gesture in the day's list (« Maintenant, puis »): « Aérer 30 min », « VMC rapide 30 min »."""
+    words = TEXTS[language]
+    return words[f"day_{kind if kind in ('boost', 'purify') else 'open'}"].format(minutes=minutes or 10)
+
+
+def aside_urgent(subject: str, value: float, kind: str, minutes: int | None, language: str = "fr") -> str:
+    """An urgency left unfollowed, said plainly (Frank, 17 November: « « Aérez 10 min » en pause jusqu'à 10 h 45 », « on ne
+    sait pas comment interpréter cette phrase »): the measure, the gesture, and no hurry. The next reminder is the « i »'s."""
+    words = TEXTS[language]
+    return words[f"aside_urgent_{subject}"].format(value=_thousands(value, language), gesture=act_text(kind, minutes, language))
+
+
+def next_moment(slot: str, at, kind: str, minutes: int | None, language: str = "fr") -> str:
+    """« Prochain bon moment : cet après-midi vers 15 h, aérer 30 min » (ETAT-DES-LIEUX-MOTEUR.md, bandeau « Maintenant, puis »)."""
+    words = TEXTS[language]
+    return words["next_moment"].format(when=words[f"slot_{slot}"], at=_time(time(at.hour, at.minute - at.minute % 5), words),
+                                       gesture=act_text(kind, minutes, language))
+
+
+def before_after(subject: str, before: float | None, after: float | None, language: str = "fr") -> str | None:
+    """What an airing did, as measured: « 68 % → 61 % », « 1 450 → 820 ppm », « 19,2 → 18,4 °C »."""
+    if before is None or after is None:
+        return None
+    if subject == "humidity":
+        return f"{round(before)} % → {round(after)} %"
+    if subject == "co2":
+        return f"{_thousands(before, language)} → {_thousands(after, language)} ppm"
+    if subject == "particles":
+        return f"{round(before)} → {round(after)} µg/m³"
+    if subject == "heat":
+        return f"{_number(before, language)} → {_number(after, language)} °C"
+    return f"{round(before)} → {round(after)}"
+
+
+def normal_humidity(value: float, language: str = "fr") -> str:
+    """A room humid by nature, at its normal: « Humidité 77 % : normal pour cette pièce »."""
+    return TEXTS[language]["normal_humidity"].format(value=round(value))
 
 
 def dwelling_lines(card: dict | None, language: str = "fr") -> list[str]:

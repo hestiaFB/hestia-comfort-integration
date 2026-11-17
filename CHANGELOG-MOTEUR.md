@@ -4,6 +4,21 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.19.0 — 17 novembre 2026
+
+Dans Confort 3.1.0b14.
+
+### Nouveautés
+
+- La journée de la pièce sous le conseil : ce qui a été fait, avec ce que ça a donné (« Aérée 15 min : 68 % → 61 % »), ce qui n'a pas été fait, puis ce qui vient, heure par heure (« 15 h · Aérer 30 min, probable », le chauffage).
+- Quand il n'y a rien à faire, la carte annonce le prochain bon moment : « Prochain bon moment : cet après-midi vers 15 h, aérer 30 min ».
+
+### Corrections
+
+- Le geste du créneau reste affiché jusqu'à la fin du créneau, avec une promesse toujours à jour. Exemple : le 17 novembre, « Aérez 10 min » de 7 h 04 avait disparu à 7 h 49.
+- Une pièce humide par nature n'a plus de conseil chaque jour pour son humidité habituelle. Exemple : la Chambre P à 79 %.
+- Des phrases simples : « COV encore élevé (387) : aérer 5 min aiderait, quand vous pourrez » au lieu de « « Aérez 10 min » en pause jusqu'à 10 h 45 ».
+
 ## 3.18.0 — 16 novembre 2026
 
 Dans Confort 3.1.0b13.
