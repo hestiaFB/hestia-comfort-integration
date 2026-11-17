@@ -1,3 +1,9 @@
+## À venir
+
+### Corrections
+
+- Une pièce en train de se recharger ne coupe plus la carte du logement ni la vue de la pièce : le reste du logement continue de s'afficher.
+
 ## 3.1.0b15 — Des heures rondes
 
 ### Corrections
