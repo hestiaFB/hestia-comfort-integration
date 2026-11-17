@@ -1,3 +1,11 @@
+## À venir
+
+### Corrections
+
+- Avec Hestia Weather, chaque pièce se recalculait à chaque mise à jour de la météo (toutes les minutes), même quand rien de ce qu’elle lit n’avait changé : l’heure de calcul de la pluie et des pollens était prise pour un changement. Confort ne recalcule plus que quand la pluie, l’air, les pollens, les prévisions ou les alertes changent vraiment. Moins de travail pour les petites machines.
+
+### Moteur de conseil 3.10.0 — inchangé
+
 ## 3.0.1 — Correctif : le panneau après « Enregistrer »
 
 ### Corrections
