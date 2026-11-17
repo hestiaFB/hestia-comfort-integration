@@ -6,8 +6,9 @@ import styles from './styles.css';
 import {kpis,todoLists,listSection,listRow,saveBar,tabBar,numberField,segmented,toggle,moreRow,frame,noteBox,hubStyles,modernStyles,helpTip,defaultValue,pageHead,todoFrame,itemsFrame,stepMenu,stepFooter,extensionsFrame,detectedFrame,versionsFrame,extensionCard as nkExtensionCard,aboutPage,removeBlock as nkRemoveBlock,pageStyles,hassChanged,setLanguage,addDictionary,wordsReady,t,fr,currentLocale,currentLanguage,type NkLine,type NkLevel} from './socle/ui';
 import {fieldTrialFrame,type FieldReport} from './fieldtrial';
 import {lightEditor,noLights,type Lights,type LightRule,type LightInfo} from './lights';
-import {foyerPage,roomFoyer,toleranceName,FOYER_DEFAULTS,duration,type Foyer} from './foyer';
-import {quizScreen,unanswered,firstUnanswered,habitsStyles,type HabitsContext,type HouseUses} from './habitudes';
+import {foyerPage,roomFoyer,toleranceName,sleepSection,toleranceRow,FOYER_DEFAULTS,duration,type Foyer} from './foyer';
+import {quizScreen,unanswered,firstUnanswered,habitsStyles,houseSection,questions,questionBody,seen,noted,type HabitsContext,type HouseUses,type Question} from './habitudes';
+import {guideFrame,welcome,askOf,guideScreens,nextScreen,guideStyles,type GuideScreen,type GuideState} from './guide';
 import {overhangSketch} from './sketch';
 import {roomLearning3,outside3,firstMissing} from './learning3';
 import {words,labels,indoor,outdoor,multiple,exposures,kinds,measurement,newRoom,coverage,exteriorSummary,livingArea,defaultOpening,warningText,warningId,stages,intros,outdoorGroups,airSource,airChoices,exteriorChoices,airReferenceDefaults,vocPreset,thresholdSources,type Choice,type Candidate,type Discovery,type Health,type HealthLine,type Target,type Snapshot,type Hass,type Room,type RoomConfig,type Spec,type Twins,type Twin,type Progress,type Extension,seasonNames,ordinarySize,type Heater,type OpeningMeta,type RoomBuilt,type CustomEquipment} from './model';
@@ -68,7 +69,7 @@ function loadPicker():Promise<string|null>{
 }
 @customElement('hestia-comfort-setup')
 export class ComfortSetup extends LitElement {
- static styles=[unsafeCSS(styles),hubStyles,modernStyles,pageStyles,unsafeCSS(habitsStyles)];
+ static styles=[unsafeCSS(styles),hubStyles,modernStyles,pageStyles,unsafeCSS(habitsStyles),unsafeCSS(guideStyles)];
  @property({attribute:false}) hass?:Hass;
  @property({attribute:false}) route?:{prefix?:string;path:string};
  @property({type:Boolean}) narrow=false;
@@ -124,12 +125,21 @@ export class ComfortSetup extends LitElement {
  @state() private preview?:string;
  @state() private previewEdited=false;
  @state() private pickerTag:string|null=null;
+ // The installation guide (guide.ts): the key of its screen, null when not open; the house's or a room's; where it was opened.
+ @state() private guideAt:string|null=null;
+ private guideKind:'house'|'room'='room';
+ private guideFrom:'home'|'room'='home';
+ // The house's settings in the guide: saved at each change in Réglages, here kept until its last screen.
+ @state() private houseDraft?:{foyer:Foyer;allergy:boolean;lights:Lights};
+ private houseOriginal='';
+ // « Ajouter avec le guide » on the Pièces page: the room chosen opens in its guide.
+ @state() private addingGuide=false;
  private generation=0;
  private connection?:unknown;
  private routeHandled:string|undefined;
  private workspaceGeneration=0;
  private workspaceKey='';
- private drafts=new Map<string,{draft?:RoomConfig;exteriorDraft?:Record<string,Spec>;discovery?:Discovery;entryId?:string;stage:number;revision:string;acknowledged:string[];proposed:string[];search:Record<string,string>;weatherEntry:string|null}>();
+ private drafts=new Map<string,{draft?:RoomConfig;exteriorDraft?:Record<string,Spec>;discovery?:Discovery;entryId?:string;stage:number;revision:string;acknowledged:string[];proposed:string[];search:Record<string,string>;weatherEntry:string|null;houseDraft?:{foyer:Foyer;allergy:boolean;lights:Lights};houseOriginal?:string}>();
  private revision='';
  private previewCard?:{id:string;el:HTMLElement&{hass?:unknown;setConfig?:(c:object)=>void}};
  private beforeUnload=(e:BeforeUnloadEvent)=>{if(this.draft||this.exteriorDraft||this.drafts.size){e.preventDefault();e.returnValue='';}};
@@ -220,13 +230,13 @@ export class ComfortSetup extends LitElement {
    {value:String(followed),label:many(followed)?t('conseils suivis cette semaine'):t('conseil suivi cette semaine')}])}
   ${h.advisor_beta===false?nothing:fieldTrialFrame({report:this.fieldReport,error:this.fieldError||undefined,busy:this.busy,repository,participate:on=>void this.participate(on)})}
   ${todoLists(h.todo.map(l=>this.nkLine(l)),[...this.habitsLine(),...h.tips.map(l=>this.nkLine(l))])}
-  ${this.roomList()}`;}
+  ${this.roomList()}${this.guideRows()}`;}
  /** « À améliorer »: the questions on the household's habits not answered yet (HABITUDES-FOYER.md § 4); never orange. */
  private habitsLine():NkLine[]{const n=this.snapshot?unanswered(this.habitsContext()):0;
   return n?[{level:'tip',text:t('Vos habitudes'),why:n>1?t('{n} questions, une minute : ce que les capteurs ne voient pas.',{n}):t('Une question : ce que les capteurs ne voient pas.'),
    go:{label:t('Répondre'),onClick:()=>{this.quizStep=firstUnanswered(this.habitsContext());this.path('reglages/habitudes');},disabled:this.busy}}]:[];}
  /** The home as « Vos habitudes » and « Votre maison » need it: the rooms with a manual shutter, what says the absences. */
- private habitsContext():HabitsContext{const s=this.snapshot!,house=this.foyer(),rooms=s.rooms.map(r=>({entry_id:r.entry_id,title:r.title}));
+ private habitsContext(house:Foyer=this.foyer()):HabitsContext{const s=this.snapshot!,rooms=s.rooms.map(r=>({entry_id:r.entry_id,title:r.title}));
   const shutter=(r:Room,w:string)=>r.config.openings?.[w]?.shutter??house.volet??'none';
   const manual=s.rooms.filter(r=>r.config.windows.some(w=>shutter(r,w)==='manual')).map(r=>r.title);
   // The alarm as the advisor reads it (room/presence.py `_alarm_entity`): the one chosen, else Alarmo found by itself.
@@ -235,10 +245,10 @@ export class ComfortSetup extends LitElement {
   const absences=alarm?(this.hass?.states?.[alarm]?.attributes?.friendly_name as string|undefined)??alarm:null;
   return {foyer:house,busy:this.busy,manual,absences,rooms,change:next=>void this.saveFoyer(next),quiz:()=>{this.quizStep=firstUnanswered(this.habitsContext());this.path('reglages/habitudes');}};}
  /** How many windows and rooms take each value of « Votre maison ». */
- private houseUses():HouseUses{const rooms=this.snapshot?.rooms??[],windows=rooms.flatMap(r=>r.config.windows.map(w=>r.config.openings?.[w]??{}));
+ private houseUses(house:Foyer=this.foyer()):HouseUses{const rooms=this.snapshot?.rooms??[],windows=rooms.flatMap(r=>r.config.windows.map(w=>r.config.openings?.[w]??{}));
   const said=(n:number,own:number)=>own?t('Repris par {n} ouvrants · {own} différents',{n,own}):t('Repris par {n} ouvrants',{n});
   // A window « Comme la maison »: no value of its own, or the house's.
-  const house=this.foyer(),glazing=windows.filter(m=>!('glazing' in m&&m.glazing&&m.glazing!==(house.vitrage??'double'))).length,
+  const glazing=windows.filter(m=>!('glazing' in m&&m.glazing&&m.glazing!==(house.vitrage??'double'))).length,
    shutter=windows.filter(m=>!('shutter' in m&&m.shutter&&m.shutter!==(house.volet??'none'))).length;
   const built=rooms.filter(r=>r.config.room?.height==null&&!r.config.room?.wall_material).length;
   const stats=rooms.filter(r=>r.config.thermostat_plage||(r.config.heaters??[]).some(h=>h.entity_id)).map(r=>r.title);
@@ -259,7 +269,7 @@ export class ComfortSetup extends LitElement {
     sub:overview?same||undefined:[coverage(r.config),same].filter(Boolean).join(' · '),value:overview?now(r):undefined,go:()=>void this.openRoom(r.entry_id)});}),
    overview?{help:html`<p>${t('Appris : ce que Confort a vu de chaque pièce. À 100 %, une semaine de mesures, des prévisions justes, cinq aérations et le chauffage en marche.')}</p>`}:{});}
  /** « Pièces »: every room, to open or to add. */
- private roomsPage(){return html`${pageHead({title:t('Pièces'),actions:[{label:this.adding?t('Fermer'):t('Ajouter une pièce'),onClick:()=>{this.adding=!this.adding;}}]})}
+ private roomsPage(){return html`${pageHead({title:t('Pièces'),actions:this.adding?[{label:t('Fermer'),onClick:()=>{this.adding=false;}}]:[{label:t('Ajouter avec le guide'),onClick:()=>{this.adding=true;this.addingGuide=true;}},{label:t('Ajouter une pièce'),onClick:()=>{this.adding=true;this.addingGuide=false;}}]})}
   ${this.adding?html`<div class="ac-add">${this.addRoom()}</div>`:nothing}${this.roomList('')}`;}
  /** « Apprentissage »: what Confort has learned of each room, and what it still has to see. */
  private learningPage(){const rooms=this.twins?.rooms??[];
@@ -292,8 +302,8 @@ export class ComfortSetup extends LitElement {
  /** A new room: one of the Home Assistant areas not yet followed, or a free room. */
  private addRoom(){const s=this.snapshot!,used=new Set(s.rooms.map(r=>r.config.area_id).filter((a):a is string=>!!a));const living=livingArea(s.areas,used);
   const areas=s.areas.filter(a=>!a.outdoor&&!used.has(a.area_id)&&(s.rooms.length||a!==living));
-  return html`${areas.length&&!(this.overview&&!s.rooms.length)?html`<p class="hint">${t('Vos pièces Home Assistant : leurs capteurs vous seront proposés.')}</p><div class="area-buttons">${areas.map(a=>html`<button @click=${()=>this.start(a)}>${a.name}</button>`)}</div>`:nothing}
-   <form class="free" @submit=${(e:Event)=>{e.preventDefault();void this.start(null,this.freeName);}}><label>${t('Pièce libre, sans pièce Home Assistant')}<input type="text" maxlength="100" placeholder=${t('Par exemple : Étage')} .value=${this.freeName} @input=${(e:Event)=>this.freeName=(e.target as HTMLInputElement).value}></label><button type="submit">${t('Créer')}</button></form>`;}
+  return html`${areas.length&&!(this.overview&&!s.rooms.length)?html`<p class="hint">${t('Vos pièces Home Assistant : leurs capteurs vous seront proposés.')}</p><div class="area-buttons">${areas.map(a=>html`<button @click=${()=>this.start(a,'',this.addingGuide)}>${a.name}</button>`)}</div>`:nothing}
+   <form class="free" @submit=${(e:Event)=>{e.preventDefault();void this.start(null,this.freeName,this.addingGuide);}}><label>${t('Pièce libre, sans pièce Home Assistant')}<input type="text" maxlength="100" placeholder=${t('Par exemple : Étage')} .value=${this.freeName} @input=${(e:Event)=>this.freeName=(e.target as HTMLInputElement).value}></label><button type="submit">${t('Créer')}</button></form>`;}
  /** « Salon · Cuisine » for a room open onto others, from the rooms' « Même air » settings. */
  private volumeName(entry_id:string):string|null{
   const rooms=this.snapshot?.rooms??[],links=new Map(rooms.map(r=>[r.entry_id,new Set(r.config.open_to??[])]));
@@ -306,7 +316,7 @@ export class ComfortSetup extends LitElement {
  private ws<T>(msg:Record<string,unknown>){return this.hass!.callWS<T>({...msg,language:this.hass!.language});}
  private message(e:unknown){return typeof e==='object'&&e&&'message' in e?String(e.message):t('La connexion est indisponible. Réessayez sans quitter votre brouillon.');}
  private path(path:string){if(!this.isConnected)return;this.opening=false;const full='/'+path.replace(/^\//,'');this.routeHandled=full==='/'?'':full;const [key,sub]=path.split('/');if(key==='bilan'){this.page='review';this.reviewRoom=sub;}else if(key==='reglages'){this.page='settings';this.lightPage=sub==='lumiere';this.quizPage=sub==='habitudes';}else if(key==='pieces'&&!sub)this.page='pieces';else if(key==='apprentissage')this.page='learning';else if(key==='a-propos')this.page='about';else if(!key)this.page='health';this.extKey=key==='extensions'?sub:undefined;history.pushState(null,'',(this.route?.prefix??'/hestia/confort')+(path?'/'+path:''));window.dispatchEvent(new CustomEvent('location-changed'));}
- private remember(){if(this.workspaceKey&&(this.draft||this.exteriorDraft))this.drafts.set(this.workspaceKey,{draft:this.draft,exteriorDraft:this.exteriorDraft,discovery:this.discovery,entryId:this.entryId,stage:this.stage,revision:this.revision,acknowledged:this.acknowledged,proposed:this.proposed,search:this.search,weatherEntry:this.weatherEntry});}
+ private remember(){if(this.workspaceKey&&(this.draft||this.exteriorDraft))this.drafts.set(this.workspaceKey,{draft:this.draft,exteriorDraft:this.exteriorDraft,discovery:this.discovery,entryId:this.entryId,stage:this.stage,revision:this.revision,acknowledged:this.acknowledged,proposed:this.proposed,search:this.search,weatherEntry:this.weatherEntry,houseDraft:this.houseDraft,houseOriginal:this.houseOriginal});}
  private async followRoute(){
   const path=this.route?.path??'';if(this.routeHandled===path)return;
   // A route that is not the browser's address is a late copy of one already left (Home Assistant can send the former
@@ -314,10 +324,12 @@ export class ComfortSetup extends LitElement {
   const here=decodeURI(location.pathname).replace(/\/$/,'');if(this.route?.prefix&&here!==(this.route.prefix+path).replace(/\/$/,''))return;this.routeHandled=path;const generation=++this.workspaceGeneration;this.remember();
   const [id,section]=path.split('/').filter(Boolean);const key=id??'';this.extKey=key==='extensions'?section:undefined;
   // A newer page takes over: the « Chargement… » of the one it replaces must not stay forever.
-  this.opening=false;this.workspaceKey=key;this.draft=undefined;this.exteriorDraft=undefined;this.discovery=undefined;this.entryId=undefined;this.preview=undefined;this.error='';this.saved='';this.confirmDiscard=false;this.confirmRemove=false;
+  this.opening=false;this.workspaceKey=key;this.guideAt=null;this.houseDraft=undefined;this.draft=undefined;this.exteriorDraft=undefined;this.discovery=undefined;this.entryId=undefined;this.preview=undefined;this.error='';this.saved='';this.confirmDiscard=false;this.confirmRemove=false;
   // The tab opens on its technical home; « pieces » is the list of rooms to set.
   // « pieces » (the former list of rooms) is now the general settings, like every brick's.
   // The menu's pages (CAHIER-HUB.md § 5.1): the rooms, and what each has learned.
+  // The house's guide (guide.ts): its draft kept while the person looks elsewhere, else the saved settings.
+  if(key==='guide'){this.page='health';const kept=this.drafts.get('guide');if(kept?.houseDraft){Object.assign(this,kept);this.guideKind='house';this.guideFrom='home';this.guideAt='welcome';return;}await this.openHouseGuide(false);return;}
   if(key==='pieces'&&!section){this.page='pieces';if(!this.health)void this.loadHealth();return;}
   if(key==='apprentissage'){this.page='learning';if(!this.twins)void this.loadHealth();return;}
   // « À propos », a page of every brick's menu (socle 1.22): versions and the project's links.
@@ -326,10 +338,11 @@ export class ComfortSetup extends LitElement {
   if(key==='reglages'){this.page='settings';this.lightPage=section==='lumiere';this.quizPage=section==='habitudes';return;}
   this.page=key==='bilan'?'review':'health';this.reviewRoom=key==='bilan'?section:undefined;if(key==='bilan')return;
   const cached=this.drafts.get(key);
-  if(cached){Object.assign(this,cached);this.stage=roomSections.find(x=>x.path===section)?.stage??(section==='recapitulatif'?5:cached.stage);return;}
+  if(cached){Object.assign(this,cached);if(section==='guide'&&this.draft){this.guideKind='room';this.guideAt='welcome';return;}this.stage=roomSections.find(x=>x.path===section)?.stage??(section==='recapitulatif'?5:cached.stage);return;}
   if(id==='apercu'&&this.snapshot?.rooms.some(r=>r.entry_id===section)){this.preview=section;this.previewEdited=true;return;}
   const room=this.snapshot?.rooms.find(r=>r.entry_id===id);this.opening=id==='extensions'||!!room;
   try{if(id==='extensions'){await this.editExterior(false);return;}
+   if(room&&section==='guide'){await this.editRoom(room,false);if(generation===this.workspaceGeneration&&this.draft){this.guideKind='room';this.guideFrom='home';this.guideAt='welcome';}return;}
    if(room){await this.editRoom(room,false);if(generation===this.workspaceGeneration)this.stage=roomSections.find(x=>x.path===section)?.stage??(section==='recapitulatif'?5:0);}else if(id){this.error=t('Cette pièce n’est plus disponible. Choisissez une pièce ci-dessous.');}}
   finally{if(generation===this.workspaceGeneration)this.opening=false;}
  }
@@ -356,11 +369,11 @@ export class ComfortSetup extends LitElement {
   return d;
  }
  private begin(){this.confirmRemove=false;this.adding=false;this.busy=true;this.error='';this.saved='';this.preview=undefined;this.search={};this.confirmed=false;}
- private async start(area:{area_id:string;name:string}|null,name=''){
+ private async start(area:{area_id:string;name:string}|null,name='',guide=false){
   if(!area&&!name.trim()){this.error=t('Donnez un nom à la pièce libre, par exemple « Étage » ou « Suite parentale ».');return;}
   // From the general settings their draft is kept for the way back, and gives way to the new room's.
   const workspace=this.workspaceGeneration;this.remember();this.begin();
-  try{const d=await this.discover(area?.area_id);if(workspace!==this.workspaceGeneration)return;this.exteriorDraft=undefined;this.discovery=d;this.revision=d.revision;this.entryId=undefined;this.draft=this.withHouse(newRoom(area,name.trim(),d));this.proposed=[...Object.values(this.draft.sources),...this.draft.windows];this.stage=0;this.acknowledged=[];this.freeName='';this.workspaceKey='nouvelle';this.path('nouvelle/temperature');}
+  try{const d=await this.discover(area?.area_id);if(workspace!==this.workspaceGeneration)return;this.exteriorDraft=undefined;this.discovery=d;this.revision=d.revision;this.entryId=undefined;this.draft=this.withHouse(newRoom(area,name.trim(),d));this.proposed=[...Object.values(this.draft.sources),...this.draft.windows];this.stage=0;this.acknowledged=[];this.freeName='';this.workspaceKey='nouvelle';if(guide){this.guideKind='room';this.guideFrom='home';this.guideAt='welcome';this.path('nouvelle/guide');}else this.path('nouvelle/temperature');}
   catch(e){this.error=this.message(e);}finally{this.busy=false;}
  }
  private async editRoom(room:Room,route=true){
@@ -409,7 +422,7 @@ export class ComfortSetup extends LitElement {
  /** Leaving asks only when something is really unsaved: a new room not created yet, or choices that differ from the saved ones (after « Enregistrer », nothing is pending). */
  private cancel(){const pending=this.exteriorDraft?this.exteriorChanges()>0:this.draft?(!this.entryId||this.changes()>0):false;
   if(pending){this.confirmDiscard=true;return;}this.discard();}
- private discard(){const back=this.draft&&!this.exteriorDraft?'pieces':'';this.drafts.delete(this.workspaceKey);this.workspaceKey='';this.path(back);this.confirmDiscard=false;this.draft=undefined;this.exteriorDraft=undefined;this.discovery=undefined;this.entryId=undefined;this.error='';this.acknowledged=[];this.proposed=[];}
+ private discard(){if(this.guideAt!==null&&!(this.guideKind==='room'&&this.guideFrom==='room')){this.closeGuide();return;}const back=this.draft&&!this.exteriorDraft?'pieces':'';this.drafts.delete(this.workspaceKey);this.workspaceKey='';this.path(back);this.confirmDiscard=false;this.draft=undefined;this.exteriorDraft=undefined;this.discovery=undefined;this.entryId=undefined;this.error='';this.acknowledged=[];this.proposed=[];}
  private selected(key:string):string[]{if(this.exteriorDraft)return this.exteriorDraft[key]?[this.exteriorDraft[key].entity_id]:[];if(!this.draft)return [];return key==='presence'?(this.draft.presence??[]):key==='windows'?this.draft.windows:this.draft.sources[key]?[this.draft.sources[key]]:[];}
  private choose(key:string,c:Candidate){
   const previous=this.selected(key);
@@ -526,7 +539,7 @@ export class ComfortSetup extends LitElement {
      value:html`<span class="nk-unit">A</span>${metres('overhang_depth',t('Profondeur (m)'),'0,60')}<span class="nk-unit">B</span>${metres('overhang_gap',t('Écart (m)'),'0,30')}<span class="nk-unit">m</span>`}),
     listRow({label:t('Angle précis'),sub:t('Nord 0, est 90, sud 180, ouest 270.'),value:html`<input type="number" aria-label=${t('Angle précis')} min="0" max="359" step="1" .value=${m.azimuth!=null?String(m.azimuth):''} @input=${(e:Event)=>{const raw=(e.target as HTMLInputElement).value;this.setOpening(id,{azimuth:raw===''?null:Number(raw)});}}><span class="nk-unit">°</span>`}),
     ...(m.shutter==='connected'&&!driver?[listRow({label:t('Interrupteur du pilotage automatique'),sub:t('Si une automatisation ouvre et ferme ce volet.'),value:pick('auto_entity','shutter_auto')}),listRow({label:t('Capteur « repris à la main »'),value:pick('override_entity','shutter_override')})]:[])])];}
- private go(stage:number){this.stage=stage;if(this.workspaceKey)this.path(this.workspaceKey+'/'+(roomSections.find(x=>x.stage===stage)?.path??'recapitulatif'));this.error='';this.saved='';this.updateComplete.then(()=>{this.renderRoot.querySelector<HTMLElement>('h1')?.focus();});}
+ private go(stage:number){this.stage=stage;this.guideAt=null;if(this.workspaceKey)this.path(this.workspaceKey+'/'+(roomSections.find(x=>x.stage===stage)?.path??'recapitulatif'));this.error='';this.saved='';this.updateComplete.then(()=>{this.renderRoot.querySelector<HTMLElement>('h1')?.focus();});}
  /** What must be right before going on or saving; '' when it is. */
  private problem(all=false){const d=this.draft!,s=d.settings;
   if((all||this.stage===0)&&!d.sources.indoor_temperature)return t('Choisissez la température de la pièce pour continuer. C’est la seule mesure obligatoire.');
@@ -541,16 +554,20 @@ export class ComfortSetup extends LitElement {
  private async save(){
   const config=this.exteriorDraft?{sources:this.exteriorDraft,weather:this.weatherEntry}:this.draft;if(!config)return;
   const workspace=this.workspaceGeneration,entryId=this.entryId,isHome=!!this.exteriorDraft,revision=this.revision;this.busy=true;this.error='';
+  // From the guide opened on a room's tabs, back to them; from anywhere else, back to the overview.
+  const guide=this.guideAt!==null&&this.guideFrom!=='room';
   try{const validated=await this.ws<{warnings:{key:string;entity_id:string}[]}>({type:'hestia_comfort/validate_config',config,home:isHome});if(workspace!==this.workspaceGeneration)return;const missing=validated.warnings.map(w=>warningId(w.key,w.entity_id)).filter(id=>!this.acknowledged.includes(id));
    if(missing.length&&!this.confirmed){this.error=t('Cochez « J’ai vérifié, je confirme mes choix » juste au-dessus pour enregistrer.');return;}
    this.acknowledged=[...new Set([...this.acknowledged,...missing])];
    const before=new Set(this.snapshot?.rooms.map(r=>r.entry_id));const wasRoom=!isHome;const edited=entryId;
    this.snapshot=await this.ws<Snapshot>({type:'hestia_comfort/save_config',config,home:isHome,revision,...(entryId?{entry_id:entryId}:{}),acknowledged:this.acknowledged});
    if(workspace!==this.workspaceGeneration)return;
+   this.guideAt=null;
    // A room saved stays on screen, on the same tab and at the same place: no other page in between, nothing reloaded.
    const kept=wasRoom&&edited?this.snapshot.rooms.find(r=>r.entry_id===edited):undefined;
-   if(kept){const config=editable(kept.config);this.drafts.delete(this.workspaceKey);this.draft=config;this.original=JSON.stringify(config);this.acknowledged=[...(config.acknowledged??[])];this.revision=this.snapshot.revision;this.saved=t('Enregistré');this.settleAfterSave(kept.entry_id);return;}
+   if(kept&&!guide){const config=editable(kept.config);this.drafts.delete(this.workspaceKey);this.draft=config;this.original=JSON.stringify(config);this.acknowledged=[...(config.acknowledged??[])];this.revision=this.snapshot.revision;this.saved=t('Enregistré');this.settleAfterSave(kept.entry_id);return;}
    this.drafts.delete(this.workspaceKey);this.workspaceKey='';this.path('');this.draft=undefined;this.exteriorDraft=undefined;this.discovery=undefined;this.entryId=undefined;
+   if(guide&&edited){this.saved=t('« {name} » est enregistrée.',{name:kept?.title??''});return;}
    if(wasRoom&&edited){const tab=roomSections.find(x=>x.stage===this.stage)?.path??'mesures';await this.openRoom(edited,tab);this.saved=t('Enregistré');return;}
    if(wasRoom){this.preview=this.snapshot.rooms.find(r=>!before.has(r.entry_id))?.entry_id;this.previewEdited=false;if(this.preview)this.path('apercu/'+this.preview);}
    if(isHome){await this.editExterior();this.saved=t('Enregistré');}}
@@ -558,14 +575,17 @@ export class ComfortSetup extends LitElement {
  }
  private floorName(){const d=this.draft!;const id=d.area_id?this.snapshot?.areas.find(a=>a.area_id===d.area_id)?.floor_id:d.floor_id;return this.snapshot?.floors?.find(f=>f.floor_id===id)?.name??t('Non renseigné');}
  /** « La pièce » (CAHIER-HUB.md § 5.3): its name and place, the rooms it shares its air with, what differs from the house, how it is built. */
- private preferences(){const d=this.draft!,used=new Set(this.snapshot!.rooms.filter(r=>r.entry_id!==this.entryId).map(r=>r.config.area_id));
+ /** « La pièce », its first lists: its name and place, the rooms it shares its air with. The tab and the guide. */
+ private roomPlace(){const d=this.draft!,used=new Set(this.snapshot!.rooms.filter(r=>r.entry_id!==this.entryId).map(r=>r.config.area_id));
   const others=this.snapshot!.rooms.filter(r=>r.entry_id!==this.entryId),open=d.open_to??[],theirs=(r:{config:RoomConfig})=>!!this.entryId&&(r.config.open_to??[]).includes(this.entryId);
   return html`${listSection(t('La pièce'),[listRow({label:t('Nom'),value:html`<input type="text" aria-label=${t('Nom')} maxlength="100" .value=${d.name} @input=${(e:Event)=>this.draft={...this.draft!,name:(e.target as HTMLInputElement).value}}>`}),
    listRow({label:t('Pièce Home Assistant'),sub:d.area_id?undefined:t('Rattachée, ses capteurs sont proposés en premier.'),value:html`<select aria-label=${t('Pièce Home Assistant')} @change=${(e:Event)=>this.changeArea((e.target as HTMLSelectElement).value)}><option value="" ?selected=${!d.area_id}>${t('Aucune (pièce libre)')}</option>${this.snapshot!.areas.filter(a=>!a.outdoor&&(!used.has(a.area_id)||a.area_id===d.area_id)).map(a=>html`<option value=${a.area_id} ?selected=${a.area_id===d.area_id}>${a.name}</option>`)}</select>`}),
    d.area_id?listRow({label:t('Étage'),sub:t('Repris de Home Assistant.'),value:this.floorName()})
     :listRow({label:t('Étage'),value:html`<select aria-label=${t('Étage')} @change=${(e:Event)=>this.draft={...this.draft!,floor_id:(e.target as HTMLSelectElement).value||null}}><option value="" ?selected=${!this.snapshot?.floors?.some(f=>f.floor_id===d.floor_id)}>${t('Non renseigné')}</option>${(this.snapshot?.floors??[]).map(f=>html`<option value=${f.floor_id} ?selected=${d.floor_id===f.floor_id}>${f.name}</option>`)}</select>`})])}
   ${others.length?listSection(t('Même air'),others.map(r=>listRow({label:r.title,sub:theirs(r)?t('Déclaré depuis cette pièce'):undefined,value:toggle(r.title,open.includes(r.entry_id)||theirs(r),on=>this.draft={...this.draft!,open_to:on?[...open,r.entry_id]:open.filter(x=>x!==r.entry_id)},theirs(r))})),
-   {help:html`<p>${t('Les pièces sans mur ni porte entre elles, comme un salon ouvert sur sa cuisine : leurs fenêtres comptent pour les deux, et le même air ne reçoit jamais deux gestes contraires.')}</p>`}):nothing}
+   {help:html`<p>${t('Les pièces sans mur ni porte entre elles, comme un salon ouvert sur sa cuisine : leurs fenêtres comptent pour les deux, et le même air ne reçoit jamais deux gestes contraires.')}</p>`}):nothing}`;}
+ private preferences(){const d=this.draft!;
+  return html`${this.roomPlace()}
   ${listSection('',[roomFoyer({house:this.foyer(),room:d.foyer??{},busy:this.busy,manual:d.windows.some(w=>(d.openings[w]?.shutter??this.foyer().volet)==='manual'),change:next=>{this.draft={...this.draft!,foyer:next};}}),this.roomMore()])}
   ${this.entryId?listSection('',[html`<button type="button" class="nk-row nk-row-go" ?disabled=${this.busy} @click=${()=>this.refreshCandidates()}><span class="nk-row-lab">${t('Rechercher à nouveau les capteurs')}</span></button>`]):nothing}
   ${this.removeBlock()}`;}
@@ -628,6 +648,12 @@ export class ComfortSetup extends LitElement {
   const now=['indoor_temperature','indoor_humidity','co2','voc'].flatMap(k=>{const c=all[k]?.find(x=>x.entity_id===this.selected(k)[0]);return c?.available?[measurement(c)]:[];});
   const room=this.twins?.rooms.find(x=>x.entry_id===this.entryId),learned=room?.advisor?.pourcent??room?.progress?.percent;
   return html`<div class="room-chips">${now.map(m=>html`<span class="room-m">${m}</span>`)}${this.health?html`<span class=${'nk-pill '+(todo?'todo':'ok')}>${todo?t('À régler'):t('Rien à faire')}</span>`:nothing}${learned!=null?html`<span class="nk-pill">${t('{n} % appris',{n:learned})}</span>`:nothing}</div>`;}
+ /** « Présence » of a room: who lives in it, how long before it is said empty. The Mesures tab and the guide. */
+ private presenceRows(){const d=this.draft!,has=(k:string)=>!!this.selected(k).length;
+  const persons=Object.keys(this.hass?.states??{}).filter(e=>e.startsWith('person.')).sort(),mine=new Set(d.persons??[]);
+  const person=(e:string)=>{const on=mine.has(e);return html`<button type="button" class="nk-chip" aria-pressed=${String(on)} @click=${()=>{const next=new Set(mine);if(on)next.delete(e);else next.add(e);this.draft={...this.draft!,persons:[...next]};}}>${String(this.hass?.states?.[e]?.attributes?.friendly_name??e)}</button>`;};
+  return [persons.length?listRow({label:t('Personnes de la pièce'),sub:t('Sans personne cochée, toute la maison compte.'),value:html`<span class="nk-chips">${persons.map(person)}</span>`}):null,
+   has('presence')?listRow({label:t('Pièce vide après'),value:numberField({label:t('Pièce vide après'),value:d.evolution?.presence_delay_minutes,unit:'min',dflt:5,min:0,max:120,set:v=>this.draft={...this.draft!,evolution:{...this.draft!.evolution,presence_delay_minutes:v??5}}})}):null].filter(x=>x);}
  /** « Mesures » (CAHIER-HUB.md § 5.3): the sensors, the comfort range, the marks of what is measured, who the room is for. */
  private measuresTab(){const d=this.draft!,st=d.settings,has=(k:string)=>!!this.selected(k).length;
   const setting=(key:string,dflt:number)=>(v:number|undefined)=>this.draft={...this.draft!,settings:{...this.draft!.settings,[key]:v??dflt}};
@@ -643,10 +669,7 @@ export class ComfortSetup extends LitElement {
   const marks=[has('indoor_humidity')?num(t('Humidité au-dessus de'),'humidity_high','%',60):null,has('co2')?num(t('Aérer à partir de'),'co2_action','ppm',1000,50):null,
    has('pm25')?num(t('Particules fines au-dessus de'),'pm25_action','µg/m³',15):null,
    has('voc')?listRow({label:t('COV au-dessus de'),sub:preset||vt?.unit===unit?undefined:t('Vide : la mesure est suivie sans verdict.'),value:numberField({label:t('COV au-dessus de'),value:vt?.unit===unit?vt.value:undefined,unit:unit||t('indice'),dflt:preset?.value,set:setVoc})}):null].filter(x=>x);
-  const persons=Object.keys(this.hass?.states??{}).filter(e=>e.startsWith('person.')).sort(),mine=new Set(d.persons??[]);
-  const person=(e:string)=>{const on=mine.has(e);return html`<button type="button" class="nk-chip" aria-pressed=${String(on)} @click=${()=>{const next=new Set(mine);if(on)next.delete(e);else next.add(e);this.draft={...this.draft!,persons:[...next]};}}>${String(this.hass?.states?.[e]?.attributes?.friendly_name??e)}</button>`;};
-  const presence=[persons.length?listRow({label:t('Personnes de la pièce'),sub:t('Sans personne cochée, toute la maison compte.'),value:html`<span class="nk-chips">${persons.map(person)}</span>`}):null,
-   has('presence')?listRow({label:t('Pièce vide après'),value:numberField({label:t('Pièce vide après'),value:d.evolution?.presence_delay_minutes,unit:'min',dflt:5,min:0,max:120,set:v=>this.draft={...this.draft!,evolution:{...this.draft!.evolution,presence_delay_minutes:v??5}}})}):null].filter(x=>x);
+  const presence=this.presenceRows();
   return html`${listSection(t('Capteurs'),['indoor_temperature','indoor_humidity','co2','pm25','voc','illuminance','presence'].flatMap(key=>this.sensorRows(key)))}
   ${listSection(t('Plage de confort'),[minimum,num(t('Maximum en hiver'),'maximum','°C',plage.maximum,0.5),num(t('Maximum en été'),'summer_maximum','°C',plage.summer_maximum,0.5)],{help:html`<p>${t('Les températures où vous vous sentez bien. Le maximum passe de l’hiver à l’été avec la saison. C’est un choix personnel, pas une limite de santé.')}</p>`})}
   ${marks.length?listSection(t('Repères'),marks,{help:html`<p>${t('Humidité : l’ADEME conseille 40 à 60 %. Jusqu’à 3 points au-dessus, l’air est dit légèrement humide ; jusqu’à 10, humide ; au-delà, très humide. Ces paliers graduent l’affichage, ce ne sont pas des seuils sanitaires.')}</p>
@@ -660,13 +683,151 @@ export class ComfortSetup extends LitElement {
    :this.stage===2?this.equipmentTab()
    :this.stage===3?this.heatingStage():this.stage===4?this.preferences()
    :this.stage===8?this.roomLearning():this.stage===7?this.notifications():this.summary();
-  return html`${pageHead({back:{label:t('Pièces'),onClick:()=>this.cancel()},title:d.name?d.name:t('Nouvelle pièce')})}
+  return html`${pageHead({back:{label:t('Pièces'),onClick:()=>this.cancel()},title:d.name?d.name:t('Nouvelle pièce'),
+   actions:[{label:creating?t('Suivre le guide'):t('Ouvrir le guide'),onClick:()=>this.guideOnDraft(),disabled:this.busy}]})}
   ${creating?html`<p class="room-step">${t('Nouvelle pièce · étape {n} sur {total}',{n:at+1,total:roomOrder.length})}</p>`:this.roomChips()}
   ${tabBar(t('Réglages de la pièce'),tabs.map(x=>({label:t(x.label),current:x.stage===this.stage,onClick:()=>this.go(x.stage)})),this.busy)}
   ${content}${this.errorBlock()}
   ${creating?stepFooter({previous:at>0?{label:t('Étape précédente'),onClick:()=>this.go(roomOrder[at-1]),disabled:this.busy}:undefined,
    next:this.stage!==5?{label:t('Continuer'),onClick:()=>this.next(),disabled:this.busy}:undefined,save:this.stage===5?{label:t('Créer la pièce'),onClick:()=>void this.save(),disabled:this.busy}:undefined})
    :saveBar({count:this.changes(),busy:this.busy,cancel:()=>{this.draft=JSON.parse(this.original);this.error='';},save:()=>this.saveRoom(),done:this.saved===t('Enregistré')?this.saved:undefined})}`;}
+ // ---- The installation guide (guide.ts): the drafts of the settings, one question a screen, saved at the end ----
+ /** The overview's way in: the house's guide, then one line per room, then a room to add. */
+ private guideRows(){const rooms=this.snapshot?.rooms??[];
+  return listSection(t('Guide d’installation'),[listRow({name:t('Le guide de la maison'),label:t('Le guide de la maison'),sub:t('Le dehors, la maison, vos habitudes, la lumière : une question à la fois.'),go:()=>void this.openHouseGuide()}),
+   ...rooms.map(r=>listRow({name:t('Le guide de « {name} »',{name:r.title}),label:t('Le guide de « {name} »',{name:r.title}),sub:t('Tous les réglages de la pièce, une question à la fois.'),go:()=>void this.openRoomGuide(r.entry_id)})),
+   listRow({name:t('Ajouter une pièce avec le guide'),label:t('Ajouter une pièce avec le guide'),go:()=>{this.adding=true;this.addingGuide=true;this.path('pieces');}})],
+   {help:html`<p>${t('Le guide passe par les réglages un par un, avec la raison de chacun. Rien n’est enregistré avant sa dernière étape. Les réglages restent là, inchangés.')}</p>`});}
+ /** The house's guide: the outside's draft (as in Extensions) and the household's settings, all sent at the end. */
+ private async openHouseGuide(route=true){
+  if(route){this.remember();this.workspaceKey='';this.draft=undefined;this.exteriorDraft=undefined;}
+  await this.editExterior(false);if(!this.exteriorDraft||!this.snapshot)return;
+  const home=this.snapshot.home;this.houseDraft={foyer:structuredClone(home.foyer??{}),allergy:!!home.pollen_allergy,lights:structuredClone(home.lights??noLights())};this.houseOriginal=JSON.stringify(this.houseDraft);
+  this.workspaceKey='guide';this.guideKind='house';this.guideFrom='home';this.guideAt='welcome';this.confirmed=false;if(route)this.path('guide');this.focusTop();
+ }
+ /** A room's guide: the draft being changed if it is this room's, else the saved room. */
+ private async openRoomGuide(entry_id:string){const room=this.snapshot?.rooms.find(r=>r.entry_id===entry_id);if(!room)return;
+  this.remember();const cached=this.drafts.get(entry_id);
+  if(cached?.draft){Object.assign(this,cached);}else{this.workspaceKey='';await this.editRoom(room,false);if(!this.draft||this.entryId!==entry_id)return;}
+  this.exteriorDraft=undefined;this.houseDraft=undefined;this.workspaceKey=entry_id;this.guideKind='room';this.guideFrom='home';this.guideAt='welcome';this.path(entry_id+'/guide');this.focusTop();
+ }
+ /** From a room's tabs: the guide on the same draft; leaving it comes back to the tabs, the changes kept. */
+ private guideOnDraft(){this.guideKind='room';this.guideFrom='room';this.guideAt='welcome';this.error='';this.saved='';this.path((this.workspaceKey||'nouvelle')+'/guide');this.focusTop();}
+ private focusTop(){void this.updateComplete.then(()=>{this.renderRoot.querySelector<HTMLElement>('h1')?.focus();});}
+ private guideGo(key:string){this.guideAt=key;this.error='';this.saved='';this.focusTop();}
+ /** « Passer », or « Je ne sais pas » for a habit (a question is never asked twice), then the next screen as it now stands. */
+ private guideSkip(screen:GuideScreen){
+  if(screen.topic==='habits'&&screen.item&&this.houseDraft&&!seen(this.houseDraft.foyer,screen.item as Question))this.houseDraft={...this.houseDraft,foyer:noted(this.houseDraft.foyer,screen.item as Question)};
+  this.guideGo(nextScreen(this.guideState(),screen.key,1));
+ }
+ private guideDirty(){return this.guideKind==='house'?this.exteriorChanges()>0||JSON.stringify(this.houseDraft)!==this.houseOriginal:!this.entryId||this.changes()>0;}
+ private leaveGuide(){
+  if(this.guideKind==='room'&&this.guideFrom==='room'){this.go(this.stage);return;}
+  if(this.guideDirty()){this.confirmDiscard=true;return;}
+  this.closeGuide();
+ }
+ private closeGuide(to=''){this.drafts.delete(this.workspaceKey);this.workspaceKey='';this.guideAt=null;this.houseDraft=undefined;this.confirmDiscard=false;
+  this.draft=undefined;this.exteriorDraft=undefined;this.discovery=undefined;this.entryId=undefined;this.error='';this.acknowledged=[];this.proposed=[];this.path(to);}
+ /** The house as the guide shows it: its draft, changed here, never saved before the end. */
+ private houseContext():HabitsContext{const f=this.houseDraft?.foyer??this.foyer();
+  return {...this.habitsContext(f),foyer:f,quiz:undefined,change:next=>{if(this.houseDraft)this.houseDraft={...this.houseDraft,foyer:next};}};}
+ private guideState():GuideState{
+  if(this.guideKind==='house'){const h=this.houseDraft!,ctx=this.houseContext();
+   return {kind:'house',foyer:h.foyer,lights:h.lights,outside:!!this.weatherEntry||!!this.exteriorDraft?.outdoor_temperature,
+    // The glazing is asked in « Votre maison », the week-end in « Le sommeil »: the other habits, one a screen.
+    habits:questions(ctx).map(q=>q.key).filter(k=>k!=='vitrage'&&k!=='fin_weekend'),
+    lightsFound:Object.keys(this.hass?.states??{}).some(id=>id.startsWith('light.'))};}
+  const l=this.lights(),id=this.entryId;
+  return {kind:'room',room:this.draft!,candidates:this.discovery?.candidates??{},ownLight:l.mode==='rooms'&&!!id,lightSet:!!id&&!!l.rooms[id]};
+ }
+ private guidePage(){const s=this.guideState(),list=guideScreens(s),screen=list.find(x=>x.key===this.guideAt)??list[0],house=s.kind==='house';
+  return html`${pageHead({back:{label:!house&&this.guideFrom==='room'?t('Réglages de la pièce'):t('Quitter le guide'),onClick:()=>this.leaveGuide()},
+   title:house?t('Votre maison'):this.draft!.name||t('Nouvelle pièce'),subtitle:t('Guide d’installation')})}
+  ${guideFrame({state:s,at:screen.key,busy:this.busy,body:html`${this.guideBody(s,screen)}${this.errorBlock()}`,saveLabel:house||this.entryId?t('Enregistrer'):t('Créer la pièce'),
+   go:k=>this.guideGo(k),save:()=>void (house?this.saveHouseGuide():this.saveRoomGuide()),skip:()=>this.guideSkip(screen)})}`;
+ }
+ private guideBody(s:GuideState,screen:GuideScreen):unknown{
+  const [title,why]=askOf(screen.topic),head=(a=title,b=why)=>html`<h2 class="hb-title">${a}</h2><p class="muted">${b}</p>`;
+  const sensors=(keys:string[])=>listSection(t('Capteurs'),keys.flatMap(k=>this.sensorRows(k)));
+  switch(screen.topic){
+   case 'welcome':return welcome({state:s,busy:this.busy,go:k=>this.guideGo(k),
+    title:s.kind==='house'?t('Installons votre maison'):this.entryId?t('Le guide de « {name} »',{name:this.draft!.name}):t('Installons cette pièce'),
+    intro:s.kind==='house'?t('Ce qui vaut pour toutes les pièces. Chaque pièce a ensuite son propre guide.'):this.entryId?'':t('Hestia-FB a déjà proposé ce qu’il a trouvé dans Home Assistant : vérifiez, corrigez, passez.')});
+   // The house
+   case 'outside':return html`${head()}${this.outdoorSection()}`;
+   case 'house':{const ctx=this.houseContext();return html`${head()}${houseSection({...ctx,uses:this.houseUses(ctx.foyer)})}`;}
+   case 'sleep':{const ctx=this.houseContext();return html`${head()}${sleepSection({foyer:ctx.foyer,busy:this.busy,change:ctx.change},ctx)}`;}
+   case 'habits':{const q=questionBody(this.houseContext(),screen.item as Question);return q?html`${head(q.title,q.why)}${q.body}`:nothing;}
+   case 'advice':{const h=this.houseDraft!,ctx=this.houseContext();
+    return html`${head()}${listSection('',[toleranceRow({foyer:ctx.foyer,busy:this.busy,change:ctx.change}),
+     listRow({label:t('Allergie aux pollens'),sub:h.allergy&&!this.weatherEntry?t('Les pollens viennent de Hestia Weather : choisissez-le pour le dehors.'):t('Les jours de pollens élevés, aérations courtes et tôt.'),
+      value:toggle(t('Allergie aux pollens'),h.allergy,on=>{this.houseDraft={...this.houseDraft!,allergy:on};},this.busy)})])}
+     <p class="muted">${t('Les limites fines (aération la plus longue, gestes « plus tard », le soir, les vacances) restent dans Réglages.')}</p>`;}
+   case 'lights':{const l=this.houseDraft!.lights,set=(next:Lights)=>{this.houseDraft={...this.houseDraft!,lights:next};};
+    return html`${head()}${listSection('',[listRow({label:t('Qui pilote la lumière'),value:segmented(t('Qui pilote la lumière'),[['home',t('Tout le logement')],['rooms',t('Pièce par pièce')]],l.mode,m=>set({...l,mode:m}),this.busy)})])}
+     ${l.mode==='home'?lightEditor({hass:this.hass,wled:this.wledOn(),rule:l.home,busy:this.busy,info:this.infoOf(l.home),users:this.lightUsers(),
+      follows:[{value:'home',label:t('Tout le logement')},...(this.snapshot?.rooms??[]).map(r=>({value:r.entry_id,label:r.title}))],change:rule=>set({...l,home:rule})})
+     :html`<p class="muted">${t('Chaque pièce choisit la sienne, dans son guide ou dans son onglet Notifications.')}</p>`}`;}
+   // A room
+   case 'measures':return html`${head()}${sensors(['indoor_temperature','indoor_humidity'])}
+    <p class="muted">${t('La plage de confort vient de la maison. Une pièce qui la veut autrement la change dans son onglet Mesures.')}</p>`;
+   case 'air':return html`${head()}${sensors(['co2','pm25','voc','illuminance'])}`;
+   case 'presence':return html`${head()}${listSection(t('Présence'),[...this.sensorRows('presence'),...this.presenceRows()])}`;
+   case 'openings':return html`${head()}${this.openingsList()}`;
+   case 'opening':{const id=screen.item!,c=this.discovery?.candidates.windows?.find(x=>x.entity_id===id);
+    return html`${head(c?.name??id,t('Où il donne, ce qu’il est, son volet. L’exposition dit quand le soleil arrive sur lui.'))}${listSection('',this.openingRows(id))}`;}
+   case 'heating':return html`${head()}${this.heatingStage()}`;
+   case 'equipment':return html`${head()}${this.equipmentTab()}`;
+   case 'room':return html`${head()}${this.roomPlace()}${listSection('',[this.roomMore()])}`;
+   case 'notifications':return html`${head()}${this.notifications()}`;
+   case 'recap':return s.kind==='house'?this.houseRecap()
+    :html`${head(t('Tout est prêt'),t('Rien n’est enregistré avant le bouton ci-dessous. Tout se change ensuite dans les réglages de la pièce, ou en relançant ce guide.'))}${this.summary()}`;
+  }
+  return nothing;
+ }
+ /** The openings of a room in one list: each to remove, one to add; each is then described on its own screen. */
+ private openingsList(){const d=this.draft!,all=this.discovery?.candidates.windows??[],free=all.filter(c=>!d.windows.includes(c.entity_id)).map(c=>c.entity_id);
+  return listSection(t('Fenêtres et portes'),[...d.windows.map(id=>{const c=all.find(x=>x.entity_id===id);
+    return listRow({label:c?.name??id,sub:c?measurement(c):t('Capteur introuvable ou incompatible · choisissez-en un autre'),value:html`<button type="button" class="nk-reset-s" ?disabled=${this.busy} @click=${()=>this.clear('windows',id)}>${t('Retirer')}</button>`});}),
+   listRow({label:t('Ajouter un ouvrant'),sub:t('Le contact de la porte ou de la fenêtre.'),value:this.selector('windows',free,'','',v=>this.pick('windows',v))}),
+   ...(d.windows.length?[]:[listRow({label:t('Pas de contact ici, c’est voulu'),sub:t('Hestia-FB ne le proposera plus.'),value:toggle(t('Pas de contact ici, c’est voulu'),d.windows_unmeasured===true,on=>this.draft={...this.draft!,windows_unmeasured:on})})])]);}
+ /** The house's last screen: what it will be, in one list, then the sensors to confirm. */
+ private houseRecap(){const h=this.houseDraft!,f={...FOYER_DEFAULTS,...h.foyer},s=this.snapshot!,ctx=this.houseContext(),habits=questions(ctx).filter(q=>q.key!=='vitrage'&&q.key!=='fin_weekend');
+  const place=this.weatherEntry?s.hestia_weather?.places.find(p=>p.entry_id===this.weatherEntry)?.title??'':'';
+  const glazing={simple:t('Simple vitrage'),double:t('Double vitrage'),triple:t('Triple vitrage')}[f.vitrage],shutter={none:t('sans volets'),manual:t('volets à la main'),connected:t('volets motorisés')}[f.volet??'none'];
+  const light=h.lights.mode==='rooms'?t('Pièce par pièce'):h.lights.home?String(this.hass?.states?.[h.lights.home.entity_id]?.attributes?.friendly_name??h.lights.home.entity_id):t('aucune');
+  const row=(label:string,value:string)=>listRow({label,value});
+  return html`<h2 class="hb-title">${t('Tout est prêt')}</h2><p class="muted">${t('Rien n’est enregistré avant le bouton ci-dessous. Tout se change ensuite dans Réglages et Extensions, ou en relançant ce guide.')}</p>
+   ${listSection(t('Récapitulatif'),[row(t('Le dehors'),this.weatherEntry?t('Hestia Weather · {place}',{place}):exteriorSummary(this.exteriorDraft!)||t('Non renseigné')),
+    row(t('Votre maison'),`${glazing} · ${shutter}`),row(t('Le sommeil'),`${f.sommeil.debut} – ${f.sommeil.fin}`),
+    ...(habits.length?[row(t('Vos habitudes'),t('{n} sur {total}',{n:habits.filter(q=>seen(f,q.key)).length,total:habits.length}))]:[]),
+    row(t('Les conseils'),toleranceName(f.tolerance)+(h.allergy?' · '+t('allergie aux pollens'):'')),row(t('La lumière du conseil'),light)])}
+   ${this.confirmBlock()}<p class="notice">${t('Ensuite, chaque pièce a son guide, sur la vue d’ensemble.')}</p>`;}
+ /** The house's guide saved: the outside first (it may ask to confirm a sensor), then the household, the allergy, the lights;
+  *  only what changed is sent, each with the command of its setting. A step that fails keeps the guide open on its draft. */
+ private async saveHouseGuide(){const h=this.houseDraft;if(!h||!this.exteriorDraft)return;
+  const before=JSON.parse(this.houseOriginal) as typeof h,generation=this.workspaceGeneration;this.busy=true;this.error='';
+  try{
+   if(this.exteriorChanges()>0){const config={sources:this.exteriorDraft,weather:this.weatherEntry};
+    const validated=await this.ws<{warnings:{key:string;entity_id:string}[]}>({type:'hestia_comfort/validate_config',config,home:true});
+    const missing=validated.warnings.map(w=>warningId(w.key,w.entity_id)).filter(id=>!this.acknowledged.includes(id));
+    if(missing.length&&!this.confirmed){this.error=t('Cochez « J’ai vérifié, je confirme mes choix » juste au-dessus pour enregistrer.');return;}
+    this.acknowledged=[...new Set([...this.acknowledged,...missing])];
+    this.snapshot=await this.ws<Snapshot>({type:'hestia_comfort/save_config',config,home:true,revision:this.revision,acknowledged:this.acknowledged});
+    this.revision=this.snapshot.revision;this.originalExterior=JSON.stringify([this.exteriorDraft,this.weatherEntry]);}
+   const sent=(next:Partial<typeof h>)=>{Object.assign(before,next);this.houseOriginal=JSON.stringify(before);};
+   if(JSON.stringify(h.foyer)!==JSON.stringify(before.foyer)){this.snapshot=await this.ws<Snapshot>({type:'hestia_comfort/set_foyer',foyer:h.foyer});sent({foyer:h.foyer});}
+   if(h.allergy!==before.allergy){this.snapshot=await this.ws<Snapshot>({type:'hestia_comfort/set_pollen_allergy',allergy:h.allergy});sent({allergy:h.allergy});}
+   if(JSON.stringify(h.lights)!==JSON.stringify(before.lights)){this.snapshot=await this.ws<Snapshot>({type:'hestia_comfort/set_lights',lights:h.lights});sent({lights:h.lights});}
+   if(generation!==this.workspaceGeneration)return;
+   this.closeGuide('');this.saved=t('La maison est enregistrée. Chaque pièce a maintenant son guide, ci-dessous.');}
+  catch(e){this.error=this.message(e);}finally{this.busy=false;}
+ }
+ /** A room's guide saved as its tabs are: the same checks, the same command. */
+ private async saveRoomGuide(){const problem=this.problem(true);if(problem){this.error=problem;return;}
+  if(this.pending().length&&!this.confirmed){this.error=t('Vérifiez les capteurs signalés, puis cochez « J’ai vérifié, je confirme mes choix » pour enregistrer.');return;}
+  await this.save();
+ }
  /** « Apprentissage » of one room: how far its learning is, what it still has to see, how closely it is forecast. */
  private roomLearning(){const r=this.twins?.rooms.find(x=>x.entry_id===this.entryId);
   if(!r)return html`<p class="muted" role="status">${t('Chargement…')}</p>`;
@@ -719,7 +880,7 @@ export class ComfortSetup extends LitElement {
  private settingsPage(){if(this.lightPage)return this.lightScreen();
   if(this.quizPage)return quizScreen({...this.habitsContext(),step:this.quizStep,go:step=>{this.quizStep=step;},back:{label:t('Vue d’ensemble'),onClick:()=>this.path('')},settings:()=>this.path('reglages')});
   const h=this.health,version=h?.version??'';
-  return html`${pageHead({title:t('Réglages'),subtitle:t('Ce qui vaut pour toute la maison.')})}
+  return html`${pageHead({title:t('Réglages'),subtitle:t('Ce qui vaut pour toute la maison.'),actions:[{label:t('Le guide de la maison'),onClick:()=>void this.openHouseGuide(),disabled:this.busy}]})}
   ${foyerPage({head:false,foyer:this.foyer(),busy:this.busy,stove:this.hasStove(),allergy:!!this.snapshot?.home.pollen_allergy,weatherLinked:!!this.snapshot?.home.weather,back:{label:'',onClick:()=>{}},change:next=>void this.saveFoyer(next),setAllergy:on=>void this.setPollenAllergy(on),
    home:this.snapshot?{...this.habitsContext(),uses:this.houseUses()}:undefined})}
   ${this.lightsCard()}
@@ -815,7 +976,7 @@ export class ComfortSetup extends LitElement {
  private home(){const s=this.snapshot!;const living=livingArea(s.areas,new Set(s.rooms.map(r=>r.config.area_id).filter((a):a is string=>!!a)));
   return html`
   ${this.head()}
-  ${!s.rooms.length&&this.overview?.some(a=>typeof a.suggestions.indoor_temperature==='string')?this.foundRooms():!s.rooms.length?html`<section class="start"><h2>${t('Commençons par le Salon')}</h2>${living?html`<p>${t('La pièce « {name} » existe dans Home Assistant. Il vous proposera ses capteurs ; vous gardez, retirez ou complétez.',{name:living.name})}</p><button class="primary" @click=${()=>this.start(living)}>${t('Configurer le Salon')}</button>`:html`<p>${t('Aucune pièce « Salon » dans Home Assistant : une pièce libre est créée et vous choisissez ses capteurs.')}</p><button class="primary" @click=${()=>this.start(null,t('Salon'))}>${t('Créer le Salon')}</button>`}</section>`:html`<div class="room-list">${s.rooms.map(room=>html`<section class="room"><div><h3>${room.title}</h3><p class="hint">${coverage(room.config)}${room.config.area_id?'':' · '+t('pièce libre')}</p>${!room.loaded?html`<p class="warning hint">${t('Le calcul de cette pièce n’est pas chargé. Vérifiez ses capteurs et les journaux de l’intégration.')}</p>`:nothing}</div><button ?disabled=${this.busy} @click=${()=>this.editRoom(room)}>${t('Configurer')}</button></section>`)}</div>`}
+  ${!s.rooms.length&&this.overview?.some(a=>typeof a.suggestions.indoor_temperature==='string')?this.foundRooms():!s.rooms.length?html`<section class="start"><h2>${t('Commençons par le Salon')}</h2>${living?html`<p>${t('La pièce « {name} » existe dans Home Assistant. Il vous proposera ses capteurs ; vous gardez, retirez ou complétez.',{name:living.name})}</p><div class="actions"><button class="primary" @click=${()=>this.start(living,'',true)}>${t('Suivre le guide')}</button><button @click=${()=>this.start(living)}>${t('Configurer le Salon')}</button></div>`:html`<p>${t('Aucune pièce « Salon » dans Home Assistant : une pièce libre est créée et vous choisissez ses capteurs.')}</p><div class="actions"><button class="primary" @click=${()=>this.start(null,t('Salon'),true)}>${t('Suivre le guide')}</button><button @click=${()=>this.start(null,t('Salon'))}>${t('Créer le Salon')}</button></div>`}</section>`:html`<div class="room-list">${s.rooms.map(room=>html`<section class="room"><div><h3>${room.title}</h3><p class="hint">${coverage(room.config)}${room.config.area_id?'':' · '+t('pièce libre')}</p>${!room.loaded?html`<p class="warning hint">${t('Le calcul de cette pièce n’est pas chargé. Vérifiez ses capteurs et les journaux de l’intégration.')}</p>`:nothing}</div><button ?disabled=${this.busy} @click=${()=>this.editRoom(room)}>${t('Configurer')}</button></section>`)}</div>`}
   ${frame(s.rooms.length?t('Ajouter une pièce'):this.overview?t('Une pièce sans pièce Home Assistant ?'):t('Ou commencer par une autre pièce'),this.addRoom())}
   ${s.rooms.length?html`${frame(t('Les cartes'),html`<p>${t('Dans un tableau de bord :')} <strong>${t('Ajouter une carte')}</strong>${t(', puis')} <strong>${t('Hestia Confort')}</strong> ${t('pour une pièce, ou')} <strong>${t('Hestia Confort · logement')}</strong> ${t('pour la synthèse de toutes les pièces.')}</p>`)}`:nothing}${this.health?html`${this.health.todo.length?frame(t('À régler'),html`<ul class="hl-lines">${this.health.todo.map(l=>this.hline(l))}</ul>`,{className:'todo'}):nothing}${this.health.tips.length?frame(t('À améliorer'),html`<ul class="hl-lines">${this.health.tips.map(l=>this.hline(l))}</ul>`):nothing}<p><button @click=${()=>this.path('')}>${t('Retour à l’accueil Confort')}</button></p>`:this.healthError?html`<p class="notice" role="alert">${t('Le bilan technique n’a pas pu être chargé.')} <button @click=${()=>void this.loadHealth()}>${t('Réessayer')}</button></p>`:html`<p class="muted" role="status">${t('Actualisation du bilan…')}</p>`}`;}
  protected render(){if(this.hass?.user?.is_admin===false)return html`<main><h1>${t('Hestia Confort')}</h1><p>${t('La configuration du logement est réservée aux administrateurs Home Assistant.')}</p></main>`;
@@ -824,6 +985,6 @@ export class ComfortSetup extends LitElement {
   const header=this.hasAttribute('embedded')?nothing:html`<header><button aria-label=${t('Ouvrir le menu Home Assistant')} @click=${()=>this.menu()}><span class="menu-icon"></span></button><strong>${t('Hestia Confort')}</strong></header>`;
   return html`${header}<main class=${(this.page==='health'||this.page==='review')&&!editing&&!this.preview&&this.snapshot?.rooms.length?'wide':''}>${this.confirmDiscard?html`<section class="notice" role="alertdialog" aria-label=${t('Abandonner le brouillon')}><h2>${t('Quitter sans enregistrer ?')}</h2><p>${t('Vos choix de cette page seront perdus.')}</p><div class="actions"><button @click=${()=>this.confirmDiscard=false}>${t('Continuer la configuration')}</button><button @click=${()=>this.discard()}>${t('Quitter sans enregistrer')}</button></div></section>`:nothing}
    ${!editing?html`${this.errorBlock()}${this.error&&!this.snapshot?html`<button @click=${()=>this.load()}>${t('Réessayer')}</button>`:nothing}`:nothing}${this.saved&&this.saved!==t('Enregistré')?html`<p class="notice success" role="status">${this.saved}</p>`:nothing}${this.busy&&!this.snapshot?html`<p class="loading" role="status">${t('Chargement de votre logement…')}</p>`:nothing}
-   ${this.snapshot?(this.exteriorDraft?this.exterior():this.draft?this.wizard():this.preview?this.previewScreen():this.opening?html`<p class="muted" role="status">${t('Chargement…')}</p>`:this.page==='settings'||this.page==='foyer'?this.settingsPage():this.page==='pieces'?this.roomsPage():this.page==='learning'?this.learningPage():this.page==='about'?this.aboutScreen():this.page==='review'?html`<hestia-comfort-review .hass=${this.hass} .room=${this.reviewRoom} @review-navigate=${(e:CustomEvent<string>)=>this.path(e.detail)}></hestia-comfort-review>`:this.page==='health'&&this.snapshot.rooms.length?this.healthScreen():this.home()):nothing}${this.busy&&this.snapshot?html`<p class="busy" role="status">${t('Un instant…')}</p>`:nothing}</main>`;
+   ${this.snapshot?(this.guideAt!==null&&(this.guideKind==='house'?this.exteriorDraft&&this.houseDraft:this.draft)?this.guidePage():this.exteriorDraft?this.exterior():this.draft?this.wizard():this.preview?this.previewScreen():this.opening?html`<p class="muted" role="status">${t('Chargement…')}</p>`:this.page==='settings'||this.page==='foyer'?this.settingsPage():this.page==='pieces'?this.roomsPage():this.page==='learning'?this.learningPage():this.page==='about'?this.aboutScreen():this.page==='review'?html`<hestia-comfort-review .hass=${this.hass} .room=${this.reviewRoom} @review-navigate=${(e:CustomEvent<string>)=>this.path(e.detail)}></hestia-comfort-review>`:this.page==='health'&&this.snapshot.rooms.length?this.healthScreen():this.home()):nothing}${this.busy&&this.snapshot?html`<p class="busy" role="status">${t('Un instant…')}</p>`:nothing}</main>`;
  }
 }
