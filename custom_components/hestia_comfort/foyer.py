@@ -1,4 +1,4 @@
-"""The household's settings (« Réglages du foyer », niak-comfort/docs/REGLAGES-3.md § 4.3 and § 6), checked as saved.
+"""The household's settings (« Réglages du foyer », docs/REGLAGES-3.md § 4.3 and § 6), checked as saved.
 
 The keys are the ones the advisor reads (advisor/household.py `Habits.of`): for the house in the home store, and for a
 room only where it differs. Nothing is written for what the person left at its default: a missing key takes its default
@@ -24,7 +24,7 @@ NUMBERS = {
 TOLERANCES = (0.5, 0.75, 1, 1.5, 2)
 # The house itself, for the ressenti (engine/feel.py): how well its walls are insulated, which glazing it has.
 CHOICES = {"isolation": ("bien", "moyenne", "peu"), "vitrage": ("simple", "double", "triple")}
-# The household's habits (niak-comfort/docs/HABITUDES-FOYER.md): its manual shutters away, at night and on summer's hot
+# The household's habits (docs/HABITUDES-FOYER.md): its manual shutters away, at night and on summer's hot
 # hours; « variable » keeps what the advisor learned on average.
 SHUTTER_HABITS = ("fermes", "ouverts", "variable")
 HABITS = ("volets_absence", "volets_nuit", "volets_ete")
