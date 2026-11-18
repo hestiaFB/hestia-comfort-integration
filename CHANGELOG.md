@@ -1,19 +1,64 @@
 ## À venir
 
+## 3.1.0b16 — Le nouveau moteur de conseil, en bêta
+
+**Tout ce qui change depuis la dernière bêta publiée, la 2.1.0b8.**
+**Un nouveau moteur de conseil : un geste au plus par pièce le matin, l'après-midi et le soir, au meilleur moment.**
+**Des cartes et un panneau refaits, avec un guide d'installation pas à pas.**
+**Un Confort beaucoup plus léger : Home Assistant ne se fige plus, même sur une petite box.**
+
+### Avant de mettre à jour
+
+- Faites une sauvegarde : Paramètres → Système → Sauvegardes.
+- Vous êtes en 2.1.0b8 : la mise à jour se fait directement dans le Marketplace, avec les bêtas affichées. Vos pièces, réglages et entités sont gardés.
+- Vous êtes en 1.7.x : tout passe seul au nouveau nom `hestia_comfort`, un encart dans **Hestia-FB → Accueil** suit chaque étape. Si le Marketplace refuse la mise à jour, suivez [docs/PASSAGE-HESTIA.md](docs/PASSAGE-HESTIA.md).
+- Mettez Hestia Weather à jour aussi, si vous l'avez (3.6.1 ou plus récent pour la force et la probabilité de la pluie).
+- Le nouveau moteur change des valeurs d'entités. Vérifiez les automatisations qui s'en servent :
+  - « État » ne donne plus que `calm`, `best`, `benefit`, `action`, `urgent` et `neutral` ;
+  - toutes les valeurs de « Raison » changent ;
+  - le % d'« Apprentissage » compte les effets prouvés dans la pièce.
+- Une VMC classique pilotée par « VMC conseillée » : choisissez « En continu » dans Équipements, sinon elle s'arrêtera la nuit.
+- Les premiers jours, Hestia conseille peu : elle attend d'avoir vu chaque geste marcher chez vous.
+
 ### Nouveautés
 
-- Panneau Confort : un guide d’installation, une question à la fois, avec la raison de chacune. Le guide de la maison passe par le dehors, la maison, le sommeil, vos habitudes, le nombre de conseils et la lumière du conseil. Le guide d’une pièce passe par ses capteurs, chaque fenêtre et porte, le chauffage, la VMC et les équipements, puis la pièce elle-même. Rien n’est enregistré avant la dernière étape. On l’ouvre depuis la vue d’ensemble, la page Pièces (« Ajouter avec le guide »), une pièce (« Ouvrir le guide ») ou Réglages (« Le guide de la maison »). Les réglages restent là, inchangés.
+- Un nouveau moteur de conseil. Pour chaque pièce, il compare les gestes possibles (ouvrir, refermer, VMC, purificateur, volet, chauffage) et garde celui qui aide le plus. Il apprend chaque nuit comment la pièce réagit et dit à quel point il est sûr.
+- Le conseil par créneaux : un geste au plus par pièce le matin, l'après-midi et le soir. Exemple : « Aérez 45 min vers 14 h 30 ».
+- Les urgences à toute heure, avec leur mesure : CO₂, particules fines, COV, humidité très au-dessus de la normale de la pièce. Exemple : « CO₂ 1 450 ppm : l'air redevient sain en 15 min ».
+- Sous le conseil, la journée de la pièce : ce qui est fait, ce qui ne l'est pas, puis la suite heure par heure. Quand il n'y a rien à faire, le prochain bon moment.
+- Chaque pièce a sa carte d'identité, refaite chaque nuit : sa normale, son isolation, son chauffage. Une pièce humide par nature n'a plus de conseil chaque jour pour son humidité.
+- Un conseil du logement pour ce qui est permanent. Exemple : « Humide en permanence : aérer ne suffira pas ».
+- Un événement Home Assistant à chaque nouveau conseil, pour l'envoyer sur le téléphone.
+- Les couleurs suivent le conseil : bleu rien à faire, vert « Bon moment », orange « À faire », rouge « Attention ».
+- Les cartes sont refaites : un bandeau qui dit le geste, sa durée et sa raison, puis « À venir », puis une case par mesure avec sa courbe. Nouvelles cartes à la pièce : Température, Humidité, Air, Ouvertures, Chauffage et À venir. Le ressenti de la pièce.
+- Le panneau Confort est refait, avec un guide d'installation, une question à la fois. On l'ouvre depuis la vue d'ensemble, la page Pièces, une pièce ou Réglages.
+- Une lumière peut montrer le conseil : un bandeau WLED ou une ampoule couleur.
+- La VMC : un réglage « En continu » ou « À la demande », et une entité « Turbo conseillé » qui s'allume pendant une douche.
+- La nuit, une petite lune : les conseils sont en pause jusqu'au réveil.
+- Quand le poêle chauffe, « À savoir » dit si la pièce est nettement plus froide que le reste de la maison.
+- Les volets pilotés par CoverAutomatic ou Cover Extender sont reconnus.
+- Participez à l'amélioration du moteur : sur l'accueil du panneau, un rapport anonyme à télécharger et à partager si vous le voulez, et « Ce conseil ne va pas » sur la carte pour signaler un conseil.
+
+### Améliorations
+
+- Confort est beaucoup plus léger et le panneau s'ouvre plus vite.
+- Des conseils qui tiennent : plus de conseil qui part et revient, une phrase stable sous « Rien à faire », des heures rondes (« vers 15 h 30 »).
+- La pluie annoncée est dite au conditionnel. Avec un pluviomètre, seule la pluie mesurée fait refermer.
+- En saison de chauffe, une aération a une durée précise et annonce l'humidité qui restera une fois la fenêtre refermée.
+- Le poêle n'est compté que lorsqu'il chauffe vraiment.
+- La pastille se lit sur les mesures : « Tout va bien » seulement si tout est dans votre plage.
 
 ### Corrections
 
-- Une pièce en train de se recharger ne coupe plus la carte du logement ni la vue de la pièce : le reste du logement continue de s'afficher.
-- Sous « Rien à faire », la phrase ne change plus à chaque averse ou passage en mode absence : la pluie est dite dans « À savoir », sauf si elle empêche un vrai geste.
-- Le conseil du créneau attend la fin de la pluie au lieu de disparaître.
-- Une urgence mise de côté ne revient pas avant une heure.
+- Plus de « Refermez » pour une fenêtre ouverte après la pluie, en mode absence, ou au passage d'une porte.
+- « VMC conseillée » ne reste plus allumée toute la nuit dans une pièce qu'elle n'arrive pas à assécher.
+- Plus de « Coupez le poêle » dans une pièce encore sous sa plage.
+- Une pièce en train de se recharger ne coupe plus la carte du logement.
+- L'interrupteur « Je participe » est de nouveau enregistré, et « VMC conseillée » reprend son état au redémarrage.
 
 ### Moteur de conseil 3.19.2
 
-- Phrase du calme stable, créneau gardé sous la pluie, urgence au repos une heure.
+- Remplace le moteur de la 2.1.0b8. Le détail de chaque version est dans [CHANGELOG-MOTEUR.md](CHANGELOG-MOTEUR.md).
 
 ## 3.1.0b15 — Des heures rondes
 
