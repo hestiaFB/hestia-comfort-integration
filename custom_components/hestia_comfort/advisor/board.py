@@ -32,6 +32,9 @@ ENTER_STEPS = 2
 # worse by WORSE.
 PATIENCE, ASIDE = 45, 120
 WORSE = {"co2": 300.0, "particles": 10.0, "voc": 100.0, "humidity": 5.0}
+# Minutes an urgency put aside stays so, however its measure goes: a VOC put aside at 12 h, back at 12 h 11 for a peak of
+# cooking that had passed by 12 h 30 (bilan of 17 November).
+ASIDE_LEAST = 60
 # The order urgencies are said in when several are on.
 ORDER = ("co2", "particles", "voc", "humidity")
 # A window open less than this (seconds) does not count for comfort: someone going through. The safety acts at once.
@@ -61,6 +64,7 @@ class Urgent:
     above: int = 0                       # steps in a row above its threshold, not shown yet
     aside_until: datetime | None = None
     aside_value: float | None = None
+    aside_since: datetime | None = None  # put aside then: not back before ASIDE_LEAST minutes
 
 
 @dataclass
@@ -100,6 +104,8 @@ class Board:
         self.urgent: dict[str, Urgent] = {}
         self.plan: Plan | None = None
         self.calm: str | None = None
+        # « Humidité 78 % : normal pour cette pièce » said last step: kept within EDGE of its bound (`room/advice.py`).
+        self.calm_normal = False
         # The gesture each urgency asked, (kind, minutes): said again when it waits (`aside_urgent`).
         self.asked: dict[str, tuple] = {}
         # The household's day (the card's « Maintenant, puis »): its key, what was done or missed, what is likely later.
@@ -131,13 +137,15 @@ class Board:
                     u.since = now
                 elif now - u.since >= timedelta(minutes=PATIENCE):
                     u.since, u.above = None, 0
-                    u.aside_until, u.aside_value = now + timedelta(minutes=ASIDE), value
+                    u.aside_until, u.aside_value, u.aside_since = now + timedelta(minutes=ASIDE), value, now
                 continue
             useful = subject != "humidity" or (drier is not None and drier >= DRIER)
             u.above = u.above + 1 if value >= enter and useful else 0
-            aside = u.aside_until is not None and now < u.aside_until and value < (u.aside_value or 0) + WORSE[subject]
+            resting = u.aside_since is not None and now - u.aside_since < timedelta(minutes=ASIDE_LEAST)
+            aside = u.aside_until is not None and now < u.aside_until and (
+                resting or value < (u.aside_value or 0) + WORSE[subject])
             if u.above >= ENTER_STEPS and not aside:
-                u.since, u.aside_until, u.aside_value = now, None, None
+                u.since, u.aside_until, u.aside_value, u.aside_since = now, None, None, None
         shown = [(s, measures[s]) for s in ORDER if (u := self.urgent.get(s)) and u.since is not None]
         return shown[0] if shown else None
 
@@ -213,22 +221,38 @@ class Board:
             plan = {"slot": p.slot, "at": p.at.isoformat(), "until": p.until.isoformat(), "gesture": asdict(p.gesture),
                     "words": p.words, "trial": p.trial, "done": p.done}
         return {"urgent": {s: {k: _plain(v) for k, v in asdict(u).items()} for s, u in self.urgent.items()},
-                "plan": plan, "calm": self.calm, "asked": {s: list(v) for s, v in self.asked.items()},
+                "plan": plan, "calm": self.calm, "calm_normal": self.calm_normal, "asked": {s: list(v) for s, v in self.asked.items()},
                 "day": self.day, "today": self.today, "likely": self.likely, "likely_for": self.likely_for,
                 "airing": self.airing}
 
     def load(self, state: dict | None):
         state = state or {}
-        self.urgent = {s: Urgent(_when(u.get("since")), u.get("above", 0), _when(u.get("aside_until")), u.get("aside_value"))
+        self.urgent = {s: Urgent(_when(u.get("since")), u.get("above", 0), _when(u.get("aside_until")), u.get("aside_value"),
+                                 _when(u.get("aside_since")))
                        for s, u in (state.get("urgent") or {}).items()}
         if p := state.get("plan"):
             self.plan = Plan(p["slot"], _when(p["at"]), _when(p["until"]), Gesture(**p["gesture"]), p.get("words") or {},
                              p.get("trial", False), p.get("done", False))
         self.calm = state.get("calm")
+        self.calm_normal = bool(state.get("calm_normal"))
         self.asked = {s: tuple(v) for s, v in (state.get("asked") or {}).items()}
         self.day, self.today, self.likely = state.get("day"), list(state.get("today") or []), list(state.get("likely") or [])
         self.airing = state.get("airing")
         self.likely_for = state.get("likely_for")
+
+
+def held_back(gesture: Gesture, safe: frozenset) -> bool:
+    """Whether a safety rule (advisor/safety.py `forbidden`) takes `gesture` away now, as advisor/decide.py does: then, and
+    only then, « Gardez fermé : il pleut » is said instead of it. A safety that blocks nothing the room needs is said in
+    « À savoir »: « il pleut », « mode absence » and « rien de mieux » took turns 6 to 23 times a day under « Rien à faire »
+    in each room (bilan of 18 November)."""
+    if gesture.kind not in ("open", "open_more"):
+        return False
+    if safe & {"open", "absent", "rain_likely"}:
+        return True
+    if gesture.kind == "open_more" and "open_more" in safe:
+        return True
+    return gesture.kind == "open" and gesture.minutes is None and "open_long" in safe
 
 
 # The rules that speak at once, whatever else is on: a fact measured or a safety (advisor/decide.py).
