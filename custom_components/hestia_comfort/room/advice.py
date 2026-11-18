@@ -18,7 +18,7 @@ import re
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from ..advisor.board import HUMID_LEAVE, OPEN_LEAST, SAFE_RULES, Board, choose, urgent_decision
+from ..advisor.board import HUMID_LEAVE, OPEN_LEAST, SAFE_RULES, Board, choose, held_back, urgent_decision
 from ..advisor.checks import GOOD, KINDS, Checker
 from ..advisor.decide import _flow as _water_flow
 from ..advisor.decide import GAIN, Decision, Weights, cost
@@ -45,7 +45,7 @@ from ..advisor.proof import CASES, ORDER, PROVEN, level, live, window_reinforced
 from ..advisor.pollen import today as pollen_today
 from ..advisor.safety import RAIN, RAIN_SOON, forbidden, holidays, rain_for, rained_on
 from ..advisor.snapshot import capture
-from ..advisor.words import (TEXTS, aside_line, aside_urgent, before_after, day_title, doubt_text, doubtful_air, dwelling_lines,
+from ..advisor.words import (EDGE, TEXTS, aside_line, aside_urgent, before_after, day_title, doubt_text, doubtful_air, dwelling_lines,
                              measured_out, next_moment, normal_humidity, phrase, tip_text, tonight_text)
 from ..const import DOMAIN
 from ..engine.verdict import COLOURS, HUES, STATES, humidity_label
@@ -1044,9 +1044,9 @@ class RoomAdvisor:
         chronic = any(c.get("sujet") == "humidite" for c in (card or {}).get("chronique") or ())
         normal_h = normal_of(card, "humidite", slot.name)
 
-        def near_normal(subject):
+        def near_normal(subject, slack=0.0):
             return (chronic and subject in ("humidity", "mould") and current.humidity is not None and normal_h is not None
-                    and current.humidity < normal_h + HUMID_LEAVE)
+                    and current.humidity < normal_h + HUMID_LEAVE + slack)
         # The household's day (the card's « Maintenant, puis »): a new one with the morning; the slot's gesture missed, the
         # airing done with what it did.
         self.board.new_day(slot.start.date().isoformat())
@@ -1063,6 +1063,12 @@ class RoomAdvisor:
         # The slot's gesture, planned once when the slot begins, the room shut (advisor/slots.py): its forecast covers the
         # slot and PLAN_AFTER minutes more.
         planning = self.board.needs_plan(slot.key) and not airing_now
+        # The slot's gesture, its moment come, that a safety takes away (the rain, nobody home): kept as planned, neither
+        # said again on the room under the rain nor dropped for it; the card says « Gardez fermé : il pleut » meanwhile,
+        # then the same gesture once the rain is over (labo, 18 November: « Aérez 45 min » with the rain at 12 h 55 in the
+        # Chambre A, then « Rien à faire » for the rest of the slot).
+        held_plan = (plan_before is not None and not airing_now and plan_before.left(now).after is None
+                     and held_back(plan_before.gesture, safe_taken))
         coming_plan, plan_end, plan_left, plan_outdoor = None, None, slot.minutes_left(local), None
         coming_day, later_spans = None, []
         if planning and slot.name != "nuit" and plan_left > 0:
@@ -1124,7 +1130,7 @@ class RoomAdvisor:
             # time already past (bilan of 17 November).
             refresh = None
             if (plan_before is not None and not plan_before.trial and not airing_now and Gesture("nothing") in decision.scenarios
-                    and plan_before.left(now).after is None):
+                    and plan_before.left(now).after is None and not held_plan):
                 g_now = plan_before.left(now)
                 path_now = simulate(twins, decided_on, coming, g_now)
                 refresh = (g_now, path_now, cost(path_now, comfort, Weights(), g_now, decided_on.night))
@@ -1191,6 +1197,12 @@ class RoomAdvisor:
         asked = urgent_decision(decision, urgent[0], urgent[1], proof) \
             if urgent is not None and decision.rule not in SAFE_RULES and not airing_now else None
         family = choose(decision, airing_now, asked, plan, put_aside, air, comfort.minimum)
+        if family == "creneau" and held_plan:
+            family = "calme"
+        # The safety said under « Rien à faire » only when it holds back a gesture the room needs: the slot's, or an
+        # urgency's airing; otherwise in « À savoir » (advisor/board.py `held_back`).
+        urgent_held = urgent is not None and asked is None and not airing_now and held_back(Gesture("open", 10), safe_taken)
+        calm_reason = reason if held_plan or urgent_held else None
         shown_decision = asked if asked is not None and family == "urgence" \
             else decision if family in ("securite", "reponse", "urgence") else None
         if family == "creneau":
@@ -1203,20 +1215,21 @@ class RoomAdvisor:
             shown_decision = replace(decision, gesture=Gesture("nothing") if plan.trial else left, rule="creneau",
                                      gain=plan.words.get("gain", 0.0), level=plan.words.get("level", decision.level),
                                      passive=left if plan.trial else None, measured=None)
-            self.board.calm = None
+            self.board.calm, self.board.calm_normal = None, False
         elif shown_decision is not None:
             words = phrase(shown_decision, end_hour, marks=marks, hour=hour_now, reason=reason, beyond_before=beyond_before)
-            self.board.calm = None
+            self.board.calm, self.board.calm_normal = None, False
         else:
             # « Rien à faire », its subject kept while it stays true (advisor/words.py `calm_subject`); nothing to try
             # outside the slots: « À essayer » came and went every half hour (bilan of 16 November, Chambre A).
             shown_decision = replace(decision, gesture=Gesture("nothing"), passive=None, rule="nothing", gain=0.0,
                                      measured=None)
-            words = phrase(shown_decision, end_hour, marks=marks, hour=hour_now, reason=reason,
+            words = phrase(shown_decision, end_hour, marks=marks, hour=hour_now, reason=calm_reason,
                            beyond_before=beyond_before, calm_subject=self.board.calm)
             self.board.calm = words.get("calm")
             waiting = self.board.aside(now)
-            if waiting and not reason:
+            normal_said, self.board.calm_normal = self.board.calm_normal, False
+            if waiting and not calm_reason:
                 # An urgency left unfollowed: the measure, the gesture, no hurry (Frank, 17 November: « « Aérez 10 min » en
                 # pause jusqu'à 10 h 45 », « on ne sait pas comment interpréter cette phrase »). The next reminder is the « i »'s.
                 subject, until = min(waiting.items(), key=lambda kv: kv[1])
@@ -1225,15 +1238,18 @@ class RoomAdvisor:
                 if value is not None:
                     words = {**words, "line": aside_urgent(subject, value, kind_w, minutes_w)}
                     snap["en_pause"] = subject
-            if not reason and "en_pause" not in snap:
+            if not calm_reason and "en_pause" not in snap:
                 # Nothing to do now: the day's next good moment (« Prochain bon moment : cet après-midi vers 15 h, aérer 30
                 # min »), or the room at its own normal.
                 upcoming = next((x for x in self.board.likely if dt_util.parse_datetime(x["at"]) > now), None)
                 if upcoming is not None:
                     words = {**words, "line": next_moment(upcoming["slot"], dt_util.as_local(dt_util.parse_datetime(upcoming["at"])),
                                                           upcoming["kind"], upcoming["minutes"])}
-                elif near_normal("humidity") and words.get("calm") in (None, "humidity"):
+                elif near_normal("humidity", EDGE["humidity"] if normal_said else 0.0) and words.get("calm") in (None, "humidity"):
+                    # Kept within EDGE of its bound once said: « normal pour cette pièce » and « rien de mieux » took
+                    # turns 23 times on 18 November in the Chambre P, its humidity hovering at its bound.
                     words = {**words, "line": normal_humidity(current.humidity)}
+                    self.board.calm_normal = True
         shown_gesture = shown_decision.passive if shown_decision.gesture.kind == "nothing" and shown_decision.passive \
             else shown_decision.gesture
         snap["famille"] = family
@@ -1302,11 +1318,16 @@ class RoomAdvisor:
             at = at.replace(minute=at.minute // 5 * 5, second=0, microsecond=0)
             good_words.insert(0, TEXTS["fr"]["rain_maybe_at"].format(
                 at=f"{at.hour} h" if at.minute == 0 else f"{at.hour} h {at.minute:02d}"))
+        # A safety the card's line does not say (it holds back nothing the room needs): said here, as a fact.
+        if (reason in ("rain", "rain_soon", "gusts", "vigilance", "away") and family != "securite"
+                and not (family == "calme" and calm_reason)):
+            good_words.insert(0, TEXTS["fr"][f"known_{reason}"])
         # « Cette nuit, pensez à refermer » says nothing more than a banner already saying « Refermez ».
         if night_text and shown_gesture.kind != "close":
             good_words.insert(0, night_text)
-        if family == "calme" and good and good[0].kind in ("open_warms", "open_cools"):
-            words["line"] = good_words[0]
+        if family == "calme" and not calm_reason and good and good[0].kind in ("open_warms", "open_cools"):
+            # The tip itself, not what « À savoir » put before it (the rain, the night).
+            words["line"] = tip_text(good[0], now=local)
         # The gesture the card asks for, followed: done while shown, or replaced before (CAHIER-MOTEUR.md § 15).
         trial = shown_decision.gesture.kind == "nothing" and shown_decision.passive is not None and bool(words["try"])
         shown = shown_gesture
@@ -1385,7 +1406,9 @@ class RoomAdvisor:
             hass.bus.async_fire(EVENT, {"entry_id": self.entry_id, "piece": name, "famille": family,
                                         "niveau": "creneau" if family == "creneau" else family, "titre": words["title"],
                                         "phrase": words["line"], "a_essayer": words["try"], "nuit": night})
-        self.notified = notice
+        # A slot's gesture held back by the rain is the same advice when it comes back: not sent again.
+        if not held_plan:
+            self.notified = notice
         return True
 
     def _day(self, now) -> list[dict]:

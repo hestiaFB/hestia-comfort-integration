@@ -7,6 +7,13 @@
 ### Corrections
 
 - Une pièce en train de se recharger ne coupe plus la carte du logement ni la vue de la pièce : le reste du logement continue de s'afficher.
+- Sous « Rien à faire », la phrase ne change plus à chaque averse ou passage en mode absence : la pluie est dite dans « À savoir », sauf si elle empêche un vrai geste.
+- Le conseil du créneau attend la fin de la pluie au lieu de disparaître.
+- Une urgence mise de côté ne revient pas avant une heure.
+
+### Moteur de conseil 3.19.2
+
+- Phrase du calme stable, créneau gardé sous la pluie, urgence au repos une heure.
 
 ## 3.1.0b15 — Des heures rondes
 

@@ -20,6 +20,15 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.19.2 — 18 novembre 2026
+
+Point de suivi du 18 nov. (maison et labo en 3.19.1).
+- La sécurité (`reason` de `safety.forbidden`) ne fait la phrase du calme (« Gardez fermé : … ») que si elle retire un geste voulu (`board.held_back`) : le geste du créneau dont l'heure est venue (`held_plan`) ou l'aération d'une urgence mesurée sans autre geste possible (`urgent_held`). Sinon `calm_reason` est None : phrase du calme habituelle, prochain bon moment ou urgence en pause, et la sécurité va dans « À savoir » (`known_rain`, `known_rain_soon`, `known_gusts`, `known_vigilance`, `known_away`). Constat : 6 à 8 changements de phrase par pièce et par jour, 23 en Chambre P (pluie, absence, rien de mieux, normale).
+- « Normal pour cette pièce » (`normal_humidity`) gardé jusqu'à `EDGE["humidity"]` (2 points) au-dessus de son seuil une fois dit (`Board.calm_normal`, gardé au redémarrage).
+- Geste du créneau retenu par la sécurité (`held_plan`) : famille « calme » avec « Gardez fermé : … », plan gardé tel quel (pas de `refresh`, pas d'effacement à gain < GAIN/3, pas de nouvel événement `notified`). Constat au labo : Chambre A, AL, Buanderie, « Aérez 45 min » puis « Rien à faire » à l'arrivée de la pluie.
+- Urgence mise de côté : pas de retour avant `ASIDE_LEAST` 60 min, même au-delà de `WORSE` (`Urgent.aside_since`, gardé au redémarrage). Constat : COV revenu à 12 h 11 le 17 nov.
+- Au calme, l'astuce « ouvrir réchauffe / rafraîchit » mise en phrase est prise du conseil lui-même (`tip_text(good[0])`), plus de la première ligne de « À savoir », qui pouvait être la pluie ou la nuit.
+
 ### 3.19.1 — 17 novembre 2026
 
 - Les moments des créneaux et des gestes probables tombent sur les demi-heures de l'horloge (`slots.moments`, `offset` = minutes depuis la dernière demi-heure) : « vers 12 h 20 » lu comme une heure au hasard à la maison le 17 nov. ; `LIKELY_FORM` 3 pour les recalculer.

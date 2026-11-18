@@ -4,6 +4,17 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.19.2 — 18 novembre 2026
+
+À venir dans Confort (pas encore publié).
+
+### Corrections
+
+- Sous « Rien à faire », la phrase ne change plus quand il se met à pleuvoir ou que la maison passe en mode absence. « Gardez fermé : il pleut » ne s'affiche que si la pluie empêche un vrai geste ; sinon, la pluie est dite dans « À savoir ». Exemple : le 18 novembre, la phrase a changé 6 à 8 fois par pièce, et 23 fois en Chambre P.
+- « Humidité 78 % : normal pour cette pièce » reste affiché tant que l'humidité reste proche de sa normale, au lieu d'alterner avec « rien de mieux à faire ».
+- Le conseil du créneau ne disparaît plus à cause de la pluie : pendant la pluie, la carte dit « Gardez fermé : il pleut », puis le même conseil revient quand elle s'arrête, sans nouvelle notification. Exemple : au labo, le 18 novembre, « Aérez 45 min » en Chambre A a laissé place à « Rien à faire » pour tout l'après-midi.
+- Une urgence mise de côté ne revient pas avant une heure, même si la mesure monte. Exemple : le 17 novembre, l'alerte COV est revenue 11 minutes après, pour un pic de cuisine.
+
 ## 3.19.1 — 17 novembre 2026
 
 Dans Confort 3.1.0b15.
