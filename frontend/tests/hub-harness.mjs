@@ -27,6 +27,10 @@ window.hass={connection:{},user:{is_admin:true},themes:{darkMode:true},async cal
  if(msg.type==='hestia_comfort/overview')return {areas:[]};
  if(msg.type==='hestia_comfort/validate_config'){if(validationMode==='hold')return new Promise(resolve=>validationQueue.push(()=>resolve({config:msg.config,warnings:[],revision:state.revision})));return {config:msg.config,warnings:[],revision:state.revision};}
  if(msg.type==='hestia_comfort/save_config'){if(msg.revision!==state.revision)throw {message:'Configuration modifiée ailleurs.'};if(msg.home)state.home.sources=structuredClone(msg.config.sources);else{const room=state.rooms.find(r=>r.entry_id===msg.entry_id);room.config=structuredClone(msg.config);room.title=msg.config.name;}state.revision+='1';return structuredClone(state);}
+ // The household's settings, each saved by its own command (the guide sends them at its end); none changes the revision (configuration.py).
+ if(msg.type==='hestia_comfort/set_foyer'){state.home.foyer=structuredClone(msg.foyer);return structuredClone(state);}
+ if(msg.type==='hestia_comfort/set_pollen_allergy'){state.home.pollen_allergy=msg.allergy;return structuredClone(state);}
+ if(msg.type==='hestia_comfort/set_lights'){state.home.lights=structuredClone(msg.lights);return structuredClone(state);}
  if(msg.type==='hestia_weather/panel/places')return {can_add:true,places:[{entry_id:'weather-demo',title:'Maison',loaded:true,failed:false,health:{title:'Maison',level:'ok',summary:'Tout est suivi',tips_summary:'',todo:[],tips:[],sources:[{label:'Prévisions',level:'ok',text:'Service météo Maison'}],sensors:[{label:'Température',name:'Dehors',level:'ok',text:'14,2 °C'}],entities:[{level:'ok',text:'Entités configurées',why:'',stage:null}],versions:[{level:'ok',text:'Hestia Weather',why:'Carte incluse',stage:null}]}}]};
  if(msg.type==='hestia_weather/panel/open')return {...structuredClone(weather),saved:structuredClone(weather.draft)};
  if(msg.type==='hestia_weather/panel/change')return {...structuredClone(weather),draft:msg.draft};

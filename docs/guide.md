@@ -26,6 +26,15 @@ Seule la température de la pièce est obligatoire. Chaque capteur ajouté rend 
 
 Rien n’est enregistré avant **Enregistrer**. Vous pouvez revenir à chaque onglet avant.
 
+### Le guide d’installation
+
+Plutôt une question à la fois ? Le **guide d’installation** passe par les mêmes réglages, avec la raison de chacun.
+
+- **Le guide de la maison** : le dehors, la maison (vitrage, volets, murs, plage de confort), le sommeil, vos habitudes, le nombre de conseils et la lumière du conseil.
+- **Le guide d’une pièce** : la température et l’humidité, l’air, la présence, les fenêtres et portes (un écran par ouvrant), le chauffage, la VMC et les équipements, puis la pièce elle-même.
+
+On l’ouvre depuis la vue d’ensemble (bloc « Guide d’installation »), la page **Pièces** (« Ajouter avec le guide »), une pièce (« Ouvrir le guide ») ou **Réglages** (« Le guide de la maison »). Le guide utilise le même brouillon que les onglets : rien n’est enregistré avant sa dernière étape. Les réglages fins (durées des conseils, poêle, « Différent du foyer ») restent dans les onglets et dans Réglages.
+
 ## L’extérieur
 
 L’extérieur se règle une seule fois, dans **Confort → Réglages généraux**. Il sert à toutes les pièces.
