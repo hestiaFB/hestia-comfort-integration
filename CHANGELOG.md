@@ -37,6 +37,7 @@
 - La nuit, une petite lune : les conseils sont en pause jusqu'au réveil.
 - Quand le poêle chauffe, « À savoir » dit si la pièce est nettement plus froide que le reste de la maison.
 - Les volets pilotés par CoverAutomatic ou Cover Extender sont reconnus.
+- Participez à l'amélioration du moteur : sur l'accueil du panneau, un rapport anonyme à télécharger et à partager si vous le voulez, et « Ce conseil ne va pas » sur la carte pour signaler un conseil.
 
 ### Améliorations
 
