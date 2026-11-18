@@ -6,7 +6,7 @@ Chaque version de Confort dit quelle version du moteur elle contient. Le détail
 
 ## 3.19.2 — 18 novembre 2026
 
-À venir dans Confort (pas encore publié).
+Dans Confort 3.1.0b16.
 
 ### Corrections
 

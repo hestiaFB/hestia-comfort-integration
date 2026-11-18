@@ -1,5 +1,10 @@
 ## À venir
 
+## 3.1.0b16 — Un guide et une carte plus calme
+
+**Un guide d’installation pas à pas dans le panneau Confort.**
+**Sous « Rien à faire », une phrase qui ne change plus à chaque averse.**
+
 ### Nouveautés
 
 - Panneau Confort : un guide d’installation, une question à la fois, avec la raison de chacune. Le guide de la maison passe par le dehors, la maison, le sommeil, vos habitudes, le nombre de conseils et la lumière du conseil. Le guide d’une pièce passe par ses capteurs, chaque fenêtre et porte, le chauffage, la VMC et les équipements, puis la pièce elle-même. Rien n’est enregistré avant la dernière étape. On l’ouvre depuis la vue d’ensemble, la page Pièces (« Ajouter avec le guide »), une pièce (« Ouvrir le guide ») ou Réglages (« Le guide de la maison »). Les réglages restent là, inchangés.
