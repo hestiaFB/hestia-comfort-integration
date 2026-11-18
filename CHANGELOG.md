@@ -1,63 +1,58 @@
 ## À venir
 
-## 3.1.0b16 — Le nouveau moteur de conseil, en bêta
+## 3.1.0b16 — Le nouveau moteur de conseil, un conseil par créneau, un guide d'installation
 
-**Tout ce qui change depuis la dernière bêta publiée, la 2.1.0b8.**
-**Un nouveau moteur de conseil : un geste au plus par pièce le matin, l'après-midi et le soir, au meilleur moment.**
-**Des cartes et un panneau refaits, avec un guide d'installation pas à pas.**
-**Un Confort beaucoup plus léger : Home Assistant ne se fige plus, même sur une petite box.**
+**Un nouveau moteur de conseil, qui apprend comment chaque pièce réagit.**
+**Au plus un conseil par pièce le matin, l'après-midi et le soir, plus les urgences.**
+**Des cartes refaites, et un guide d'installation pas à pas.**
 
 ### Avant de mettre à jour
 
-- Faites une sauvegarde : Paramètres → Système → Sauvegardes.
-- Vous êtes en 2.1.0b8 : la mise à jour se fait directement dans le Marketplace, avec les bêtas affichées. Vos pièces, réglages et entités sont gardés.
-- Vous êtes en 1.7.x : tout passe seul au nouveau nom `hestia_comfort`, un encart dans **Hestia-FB → Accueil** suit chaque étape. Si le Marketplace refuse la mise à jour, suivez [docs/PASSAGE-HESTIA.md](docs/PASSAGE-HESTIA.md).
-- Mettez Hestia Weather à jour aussi, si vous l'avez (3.6.1 ou plus récent pour la force et la probabilité de la pluie).
-- Le nouveau moteur change des valeurs d'entités. Vérifiez les automatisations qui s'en servent :
+- Vous venez de la 2.1.0b8 : la mise à jour se fait dans le Marketplace (bêtas activées), sans rien supprimer. Vos pièces, réglages et entités sont gardés.
+- Vous venez de la 1.7.x : tout passe seul au nouveau nom `hestia_comfort`. Un encart dans **Hestia-FB → Accueil** suit chaque étape.
+- Les valeurs de certaines entités changent. Vérifiez les automatisations qui s'en servent :
   - « État » ne donne plus que `calm`, `best`, `benefit`, `action`, `urgent` et `neutral` ;
-  - toutes les valeurs de « Raison » changent ;
-  - le % d'« Apprentissage » compte les effets prouvés dans la pièce.
-- Une VMC classique pilotée par « VMC conseillée » : choisissez « En continu » dans Équipements, sinon elle s'arrêtera la nuit.
+  - toutes les valeurs de « Raison » changent.
+- VMC classique pilotée par « VMC conseillée » : choisissez « En continu » dans Équipements, sinon elle s'arrêtera la nuit.
+- Mettez à jour Hestia Weather (3.6.1 ou plus récent conseillé, pour la force et la probabilité de la pluie).
 - Les premiers jours, Hestia conseille peu : elle attend d'avoir vu chaque geste marcher chez vous.
 
 ### Nouveautés
 
-- Un nouveau moteur de conseil. Pour chaque pièce, il compare les gestes possibles (ouvrir, refermer, VMC, purificateur, volet, chauffage) et garde celui qui aide le plus. Il apprend chaque nuit comment la pièce réagit et dit à quel point il est sûr.
-- Le conseil par créneaux : un geste au plus par pièce le matin, l'après-midi et le soir. Exemple : « Aérez 45 min vers 14 h 30 ».
-- Les urgences à toute heure, avec leur mesure : CO₂, particules fines, COV, humidité très au-dessus de la normale de la pièce. Exemple : « CO₂ 1 450 ppm : l'air redevient sain en 15 min ».
-- Sous le conseil, la journée de la pièce : ce qui est fait, ce qui ne l'est pas, puis la suite heure par heure. Quand il n'y a rien à faire, le prochain bon moment.
-- Chaque pièce a sa carte d'identité, refaite chaque nuit : sa normale, son isolation, son chauffage. Une pièce humide par nature n'a plus de conseil chaque jour pour son humidité.
-- Un conseil du logement pour ce qui est permanent. Exemple : « Humide en permanence : aérer ne suffira pas ».
-- Un événement Home Assistant à chaque nouveau conseil, pour l'envoyer sur le téléphone.
+- Un nouveau moteur de conseil : pour chaque pièce, il compare les gestes possibles (ouvrir, refermer, VMC, purificateur, volet, chauffage) et garde celui qui aide le plus. Il apprend chaque nuit et n'affirme que ce qu'il a vu marcher chez vous.
+- Un conseil au plus par pièce le matin, l'après-midi et le soir, au meilleur moment.
+- Les urgences à toute heure : CO₂, particules, COV, humidité très au-dessus de la normale de la pièce. Exemple : « Aérez 10 min — CO₂ mesuré à 1 470 ppm ».
+- Sous le conseil, la journée de la pièce : ce qui est fait, puis la suite heure par heure. Et le prochain bon moment quand il n'y a rien à faire.
+- Un guide d'installation dans le panneau Confort, une question à la fois, pour la maison et pour chaque pièce.
+- Des cartes refaites : un bandeau qui dit le geste, sa durée et sa raison, puis une case par mesure. Nouvelles cartes à la pièce : Température, Humidité, Air, Ouvertures, Chauffage, À venir.
+- Le ressenti de la pièce : la chaleur et l'humidité telles qu'on les sent.
 - Les couleurs suivent le conseil : bleu rien à faire, vert « Bon moment », orange « À faire », rouge « Attention ».
-- Les cartes sont refaites : un bandeau qui dit le geste, sa durée et sa raison, puis « À venir », puis une case par mesure avec sa courbe. Nouvelles cartes à la pièce : Température, Humidité, Air, Ouvertures, Chauffage et À venir. Le ressenti de la pièce.
-- Le panneau Confort est refait, avec un guide d'installation, une question à la fois. On l'ouvre depuis la vue d'ensemble, la page Pièces, une pièce ou Réglages.
-- Une lumière peut montrer le conseil : un bandeau WLED ou une ampoule couleur.
-- La VMC : un réglage « En continu » ou « À la demande », et une entité « Turbo conseillé » qui s'allume pendant une douche.
-- La nuit, une petite lune : les conseils sont en pause jusqu'au réveil.
-- Quand le poêle chauffe, « À savoir » dit si la pièce est nettement plus froide que le reste de la maison.
-- Les volets pilotés par CoverAutomatic ou Cover Extender sont reconnus.
+- La nuit, une petite lune : conseils en pause jusqu'au réveil.
+- La VMC : réglage « En continu » ou « À la demande », et une entité « Turbo conseillé ».
+- Une lumière (WLED ou ampoule couleur) peut montrer le conseil.
+- Un événement pour envoyer les conseils sur le téléphone.
+- Quand le poêle chauffe, « À savoir » dit si une pièce reste nettement plus froide que le reste de la maison.
 
 ### Améliorations
 
-- Confort est beaucoup plus léger et le panneau s'ouvre plus vite.
-- Des conseils qui tiennent : plus de conseil qui part et revient, une phrase stable sous « Rien à faire », des heures rondes (« vers 15 h 30 »).
-- La pluie annoncée est dite au conditionnel. Avec un pluviomètre, seule la pluie mesurée fait refermer.
-- En saison de chauffe, une aération a une durée précise et annonce l'humidité qui restera une fois la fenêtre refermée.
-- Le poêle n'est compté que lorsqu'il chauffe vraiment.
+- Confort est beaucoup plus léger : Home Assistant ne se fige plus, même sur une petite box.
+- Des conseils plus posés : un conseil ne change plus toutes les 5 minutes et ne part pas pour revenir.
 - La pastille se lit sur les mesures : « Tout va bien » seulement si tout est dans votre plage.
+- Avec un pluviomètre, seule la pluie mesurée fait refermer ; une pluie annoncée est dite dans « À savoir ».
+- Le poêle est compté seulement quand il chauffe vraiment, ralenti compris.
+- Les aérations ont une durée précise et finissent avant le coucher. Les heures tombent sur la demi-heure : « vers 15 h 30 ».
 
 ### Corrections
 
-- Plus de « Refermez » pour une fenêtre ouverte après la pluie, en mode absence, ou au passage d'une porte.
+- Sous « Rien à faire », la phrase ne change plus à chaque averse.
+- Plus de faux « Refermez » : après la pluie, en passant une porte-fenêtre, ou avec l'alarme en mode absence.
 - « VMC conseillée » ne reste plus allumée toute la nuit dans une pièce qu'elle n'arrive pas à assécher.
-- Plus de « Coupez le poêle » dans une pièce encore sous sa plage.
 - Une pièce en train de se recharger ne coupe plus la carte du logement.
-- L'interrupteur « Je participe » est de nouveau enregistré, et « VMC conseillée » reprend son état au redémarrage.
+- L'interrupteur « Je participe » est de nouveau enregistré.
 
 ### Moteur de conseil 3.19.2
 
-- Remplace le moteur de la 2.1.0b8. Le détail de chaque version est dans [CHANGELOG-MOTEUR.md](CHANGELOG-MOTEUR.md).
+- Le détail de chaque version du moteur est dans [CHANGELOG-MOTEUR.md](CHANGELOG-MOTEUR.md).
 
 ## 3.1.0b15 — Des heures rondes
 
