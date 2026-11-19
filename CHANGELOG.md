@@ -1,5 +1,9 @@
 ## À venir
 
+## 3.1.0b17 — Des conseils même sans station
+
+**Sans capteur de température dehors, les conseils arrivent quand même.**
+
 ### Corrections
 
 - Sans capteur de température dehors (un lieu Hestia Weather sans station, par exemple), les conseils arrivent : la prévision tient lieu de dehors. Avant, les cartes restaient sur « Conseil en attente ».

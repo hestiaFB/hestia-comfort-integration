@@ -6,7 +6,7 @@ Chaque version de Confort dit quelle version du moteur elle contient. Le détail
 
 ## 3.19.3 — 19 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b17.
 
 ### Corrections
 
