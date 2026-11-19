@@ -1188,13 +1188,16 @@ class RoomAdvisor:
             if gain_now < GAIN / 3:
                 self.board.plan.done = True
             else:
+                # Said on the slot's own subject while the gesture still lowers it: the humidity and the mould took turns
+                # six times in an hour on « Aérez 30 min » (labo, Chambre AL, 18 November from 18 h 38).
                 fresh_line = phrase(Decision(g_now, gain_now, "creneau", {**decision.scenarios, g_now: cost_now},
                                              {**decision.paths, g_now: path_now}, level=self.board.plan.words.get("level", PROVEN)),
-                                    end_hour, marks=marks, hour=local.hour + local.minute / 60)["line"]
+                                    end_hour, marks=marks, hour=local.hour + local.minute / 60,
+                                    subject_before=self.board.plan.words.get("subject"), hold_subject=True)["line"]
         # What the card shows (advisor/board.py): the safety first, then the household airing now, an urgency measured,
         # the slot's gesture, and otherwise « Rien à faire ».
         plan = self.board.plan_shown(now)
-        asked = urgent_decision(decision, urgent[0], urgent[1], proof) \
+        asked = urgent_decision(decision, urgent[0], urgent[1], proof, self.board.asked.get(urgent[0])) \
             if urgent is not None and decision.rule not in SAFE_RULES and not airing_now else None
         family = choose(decision, airing_now, asked, plan, put_aside, air, comfort.minimum)
         if family == "creneau" and held_plan:

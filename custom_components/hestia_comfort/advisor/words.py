@@ -34,6 +34,9 @@ TEXTS = {
         "co2_during_likely": "l'air devrait redevenir sain avant la fin", "co2_during_maybe": "l'air pourrait redevenir sain avant la fin",
         "particles_likely": "les particules devraient retomber en {minutes} min", "particles_maybe": "les particules pourraient retomber en {minutes} min",
         "voc_likely": "le COV devrait retomber en {minutes} min", "voc_maybe": "le COV pourrait retomber en {minutes} min",
+        "co2_at": "l'air redevient sain vers {at}", "co2_at_likely": "l'air devrait redevenir sain vers {at}", "co2_at_maybe": "l'air pourrait redevenir sain vers {at}",
+        "particles_at": "les particules retombent vers {at}", "particles_at_likely": "les particules devraient retomber vers {at}", "particles_at_maybe": "les particules pourraient retomber vers {at}",
+        "voc_at": "le COV retombe vers {at}", "voc_at_likely": "le COV devrait retomber vers {at}", "voc_at_maybe": "le COV pourrait retomber vers {at}",
         "energy_likely": "environ {value} kWh de chauffage économisés", "energy_maybe": "peut-être {value} kWh de chauffage économisés",
         "mould_likely": "devrait limiter la moisissure sur les murs froids", "mould_maybe": "pourrait limiter la moisissure sur les murs froids",
         "maybe": "{line}, à vérifier",
@@ -136,6 +139,9 @@ TEXTS = {
         "co2_during_likely": "the air should be healthy again before the end", "co2_during_maybe": "the air could be healthy again before the end",
         "particles_likely": "the particles should settle in {minutes} min", "particles_maybe": "the particles could settle in {minutes} min",
         "voc_likely": "the VOC should drop in {minutes} min", "voc_maybe": "the VOC could drop in {minutes} min",
+        "co2_at": "the air is fresh again around {at}", "co2_at_likely": "the air should be healthy again around {at}", "co2_at_maybe": "the air could be healthy again around {at}",
+        "particles_at": "the particles settle around {at}", "particles_at_likely": "the particles should settle around {at}", "particles_at_maybe": "the particles could settle around {at}",
+        "voc_at": "the VOC falls back around {at}", "voc_at_likely": "the VOC should drop around {at}", "voc_at_maybe": "the VOC could drop around {at}",
         "energy_likely": "about {value} kWh of heating saved", "energy_maybe": "perhaps {value} kWh of heating saved",
         "mould_likely": "should limit mould on the cold walls", "mould_maybe": "could limit mould on the cold walls",
         "maybe": "{line}, to be checked",
@@ -237,6 +243,9 @@ TEXTS = {
         "co2_during_likely": "die Luft dürfte vor dem Ende wieder gesund sein", "co2_during_maybe": "die Luft könnte vor dem Ende wieder gesund sein",
         "particles_likely": "die Partikel dürften in {minutes} Min. sinken", "particles_maybe": "die Partikel könnten in {minutes} Min. sinken",
         "voc_likely": "die VOC dürften in {minutes} Min. sinken", "voc_maybe": "die VOC könnten in {minutes} Min. sinken",
+        "co2_at": "die Luft ist gegen {at} wieder frisch", "co2_at_likely": "die Luft dürfte gegen {at} wieder gesund sein", "co2_at_maybe": "die Luft könnte gegen {at} wieder gesund sein",
+        "particles_at": "die Partikel setzen sich gegen {at}", "particles_at_likely": "die Partikel dürften sich gegen {at} setzen", "particles_at_maybe": "die Partikel könnten sich gegen {at} setzen",
+        "voc_at": "die VOC sinken gegen {at}", "voc_at_likely": "die VOC dürften gegen {at} sinken", "voc_at_maybe": "die VOC könnten gegen {at} sinken",
         "energy_likely": "etwa {value} kWh Heizung gespart", "energy_maybe": "vielleicht {value} kWh Heizung gespart",
         "mould_likely": "dürfte Schimmel an kalten Wänden begrenzen", "mould_maybe": "könnte Schimmel an kalten Wänden begrenzen",
         "maybe": "{line}, noch zu prüfen",
@@ -391,7 +400,7 @@ SUBJECT_KEPT = 0.8
 def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool = True,
            marks: dict | None = None, hour: float | None = None, reason: str | None = None,
            beyond_before: bool | None = None, keep_beyond: bool = False, subject_before: str | None = None,
-           calm_subject: str | None = None) -> dict:
+           calm_subject: str | None = None, hold_subject: bool = False) -> dict:
     """The banner's title and line, and the lines of « Pourquoi ? »; `hour`: the local time now, for a later gesture;
     `marks`: the room's range and marks, as `Comfort` holds them; `reason`: the safety rule that shuts, if one does
     (advisor/safety.py); `beyond_before`: whether the last « Rien à faire » said a measure out of its range or mark
@@ -421,7 +430,9 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     if subject_before and subject and subject_before != subject and gesture.kind != "nothing":
         idle, chosen = decision.scenarios.get(reference(decision.scenarios, gesture)), decision.scenarios.get(gesture)
         if idle and chosen and subject_before in idle and subject_before in chosen:
-            if idle[subject_before] - chosen[subject_before] >= SUBJECT_KEPT * (idle[subject] - chosen[subject]):
+            # `hold_subject`: the slot's subject, kept as long as the gesture lowers it at all.
+            lowered = idle[subject_before] - chosen[subject_before]
+            if (lowered > 0 if hold_subject else lowered >= SUBJECT_KEPT * (idle[subject] - chosen[subject])):
                 subject = subject_before
     if decision.rule == "stale":
         # Asked for the CO₂ measured: what the airing will be judged on (room/advice.py `aim`).
@@ -524,6 +535,11 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
                 # Back under its mark before the airing ends: « Aérez 15 min : l'air pourrait redevenir sain en 5 min »
                 # read as a contradiction (Salon · Cuisine, 8 November at 15 h 40).
                 line = say("co2_during")
+            elif minutes and gesture.minutes and minutes > gesture.minutes and hour is not None:
+                # Back under its mark after a timed airing has ended: said as an hour, « Aérez 5 min : le COV devrait
+                # retomber en 30 min » read as a contradiction (labo, 19 November at 9 h 26). To the quarter of an hour.
+                at = round((hour * 60 + minutes) / 15) * 15 % (24 * 60)
+                line = say(f"{subject}_at", at=_time(time(at // 60, at % 60), words))
             elif minutes:
                 # To the quarter of an hour beyond one: « retombe en 30, 45, 60, 75 min » moved at every step.
                 line = say(subject, minutes=minutes if minutes <= 15 else int(round(minutes / 15) * 15))

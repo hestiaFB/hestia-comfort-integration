@@ -156,6 +156,23 @@ class Voc(unittest.TestCase):
         self.assertEqual(phrase(decision, 22)["subject"], "voc")
         self.assertRegex(phrase(decision, 22)["line"], r"^le COV retombe en \d+ min$")
 
+    def test_back_after_a_short_airing_said_as_an_hour(self):
+        # « Aérez 5 min » beside « le COV devrait retomber en 30 min » read as a contradiction (labo, 19 November at
+        # 9 h 26): back under its mark after the airing has ended, the hour is said, to the quarter.
+        from dataclasses import replace
+        from advisor.decide import Gesture, Path as Scenario
+        from advisor.words import phrase
+        decision = self.decide(5)
+        falling = Scenario(air=[21.0] * 12, voc=[400.0 - 30 * k for k in range(12)])
+        idle = Scenario(air=[21.0] * 12, voc=[400.0] * 12)
+        urgent = replace(decision, gesture=Gesture("open", 5), rule="urgent", measured={"voc": 400.0},
+                         paths={Gesture("open", 5): falling, Gesture("nothing"): idle})
+        # Under 150 at the ninth step (45 min): 9 h 30 + 45 min.
+        self.assertEqual(phrase(urgent, 22, hour=9.5)["line"], "COV 400 : le COV retombe vers 10 h 15")
+        # Back before the airing ends: the minutes, as before.
+        self.assertEqual(phrase(replace(urgent, gesture=Gesture("open", 60), paths={Gesture("open", 60): falling,
+                                        Gesture("nothing"): idle}), 22, hour=9.5)["line"], "COV 400 : le COV retombe en 45 min")
+
 
 class Devices(unittest.TestCase):
     """The VMC's fast speed and the purifier, as gestures (CAHIER-MOTEUR.md § 9.1)."""
