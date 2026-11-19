@@ -4,6 +4,16 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.19.4 — 19 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Corrections
+
+- Une urgence garde la durée qu'elle a demandée tant que cette durée aide presque autant. Exemple : au labo, le 18 novembre, la Chambre P a reçu « Aérez 30 min », puis 25, 20 et 25 min en 35 minutes.
+- Pendant le créneau, la phrase reste sur le même sujet tant que le geste l'améliore. Exemple : au labo, le 18 novembre, « Aérez 30 min » en Chambre AL a parlé tour à tour de l'humidité et de la moisissure, 6 fois en une heure.
+- Après une courte aération, le moment où l'air redevient sain est dit en heure : « Aérez 5 min : le COV devrait retomber vers 10 h », au lieu de « … en 30 min », qui semblait contredire les 5 minutes.
+
 ## 3.19.3 — 19 novembre 2026
 
 Dans Confort 3.1.0b17.

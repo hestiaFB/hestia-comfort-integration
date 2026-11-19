@@ -275,10 +275,12 @@ def choose(decision: Decision, airing_now: bool, asked: Decision | None, plan: P
     return "calme"
 
 
-def urgent_decision(decision: Decision, subject: str, value: float, proof: dict | None) -> Decision | None:
+def urgent_decision(decision: Decision, subject: str, value: float, proof: dict | None,
+                    before: tuple | None = None) -> Decision | None:
     """The gesture an urgency asks, from the scenarios simulated this step: of the airings now and the devices, the
     cheapest that lowers `subject`, the shortest of those that do nearly as much. None when none lowers it (the outside
-    is no better)."""
+    is no better). `before`: the (kind, minutes) this urgency asked at the last step, kept while it still does nearly as
+    much — « Aérez 30, 25, 20, 25 min » in 35 minutes (labo, Chambre P, 18 November)."""
     scenarios = decision.scenarios
     nothing = scenarios.get(Gesture("nothing"))
     if not nothing:
@@ -292,6 +294,8 @@ def urgent_decision(decision: Decision, subject: str, value: float, proof: dict 
     most = nothing[term] - scenarios[best][term]
     near = [g for g in helping if g.kind == best.kind and nothing[term] - scenarios[g][term] >= 0.8 * most]
     chosen = min(near, key=lambda g: (g.minutes or 10_000, scenarios[g]["total"]))
+    if before is not None:
+        chosen = next((g for g in near if (g.kind, g.minutes) == tuple(before)), chosen)
     found = (proof or {}).get(effect(chosen, term), SUPPOSED) if proof is not None else PROVEN
     return Decision(chosen, nothing["total"] - scenarios[chosen]["total"], "urgent", scenarios, decision.paths,
                     level=found, measured={subject: value})

@@ -20,6 +20,14 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.19.4 — 19 novembre 2026
+
+Bilan du 19 novembre (labo en 3.19.2 depuis le 18 à 18 h 32, maison en 3.19.1).
+- `board.urgent_decision(…, before)` : le (geste, minutes) demandé au pas précédent pour cette mesure (`Board.asked`) est gardé s'il est encore parmi ceux qui font au moins 80 % de l'effet du meilleur. Chambre P, 18 novembre : 30, 25, 20, 25 min en 35 min.
+- `words.phrase(…, hold_subject=True)` : le sujet passé (`subject_before`) est gardé tant que le geste le baisse, sans le seuil `SUBJECT_KEPT`. `room/advice.py` le passe pour la phrase rafraîchie du créneau (`fresh_line`), avec le sujet du plan. Chambre AL, 18 novembre : humidité et moisissure en alternance, 6 fois en une heure.
+- `words.phrase` : CO₂, particules ou COV sous leur seuil après la fin d'une aération minutée → l'heure, au quart d'heure (`{sujet}_at`), au lieu des minutes. Salon · Cuisine, 19 novembre à 9 h 26 : « Aérez 5 min » / « le COV devrait retomber en 30 min ».
+- Pas corrigé : « Turbo conseillé » de la Chambre P en double au démarrage du labo (`ID …_boost already exists`, 17 et 18 novembre, quelques secondes après le démarrage, sans pile d'appels). Rien dans le code ne crée cette entité deux fois ; à reproduire au labo avec les journaux en debug.
+
 ### 3.19.3 — 19 novembre 2026
 
 Retour du forum (3.1.0b16 depuis la 2.1.0b8) : 5 pièces sur « Conseil en attente » pendant une journée, aucun message dans le journal, « rien à régler » dans le panneau. Le lieu Hestia Weather n'a pas de station, donc aucune source `outdoor_temperature` : `_tick` s'arrêtait à `outdoor is None` à chaque pas.

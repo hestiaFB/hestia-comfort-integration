@@ -1,5 +1,15 @@
 ## À venir
 
+### Corrections
+
+- Une urgence ne change plus de durée toutes les cinq minutes (« Aérez 30 min », puis 25, 20, 25).
+- Pendant un créneau, la phrase sous le conseil ne passe plus sans cesse de l'humidité à la moisissure.
+- « Aérez 5 min : le COV devrait retomber vers 10 h » au lieu de « … en 30 min », qui semblait contredire les 5 minutes.
+
+### Moteur de conseil 3.19.4
+
+- La durée d'une urgence et le sujet d'un créneau tiennent ; l'air sain après une courte aération dit en heure.
+
 ## 3.1.0b17 — Des conseils même sans station
 
 **Sans capteur de température dehors, les conseils arrivent quand même.**
