@@ -155,14 +155,25 @@ WAITING = {"title": "Conseil en attente", "regle": "waiting", "geste": "nothing"
            "phrase": "Le moteur redémarre : le conseil revient dans une minute."}
 
 
+# Still nothing once the first steps are past: said why, never « Le moteur redémarre » for good (forum, 19 November: five
+# rooms on « Conseil en attente » for a day, no error in the log, the panel saying « rien à régler »).
+NO_OUTDOOR = {"title": "Conseil en attente", "regle": "waiting", "manque": "dehors", "geste": "nothing",
+              "phrase": "Pas de température du dehors : choisissez-la dans Réglages généraux."}
+NO_AIR = {"title": "Conseil en attente", "regle": "waiting", "manque": "temperature", "geste": "nothing",
+          "phrase": "Pas de température lue dans cette pièce : vérifiez son capteur dans les réglages de la pièce."}
+
+
 def result(hass, entry_id):
     """The decision shown for this room: its own, or the one of the room advising its shared air; None when no 3.0
-    advisor reads this room (no temperature sensor)."""
+    advisor reads this room (no temperature sensor). Not decided yet: why, once the first steps are past."""
     home = hass.data.get(DATA)
     advisor = home.advisor_of(entry_id) if home else None
     if advisor is None:
         return None
-    return advisor.result or WAITING
+    if advisor.result:
+        return advisor.result
+    waiting = getattr(home, "waiting", None)
+    return waiting(advisor) if waiting else WAITING
 
 
 def gestures(hass, entry_id, start, end):
@@ -346,6 +357,29 @@ class AdvisorHome:
         configuration = coordinator.home_configuration if coordinator else None
         return (configuration.home.get("foyer") if configuration else None) or {}
 
+    def waiting(self, advisor):
+        """What a room not advised yet says: the engine starting, or, its first steps past, what it lacks."""
+        if dt_util.utcnow() - self.boot < EVERY + timedelta(minutes=1):
+            return WAITING
+        if self.outdoor[0] is None:
+            return NO_OUTDOOR
+        if _number(self.hass, advisor.room["temperature"]) is None:
+            return NO_AIR
+        return WAITING
+
+    def _forecast_now(self, now):
+        """The outside now from the forecast (Hestia Weather's, or Open-Meteo's), between its two hours: (°C, %)."""
+        hour = now.replace(minute=0, second=0, microsecond=0)
+        a, b = self.forecast.get(hour), self.forecast.get(hour + timedelta(hours=1))
+        if not a or a[0] is None:
+            return None, None
+        share = (now - hour).total_seconds() / 3600
+        if b and b[0] is not None:
+            te = a[0] + (b[0] - a[0]) * share
+            rh = a[1] + (b[1] - a[1]) * share if a[1] is not None and b[1] is not None else a[1]
+            return te, rh
+        return a[0], a[1]
+
     def _read_outdoor(self):
         """The outside's temperature and humidity now. Where Hestia Weather does not trust its station at this moment (a
         wall or a roof in the sun, docs/STATION-EMPLACEMENT.md § 4.1 of Hestia Weather), its retained temperature is
@@ -364,6 +398,14 @@ class AdvisorHome:
             if humidity is not None:
                 humidity = round(relative(kept[0], absolute(temperature, humidity)), 1)
             temperature, self.retained = kept[0], {"temperature": kept[0], "now": kept[1], "why": kept[2]}
+        if temperature is None and not temperature_entity:
+            # No outdoor sensor at all (a Hestia Weather place without a station, nothing chosen in Confort): the forecast
+            # stands for the outside, as Hestia Weather's own « forecast » when it does not trust its station.
+            fc_te, fc_rh = self._forecast_now(dt_util.utcnow())
+            if fc_te is not None:
+                temperature, self.retained = fc_te, {"temperature": fc_te, "now": "forecast", "why": "no_sensor"}
+                if humidity is None:
+                    humidity = fc_rh
         self.outdoor = (temperature, humidity)
         return self.outdoor
 
