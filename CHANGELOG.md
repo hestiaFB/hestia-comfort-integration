@@ -1,5 +1,14 @@
 ## À venir
 
+### Corrections
+
+- Sans capteur de température dehors (un lieu Hestia Weather sans station, par exemple), les conseils arrivent : la prévision tient lieu de dehors. Avant, les cartes restaient sur « Conseil en attente ».
+- Une carte sans conseil après le démarrage dit ce qui lui manque, au lieu de « Le moteur redémarre » sans fin.
+
+### Moteur de conseil 3.19.3
+
+- Le dehors pris de la prévision quand aucun capteur ne le mesure.
+
 ## 3.1.0b16 — Le nouveau moteur de conseil, en bêta
 
 **Tout ce qui change depuis la dernière bêta publiée, la 2.1.0b8.**

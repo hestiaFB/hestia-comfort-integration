@@ -4,6 +4,15 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.19.3 — 19 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Corrections
+
+- Sans capteur de température dehors, par exemple avec un lieu Hestia Weather sans station, le moteur prend la prévision pour le dehors. Avant, il ne donnait jamais de conseil et les cartes restaient sur « Conseil en attente », sans message d'erreur.
+- Une carte qui n'a toujours pas de conseil après le démarrage dit pourquoi : « Pas de température du dehors » ou « Pas de température lue dans cette pièce », au lieu de « Le moteur redémarre » sans fin.
+
 ## 3.19.2 — 18 novembre 2026
 
 Dans Confort 3.1.0b16.

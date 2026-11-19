@@ -20,6 +20,13 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.19.3 — 19 novembre 2026
+
+Retour du forum (3.1.0b16 depuis la 2.1.0b8) : 5 pièces sur « Conseil en attente » pendant une journée, aucun message dans le journal, « rien à régler » dans le panneau. Le lieu Hestia Weather n'a pas de station, donc aucune source `outdoor_temperature` : `_tick` s'arrêtait à `outdoor is None` à chaque pas.
+- `AdvisorHome._read_outdoor` : sans aucune entité de température dehors, la prévision (`self.forecast`, Hestia Weather ou Open-Meteo), interpolée entre ses deux heures (`_forecast_now`), tient lieu de dehors ; `retained` = {now: forecast, why: no_sensor}. Un capteur choisi mais muet n'est pas remplacé (c'est l'affaire des contrôles).
+- `advisor_home.result` : une pièce pas encore conseillée passé `EVERY` + 1 min après le démarrage dit ce qui manque (`waiting`) : `NO_OUTDOOR` ou `NO_AIR`, règle `waiting` gardée pour la carte, champ `manque`.
+- L'apprentissage de nuit reste sans dehors mesuré : il demande toujours un capteur dehors (son historique). Sans lui, la pièce garde ses jumeaux de départ.
+
 ### 3.19.2 — 18 novembre 2026
 
 Point de suivi du 18 nov. (maison et labo en 3.19.1).
