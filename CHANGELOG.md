@@ -1,5 +1,9 @@
 ## À venir
 
+## 3.1.0b18 — Des conseils qui tiennent
+
+**Une urgence garde sa durée, un créneau garde son sujet, et l'air sain est annoncé à une heure claire.**
+
 ### Corrections
 
 - Une urgence ne change plus de durée toutes les cinq minutes (« Aérez 30 min », puis 25, 20, 25).
