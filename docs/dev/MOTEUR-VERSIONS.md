@@ -20,6 +20,20 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.20.0 — 20 novembre 2026
+
+Maison en 3.19.4 (Confort 3.1.0b18), matinée du 20 novembre : conseils suivis puis « Rien à faire » 3 minutes après l'ouverture (Salon · Cuisine, urgence COV « Aérez 5 min » ; Chambres A et M, créneau « Aérez 20 min »). Cause : depuis 3.18.0, la couche du tableau (urgences, créneaux) est au-dessus de `decide`, qui ne reçoit plus `held` et dont le `previous` n'est jamais le geste d'urgence ; la famille « reponse » montrait donc le `nothing` de `decide`, qui suppose la fenêtre refermée d'elle-même après `airing_max` (`closing_in`).
+- `Board.start_airing(…, minutes, reason)` garde ce que le foyer a suivi : « urgence » (sujet et minutes de `Board.asked`) ou « creneau » (sujet et minutes du plan). `Board.under_way` : « running » jusqu'à la fin, « resolved » sous le seuil de sortie (urgence : `thresholds`, sinon le repère de CO₂/particules/COV), « done » à la fin ; mesure rapide encore au-dessus à la fin : +`EXTEND` (5) min, jusqu'à `max(airing_max, minutes)`. Raison absente (fenêtre ouverte d'elle-même) : `None`, `decide` répond comme avant.
+- `room/advice.py airing_shown` : en famille « reponse », le geste montré devient « close after N » (« en_cours »), `keep` sans durée, ou « close » (« reglee », « finie »). Fini ou réglé, il ne remplace que `nothing` ou un `close` immédiat : si `decide` veut garder ouvert pour autre chose, il parle. `words.airing_words` : « Aération en cours » / « COV 268 · refermez vers 8 h 45 » / « COV 69 : c'est réglé » / « Aérée 20 min : 67 % → 61 % ».
+- `Board.paused` et `RESUME` (3 min) : fenêtres refermées puis rouvertes, même aération (même début, même raison), et la ligne du jour n'est pas doublée. `Board.resumable` : la réouverture compte tout de suite (pas d'attente `OPEN_LEAST`). Créneau refermé en moins de `DONE_LEAST` : le plan revient (`plan.done = False`).
+- `young` ne vaut plus pendant une aération en cours : après un redémarrage, `opening` repart de zéro, ce qui terminait l'aération.
+- `advisor_home._window_moved` : une ouverture relance le conseil à `OPEN_LEAST + 5` s (`WINDOW_AGED`), en plus de `WINDOW_SETTLE`.
+- `decide.Twins.first` et `decide.one_side` : « open » ouvre un seul côté (le plus de fenêtres à moins de `CROSS_ANGLE`, la plus grande surface d'abord) ; le courant d'air reste `open_more`. `room/advice.py first_windows` : dans un air partagé, la partie qui porte le capteur du sujet (`spec()["parts"]`, `SOURCE_OF`), sujet pris de l'urgence, de l'aération en cours ou du plan. Le titre dit « côté Cuisine » (ou la direction pour une pièce seule sur deux côtés).
+- Créneau : `words.phrase(…, fixed=True)` → `humidity_after` (« … une heure après l'aération ») et `{co2,particles,voc}_after` (« … N min après avoir refermé »), calculé une fois au plan (`line_now`). `fresh_line` supprimée ; le recalcul ne sert plus qu'à retirer un créneau devenu inutile.
+- `words` : `back_open_{mesure}` quand une fenêtre est ouverte (« L'humidité repasse sous 60 % vers 8 h 55, fenêtre ouverte »), au lieu de « repasse seule ».
+- Tests : `tests/test_matinee_20_novembre.py` (rejeu de la matinée et tous les cas : COV, humidité, CO₂, chaleur ; passages, rafales, refermée tôt, réglée tôt, pire à la fin, pluie, laissée ouverte, redémarrage, nuit, deux pièces à une minute).
+- Limite connue : la mesure d'humidité de la Chambre A vue à 8 h 44 datait d'avant l'ouverture (capteur lent) ; rien à corriger côté moteur.
+
 ### 3.19.4 — 19 novembre 2026
 
 Bilan du 19 novembre (labo en 3.19.2 depuis le 18 à 18 h 32, maison en 3.19.1).

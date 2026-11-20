@@ -410,6 +410,9 @@ ha-card.nc-c { --nc-base:var(--nw-bg); overflow:hidden; background:var(--nw-bg);
 /* Under \xAB \xC0 savoir \xBB, its framed box already sets the measures apart: no line. */
 .nc-facts + .nc-body { border-top:0; }
 .nc-body[hidden] { display:none; }
+/* Its sections never wider than the card: a grid item is as wide as its widest content unless told otherwise
+   (phone at 360 px, 20 November: \xAB stable \xBB, the Ressenti bars and the Air values cut on the right). */
+.nc-body > *, .nc-part, .nc-mods > * { min-width:0; }
 .nc-fold .nw-sum b { font-weight:600; color:color-mix(in oklab, var(--nw-watch) var(--nw-ink), var(--nw-fg)); }
 .nc-tiles { display:grid; grid-template-columns:repeat(auto-fill, minmax(112px, 1fr)); gap:8px; margin-top:12px; }
 .nc-tile { position:relative; overflow:hidden; border:1px solid var(--nw-line); border-radius:var(--nw-radius); padding:10px 12px; min-width:0; }
@@ -549,7 +552,9 @@ button.nc-tile { font:inherit; color:inherit; text-align:left; cursor:pointer; b
 .nc-bars .done i { width:100%; }
 .nc-bars .on i { animation:nc-fill 4.5s linear forwards; }
 @keyframes nc-fill { to { width:100%; } }
-.nc-stack { display:grid; }
+.nc-stack { display:grid; min-width:0; }
+/* A long word in the banner's big type (\xAB Renouvelez \xBB) breaks rather than leaving the card on a narrow phone. */
+.nc-stack > .nc-slide { min-width:0; } .nc-slide .nw-band-title { overflow-wrap:break-word; hyphens:auto; }
 /* Passage d'un conseil \xE0 l'autre : le pr\xE9c\xE9dent s'efface vers le haut dans un l\xE9ger flou, le suivant monte net \xE0 sa place ;
    le rond se fond de l'un \xE0 l'autre en changeant d'\xE9chelle. */
 .nc-stack > .nc-slide { grid-area:1/1; opacity:0; visibility:hidden; transform:translateY(12px); filter:blur(6px);
@@ -1013,7 +1018,8 @@ button.nc-fx-top { width:100%; margin:0; border:0; background:none; text-align:s
 .nc-ev-chart { margin-top:8px; }
 /* Appareils : une ligne ; gris quand rien ne se passe, vert quand un appareil aide, orange quand il faut y toucher. */
 .nc-fx-devices { display:grid; gap:8px; }
-.nc-fx-devices .nw-chip { font-family:inherit; cursor:pointer; }
+.nc-fx-devices { min-width:0; } .nc-fx-devices > * { min-width:0; }
+.nc-fx-devices .nw-chip { font-family:inherit; cursor:pointer; max-width:100%; min-width:0; white-space:normal; text-align:left; }
 .nc-fx-devices .nw-chip .icon, .nc-fx-devices .nw-chip svg { width:14px; height:14px; flex:none; }
 .nc-fx-devices .nw-chip.nc-plain { background:color-mix(in srgb, var(--nw-fg) 6%, transparent); color:var(--nw-fg); font-weight:500; }
 

@@ -4,6 +4,24 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.20.0 — 20 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Ce qui change
+
+- Pendant une aération lancée pour une raison (une urgence ou le bon moment du créneau), la carte garde cette raison et dit quand refermer : « Aération en cours · COV 268 · refermez vers 8 h 45 ». Elle ne dit plus « Rien à faire » tant que la raison n'est pas réglée. Raison réglée ou temps écoulé : « Refermez », avec ce que l'aération a fait (« Aérée 20 min : 67 % → 61 % »).
+- Si le COV, le CO₂ ou les particules sont encore trop hauts à la fin, l'aération continue 5 minutes de plus, jusqu'à la plus longue aération de votre foyer.
+- « Aérez » nomme la partie à ouvrir quand la pièce en a plusieurs : « Aérez 5 min côté Cuisine » pour le COV mesuré dans la cuisine. Le courant d'air (ouvrir aussi l'autre côté) vient en second, jamais en premier.
+- La promesse du créneau ne bouge plus : « 55 % d'humidité une heure après l'aération au lieu de 70 % », au lieu d'une heure qui reculait toute la matinée.
+
+### Corrections
+
+- Une fenêtre ouverte compte comme une aération dès sa première minute passée, et la carte se met à jour aussitôt, au lieu d'attendre jusqu'à 5 minutes.
+- Fenêtre refermée puis rouverte dans les 3 minutes : c'est la même aération, avec le même compte à rebours.
+- Après un redémarrage de Home Assistant, l'aération en cours continue.
+- Fenêtre ouverte, plus de « l'humidité repasse seule sous 60 % » : la phrase dit « fenêtre ouverte ».
+
 ## 3.19.4 — 19 novembre 2026
 
 Dans Confort 3.1.0b18.
