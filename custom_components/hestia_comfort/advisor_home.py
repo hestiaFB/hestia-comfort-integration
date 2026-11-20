@@ -44,6 +44,8 @@ from .engine.sunlight import CONDITIONS, sky_factor
 from .room.advice import RoomAdvisor, heater_kinds, house_given_now, house_heaters, house_power_now, leads, room_spec
 
 _LOGGER = logging.getLogger(__name__)
+# The sky Hestia Weather sees now stands for the current hour and this many after it (advisor/knowing.py `CLEAR_SKY`).
+SKY_NOW_HOURS = 2
 DATA = f"{DOMAIN}_advisor"
 EVERY = timedelta(minutes=5)
 # Seconds a window must stay as it is before its room is advised again (a sash pushed to, then opened wide).
@@ -647,13 +649,36 @@ class AdvisorHome:
         """The forecast sun of each hour (W/m², horizontal), checked against the station like the coming steps', and what
         Hestia Weather's sky lets through: {hour: (sun, sky)}, sky None when Weather does not say."""
         hour = now.replace(minute=0, second=0, microsecond=0)
+        seen = self._sky_now()
         out = {}
         for when, fc in self.forecast.items():
-            sun = fc[2]
+            sun, ahead = fc[2], (when - hour).total_seconds() / 3600
             if sun is not None and self.sun_missed is not None:
-                sun = corrected(sun, (when - hour).total_seconds() / 3600, self.sun_missed)
-            out[when] = (sun, self.sky.get(when))
+                sun = corrected(sun, ahead, self.sun_missed)
+            sky = self.sky.get(when)
+            # The sky seen now holds for this hour and the next SKY_NOW_HOURS: the hourly forecast promised « sunny »
+            # from 14 h under a sky Hestia Weather already called « cloudy » (labo, 20 November at 13 h 19).
+            if seen is not None and 0 <= ahead <= SKY_NOW_HOURS:
+                sky = seen if sky is None else min(sky, seen)
+            out[when] = (sun, sky)
         return out
+
+    def _sky_now(self):
+        """What the sky lets through now, as Hestia Weather sees it (`sky_now`, from Hestia Weather 4.2): the darker of
+        its cloud cover and its condition. None from an older Hestia Weather, or before its first calculation."""
+        api = weather_link.api(self.hass)
+        read = getattr(api, "sky_now", None) if api else None
+        if read is None:
+            return None
+        try:
+            now = read(self._place())
+        except Exception:  # noqa: BLE001 - the sky now is a plus over the forecast
+            return None
+        if not now:
+            return None
+        said = [f for f in (sky_factor({"cloud_coverage": now.get("cloud_coverage")}), CONDITIONS.get(now.get("condition")))
+                if f is not None]
+        return min(said) if said else None
 
     def coming(self, now, steps, outdoor, outdoor_rh, house_heat, shade, glazing=None, opened=(), shutter=0.0):
         """The coming steps: the forecast, pulled toward the station's measure for the first hours."""

@@ -20,6 +20,13 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.22.2 — 20 novembre 2026
+
+Labo en 3.22.1, 13 h 19 : toujours « Grand soleil ». Prévisions horaires (Météo-France, met.no) « sunny » de 14 h à 16 h sans couverture ; état actuel « cloudy » partout ; station 100 à 150 W/m², à l'ombre l'après-midi (`sun_missed` None).
+- `AdvisorHome._sky_now()` : `api.sky_now()` de Hestia Weather (ajout compatible de l'API v1, Weather 4.2, branche ciel-actuel), min(`sky_factor` de la couverture, `CONDITIONS` de la condition) ; None sans la méthode.
+- `sun_today` : pour l'heure en cours et les `SKY_NOW_HOURS` = 2 suivantes, sky = min(prévu, maintenant).
+- Choix de Frank (carte de décision, 13 h 22) : « Weather partage le ciel actuel ».
+
 ### 3.22.1 — 20 novembre 2026
 
 Labo, 13 h 12 (Frank) : « Grand soleil » sous un ciel gris. Open-Meteo `shortwave_radiation` 395/341/321 W/m² à 12, 13, 14 h ; station 154/130/100 ; Météo-France « nuageux », met.no 51 %. `sun_missed` restait None : la station est à l'ombre l'après-midi.

@@ -1,4 +1,4 @@
-"""The sun as a bonus of warmth (moteur 3.22.0, Frank, 20 November at 11 h 39), under a sky that lets it through (3.22.1).
+"""The sun as a bonus of warmth (moteur 3.22.0, Frank, 20 November at 11 h 39), under a sky that lets it through (3.22.1, 3.22.2).
 
 « Trop de paramètres […] cela doit être un conseil passif : si la radiation est élevée, que les prévisions sont bonnes,
 on peut dire que le soleil peut apporter un bonus de chaleur, sans précisions, de telle heure à telle heure, suivant
@@ -90,6 +90,39 @@ class TheBonus(unittest.TestCase):
         tips = sun_on_windows(view({"closed": False}))
         self.assertTrue(tip_text(tips[0], "en", now=NOW).endswith(": a bonus of warmth"))
         self.assertTrue(tip_text(tips[0], "de", now=NOW).endswith(": ein Wärmebonus"))
+
+
+class TheSkyNow(unittest.TestCase):
+    """Labo, 20 November at 13 h 19: every hourly forecast said « sunny » from 14 h to 16 h, Hestia Weather's sky now
+    « cloudy », 100 to 150 W/m² at the station. The sky seen now holds for this hour and the next two (3.22.2)."""
+
+    def home(self, seen, sky=None):
+        from datetime import timezone
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from custom_components.hestia_comfort import advisor_home
+        home = advisor_home.AdvisorHome.__new__(advisor_home.AdvisorHome)
+        hours = [datetime(2026, 11, 20, h, 0, tzinfo=timezone.utc) for h in range(12, 17)]
+        home.forecast = {h: (12.0, 70.0, 350.0) for h in hours}
+        home.sky, home.sun_missed = sky or {}, None
+        home._sky_now = lambda: seen
+        return home, hours
+
+    def test_a_grey_sky_now_holds_two_hours(self):
+        home, hours = self.home(sky_factor({"condition": "cloudy"}))
+        today = home.sun_today(hours[0].replace(minute=19))
+        self.assertEqual([today[h][1] for h in hours[:3]], [0.25] * 3)
+        self.assertIsNone(today[hours[3]][1])  # then the forecast's own sky
+
+    def test_the_darker_of_the_two(self):
+        home, hours = self.home(1.0)
+        home.sky = {hours[1]: 0.25}
+        today = home.sun_today(hours[0])
+        self.assertEqual(today[hours[1]][1], 0.25)
+        self.assertEqual(today[hours[0]][1], 1.0)
+
+    def test_an_older_hestia_weather_changes_nothing(self):
+        home, hours = self.home(None)
+        self.assertTrue(all(v == (350.0, None) for v in home.sun_today(hours[0]).values()))
 
 
 class OutOfTheHeatingSeason(unittest.TestCase):

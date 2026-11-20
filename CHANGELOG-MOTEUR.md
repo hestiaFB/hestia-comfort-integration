@@ -4,6 +4,14 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.22.2 — 20 novembre 2026
+
+Pas encore dans une version de Confort. Demande Hestia Weather 4.2 (le ciel de maintenant) ; avec une Weather plus ancienne, rien ne change.
+
+### Corrections
+
+- Le ciel de maintenant compte : si Hestia Weather voit un ciel nuageux, pas de « Grand soleil » pour l'heure en cours et les deux suivantes, même si la prévision heure par heure annonce du soleil. Le 20 novembre à 13 h 19, toutes les prévisions disaient « ensoleillé » de 14 h à 16 h sous un ciel gris.
+
 ## 3.22.1 — 20 novembre 2026
 
 Pas encore dans une version de Confort.
