@@ -40,6 +40,7 @@ from .advisor.safety import minutes, rain_believed, rain_held
 from .advisor_store import AdvisorFiles
 from .const import DOMAIN, VERSION
 from .engine import schedule
+from .engine.sunlight import CONDITIONS, sky_factor
 from .room.advice import RoomAdvisor, heater_kinds, house_given_now, house_heaters, house_power_now, leads, room_spec
 
 _LOGGER = logging.getLogger(__name__)
@@ -255,6 +256,9 @@ class AdvisorHome:
         # The nightly learning's own process failed once (night_worker.py): said once in the log, then in the threads.
         self.worker_failed = False
         self.forecast, self.forecast_at, self.forecast_source = {}, None, "Open-Meteo"
+        # What Hestia Weather's sky lets through, hour by hour (engine/sunlight.py `sky_factor`): its clouds against
+        # Open-Meteo's sun (labo, 20 November: 320 to 395 W/m² foreseen, « nuageux » and grey outside).
+        self.sky = {}
         # The station's own shade by the sun's position, and the clouds the forecast missed in the last two hours, read
         # where it sees the sun (advisor/physics/station_sun.py); None: the forecast sun is kept as it is.
         self.station_shade, self.sun_missed, self.sun_missed_hour, self.sun_recent = {}, None, None, []
@@ -572,11 +576,17 @@ class AdvisorHome:
         except Exception:  # noqa: BLE001 - Weather's forecast is a plus over Open-Meteo's
             _LOGGER.warning("Hestia Comfort: Hestia Weather's forecast unreadable, Open-Meteo kept")
             return
-        merged = dict(self.forecast)
+        merged, sky = dict(self.forecast), {}
         for h in hours:
             when = dt_util.as_utc(dt_util.parse_datetime(h["time"])).replace(minute=0, second=0, microsecond=0)
             sun = (self.forecast.get(when) or (None, None, None))[2]
             merged[when] = (h.get("temperature"), h.get("humidity"), sun)
+            # The cloud cover and the condition, the darker of the two: Météo-France says « nuageux » with a cover of
+            # 50 % (labo, 20 November afternoon, 100 to 150 W/m² measured for 320 to 395 foreseen).
+            said = [f for f in (sky_factor(h), CONDITIONS.get(h.get("condition"))) if f is not None]
+            if said:
+                sky[when] = min(said)
+        self.sky = sky
         if hours:
             self.forecast, self.forecast_source = merged, "Hestia Weather"
 
@@ -632,6 +642,18 @@ class AdvisorHome:
         # Read again within the hour while the past hours are not all in the recorder yet.
         if all(mean is not None for _, _, mean in recent):
             self.sun_missed_hour = hour
+
+    def sun_today(self, now):
+        """The forecast sun of each hour (W/m², horizontal), checked against the station like the coming steps', and what
+        Hestia Weather's sky lets through: {hour: (sun, sky)}, sky None when Weather does not say."""
+        hour = now.replace(minute=0, second=0, microsecond=0)
+        out = {}
+        for when, fc in self.forecast.items():
+            sun = fc[2]
+            if sun is not None and self.sun_missed is not None:
+                sun = corrected(sun, (when - hour).total_seconds() / 3600, self.sun_missed)
+            out[when] = (sun, self.sky.get(when))
+        return out
 
     def coming(self, now, steps, outdoor, outdoor_rh, house_heat, shade, glazing=None, opened=(), shutter=0.0):
         """The coming steps: the forecast, pulled toward the station's measure for the first hours."""

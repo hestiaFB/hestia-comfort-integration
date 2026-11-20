@@ -4,6 +4,14 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.22.1 — 20 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Corrections
+
+- Plus de « Grand soleil » par temps gris. Le 20 novembre après-midi, la carte l'annonçait au labo alors que Météo-France disait « nuageux » : la prévision chiffrée du soleil attendait 320 à 395 W/m², la station en a mesuré 100 à 150. Maintenant, une heure que Hestia Weather dit nuageuse, couverte ou à éclaircies ne compte pas comme du grand soleil. La prévision est aussi corrigée par ce que la station a mesuré, quand elle voit le soleil.
+
 ## 3.22.0 — 20 novembre 2026
 
 Pas encore dans une version de Confort.

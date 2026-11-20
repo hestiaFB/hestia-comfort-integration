@@ -20,6 +20,13 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.22.1 — 20 novembre 2026
+
+Labo, 13 h 12 (Frank) : « Grand soleil » sous un ciel gris. Open-Meteo `shortwave_radiation` 395/341/321 W/m² à 12, 13, 14 h ; station 154/130/100 ; Météo-France « nuageux », met.no 51 %. `sun_missed` restait None : la station est à l'ombre l'après-midi.
+- `AdvisorHome.sky` : heure UTC → min(`sky_factor` de la couverture, `CONDITIONS` de la condition) lus dans Hestia Weather. `AdvisorHome.sun_today(now)` : {heure: (soleil corrigé par `sun_missed` comme `coming`, sky)}.
+- `RoomView.sky` ; `knowing.CLEAR_SKY = 0.75` : une heure sous ce ciel vaut 0 W/m² pour `strong` et `bright` (le bonus et « Grand soleil »). Éclaircies (0,6) et nuageux (0,25) en dessous.
+- Tests : tests/test_soleil_gain.py (nuageux, nuageux à 50 % de couverture, couvert à 90 %, quelques nuages).
+
 ### 3.22.0 — 20 novembre 2026
 
 Frank, 11 h 39 : « trop de paramètres […] un conseil passif […] un bonus de chaleur, sans précisions, de telle heure à telle heure, suivant l'orientation ». Labo, 11 h 25 : Chambre A `glass` appris 0,013 contre 0,44 en Chambre M, mêmes fenêtres déclarées (S, volets manuels), même soleil ; le 19/11 de 11 h à 14 h sans poêle, A +0,8 °C, M +1,0 °C.

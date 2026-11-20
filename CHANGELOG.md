@@ -14,12 +14,12 @@
 
 ### Nouveau
 
-- En hiver, quand un grand soleil est prévu, la carte le dit comme un bonus de chaleur, avec ses heures selon l'orientation de la fenêtre : « Grand soleil sur la fenêtre sud jusqu'à 16 h 35 : un bonus de chaleur ».
+- En hiver, quand un grand soleil est prévu, la carte le dit comme un bonus de chaleur, avec ses heures selon l'orientation de la fenêtre : « Grand soleil sur la fenêtre sud jusqu'à 16 h 35 : un bonus de chaleur ». Rien quand la météo annonce un ciel nuageux.
 
-### Moteur de conseil 3.22.0
+### Moteur de conseil 3.22.1
 
 - L'aération en cours, la partie à ouvrir et la promesse fixe du créneau (3.20.0).
-- Le soleil dit comme un bonus de chaleur en saison de chauffe (3.21.0 à 3.22.0).
+- Le soleil dit comme un bonus de chaleur en saison de chauffe (3.21.0 à 3.22.1).
 
 ## 3.1.0b18 — Des conseils qui tiennent
 

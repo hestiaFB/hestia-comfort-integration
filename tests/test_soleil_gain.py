@@ -1,4 +1,4 @@
-"""The sun as a bonus of warmth (moteur 3.22.0, Frank, 20 November at 11 h 39).
+"""The sun as a bonus of warmth (moteur 3.22.0, Frank, 20 November at 11 h 39), under a sky that lets it through (3.22.1).
 
 « Trop de paramètres […] cela doit être un conseil passif : si la radiation est élevée, que les prévisions sont bonnes,
 on peut dire que le soleil peut apporter un bonus de chaleur, sans précisions, de telle heure à telle heure, suivant
@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components" / "hestia_comfort"))
 from advisor.knowing import RoomView, Window, sun_on_windows  # noqa: E402
 from advisor.words import tip_text  # noqa: E402
+from engine.sunlight import CONDITIONS, sky_factor  # noqa: E402
 
 PARIS = ZoneInfo("Europe/Paris")
 HOME = (43.447, 5.470)
@@ -27,13 +28,13 @@ SUNNY = {datetime(2026, 11, 19, h, 0, tzinfo=PARIS): v
 GREY = {h: v * 0.6 for h, v in SUNNY.items()}
 
 
-def view(bonus, forecast=SUNNY, manual=False, gain=None, now=NOW):
+def view(bonus, forecast=SUNNY, manual=False, gain=None, now=NOW, sky=None):
     return RoomView(now, *HOME, windows=SOUTH, sun_forecast=forecast, sun_gain=gain, sun_bonus=bonus,
-                    shutters_manual=manual)
+                    shutters_manual=manual, sky=sky or {})
 
 
-def said(bonus, forecast=SUNNY, manual=False, gain=None, now=NOW):
-    tips = sun_on_windows(view(bonus, forecast, manual, gain, now))
+def said(bonus, forecast=SUNNY, manual=False, gain=None, now=NOW, sky=None):
+    tips = sun_on_windows(view(bonus, forecast, manual, gain, now, sky))
     return tip_text(tips[0], now=now) if tips else None
 
 
@@ -52,6 +53,25 @@ class TheBonus(unittest.TestCase):
 
     def test_not_said_on_a_grey_day(self):
         self.assertIsNone(said({"closed": False}, forecast=GREY))
+
+    def test_not_said_when_the_weather_says_cloudy(self):
+        # Labo, 20 November at 13 h 12: Open-Meteo foresaw 320 to 395 W/m², Météo-France « nuageux », grey outside, and
+        # the card said « Grand soleil ». Hestia Weather's sky now has the last word on the strong sun.
+        cloudy = {h: sky_factor({"condition": "cloudy"}) for h in SUNNY}
+        self.assertIsNone(said({"closed": False}, sky=cloudy))
+        # The darker of the cover and the condition (advisor_home.py `_from_weather`): « nuageux » at 50 % is cloudy.
+        cloudy_half = {h: min(sky_factor({"cloud_coverage": 50}), CONDITIONS["cloudy"]) for h in SUNNY}
+        self.assertIsNone(said({"closed": False}, sky=cloudy_half))
+        overcast = {h: sky_factor({"cloud_coverage": 90}) for h in SUNNY}
+        self.assertIsNone(said({"closed": False}, sky=overcast))
+        # Out of the heating season, never « Grand soleil » under such a sky either.
+        tips = sun_on_windows(view(None, gain=0.8, sky=cloudy))
+        self.assertTrue(tip_text(tips[0], now=NOW).startswith("Soleil sur la fenêtre sud"))
+
+    def test_a_few_clouds_leave_it(self):
+        fair = {h: sky_factor({"cloud_coverage": 40}) for h in SUNNY}
+        self.assertIsNotNone(said({"closed": False}, sky=fair))
+        self.assertIsNotNone(said({"closed": False}, sky={h: sky_factor({"condition": "sunny"}) for h in SUNNY}))
 
     def test_not_said_once_the_strong_sun_is_over(self):
         # At 14 h on the 19th only 141 and 38 W/m² remained: no more bonus to speak of.

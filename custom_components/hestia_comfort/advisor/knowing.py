@@ -19,6 +19,10 @@ SUN_COUNTS = 0.5
 # Strong sun: this much horizontal sun forecast on average over the hours the sun is on the window (W/m²); a clear
 # autumn noon gives about 450, an overcast sky under 150.
 STRONG_SUN = 200.0
+# Nor when Hestia Weather's sky lets less than this through (engine/sunlight.py `sky_factor`: a cloud cover above about
+# 70 %, « nuageux », « éclaircies »): Open-Meteo foresaw 320 to 395 W/m² on 20 November afternoon, grey and « nuageux »
+# at Météo-France, and the card said « Grand soleil » (Frank, 13 h 12).
+CLEAR_SKY = 0.75
 # The significant gap of the heat (decide.SIGNIFICANT["heat"]), for a gesture seen to work now.
 HEAT_GAP = 1.5
 
@@ -77,6 +81,8 @@ class RoomView:
     # In the heating season, the sun is a bonus of warmth, said without a figure: {"closed": the connected shutter is
     # shut}; None out of it, the sun then said when it warms the room by SUN_COUNTS.
     sun_bonus: dict | None = None
+    # Hour → what Hestia Weather's sky lets through, 0 to 1 (engine/sunlight.py `sky_factor`); an hour missing: not said.
+    sky: dict = field(default_factory=dict)
     # Shutters without a sensor on the room's windows (« volet manuel »): the bonus is then said « if open ».
     shutters_manual: bool = False
     # The outside air, and whether the room's humidity is in question now: a window open, the humidity above its mark, a
@@ -129,7 +135,9 @@ def sun_on_windows(view: RoomView) -> list[Tip]:
     strong = bright = False
     this_hour = view.now.replace(minute=0, second=0, microsecond=0)
     for (direction, start, end), entities in ordered:
-        hours = {h: v for h, v in view.sun_forecast.items() if v is not None and start.replace(minute=0) <= h < end}
+        # An hour Hestia Weather says cloudy is no strong sun, whatever Open-Meteo foresees.
+        hours = {h: (v if view.sky.get(h, 1.0) >= CLEAR_SKY else 0.0) for h, v in view.sun_forecast.items()
+                 if v is not None and start.replace(minute=0) <= h < end}
         strong = strong or (bool(hours) and sum(hours.values()) / len(hours) >= STRONG_SUN)
         # The bonus: a strong sun still to come on these windows, this hour included.
         bright = bright or any(v >= STRONG_SUN for h, v in hours.items() if h >= this_hour)

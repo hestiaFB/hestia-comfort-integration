@@ -781,11 +781,13 @@ class RoomAdvisor:
             if start and end and dt_util.as_local(start).date() == local.date():
                 acp[entity] = (dt_util.as_local(start), dt_util.as_local(end))
         windows = [Window(e, (self.room["orientations"].get(e) or (None,))[0], acp.get(e)) for e in self.room["windows"]]
-        sun = {dt_util.as_local(h): v[2] for h, v in self.home.forecast.items()}
+        today = self.home.sun_today(now)
+        sun = {dt_util.as_local(h): v[0] for h, v in today.items()}
+        sky = {dt_util.as_local(h): v[1] for h, v in today.items() if v[1] is not None}
         # The coldest panes of the room mist first (advisor/physics/surface.py): a single glazing before a double one.
         panes = [(self.room.get("panes") or {}).get(e) or "double" for e in self.room["windows"]]
         coldest_pane = min(panes, key=["simple", "double", "triple"].index) if panes else None
-        view = RoomView(local, self.hass.config.latitude, self.hass.config.longitude, windows, sun, air, glazing=coldest_pane,
+        view = RoomView(local, self.hass.config.latitude, self.hass.config.longitude, windows, sun, air, sky=sky, glazing=coldest_pane,
                         minimum=comfort.minimum, maximum=comfort.maximum,
                         opened_at=dt_util.as_local(opening[0]) if opening else None,
                         air_at_opening=opening[1] if opening else None, humidity=humidity, coldest_tonight=coldest,
