@@ -133,32 +133,6 @@ def sun_gain(twins: "Twins", now: "Now", coming) -> float:
     return max((a - b for a, b in zip(lit.air, dark.air)), default=0.0)
 
 
-def _dark(coming):
-    return [(replace(u, sun=0.0, facade=0.0 if u.facade is not None else None,
-                     facade_shut=0.0 if u.facade_shut is not None else None,
-                     facade_all=0.0 if u.facade_all is not None else None), w) for u, w in coming]
-
-
-def sun_saved(twins: "Twins", now: "Now", coming) -> dict | None:
-    """What the sun is worth to the room until `coming` ends (its bedtime), the room left as it is, with and without the
-    sun: {"energy": kWh of heating it spares, "heated": whether a thermostat was simulated, "kept": °C it keeps at the
-    end, "closed": the connected shutter is shut, the figures then being what opening it would give}. In the heating
-    season the sun is a gain, not only a warming (spec « Ce qui joue sur chaque pièce », 19 November). None without
-    `coming`."""
-    if not coming:
-        return None
-    lit = simulate(twins, now, coming, Gesture("nothing"))
-    closed = bool(twins.shutter_area) and now.cover is not None and now.cover <= SHUTTER_SHUT
-    if closed:
-        # Behind the shut shutter the sun does nothing: what opening it would give instead.
-        better = simulate(twins, now, coming, Gesture("shutter_open"))
-        base = lit
-    else:
-        better, base = lit, simulate(twins, now, _dark(coming), Gesture("nothing"))
-    return {"energy": max(0.0, base.spent - better.spent) if better.heated else 0.0, "heated": better.heated,
-            "kept": better.air[-1] - base.air[-1] if better.air and base.air else 0.0, "closed": closed}
-
-
 def heating_back(twins: "Twins", idle: "Path", now: "Now", minimum: float, coming=(),
                  step_minutes: float = STEP / 60) -> dict | None:
     """What the heating does for a room under its range, left as it is: {"minutes"} until it is back to its minimum, or,

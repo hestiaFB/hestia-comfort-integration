@@ -14,12 +14,12 @@
 
 ### Nouveau
 
-- En hiver, « Bon à savoir » dit ce que le soleil fait gagner d'ici le coucher : « Soleil sur la fenêtre sud jusqu'à 16 h 35 : environ 0,6 kWh de chauffage en moins ce soir ».
+- En hiver, quand un grand soleil est prévu, la carte le dit comme un bonus de chaleur, avec ses heures selon l'orientation de la fenêtre : « Grand soleil sur la fenêtre sud jusqu'à 16 h 35 : un bonus de chaleur ».
 
-### Moteur de conseil 3.21.2
+### Moteur de conseil 3.22.0
 
 - L'aération en cours, la partie à ouvrir et la promesse fixe du créneau (3.20.0).
-- Le soleil compté comme un gain en saison de chauffe (3.21.0 à 3.21.2).
+- Le soleil dit comme un bonus de chaleur en saison de chauffe (3.21.0 à 3.22.0).
 
 ## 3.1.0b18 — Des conseils qui tiennent
 

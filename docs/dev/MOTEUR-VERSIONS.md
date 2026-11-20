@@ -20,6 +20,14 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.22.0 — 20 novembre 2026
+
+Frank, 11 h 39 : « trop de paramètres […] un conseil passif […] un bonus de chaleur, sans précisions, de telle heure à telle heure, suivant l'orientation ». Labo, 11 h 25 : Chambre A `glass` appris 0,013 contre 0,44 en Chambre M, mêmes fenêtres déclarées (S, volets manuels), même soleil ; le 19/11 de 11 h à 14 h sans poêle, A +0,8 °C, M +1,0 °C.
+- `sun_saved` et `_dark` retirés (decide.py), `SUN_ENERGY`, `SUN_KEPT`, `SUN_STEPS` aussi. `RoomView.sun_bonus` = {closed} en saison de chauffe (pas la nuit, pas l'été, air ≤ max), None sinon.
+- `sun_on_windows` : avec `sun_bonus`, la ligne sort si une heure de prévision ≥ `STRONG_SUN` (200 W/m²) reste sur la plage de la fenêtre, heure en cours comprise ; niveau renforcé ; textes `sun_bonus`, `sun_bonus_if`, `sun_open`, sans chiffre. Sans `sun_bonus` : l'ancienne règle (`sun_gain >= SUN_COUNTS`).
+- `sun_gain` n'est plus calculé en saison de chauffe. `snap["soleil"]` = {rechauffe (None en saison de chauffe), bonus}.
+- Tests : tests/test_soleil_gain.py réécrit (bonus, journée grise, fin du grand soleil, volets, anglais et allemand).
+
 ### 3.21.2 — 20 novembre 2026
 
 Labo en 3.21.1, 11 h 16 : Chambres A et M à +1,5 °C/h au soleil, aucune ligne. Deux causes.
