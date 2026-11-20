@@ -20,6 +20,13 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.21.1 — 20 novembre 2026
+
+Labo en 3.21.0 depuis 9 h 38 : à 9 h 43, aucune ligne « Soleil sur … ». La règle était « kWh si thermostat, sinon °C » ; la spec dit « ou ». Une pièce au-dessus de sa consigne (Chambre A, 18,6 °C pour 18 °C) n'épargne aucun kWh.
+- `knowing.sun_on_windows` : la ligne s'affiche si `energy >= SUN_ENERGY` ou `kept >= SUN_KEPT`.
+- `words.tip_text` : « kWh en moins » seulement si le thermostat est simulé et `energy >= SUN_ENERGY`, sinon « +N °C au coucher ».
+- Cause possible aussi : ciel couvert ce matin-là. À revoir pendant une heure de soleil.
+
 ### 3.21.0 — 20 novembre 2026
 
 Spec « Confort · Ce qui joue sur chaque pièce » (validée par Frank le 19 novembre), partie « Le soleil compté comme un gain ». Ligne d'information seulement : aucune valeur donnée aux calories dans le choix des gestes.

@@ -4,6 +4,14 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.21.1 — 20 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Corrections
+
+- La ligne du soleil s'affiche aussi dans une pièce plus chaude que sa consigne : le soleil n'y épargne pas de chauffage, mais il garde la pièce plus chaude jusqu'au coucher (« environ +0,6 °C au coucher »). Au labo, le 20 novembre à 9 h 43, aucune pièce n'en parlait.
+
 ## 3.21.0 — 20 novembre 2026
 
 Pas encore dans une version de Confort.

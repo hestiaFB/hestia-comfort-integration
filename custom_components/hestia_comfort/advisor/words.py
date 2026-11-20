@@ -7,7 +7,7 @@ from dataclasses import replace
 from datetime import time
 
 from .decide import SUBJECTS, Decision, Gesture, main_subject, reference
-from .knowing import Tip
+from .knowing import SUN_ENERGY, Tip
 from .pollen import AIRING as POLLEN_AIRING
 from .proof import PROVEN, REINFORCED
 
@@ -812,9 +812,10 @@ def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
         if saved is not None:
             # The heating season: what the sun spares or keeps until bedtime (spec « Ce qui joue sur chaque pièce »).
             figures = {"line": line, "energy": _number(saved["energy"], language), "kept": _number(saved["kept"], language)}
+            spares = saved["heated"] and saved["energy"] >= SUN_ENERGY
             if saved.get("closed"):
-                return words["sun_open" if saved["heated"] else "sun_open_kept"].format(**figures)
-            key = ("sun_spared" if saved["heated"] else "sun_kept") + ("_if" if v.get("manual") else "")
+                return words["sun_open" if spares else "sun_open_kept"].format(**figures)
+            key = ("sun_spared" if spares else "sun_kept") + ("_if" if v.get("manual") else "")
             return words[key].format(**figures)
         # What it does to the room, when known: the reason the line is there.
         return words["sun_gain"].format(line=line, gain=_number(v["gain"], language)) if v.get("gain") is not None else line

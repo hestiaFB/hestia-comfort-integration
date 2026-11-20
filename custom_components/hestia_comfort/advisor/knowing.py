@@ -108,7 +108,9 @@ def sun_on_windows(view: RoomView) -> list[Tip]:
     saved = view.sun_saved
     if saved is not None:
         # The heating season: the sun judged on what it spares or keeps, not only on the warming it gives now.
-        if not (saved["energy"] >= SUN_ENERGY if saved["heated"] else saved["kept"] >= SUN_KEPT):
+        # Either is enough (spec): a room above its set point spares no heating yet keeps the sun's heat for the evening
+        # (labo, 20 November at 9 h 43: no sun line anywhere, the Chambre A at 18,6 °C for 18 °C asked).
+        if saved["energy"] < SUN_ENERGY and saved["kept"] < SUN_KEPT:
             return []
     elif view.sun_gain is not None and view.sun_gain < SUN_COUNTS:
         return []
