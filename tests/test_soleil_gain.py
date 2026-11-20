@@ -47,6 +47,12 @@ class TheLine(unittest.TestCase):
     def test_not_said_when_it_spares_little(self):
         self.assertIsNone(said({"energy": 0.1, "heated": True, "kept": 0.0, "closed": False}))
 
+    def test_above_its_set_point_the_heat_kept_is_said(self):
+        # Labo, 20 November at 9 h 43: the Chambre A at 18,6 °C for 18 °C asked spares no heating, yet the sun keeps it
+        # warmer by bedtime; no sun line anywhere that morning.
+        line = said({"energy": 0.0, "heated": True, "kept": 0.6, "closed": False})
+        self.assertTrue(line.endswith(": environ +0,6 °C au coucher"))
+
     def test_shutters_without_a_sensor_say_if(self):
         line = said({"energy": 0.6, "heated": True, "kept": 0.0, "closed": False}, manual=True)
         self.assertTrue(line.endswith("en moins ce soir, si les volets sont ouverts"))
