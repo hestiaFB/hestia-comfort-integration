@@ -1,5 +1,19 @@
 ## À venir
 
+**Un conseil suivi reste affiché jusqu'au bout.**
+
+### Corrections
+
+- Après avoir ouvert pour un conseil, la carte dit « Aération en cours », pourquoi, et quand refermer. Elle ne passe plus à « Rien à faire » au bout de 3 minutes (Salon · Cuisine, Chambres A et M, le 20 novembre).
+- « Aérez » dit quelle partie ouvrir quand la pièce en a plusieurs (« côté Cuisine »).
+- La promesse du bon moment ne recule plus à chaque mise à jour.
+- La carte se met à jour une minute après l'ouverture d'une fenêtre, au lieu de 1 à 5 minutes.
+- Sur téléphone, la carte ne déborde plus à droite (« stable », les barres Ressenti et Humidité, l'Air, les appareils).
+
+### Moteur de conseil 3.20.0
+
+- L'aération en cours, la partie à ouvrir et la promesse fixe du créneau.
+
 ## 3.1.0b18 — Des conseils qui tiennent
 
 **Une urgence garde sa durée, un créneau garde son sujet, et l'air sain est annoncé à une heure claire.**

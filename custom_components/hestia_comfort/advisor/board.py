@@ -43,6 +43,13 @@ OPEN_LEAST = 60
 # gone at 7 h 49, before anyone was up to see it).
 # An airing this long or more is one the day's list says done (« Aérée 15 min à 9 h 05 : 68 % → 61 % »).
 DONE_LEAST = 3
+# The measures that come down as one airs: an airing for them followed is judged on them as it goes (`Board.under_way`);
+# still above their mark at its end, it goes on EXTEND minutes more.
+FAST = ("co2", "particles", "voc", "humidity")
+EXTEND = 5
+# Windows shut and opened again within this many minutes: the same airing goes on, its reason and countdown kept (Salon ·
+# Cuisine, 20 November: the west window, then the French windows, then the kitchen's, from 8 h 38 to 8 h 41).
+RESUME = 3
 # The gestures an urgency may ask: open the windows now, or run a device.
 URGENT_KINDS = ("open", "open_more", "boost", "purify")
 
@@ -115,6 +122,8 @@ class Board:
         self.likely_for: str | None = None
         # The airing under way: when it began, the measures then, what it was for.
         self.airing: dict | None = None
+        # The airing just shut, with its reason: taken up again if the windows open again within RESUME minutes.
+        self.paused: dict | None = None
 
     # The urgencies.
     def urgent_now(self, measures: dict, normal_humidity: float | None, drier: float | None, opened: bool,
@@ -195,18 +204,67 @@ class Board:
         """The gestures the later slots will likely ask: [{at, kind, minutes, slot, subject}], from the slot `slot_key`."""
         self.likely, self.likely_for = list(items), slot_key
 
-    def start_airing(self, now: datetime, measures: dict, subject: str | None):
-        if self.airing is None:
-            self.airing = {"since": now.isoformat(), "before": dict(measures), "subject": subject}
+    def start_airing(self, now: datetime, measures: dict, subject: str | None, minutes: int | None = None,
+                     reason: str | None = None):
+        """The windows opened. `reason`: what the household followed — an urgency (« urgence »), the slot's gesture
+        (« creneau »), an airing shown (« conseil ») — or None, opened of its own accord; `minutes`: how long it was asked
+        for, None for « Ouvrez ». Opened again within RESUME minutes of being shut, the same airing goes on."""
+        if self.airing is not None:
+            return
+        p, self.paused = self.paused, None
+        if p is not None and now - datetime.fromisoformat(p["ended"]) <= timedelta(minutes=RESUME):
+            self.airing = {k: v for k, v in p.items() if k != "ended"}
+            # Not two airings in the day's list for one.
+            self.today = [t for t in self.today if not (t.get("genre") == "fait" and t.get("at") == p["since"])]
+            return
+        self.airing = {"since": now.isoformat(), "before": dict(measures), "subject": subject, "minutes": minutes,
+                       "reason": reason, "extra": 0}
+
+    def resumable(self, now: datetime) -> bool:
+        """Whether windows opened now take up the airing just shut (`start_airing`): then they count at once."""
+        return self.paused is not None and now - datetime.fromisoformat(self.paused["ended"]) <= timedelta(minutes=RESUME)
+
+    def under_way(self, now: datetime, value: float | None, leave: float | None, longest: int) -> dict | None:
+        """The airing followed, as the card says it (Frank, 20 November: « Pendant une aération lancée pour une raison,
+        la carte garde cette raison avec un compte à rebours ; elle ne dit jamais « Rien à faire » tant que la raison
+        n'est pas réglée »). None for windows opened of the household's own accord. Otherwise {"state", "end", "minutes"}:
+        « running » until its end, « resolved » once the measure it was for is back under `leave` (CO₂, particles, VOC
+        and an urgency's humidity: measured as they go), « done » at its end. A fast measure still above `leave` at the end
+        gets EXTEND minutes more, up to `longest` minutes in all (the household's longest airing)."""
+        a = self.airing
+        if a is None or not a.get("reason"):
+            return None
+        since = datetime.fromisoformat(a["since"])
+        spent = (now - since).total_seconds() / 60
+        subject = a.get("subject")
+        if leave is not None and value is not None and value < leave:
+            return {"state": "resolved", "end": None, "minutes": spent}
+        if a.get("minutes") is None:
+            return {"state": "running", "end": None, "minutes": spent}
+        planned = a["minutes"] + a.get("extra", 0)
+        # Late by less than a step: the steps are not exactly five minutes apart.
+        while spent >= planned - 0.5 and leave is not None and value is not None and subject in FAST \
+                and planned + EXTEND <= max(longest, a["minutes"]):
+            a["extra"] = a.get("extra", 0) + EXTEND
+            planned += EXTEND
+        end = since + timedelta(minutes=planned)
+        if spent >= planned - 0.5:
+            return {"state": "done", "end": end, "minutes": spent}
+        return {"state": "running", "end": end, "minutes": spent}
 
     def end_airing(self, now: datetime, measures: dict):
-        """The windows shut: an airing of DONE_LEAST minutes or more joins the day's list, with what it did."""
+        """The windows shut: an airing of DONE_LEAST minutes or more joins the day's list, with what it did. One shut
+        sooner was not the slot's gesture done: the slot asks it again (its moment and its words as planned)."""
         a, self.airing = self.airing, None
         if a is None:
             return
+        if a.get("reason"):
+            self.paused = {**a, "ended": now.isoformat()}
         since = datetime.fromisoformat(a["since"])
         minutes = (now - since).total_seconds() / 60
         if minutes < DONE_LEAST:
+            if a.get("reason") == "creneau" and self.plan is not None and self.plan.gesture.kind != "nothing":
+                self.plan.done = False
             return
         subject = a.get("subject") or "humidity"
         before, after = a["before"].get(subject), measures.get(subject)
@@ -223,7 +281,7 @@ class Board:
         return {"urgent": {s: {k: _plain(v) for k, v in asdict(u).items()} for s, u in self.urgent.items()},
                 "plan": plan, "calm": self.calm, "calm_normal": self.calm_normal, "asked": {s: list(v) for s, v in self.asked.items()},
                 "day": self.day, "today": self.today, "likely": self.likely, "likely_for": self.likely_for,
-                "airing": self.airing}
+                "airing": self.airing, "paused": self.paused}
 
     def load(self, state: dict | None):
         state = state or {}
@@ -238,6 +296,7 @@ class Board:
         self.asked = {s: tuple(v) for s, v in (state.get("asked") or {}).items()}
         self.day, self.today, self.likely = state.get("day"), list(state.get("today") or []), list(state.get("likely") or [])
         self.airing = state.get("airing")
+        self.paused = state.get("paused")
         self.likely_for = state.get("likely_for")
 
 

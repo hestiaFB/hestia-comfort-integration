@@ -26,6 +26,7 @@ from homeassistant.util import dt as dt_util
 
 from . import schedule_link, weather_link
 from .advisor import VERSION as ADVISOR_VERSION
+from .advisor.board import OPEN_LEAST
 from .advisor.decide import Thermostat
 from .advisor.household import Habits
 from .advisor.nightly import learn_room
@@ -46,6 +47,9 @@ DATA = f"{DOMAIN}_advisor"
 EVERY = timedelta(minutes=5)
 # Seconds a window must stay as it is before its room is advised again (a sash pushed to, then opened wide).
 WINDOW_SETTLE = 10
+# A window opened is advised again once it counts as an airing (advisor/board.py OPEN_LEAST), not at the next step: the
+# card said « Aérez » up to five minutes after the window was opened (Frank, 20 November: « 1 à 3 min »).
+WINDOW_AGED = OPEN_LEAST + 5
 # Seconds between tries of the first advice after a restart, while the measures arrive.
 START_RETRY = 15
 # Versatile Thermostat's reason when it turned itself off for an open window.
@@ -229,6 +233,7 @@ class AdvisorHome:
         self.rooms = {}             # entry_id of the room advising → RoomAdvisor
         self.listeners = {}         # entry_id → its windows' listener
         self.pending = {}           # entry_id → the decision waiting for its window to settle
+        self.aging = {}             # entry_id → the decision waiting for its window opened to count as an airing
         self.unsubscribe = []
         # One step at a time: the rooms registered together at a start share one first step, never one each.
         self.lock, self.soon = asyncio.Lock(), None
@@ -288,6 +293,8 @@ class AdvisorHome:
             listener()
         if pending := self.pending.pop(advisor.entry_id, None):
             pending()
+        if aging := self.aging.pop(advisor.entry_id, None):
+            aging()
         if not self.rooms:
             for unsubscribe in self.unsubscribe:
                 unsubscribe()
@@ -314,6 +321,14 @@ class AdvisorHome:
         if pending := self.pending.pop(advisor.entry_id, None):
             pending()
         self.pending[advisor.entry_id] = async_call_later(self.hass, WINDOW_SETTLE, partial(self._advise_now, advisor))
+        if new.state == "on":
+            if aging := self.aging.pop(advisor.entry_id, None):
+                aging()
+            self.aging[advisor.entry_id] = async_call_later(self.hass, WINDOW_AGED, partial(self._advise_aged, advisor))
+
+    async def _advise_aged(self, advisor, now):
+        self.aging.pop(advisor.entry_id, None)
+        await self._advise_now(advisor, now)
 
     async def _advise_now(self, advisor, _now):
         self.pending.pop(advisor.entry_id, None)

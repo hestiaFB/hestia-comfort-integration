@@ -7,6 +7,7 @@ nothing » by a clear gain, and a gesture already shown stays until another beat
 cost, instead of one per threshold (CAHIER-MOTEUR.md § 10, § 11). Safety rules only take gestures away.
 """
 from dataclasses import dataclass, field, replace
+from itertools import combinations
 
 from .household import Habits
 from .physics.air import AirParams, ParticleParams, air_step, particles_step
@@ -209,6 +210,26 @@ def sides_apart(bearings) -> bool:
     return any(abs((a - b + 180) % 360 - 180) >= CROSS_ANGLE for a in sides for b in sides)
 
 
+def one_side(bearings, among, areas=None) -> tuple[int, ...]:
+    """The windows of `among` (indices into `bearings`) a first airing opens: the most of them that face one side, the
+    larger first. Opened on two sides the air crosses the room: that is a second gesture, « Ouvrez aussi … », never the
+    first one asked (Frank, 20 November: « le courant d'air n'est jamais proposé en premier »)."""
+    among = tuple(among)
+    def side(i):
+        return bearings[i] if i < len(bearings) else None
+    if not sides_apart([side(i) for i in among]):
+        return among
+    best, best_area = (), -1.0
+    for size in range(len(among), 0, -1):
+        for group in combinations(among, size):
+            area = sum(areas[i] for i in group) if areas else 0.0
+            if not sides_apart([side(i) for i in group]) and area > best_area:
+                best, best_area = group, area
+        if best:
+            return best
+    return among
+
+
 @dataclass(frozen=True)
 class Twins:
     """The room's twins, each with the window effect its own sensor learned (CONCEPTION-MOTEUR.md § 1 bis)."""
@@ -252,6 +273,9 @@ class Twins:
     # gives two to three times a single-sided opening in a moderate wind. Supposed until the room shows it.
     bearings: tuple = ()
     cross: float = CROSS
+    # The windows « Aérez » opens (of `windows`), one side of the room: the part where the measure it is for is taken
+    # (room/advice.py `first_windows`). Empty: all of them.
+    first: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -422,7 +446,7 @@ def _open(gesture: Gesture, now: Now, twins: Twins, k: int):
         return now.opened if gesture.kind != "open" else ()
     if gesture.kind == "close":
         return ()
-    return twins.windows if gesture.minutes is None or waited < gesture.minutes else ()
+    return (twins.first or twins.windows) if gesture.minutes is None or waited < gesture.minutes else ()
 
 
 def _flow(learned, volume, windows, air, outdoor, wind, cross=1.0):
