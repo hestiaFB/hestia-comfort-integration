@@ -1266,6 +1266,10 @@ class RoomAdvisor:
                                            pollen)
             warms = sun_gain(twins, current, coming)
             saved = sun_saved(twins, current, sun_coming) if sun_coming is not None else None
+            # What the sun line is judged on, kept in the snapshot (the Atelier): « no sign of the sun » is then read there.
+            snap["soleil"] = {"rechauffe": round(warms, 2), "jusqu_au_coucher": None if saved is None else
+                              {k: round(v, 2) if isinstance(v, float) else v for k, v in saved.items()},
+                              "pas": len(sun_coming) if sun_coming is not None else None}
             return (decision, plan, snap, shutter_night, back, off, stove, (warms, saved), night_text, likely, refresh)
 
         decision, plan_decision, snap, shutter_night, back, off, stove, sunny, night_text, likely, refresh = \

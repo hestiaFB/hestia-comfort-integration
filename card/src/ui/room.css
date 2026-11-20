@@ -676,16 +676,19 @@ button.nc-fx-top { width:100%; margin:0; border:0; background:none; text-align:s
 .nc-fx-devices .nw-chip.nc-plain { background:color-mix(in srgb, var(--nw-fg) 6%, transparent); color:var(--nw-fg); font-weight:500; }
 
 /* « Maintenant, puis » (17 novembre) : sous le conseil, la journée de la pièce — fait, pas fait, puis ce qui vient, heure par heure. */
-.nc-day { margin-top:12px; padding-top:10px; border-top:1px solid var(--nw-line); display:grid; gap:7px; }
-.nc-day-h { font-size:var(--nw-fs-label); line-height:14px; font-weight:650; letter-spacing:.08em; text-transform:uppercase; color:var(--nw-fg2); }
-.nc-day-r { --dc:color-mix(in srgb, var(--nw-fg) 30%, transparent); display:grid; grid-template-columns:56px 18px minmax(0,1fr); gap:8px; align-items:start;
-  font-size:var(--nw-fs-text); line-height:1.35; }
+/* The hours share one column as wide as the longest (« jusqu'à 14 h » ran under its icon, 20 November): the rows are
+   subgrids of the day; without subgrid, the 56 px column as before. */
+.nc-day { margin-top:12px; padding-top:10px; border-top:1px solid var(--nw-line); display:grid; gap:7px 8px;
+  grid-template-columns:minmax(56px, max-content) 18px minmax(0,1fr); }
+.nc-day-h { grid-column:1 / -1; font-size:var(--nw-fs-label); line-height:14px; font-weight:650; letter-spacing:.08em; text-transform:uppercase; color:var(--nw-fg2); }
+.nc-day-r { --dc:color-mix(in srgb, var(--nw-fg) 30%, transparent); grid-column:1 / -1; display:grid; grid-template-columns:56px 18px minmax(0,1fr);
+  grid-template-columns:subgrid; column-gap:8px; align-items:start; font-size:var(--nw-fs-text); line-height:1.35; }
 .nc-day-t { font-weight:700; font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
 .nc-day-d { width:18px; height:18px; border-radius:50%; display:grid; place-items:center; background:color-mix(in oklab, var(--dc) 30%, transparent);
   color:color-mix(in oklab, var(--dc) 55%, var(--nw-fg)); }
 .nc-day-d svg { width:11px; height:11px; }
 .nc-day-s { color:var(--nw-fg2); min-width:0; } .nc-day-s b { color:var(--nw-fg); font-weight:650; }
 .nc-day-r[data-k="fait"] { --dc:var(--nw-ok); } .nc-day-r[data-k="probable"] { --dc:var(--nw-benefit); }
-.nc-day-r[data-k="heat"] { --dc:var(--nw-heat); } .nc-day-r[data-k="rain"] { --dc:var(--nw-rain); }
+.nc-day-r[data-k="heat"] { --dc:var(--nw-heat); } .nc-day-r[data-k="rain"] { --dc:var(--nw-rain); } .nc-day-r[data-k="sun"] { --dc:var(--nw-benefit); }
 .nc-day-r:is([data-k="fait"], [data-k="rate"]) .nc-day-t { color:var(--nw-fg2); font-weight:600; }
 .nc-day-r[data-k="rate"] .nc-day-s b { color:var(--nw-fg2); font-weight:500; }

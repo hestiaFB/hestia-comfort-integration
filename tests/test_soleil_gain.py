@@ -47,6 +47,12 @@ class TheLine(unittest.TestCase):
     def test_not_said_when_it_spares_little(self):
         self.assertIsNone(said({"energy": 0.1, "heated": True, "kept": 0.0, "closed": False}))
 
+    def test_a_room_warming_in_the_sun_still_says_so(self):
+        # Labo, 20 November at 11 h 16: the Chambres A and M rising 1,5 °C an hour in the sun, the heating spared little
+        # and nothing kept by bedtime (the thermostat holds it): the warming now is said, as before 3.21.
+        tips = sun_on_windows(view({"energy": 0.1, "heated": True, "kept": 0.1, "closed": False}, gain=0.8))
+        self.assertEqual(tip_text(tips[0], now=NOW), "Soleil sur la fenêtre sud jusqu'à 16 h 35 : +0,8 °C dans la pièce")
+
     def test_above_its_set_point_the_heat_kept_is_said(self):
         # Labo, 20 November at 9 h 43: the Chambre A at 18,6 °C for 18 °C asked spares no heating, yet the sun keeps it
         # warmer by bedtime; no sun line anywhere that morning.

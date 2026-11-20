@@ -133,7 +133,7 @@ export function day3(a:Record<string,unknown>,events:{when:number;at:string;ic:s
     const r=x as Record<string,unknown>,when=Date.parse(str(r.heure));
     return Number.isNaN(when)?[]:[{when,at:clock(when),ic:str(r.genre)==='fait'?'check':'open',kind:str(r.genre),text:str(r.titre),note:str(r.detail)||undefined}];});
   const past=items.filter(i=>i.when<=now).slice(-2);
-  const next=[...items.filter(i=>i.when>now),...events.filter(e=>e.when>now).map(e=>({...e,kind:e.ic==='heat'?'heat':e.ic==='rain'?'rain':'info'}))]
+  const next=[...items.filter(i=>i.when>now),...events.filter(e=>e.when>now).map(e=>({...e,kind:e.ic==='heat'?'heat':e.ic==='rain'?'rain':e.ic==='sun'?'sun':'info'}))]
     .sort((x,y)=>x.when-y.when).slice(0,3);
   const rows=[...past,...next];
   return rows.length?html`<div class="nc-day"><div class="nc-day-h">${t('Aujourd’hui')}</div>${rows.map(r=>html`<div class="nc-day-r" data-k=${r.kind}>

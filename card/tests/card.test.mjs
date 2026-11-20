@@ -806,6 +806,22 @@ test('« Bon à savoir » of the full card: one folded box, the dated lines in �
   assert.match(dayEvents(alone).map(e=>flat(e.text)+' '+flat(e.note)).join(' '),/confort \(20/);
 });
 
+test('the sun on the windows is said in the day, not lost (labo, 20 November at 11 h 16)',async()=>{
+  const {dayEvents}=await import(pathToFileURL(join(temp,'views/full.mjs')));
+  const {day3}=await import(pathToFileURL(join(temp,'views/advisor3.mjs')));
+  const flat=t=>t==null?'':Array.isArray(t)?t.map(flat).join(''):typeof t!=='object'?String(t):t.strings?t.strings.map((x,i)=>x+(i<t.values.length?flat(t.values[i]):'')).join(''):'';
+  const end=new Date(Date.now()+3*3600e3);end.setSeconds(0,0);const hh=`${end.getHours()} h ${String(end.getMinutes()).padStart(2,'0')}`;
+  const v={...fresh(),advisor:{title:'Rien à faire',attributes:{regle:'nothing',geste:'nothing',bon_a_savoir:[
+    `Grand soleil sur la fenêtre sud jusqu'à ${hh} : environ +1,1 °C au coucher, si les volets sont ouverts`]}}};
+  const events=dayEvents(v);
+  assert.equal(events.length,1);
+  assert.equal(events[0].ic,'sun');
+  const out=flat(day3({},events));
+  assert.match(out,/data-k="?sun/);
+  assert.match(out,/Grand soleil sur la fenêtre sud/);
+  assert.match(out,/au coucher/);
+});
+
 test('« Maintenant, puis »: under the advice, the day done then what comes, hour by hour (17 November)',async()=>{
   const {day3}=await import(pathToFileURL(join(temp,'views/advisor3.mjs')));
   const flat=t=>t==null?'':Array.isArray(t)?t.map(flat).join(''):typeof t!=='object'?String(t):t.strings?t.strings.map((x,i)=>x+(i<t.values.length?flat(t.values[i]):'')).join(''):'';

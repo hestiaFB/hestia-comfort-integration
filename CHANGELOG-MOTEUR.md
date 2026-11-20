@@ -4,6 +4,14 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.21.2 — 20 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Corrections
+
+- Une pièce qui se réchauffe au soleil le dit de nouveau (« +0,8 °C dans la pièce »), même quand le soleil n'épargne pas de chauffage ce soir. En 3.21.0 et 3.21.1, la nouvelle règle avait remplacé l'ancienne au lieu de s'y ajouter.
+
 ## 3.21.1 — 20 novembre 2026
 
 Pas encore dans une version de Confort.
