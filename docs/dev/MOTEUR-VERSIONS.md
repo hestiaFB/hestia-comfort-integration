@@ -20,6 +20,16 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.21.0 — 20 novembre 2026
+
+Spec « Confort · Ce qui joue sur chaque pièce » (validée par Frank le 19 novembre), partie « Le soleil compté comme un gain ». Ligne d'information seulement : aucune valeur donnée aux calories dans le choix des gestes.
+- `decide.sun_saved(twins, now, coming)` : la pièce laissée telle quelle jusqu'au coucher, avec et sans soleil (`_dark`) ; {"energy": kWh de chauffage épargnés (thermostat simulé), "kept": °C gardés à la fin, "heated", "closed"}. Volet relié fermé (`cover <= SHUTTER_SHUT`) : ce que donnerait `shutter_open` au lieu du soleil.
+- `room/advice.py` : `sun_coming` jusqu'au coucher (`SUN_STEPS` = 14 h au plus), hors nuit, hors été, pièce sous son maximum ; sinon `None` et l'ancienne règle (`SUN_COUNTS`, 0,5 °C).
+- `knowing.sun_on_windows` : avec `sun_saved`, la ligne s'affiche si `energy >= SUN_ENERGY` (0,25 kWh, la moitié de `SIGNIFICANT["energy"]`) avec thermostat, sinon `kept >= SUN_KEPT` (0,3 °C, à régler au labo). `shutters_manual` (volets « manuel » déclarés) : « si les volets sont ouverts ».
+- `words` : `sun_spared[_if]`, `sun_kept[_if]`, `sun_open`, `sun_open_kept` en fr, en, de.
+- Charge : jusqu'à 3 simulations de 168 pas par pièce et par pas de 5 min. À mesurer au labo avant la stable (`hestia-labo/confort/`).
+- Tests : `tests/test_soleil_gain.py`.
+
 ### 3.20.0 — 20 novembre 2026
 
 Maison en 3.19.4 (Confort 3.1.0b18), matinée du 20 novembre : conseils suivis puis « Rien à faire » 3 minutes après l'ouverture (Salon · Cuisine, urgence COV « Aérez 5 min » ; Chambres A et M, créneau « Aérez 20 min »). Cause : depuis 3.18.0, la couche du tableau (urgences, créneaux) est au-dessus de `decide`, qui ne reçoit plus `held` et dont le `previous` n'est jamais le geste d'urgence ; la famille « reponse » montrait donc le `nothing` de `decide`, qui suppose la fenêtre refermée d'elle-même après `airing_max` (`closing_in`).

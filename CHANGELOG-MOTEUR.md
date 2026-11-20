@@ -4,7 +4,16 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
-## 3.20.0 — 20 novembre 2026
+## 3.21.0 — 20 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Ce qui change
+
+- En saison de chauffe, le soleil compte comme un gain dans « Bon à savoir » : « Soleil sur la fenêtre sud jusqu'à 16 h 35 : environ 0,6 kWh de chauffage en moins ce soir ». Avant, la ligne n'apparaissait que si le soleil réchauffait la pièce d'au moins 0,5 °C tout de suite, et la Chambre A exposée sud n'en parlait pas.
+- Sans thermostat : « … : environ +0,4 °C au coucher ». Avec des volets sans capteur : « … si les volets sont ouverts ». Volet relié fermé : « … : ouvrez le volet pour en profiter (environ 0,6 kWh) ».
+- Les gestes du bandeau ne changent pas. Au-dessus du maximum et en été, le soleil reste jugé comme avant.
+
 
 Pas encore dans une version de Confort.
 

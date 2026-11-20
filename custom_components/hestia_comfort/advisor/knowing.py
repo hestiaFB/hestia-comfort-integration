@@ -16,6 +16,10 @@ from .proof import LIVE_MINUTES, LIVE_SHARE, PROVEN, REINFORCED, SUPPOSED, WATER
 # The sun is said only when it warms the room by this much over the coming hours (°C): the days it changes nothing, its
 # line goes (Frank, 3 November: a room with three windows had three sun lines).
 SUN_COUNTS = 0.5
+# In the heating season the sun is a gain: said when it spares half a gesture's energy (advisor/decide.py
+# SIGNIFICANT["energy"]), or, without a thermostat, keeps this much at bedtime (to tune at the lab).
+SUN_ENERGY = 0.25
+SUN_KEPT = 0.3
 # Strong sun: this much horizontal sun forecast on average over the hours the sun is on the window (W/m²); a clear
 # autumn noon gives about 450, an overcast sky under 150.
 STRONG_SUN = 200.0
@@ -74,6 +78,10 @@ class RoomView:
     stove_idle: dict | None = None
     # °C the sun adds to the room over the coming hours (advisor/decide.py `sun_gain`); None when not known.
     sun_gain: float | None = None
+    # In the heating season, what the sun is worth until bedtime (advisor/decide.py `sun_saved`); None otherwise.
+    sun_saved: dict | None = None
+    # Shutters without a sensor on the room's windows (« volet manuel »): the sun's worth is then said « if open ».
+    shutters_manual: bool = False
     # The outside air, and whether the room's humidity is in question now: a window open, the humidity above its mark, a
     # gesture or a tip for it (`outside_water`).
     outdoor: float | None = None
@@ -97,7 +105,12 @@ def sun_on_windows(view: RoomView) -> list[Tip]:
     """When the sun is on the room's windows today, still to come or going on, in one line for the whole room, and only
     when it warms the room by SUN_COUNTS at least: supposed by their orientation, reinforced by a strong sun forecast.
     Adaptive Cover Pro's hours, when it drives the window, come before the computed ones."""
-    if view.sun_gain is not None and view.sun_gain < SUN_COUNTS:
+    saved = view.sun_saved
+    if saved is not None:
+        # The heating season: the sun judged on what it spares or keeps, not only on the warming it gives now.
+        if not (saved["energy"] >= SUN_ENERGY if saved["heated"] else saved["kept"] >= SUN_KEPT):
+            return []
+    elif view.sun_gain is not None and view.sun_gain < SUN_COUNTS:
         return []
     midnight = view.now.replace(hour=0, minute=0, second=0, microsecond=0)
     spans = {}
@@ -123,7 +136,8 @@ def sun_on_windows(view: RoomView) -> list[Tip]:
     directions = list(dict.fromkeys(direction for (direction, _, _), _ in ordered if direction is not None))
     start, end = min(s for (_, s, _), _ in ordered), max(e for (_, _, e), _ in ordered)
     return [Tip("sun", {"directions": directions, "windows": sum(len(e) for _, e in ordered), "start": start, "end": end,
-                        "gain": view.sun_gain}, "light", 1, end, REINFORCED if strong else SUPPOSED)]
+                        "gain": view.sun_gain, "saved": saved, "manual": view.shutters_manual},
+                "light", 1, end, REINFORCED if strong else SUPPOSED)]
 
 
 def gesture_seen(view: RoomView) -> list[Tip]:
