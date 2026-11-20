@@ -10,9 +10,14 @@
 - La carte se met à jour une minute après l'ouverture d'une fenêtre, au lieu de 1 à 5 minutes.
 - Sur téléphone, la carte ne déborde plus à droite (« stable », les barres Ressenti et Humidité, l'Air, les appareils).
 
-### Moteur de conseil 3.20.0
+### Nouveau
 
-- L'aération en cours, la partie à ouvrir et la promesse fixe du créneau.
+- En hiver, « Bon à savoir » dit ce que le soleil fait gagner d'ici le coucher : « Soleil sur la fenêtre sud jusqu'à 16 h 35 : environ 0,6 kWh de chauffage en moins ce soir ».
+
+### Moteur de conseil 3.21.0
+
+- L'aération en cours, la partie à ouvrir et la promesse fixe du créneau (3.20.0).
+- Le soleil compté comme un gain en saison de chauffe (3.21.0).
 
 ## 3.1.0b18 — Des conseils qui tiennent
 

@@ -23,7 +23,7 @@ from ..advisor.checks import GOOD, KINDS, Checker
 from ..advisor.decide import _flow as _water_flow
 from ..advisor.decide import GAIN, Decision, Weights, cost, one_side
 from ..advisor.decide import (SHUT_SHADE, SIGNIFICANT, RESTING_MINUTES, Gesture, Now, Twins, aged, decide, for_season, gesture_energy, remembered, from_thermostat, heating_back,
-                              heating_off, main_subject, recent_sources, shutter_tonight, simulate, stove_idle, sun_gain,
+                              heating_off, main_subject, recent_sources, shutter_tonight, simulate, stove_idle, sun_gain, sun_saved,
                               tonight)
 from ..advisor.feedback import declined, follow, measured, pause_until
 from ..advisor.household import Habits
@@ -79,6 +79,8 @@ WALLS_KEPT = timedelta(hours=1)
 WALLS_HOURS = 6
 # By day the advice looks three hours ahead; at night, until waking up.
 DAY_STEPS = 36
+# The sun judged until bedtime, at most this many steps ahead (14 h).
+SUN_STEPS = 168
 # A step closer to the last one than this decides without moving the trail (a restart's retries, a tick come early).
 STEP_AT_LEAST = timedelta(minutes=4)
 VERSION = 1
@@ -771,7 +773,7 @@ class RoomAdvisor:
     def _good_to_know(self, now, air, opening, comfort, humidity=None, coldest=None, bedtime=None, asleep=False,
                       shutter_night=None, wake=None, back=None, off=None, end_hour=None, stove=None, sun_warms=None,
                       outdoor=None, outdoor_rh=None, water=False, share=None, planned=None, pollen=None, airing_at=None,
-                      house=None, house_gap=1.5):
+                      house=None, house_gap=1.5, sun_saved=None):
         """« Bon à savoir »: the sun on the windows (Adaptive Cover Pro's hours first), a gesture seen to work."""
         local = dt_util.as_local(now)
         acp = {}
@@ -793,7 +795,8 @@ class RoomAdvisor:
                         heating_off=off, end_hour=end_hour, stove_idle=stove, sun_gain=sun_warms,
                         outdoor=outdoor, outdoor_humidity=outdoor_rh, water_matters=water, window_share=share,
                         humidity_at_opening=opening[2] if opening else None, heating_planned=planned, pollen=pollen,
-                        airing_at=airing_at, house=house, house_gap=house_gap)
+                        airing_at=airing_at, house=house, house_gap=house_gap, sun_saved=sun_saved,
+                        shutters_manual=bool(self.room.get("manual")))
         return tips(view)
 
     def _idle_for(self, entity_id, now, habits):
@@ -1088,6 +1091,19 @@ class RoomAdvisor:
             night_coming = home.coming(now, int((wake - local).total_seconds() // STEP), outdoor, outdoor_rh, house_heat,
                                        shaded(shut_night), seen(shut_night), opened_index, kept(shut_night))
 
+        # In the heating season, the sun judged until bedtime: what it spares or keeps (advisor/decide.py `sun_saved`).
+        # Not at night, not in summer, not in a room already too warm, where the sun stays a problem.
+        sun_coming = None
+        to_bed = int((bedtime - local).total_seconds() // STEP)
+        if not night and not summer and air <= comfort.maximum and to_bed > 0:
+            if to_bed <= len(coming):
+                sun_coming = coming[:to_bed]
+            else:
+                sun_coming = home.coming(now, min(to_bed, SUN_STEPS), outdoor, outdoor_rh, house_heat, shaded(shut_now),
+                                         glazing, opened_index, kept(shut_now))
+                if house_stat is None and house_heat:
+                    given = home.house_heat_steps(now, len(sun_coming))
+                    sun_coming = [(replace(u, house_heat=given[k]), w) for k, (u, w) in enumerate(sun_coming)]
         # What the last « Rien à faire » said of the measures (« Au mieux »), kept near a bound (advisor/words.py EDGE).
         beyond_before = (self.result or {}).get("au_dela")
         # A window open for less than OPEN_LEAST is someone going through: for comfort, the room is still shut; the rain
@@ -1248,8 +1264,9 @@ class RoomAdvisor:
             if night_coming and not night and local >= bedtime - timedelta(hours=habits.tonight_before):
                 night_text = self._tonight(twins, current, local, bedtime, wake, night_coming, comfort, proof, marks, taken, habits,
                                            pollen)
-            return (decision, plan, snap, shutter_night, back, off, stove, sun_gain(twins, current, coming), night_text, likely,
-                    refresh)
+            warms = sun_gain(twins, current, coming)
+            saved = sun_saved(twins, current, sun_coming) if sun_coming is not None else None
+            return (decision, plan, snap, shutter_night, back, off, stove, (warms, saved), night_text, likely, refresh)
 
         decision, plan_decision, snap, shutter_night, back, off, stove, sunny, night_text, likely, refresh = \
             await hass.async_add_executor_job(think)
@@ -1408,8 +1425,9 @@ class RoomAdvisor:
             after = shown_gesture.after or 0
             airing_at = (coming[min(int(after // (STEP / 60)), len(coming) - 1)][1], local + timedelta(minutes=after))
         good = self._good_to_know(now, air, opening, comfort, current.humidity, coldest, bedtime, night, shutter_night, wake,
-                                  back, off, end_hour, stove, sunny, outdoor, outdoor_rh, water,
-                                  share, planned, pollen, airing_at, self._house(home, name, twins), habits.house_gap)
+                                  back, off, end_hour, stove, sunny[0], outdoor, outdoor_rh, water,
+                                  share, planned, pollen, airing_at, self._house(home, name, twins), habits.house_gap,
+                                  sun_saved=sunny[1])
         good_words = [tip_text(t, now=local) for t in good]
         # An airing that did not work, kept in mind: said until it is judged, an hour after it was shut.
         if self.failed_at is not None and now - self.failed_at[1] < timedelta(minutes=RESTING_MINUTES):
