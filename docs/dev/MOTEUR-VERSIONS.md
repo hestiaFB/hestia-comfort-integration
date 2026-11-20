@@ -20,6 +20,13 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.21.2 — 20 novembre 2026
+
+Labo en 3.21.1, 11 h 16 : Chambres A et M à +1,5 °C/h au soleil, aucune ligne. Deux causes.
+- Moteur : avec `sun_saved`, l'ancienne règle (`sun_gain >= SUN_COUNTS`) n'était plus regardée. Maintenant : `sun_saved` sous ses seuils → l'ancienne règle et son texte (« +N °C dans la pièce »).
+- Carte (hors moteur) : `dayEvents` (card/src/views/full.ts) ne gardait que chauffage, pluie, température ; une ligne de « Bon à savoir » avec une heure part dans « Aujourd'hui », donc le soleil était jeté. Ajouté, `data-k="sun"`.
+- Instantané : `snap["soleil"]` = {rechauffe, jusqu_au_coucher, pas}, pour lire dans l'Atelier pourquoi une ligne manque.
+
 ### 3.21.1 — 20 novembre 2026
 
 Labo en 3.21.0 depuis 9 h 38 : à 9 h 43, aucune ligne « Soleil sur … ». La règle était « kWh si thermostat, sinon °C » ; la spec dit « ou ». Une pièce au-dessus de sa consigne (Chambre A, 18,6 °C pour 18 °C) n'épargne aucun kWh.

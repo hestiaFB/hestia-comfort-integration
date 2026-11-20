@@ -106,13 +106,15 @@ def sun_on_windows(view: RoomView) -> list[Tip]:
     when it warms the room by SUN_COUNTS at least: supposed by their orientation, reinforced by a strong sun forecast.
     Adaptive Cover Pro's hours, when it drives the window, come before the computed ones."""
     saved = view.sun_saved
-    if saved is not None:
-        # The heating season: the sun judged on what it spares or keeps, not only on the warming it gives now.
-        # Either is enough (spec): a room above its set point spares no heating yet keeps the sun's heat for the evening
-        # (labo, 20 November at 9 h 43: no sun line anywhere, the Chambre A at 18,6 °C for 18 °C asked).
-        if saved["energy"] < SUN_ENERGY and saved["kept"] < SUN_KEPT:
+    warms = view.sun_gain is None or view.sun_gain >= SUN_COUNTS
+    if saved is not None and saved["energy"] < SUN_ENERGY and saved["kept"] < SUN_KEPT:
+        # The heating season: the sun judged on what it spares or keeps as well as on the warming it gives now, never
+        # instead of it (labo, 20 November at 11 h 16: the Chambres A and M rising 1,5 °C an hour in the sun, no line).
+        # Either is enough (spec): a room above its set point spares no heating yet keeps the sun's heat for the evening.
+        saved = None
+        if view.sun_gain is None:
             return []
-    elif view.sun_gain is not None and view.sun_gain < SUN_COUNTS:
+    if saved is None and not warms:
         return []
     midnight = view.now.replace(hour=0, minute=0, second=0, microsecond=0)
     spans = {}

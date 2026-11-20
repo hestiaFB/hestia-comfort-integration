@@ -263,11 +263,12 @@ function devices(v:View,partners:View[],config:Config,src?:string):TemplateResul
     return c.entity?html`<button type="button" class=${cls} style=${`--c:${C[c.tone]}`} @click=${(e:Event)=>moreInfo(e,c.entity!)}>${body}</button>`:html`<span class=${cls} style=${`--c:${C[c.tone]}`}>${body}</span>`;})}</div></section>`:nothing;
 }
 
-/** What « À venir » says that is not a gesture (the heating's schedule, the rain, the room crossing its range): the
+/** What « À venir » says that is not a gesture (the heating's schedule, the rain, the sun, the room crossing its range): the
  *  banner's day lists it among the gestures (« Maintenant, puis », 17 November). The 2.1 engine's airings are left out:
  *  the 3.0 engine says its own, by slot. */
 export function dayEvents(v:View):{when:number;at:string;ic:string;text:string;note?:string|TemplateResult}[] {
-  return coming(v,spread(v),plageOf(v)).filter(e=>['heat','rain','temp'].includes(e.ic)).map(({when,at,ic,text,note})=>({when,at,ic,text,note}));
+  // The sun on the windows as well (labo, 20 November: « Grand soleil sur la fenêtre sud jusqu'à 16 h 35 » sent, never shown).
+  return coming(v,spread(v),plageOf(v)).filter(e=>['heat','rain','temp','sun'].includes(e.ic)).map(({when,at,ic,text,note})=>({when,at,ic,text,note}));
 }
 /** « À venir » in its panel: what will change, dated, each with its source; nothing to say, nothing. */
 function comingList(next:Coming[]):TemplateResult {
