@@ -1,5 +1,21 @@
 ## À venir
 
+## 3.1.1 — Une documentation à jour
+
+**Le guide, le dépannage et les seuils décrivent enfin le nouveau moteur de conseil.**
+**Rien ne change dans Home Assistant : vos pièces, réglages et conseils restent les mêmes.**
+
+### Corrections
+
+- Le guide et le README parlent du conseil par créneaux, des urgences, de « Aération en cours », du soleil dit comme un bonus de chaleur, de la lune de nuit, de la VMC « En continu » ou « À la demande » et de « Turbo conseillé ». Ils décrivaient encore l'ancien moteur (« les conseils défilent », « Encore 5 min d'aération »).
+- Les couleurs et pastilles portent leurs vrais noms : « Bon moment », « À faire », « En cours ».
+- Pour vos automatisations, le guide donne les valeurs actuelles de « État » : `calm`, `best`, `benefit`, `action`, `urgent` et `neutral`.
+- Le dépannage demandait Hestia Weather 2.1 : il faut la 3.2.0 au moins, la 4.1.0 est conseillée.
+- Les repères des seuils (CO₂, particules, humidité, COV) disent comment le nouveau moteur s'en sert.
+- Le guide explique « Participez à l'amélioration du moteur » : un rapport anonyme, que vous téléchargez et partagez si vous le voulez.
+
+### Moteur de conseil 3.22.3 — inchangé
+
 ## 3.1.0 — Le nouveau moteur de conseil
 
 **Tout ce qui change depuis la dernière version stable, la 1.7.31.**
