@@ -466,6 +466,14 @@ Pour apprendre, une pièce a besoin :
 
 Une ouverture de moins de 10 minutes ne compte pas. Avant d’avoir appris, Hestia-FB suppose une pièce ordinaire, avec prudence.
 
+### Participer à l’amélioration du moteur
+
+Sur l’accueil Confort, **Participez à l’amélioration du moteur** prépare un rapport à télécharger : ce que le moteur a prévu et mesuré, ce que chaque pièce a appris, et les conseils signalés avec **Ce conseil ne va pas**.
+
+- Le rapport est anonyme : les pièces deviennent « Pièce 1, Pièce 2… », les entités « entité 1, entité 2… ». Ni l’adresse du logement, ni les personnes, ni l’historique brut n’y figurent.
+- Rien ne quitte Home Assistant tout seul : vous téléchargez le rapport, puis vous le joignez à une issue GitHub si vous le voulez.
+- À côté du rapport, **Ce qui le rendrait plus utile** liste ce qui manque chez vous (un capteur, plus d’historique). Ces lignes nomment vos pièces : elles restent pour vous et ne vont pas dans le rapport.
+
 ## Pour vos automatisations
 
 Les entités disent **exactement ce que dit la carte** : même conseil, même pastille, même couleur.
