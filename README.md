@@ -212,7 +212,7 @@ Installée sous son nom technique d’origine, l’intégration passe seule au n
 
 Mettez à jour Hestia Weather en même temps, si vous l’avez : la liaison entre les deux suit d’elle-même.
 
-Hestia Confort 3.1 va avec Hestia Weather 3.2.0 ou plus récente ; la 4.1.0 est conseillée.
+Hestia Confort 3.1 va avec Hestia Weather 3.2.0 ou plus récente ; la 4.2.0 est conseillée : avec elle, Confort lit le ciel de maintenant et ne dit plus « Grand soleil » quand il fait gris.
 
 **La mise à jour est refusée** (« changed its domain from niak_… to hestia_… ») ? Suivez [le guide du passage au nom Hestia](docs/PASSAGE-HESTIA.md) : un dossier à supprimer, deux redémarrages, rien n’est perdu.
 
