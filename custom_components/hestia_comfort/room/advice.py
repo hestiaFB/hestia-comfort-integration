@@ -315,17 +315,34 @@ def spec(coordinator, houses: dict) -> dict:
                "co2": settings.get("co2_action", 1000.0), "particles": settings.get("pm25_action", 15.0)}
     if voc:
         comfort["voc"] = threshold.get("value") if threshold.get("unit") in (None, "") and threshold.get("value") else 150.0
+    # The same measure taken in another part of a shared air: the worst of them counts for the room (maison, Salon ·
+    # Cuisine, 21 November at 11 h: « Refermez, particules 9 µg/m³ : c'est réglé » on the living room's sensor, the
+    # kitchen's still at 24). The twin keeps learning on the room's own sensor.
+    main = {"co2": sources.get("co2"), "particles": sources.get("pm25"), "voc": voc}
+    others = {}
+    for kind, key in (("co2", "co2"), ("particles", "pm25"), ("voc", "voc")):
+        if not main[kind]:
+            continue
+        for config in configs:
+            entity = (config.get("sources") or {}).get(key)
+            if not entity or entity == main[kind] or entity in others.get(kind, ()):
+                continue
+            if kind == "voc" and (state := hass.states.get(entity)) is not None \
+                    and state.attributes.get("unit_of_measurement") not in (None, ""):
+                continue
+            others.setdefault(kind, []).append(entity)
     built = own.get("room") or {}
     return {"name": coordinator.volume_name or own.get("name") or coordinator.config_entry.title,
             "members": [coordinator.entry_id, *(p["entry_id"] for p in coordinator.partners)],
             "temperature": sources.get("indoor_temperature"), "humidity": sources.get("indoor_humidity"),
-            "co2": sources.get("co2"), "particles": sources.get("pm25"), "voc": voc,
+            "co2": sources.get("co2"), "particles": sources.get("pm25"), "voc": voc, "others": others,
             "windows": windows, "kinds": kinds, "orientations": orientations, "sheltered": sheltered_from, "cover": cover, "cover_auto": cover_auto, "acp": acp,
             "panes": panes, "manual": sorted(manual),
             # The rooms sharing this air, each with its windows and the sensors it holds: « Aérez » opens the part where
             # the measure it is for is taken (Salon · Cuisine, 20 November: the VOC measured in the kitchen).
             "parts": [{"name": title, "windows": list(config.get("windows", [])),
-                       "sources": sorted(k for k, v in (config.get("sources") or {}).items() if v)}
+                       "sources": sorted(k for k, v in (config.get("sources") or {}).items() if v),
+                       "measures": {k: v for k, v in (config.get("sources") or {}).items() if v}}
                       for title, config in zip(titles, configs)] if len(configs) > 1 else [],
             "boost": devices.get("ventilation_boost"), "purifier": devices.get("purifier"),
             "thermostat": thermostat, "thermostat_plage": plage, "thermostat_reference": own.get("thermostat_reference", True) is not False,
@@ -399,11 +416,11 @@ SOURCE_OF = {"co2": "co2", "particles": "pm25", "voc": "voc", "humidity": "indoo
              "heat": "indoor_temperature", "energy": "indoor_temperature"}
 
 
-def first_windows(room: dict, subject: str | None) -> tuple[tuple[str, ...], str | None]:
+def first_windows(room: dict, subject: str | None, worst: str | None = None) -> tuple[tuple[str, ...], str | None]:
     """The windows « Aérez » opens, and how the card names them (« Cuisine », « ouest »; None: all of the room's). In a
     shared air, those of the part where `subject` is measured (Salon · Cuisine, 20 November: « Aérez 5 min » for the
     kitchen's VOC); then one side of them only, the other side being « Ouvrez aussi » once open (advisor/decide.py
-    `one_side`)."""
+    `one_side`). `worst`: the sensor that measured it highest, when several parts measure it (`Advisor._measures`)."""
     entities = list(room["windows"])
     if not entities:
         return (), None
@@ -411,7 +428,9 @@ def first_windows(room: dict, subject: str | None) -> tuple[tuple[str, ...], str
     areas = [w * h for w, h in room["windows"].values()]
     parts = [p for p in room.get("parts") or () if any(e in room["windows"] for e in p["windows"])]
     key = SOURCE_OF.get(subject or "")
-    part = next((p for p in parts if key in p["sources"]), None) if key else None
+    part = next((p for p in parts if worst in (p.get("measures") or {}).values()), None) if key and worst else None
+    if part is None and key:
+        part = next((p for p in parts if key in p["sources"]), None)
     among = [i for i, e in enumerate(entities) if part is None or e in part["windows"]] or list(range(len(entities)))
     chosen = one_side(bearings, among, areas)
     if len(chosen) == len(entities):
@@ -671,6 +690,18 @@ class RoomAdvisor:
                 doubts.append({"mesure": kind, "raison": verdict.reason, "valeur": value,
                                "depuis": dt_util.as_local(verdict.since) if verdict.since else None})
         self.sensors = seen
+        # A shared air measured in several parts: the worst valid value counts, and where it is taken (`first_windows`).
+        self.worst = {}
+        for kind, entities in (self.room.get("others") or {}).items():
+            for entity in entities:
+                value = _number(self.hass, entity)
+                if value is None:
+                    continue
+                state = self.hass.states.get(entity)
+                if not self.checker.check(entity, kind, value, state.last_changed if state else None, now).ok:
+                    continue
+                if found.get(kind) is None or value > found[kind]:
+                    found[kind], self.worst[kind] = value, entity
         # The temperature first: without it, no advice.
         doubts.sort(key=lambda d: d["mesure"] != "temperature")
         return found, doubts
@@ -698,8 +729,11 @@ class RoomAdvisor:
             guessed, walls = step(heat, guessed, walls, acting)
         return air - guessed
 
-    def _opening(self, now, opened, air, humidity):
-        """(since, air, humidity) of the opening under way, as this step first saw it; None when shut or not seen."""
+    def _opening(self, now, opened, air, humidity, since=None):
+        """(since, air, humidity) of the opening under way, as this step first saw it; None when shut or not seen.
+        `since`: when Home Assistant saw the first window open. The decision 10 s after the opening sees it first; taken
+        as the moment then, the one at OPEN_LEAST + 5 s found it open only 55 s and still said « Aérez » until the next
+        step (maison, Salon · Cuisine, 21 November: opened at 10 h 56 min 25 s, « Aération en cours » at 10 h 58 min 57 s)."""
         if not opened:
             if self.opening is not None:
                 self.shut_at, self.aim = now, None
@@ -715,7 +749,7 @@ class RoomAdvisor:
             self.opening = self.opened_seen = self.opened_from = None
             return None
         if self.opening is None:
-            self.opening = (now, air, humidity)
+            self.opening = (min(now, since) if since is not None else now, air, humidity)
         return self.opening
 
     def _settled(self, now, current):
@@ -885,6 +919,8 @@ class RoomAdvisor:
         learned = self.learned
         sizes = {e: (w * h, h) for e, (w, h) in room["windows"].items()}
         opened = tuple(size for e, size in sizes.items() if (s := hass.states.get(e)) and s.state == "on")
+        moved = [s.last_changed for e in sizes if (s := hass.states.get(e)) and s.state == "on"
+                 and isinstance(getattr(s, "last_changed", None), datetime)]
         position = _number(hass, room["cover"], "current_position")
         shade = 1.0 if position is None else max(0.05, position / 100)
         # The connected shutter covers the room's windows: shut, it keeps their heat in. Its gestures are proposed only
@@ -1035,7 +1071,7 @@ class RoomAdvisor:
             comfort = from_thermostat(comfort, aimed.get("target_temperature", stat.attributes.get("temperature")),
                                       aimed.get("preset", stat.attributes.get("preset_mode")),
                                       (stat.attributes.get("preset_temperatures") or {}).get("comfort_temp"))
-        opening = self._opening(now, opened, air, current.humidity)
+        opening = self._opening(now, opened, air, current.humidity, min(moved) if moved else None)
         if cold_season and opened and opening:
             # Left as it is, the window is shut once the household's usual airing is over, not left open till noon: the
             # card said « repasse seule sous 60 % » for a window it supposed open all morning (bilan of 13 November).
@@ -1127,7 +1163,7 @@ class RoomAdvisor:
         # way, the slot's; and says which (`first_windows`).
         aim_first = (urgent[0] if urgent is not None else (self.board.airing or {}).get("subject")
                      or (self.board.plan.words.get("subject") if self.board.plan is not None else None))
-        opens_first, self.side = first_windows(room, aim_first)
+        opens_first, self.side = first_windows(room, aim_first, (getattr(self, "worst", None) or {}).get(aim_first))
         if len(opens_first) < len(sizes):
             twins = replace(twins, first=tuple(sizes[e] for e in opens_first))
         # A room humid by nature (its identity card): no airing of a slot for its humidity while it stays near its own normal;
@@ -1285,6 +1321,10 @@ class RoomAdvisor:
                 planned = {**planned, "title_now": phrase(ready, plan_end, marks=marks, hour=hour_now)["title"],
                            "line_now": phrase(plan_decision, plan_end, marks=marks, reason=reason, fixed=True)["line"],
                            "level": plan_decision.level, "gain": round(plan_decision.gain, 2)}
+                if trial:
+                    # « À essayer » as it reads once its moment has come: « Aérez 10 min vers 8 h 15 » stayed past 8 h 15.
+                    planned["try_now"] = phrase(replace(plan_decision, passive=replace(chosen, after=None)), plan_end,
+                                                marks=marks, reason=reason)["try"]
             self.board.set_plan(slot.key, now, slot.end, chosen, planned, trial)
             snap["creneau"] = {"cle": slot.key, "geste": asdict(chosen), "essai": trial, "titre": planned.get("title")}
         if wants_likely:
@@ -1319,6 +1359,8 @@ class RoomAdvisor:
                 words["title"] = words["title_now"]
                 if words.get("line_now"):
                     words["line"] = words["line_now"]
+            elif left.after is None and plan.trial and words.get("try_now"):
+                words["try"] = words["try_now"]
             shown_decision = replace(decision, gesture=Gesture("nothing") if plan.trial else left, rule="creneau",
                                      gain=plan.words.get("gain", 0.0), level=plan.words.get("level", decision.level),
                                      passive=left if plan.trial else None, measured=None)

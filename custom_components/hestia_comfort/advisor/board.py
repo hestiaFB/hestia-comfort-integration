@@ -104,6 +104,16 @@ def _when(value):
     return datetime.fromisoformat(value) if value else None
 
 
+def _stale(plan: dict) -> bool:
+    """A slot's plan kept by a version that did not yet say how it reads once its moment has come (`title_now` since
+    3.1.0b19, `try_now` since 3.1.2 for one to try):
+    planned again for what is left of its slot. Kept, its promise kept its hour past it (maison, Chambre A, 21 November:
+    « l'humidité devrait passer à 58 % vers 8 h 15 » at 10 h 57, after the update from 3.1.0b18)."""
+    words = plan.get("words") or {}
+    return (plan.get("gesture") or {}).get("kind", "nothing") != "nothing" and not plan.get("done") \
+        and ("try_now" if plan.get("trial") else "title_now") not in words
+
+
 class Board:
     """One room's card memory: its urgencies, its slot's plan, the subject said while calm."""
 
@@ -290,7 +300,7 @@ class Board:
         self.urgent = {s: Urgent(_when(u.get("since")), u.get("above", 0), _when(u.get("aside_until")), u.get("aside_value"),
                                  _when(u.get("aside_since")))
                        for s, u in (state.get("urgent") or {}).items()}
-        if p := state.get("plan"):
+        if (p := state.get("plan")) and not _stale(p):
             self.plan = Plan(p["slot"], _when(p["at"]), _when(p["until"]), Gesture(**p["gesture"]), p.get("words") or {},
                              p.get("trial", False), p.get("done", False))
         self.calm = state.get("calm")

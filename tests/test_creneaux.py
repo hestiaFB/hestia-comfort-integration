@@ -165,7 +165,7 @@ class PlanTests(unittest.TestCase):
 
     def test_kept_across_a_restart(self):
         board = Board()
-        board.set_plan("2026-11-16/apres_midi", at(12), at(18), Gesture("open", 45, after=150), {"title": "x"}, True)
+        board.set_plan("2026-11-16/apres_midi", at(12), at(18), Gesture("open", 45, after=150), {"title": "x", "try_now": "y"}, True)
         board.urgent_now({"co2": 1500}, None, None, False, at(12))
         board.calm = "humidity"
         again = Board()
@@ -173,6 +173,25 @@ class PlanTests(unittest.TestCase):
         self.assertEqual((again.plan.gesture, again.plan.trial, again.plan.until), (Gesture("open", 45, after=150), True, at(18)))
         self.assertEqual(again.urgent["co2"].above, 1)
         self.assertEqual(again.calm, "humidity")
+
+    def test_a_plan_kept_by_an_older_version_is_planned_again(self):
+        # Maison, Chambre A, 21 November: « l'humidité devrait passer à 58 % vers 8 h 15 » still shown at 10 h 57, the
+        # morning's plan kept by 3.1.0b18, which did not say yet how it reads once its moment has come.
+        board = Board()
+        board.set_plan("2026-11-21/matin", at(7), at(12), Gesture("open", 10, after=75),
+                       {"title": "Aérez 10 min vers 8 h 15", "line": "l'humidité devrait passer à 58 % vers 8 h 15"}, False)
+        again = Board()
+        again.load(board.state())
+        self.assertIsNone(again.plan)
+        self.assertTrue(again.needs_plan("2026-11-21/matin"))
+        # Said as it reads once its moment has come: kept.
+        board.plan.words["title_now"] = "Aérez 10 min"
+        again.load(board.state())
+        self.assertEqual(again.plan.gesture, Gesture("open", 10, after=75))
+        # Nothing planned, or done: nothing to say again, kept as it is.
+        board.set_plan("2026-11-21/matin", at(7), at(12), Gesture("nothing"), {}, False)
+        again.load(board.state())
+        self.assertEqual(again.plan.gesture, Gesture("nothing"))
 
 
 class ChooseTests(unittest.TestCase):
