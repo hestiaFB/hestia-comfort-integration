@@ -31,6 +31,16 @@ Chaque pièce apprend de ses aérations : les conseils s’ajustent à votre mai
 
 Toute la famille lit la même carte. Elle ne parle que quand un geste aide vraiment.
 
+## Un conseil, pas une certitude
+
+Hestia Confort conseille : c’est vous qui décidez. Ses conseils ne sont pas infaillibles. Il peut se tromper, surtout les premiers jours, quand il connaît encore mal la pièce.
+
+Le moteur apprend tous les jours. Chaque nuit, il relit ce qui s’est passé dans chaque pièce et ajuste ses conseils à votre maison. Plus il vous suit, plus il est juste.
+
+Un conseil vous semble faux ? Dites-le avec **Ce conseil ne va pas** sur la carte : c’est ce qui l’améliore le plus.
+
+Hestia Confort ne remplace ni un détecteur de fumée ou de monoxyde de carbone, ni l’avis d’un professionnel.
+
 ## Ce qu’il faut
 
 - Home Assistant **2026.7** ou plus récent.
@@ -198,7 +208,7 @@ Installée sous son nom technique d’origine, l’intégration passe seule au n
 
 Mettez à jour Hestia Weather en même temps, si vous l’avez : la liaison entre les deux suit d’elle-même.
 
-Hestia Confort 3.x va avec Hestia Weather 3.x ; Hestia Weather 3.2.0 ou plus récente pour tout avoir.
+Hestia Confort 3.1 va avec Hestia Weather 3.2.0 ou plus récente ; la 4.1.0 est conseillée.
 
 **La mise à jour est refusée** (« changed its domain from niak_… to hestia_… ») ? Suivez [le guide du passage au nom Hestia](docs/PASSAGE-HESTIA.md) : un dossier à supprimer, deux redémarrages, rien n’est perdu.
 

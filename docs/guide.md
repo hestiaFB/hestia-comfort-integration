@@ -217,6 +217,8 @@ Un capteur à vérifier demande une confirmation. Elle est retenue ensuite.
 
 ## Lire les conseils
 
+Un conseil n’est pas une certitude. Hestia Confort apprend chaque jour comment réagit chaque pièce, et se trompe parfois, surtout les premiers jours. Fiez-vous aussi à ce que vous sentez, et signalez un conseil faux avec **Ce conseil ne va pas**.
+
 ### La carte d’une pièce
 
 **En haut, le conseil.** Quelques mots, puis la raison chiffrée :
