@@ -11,17 +11,21 @@
 /* La police et les angles de la carte sont ceux de la charte (hestia-charte). */
 ha-card.nc-c { --nc-base:var(--nw-bg); overflow:hidden; background:var(--nw-bg); color:var(--nw-fg); container-type:inline-size; }
 .nc-hero { position:relative; isolation:isolate; overflow:hidden; padding:18px 20px 16px;
-  background:linear-gradient(115deg, var(--nc-base) 40%, color-mix(in oklab, var(--c) 16%, var(--nc-base)) 100%); }
+  background:linear-gradient(115deg, var(--nc-base) 40%, color-mix(in oklab, var(--c) var(--nc-wash, 16%), var(--nc-base)) 100%); }
 /* Followed by « À savoir », the banner's light goes on behind it and fades out, seen through its frosted box: no
    hard edge where the banner ends. */
 .nc-hero:has(+ .nc-facts) { overflow:visible; z-index:0;
-  background:linear-gradient(to bottom, transparent 55%, var(--nc-base) 100%), linear-gradient(115deg, var(--nc-base) 40%, color-mix(in oklab, var(--c) 16%, var(--nc-base)) 100%); }
+  background:linear-gradient(to bottom, transparent 55%, var(--nc-base) 100%), linear-gradient(115deg, var(--nc-base) 40%, color-mix(in oklab, var(--c) var(--nc-wash, 16%), var(--nc-base)) 100%); }
 .nc-hero:has(+ .nc-facts)::after { mask-image:linear-gradient(to bottom, #000 45%, transparent 85%); -webkit-mask-image:linear-gradient(to bottom, #000 45%, transparent 85%); }
 /* La lumière du bandeau : centrée sur le bord droit du cadre, un peu au-dessus du milieu, diffuse en paliers
    (aucune tache, aucune arête). Son mouvement dit l'état, accordé à l'anneau du rond. */
 .nc-hero::after { content:''; position:absolute; width:420px; height:420px; right:-210px; top:calc(36% - 210px); z-index:-1; pointer-events:none;
-  background:radial-gradient(closest-side, color-mix(in oklab, var(--c) 30%, transparent) 0%, color-mix(in oklab, var(--c) 16%, transparent) 40%,
-    color-mix(in oklab, var(--c) 6%, transparent) 70%, transparent 100%); }
+  background:radial-gradient(closest-side, color-mix(in oklab, var(--c) var(--nc-glow, 30%), transparent) 0%,
+    color-mix(in oklab, var(--c) calc(var(--nc-glow, 30%) * .53), transparent) 40%,
+    color-mix(in oklab, var(--c) calc(var(--nc-glow, 30%) * .2), transparent) 70%, transparent 100%); }
+/* Le thème sombre : plus de couleur dans le fond et la lumière du bandeau (hestia-charte.css, même raison : le bleu et le vert
+   se fondaient en gris, 16 novembre). */
+:host([theme="dark"]) { --nc-wash:32%; --nc-glow:56%; }
 .nc-top { display:flex; align-items:center; gap:8px; min-width:0; }
 .nc-top h2 { margin:0; font-size:var(--nw-fs-title); font-weight:700; letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .nc-top .nw-info { min-height:0; }
@@ -58,6 +62,9 @@ ha-card.nc-c { --nc-base:var(--nw-bg); overflow:hidden; background:var(--nw-bg);
 /* Under « À savoir », its framed box already sets the measures apart: no line. */
 .nc-facts + .nc-body { border-top:0; }
 .nc-body[hidden] { display:none; }
+/* Its sections never wider than the card: a grid item is as wide as its widest content unless told otherwise
+   (phone at 360 px, 20 November: « stable », the Ressenti bars and the Air values cut on the right). */
+.nc-body > *, .nc-part, .nc-mods > * { min-width:0; }
 .nc-fold .nw-sum b { font-weight:600; color:color-mix(in oklab, var(--nw-watch) var(--nw-ink), var(--nw-fg)); }
 .nc-tiles { display:grid; grid-template-columns:repeat(auto-fill, minmax(112px, 1fr)); gap:8px; margin-top:12px; }
 .nc-tile { position:relative; overflow:hidden; border:1px solid var(--nw-line); border-radius:var(--nw-radius); padding:10px 12px; min-width:0; }
@@ -135,7 +142,8 @@ button.nc-tile { font:inherit; color:inherit; text-align:left; cursor:pointer; b
 .nc-hero[data-mood="best"]::after { opacity:.85; animation:nc-tide 14s ease-in-out infinite alternate; }
 .nc-hero[data-mood="benefit"]::after { animation:nc-tide 9s ease-in-out infinite alternate; }
 .nc-hero[data-mood="benefit"]::before { content:''; position:absolute; width:320px; height:320px; right:-160px; top:calc(15% - 160px); z-index:-1; pointer-events:none;
-  background:radial-gradient(closest-side, color-mix(in oklab, var(--nw-ok) 20%, transparent), color-mix(in oklab, var(--nw-ok) 7%, transparent) 55%, transparent);
+  /* Vert sur vert : la seconde lumière bleue tirait le vert vers le bleu, et les deux états se confondaient (16 novembre). */
+  background:radial-gradient(closest-side, color-mix(in oklab, var(--c) 20%, transparent), color-mix(in oklab, var(--c) 7%, transparent) 55%, transparent);
   animation:nc-tide 11s ease-in-out -4s infinite alternate-reverse; }
 .nc-hero[data-mood="action"]::after { animation:nc-pulse 2.2s ease-out infinite; }
 .nc-hero[data-mood="urgent"]::after { animation:nc-throb 1.4s ease-in-out infinite; }
@@ -196,7 +204,9 @@ button.nc-tile { font:inherit; color:inherit; text-align:left; cursor:pointer; b
 .nc-bars .done i { width:100%; }
 .nc-bars .on i { animation:nc-fill 4.5s linear forwards; }
 @keyframes nc-fill { to { width:100%; } }
-.nc-stack { display:grid; }
+.nc-stack { display:grid; min-width:0; }
+/* A long word in the banner's big type (« Renouvelez ») breaks rather than leaving the card on a narrow phone. */
+.nc-stack > .nc-slide { min-width:0; } .nc-slide .nw-band-title { overflow-wrap:break-word; hyphens:auto; }
 /* Passage d'un conseil à l'autre : le précédent s'efface vers le haut dans un léger flou, le suivant monte net à sa place ;
    le rond se fond de l'un à l'autre en changeant d'échelle. */
 .nc-stack > .nc-slide { grid-area:1/1; opacity:0; visibility:hidden; transform:translateY(12px); filter:blur(6px);
@@ -505,6 +515,11 @@ ha-card.nc-alert-card { display:flex; align-items:center; gap:14px; padding:10px
   background:var(--nw-bg); color:color-mix(in oklab, var(--nw-benefit) 70%, var(--nw-fg)); box-shadow:0 0 0 2px color-mix(in oklab, var(--nw-benefit) 45%, var(--nw-bg)); }
 .nc-orb-learned .icon { width:14px; height:14px; }
 .nc-orb.small .nc-orb-learned { width:16px; height:16px; right:-5px; bottom:-4px; } .nc-orb.small .nc-orb-learned .icon { width:10px; height:10px; }
+.nc-night { position:absolute; right:6px; bottom:6px; z-index:3; width:24px; height:24px; border-radius:50%; display:grid; place-items:center;
+  background:var(--nw-bg); color:var(--nw-fg2); box-shadow:0 0 0 2px color-mix(in oklab, var(--nw-fg2) 35%, var(--nw-bg)); }
+.nc-night .icon { width:14px; height:14px; }
+.nc-scene { position:relative; }
+.nc-orb .nc-night { right:-4px; top:-2px; bottom:auto; }
 .nc-bt-learned { display:inline-flex; align-items:center; gap:4px; font-size:var(--nw-fs-small); font-weight:600; color:color-mix(in oklab, var(--nw-benefit) 60%, var(--nw-fg)); }
 .nc-bt-learned .icon { width:13px; height:13px; }
 .nc-flame { display:inline-grid; place-items:center; color:var(--nw-heat); } .nc-flame .icon { width:15px; height:15px; }
@@ -655,6 +670,25 @@ button.nc-fx-top { width:100%; margin:0; border:0; background:none; text-align:s
 .nc-ev-chart { margin-top:8px; }
 /* Appareils : une ligne ; gris quand rien ne se passe, vert quand un appareil aide, orange quand il faut y toucher. */
 .nc-fx-devices { display:grid; gap:8px; }
-.nc-fx-devices .nw-chip { font-family:inherit; cursor:pointer; }
+.nc-fx-devices { min-width:0; } .nc-fx-devices > * { min-width:0; }
+.nc-fx-devices .nw-chip { font-family:inherit; cursor:pointer; max-width:100%; min-width:0; white-space:normal; text-align:left; }
 .nc-fx-devices .nw-chip .icon, .nc-fx-devices .nw-chip svg { width:14px; height:14px; flex:none; }
 .nc-fx-devices .nw-chip.nc-plain { background:color-mix(in srgb, var(--nw-fg) 6%, transparent); color:var(--nw-fg); font-weight:500; }
+
+/* « Maintenant, puis » (17 novembre) : sous le conseil, la journée de la pièce — fait, pas fait, puis ce qui vient, heure par heure. */
+/* The hours share one column as wide as the longest (« jusqu'à 14 h » ran under its icon, 20 November): the rows are
+   subgrids of the day; without subgrid, the 56 px column as before. */
+.nc-day { margin-top:12px; padding-top:10px; border-top:1px solid var(--nw-line); display:grid; gap:7px 8px;
+  grid-template-columns:minmax(56px, max-content) 18px minmax(0,1fr); }
+.nc-day-h { grid-column:1 / -1; font-size:var(--nw-fs-label); line-height:14px; font-weight:650; letter-spacing:.08em; text-transform:uppercase; color:var(--nw-fg2); }
+.nc-day-r { --dc:color-mix(in srgb, var(--nw-fg) 30%, transparent); grid-column:1 / -1; display:grid; grid-template-columns:56px 18px minmax(0,1fr);
+  grid-template-columns:subgrid; column-gap:8px; align-items:start; font-size:var(--nw-fs-text); line-height:1.35; }
+.nc-day-t { font-weight:700; font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
+.nc-day-d { width:18px; height:18px; border-radius:50%; display:grid; place-items:center; background:color-mix(in oklab, var(--dc) 30%, transparent);
+  color:color-mix(in oklab, var(--dc) 55%, var(--nw-fg)); }
+.nc-day-d svg { width:11px; height:11px; }
+.nc-day-s { color:var(--nw-fg2); min-width:0; } .nc-day-s b { color:var(--nw-fg); font-weight:650; }
+.nc-day-r[data-k="fait"] { --dc:var(--nw-ok); } .nc-day-r[data-k="probable"] { --dc:var(--nw-benefit); }
+.nc-day-r[data-k="heat"] { --dc:var(--nw-heat); } .nc-day-r[data-k="rain"] { --dc:var(--nw-rain); } .nc-day-r[data-k="sun"] { --dc:var(--nw-benefit); }
+.nc-day-r:is([data-k="fait"], [data-k="rate"]) .nc-day-t { color:var(--nw-fg2); font-weight:600; }
+.nc-day-r[data-k="rate"] .nc-day-s b { color:var(--nw-fg2); font-weight:500; }

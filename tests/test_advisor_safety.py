@@ -1,4 +1,5 @@
-"""The 3.0 advisor's safety rules: rain, rain soon, gusts, red vigilance and an empty house take « open » away."""
+"""The 3.0 advisor's safety rules: rain, rain soon, gusts and red vigilance take « open » away; an empty house only
+proposes no opening."""
 from pathlib import Path
 import sys
 import unittest
@@ -13,7 +14,21 @@ class SafetyTest(unittest.TestCase):
         self.assertEqual(forbidden(rain_in=10), (frozenset({"open"}), "rain_soon"))
         self.assertEqual(forbidden(gust=60.0), (frozenset({"open"}), "gusts"))
         self.assertEqual(forbidden(vigilance="rouge"), (frozenset({"open"}), "vigilance"))
-        self.assertEqual(forbidden(alarm="armed_away"), (frozenset({"open"}), "away"))
+        # Nobody home: no opening proposed, but nothing open is shut (« absent », not « open »).
+        self.assertEqual(forbidden(alarm="armed_away"), (frozenset({"absent"}), "away"))
+
+    def test_the_alarm_never_shuts_a_window_open(self):
+        # Chambre A, 7 November, 10 h 09 to 11 h 29: the alarm set to away, the window open, « Refermez » in red. Alarmo
+        # leaves an open window out when arming: comfort does not stand in for the alarm.
+        from advisor.decide import Now, decide
+        from test_advisor_decide import FRENCH, TWINS, day
+        taken, _ = forbidden(alarm="armed_away")
+        opened = Now(air=19.0, walls=19.0, opened=(FRENCH.size,), humidity=62.0)
+        decision = decide(TWINS, opened, day(outdoor=12.0), forbidden=taken)
+        self.assertNotEqual(decision.rule, "safety")
+        # And no window to open while away.
+        shut = decide(TWINS, Now(air=19.0, walls=19.0, opened=(), humidity=85.0), day(outdoor=8.0), forbidden=taken)
+        self.assertNotIn(shut.gesture.kind, ("open", "open_more"))
 
     def test_what_is_calm_or_unknown_forbids_nothing(self):
         self.assertEqual(forbidden(rain_rate=0.0, gust=20.0, rain_in=120, vigilance="orange", alarm="disarmed"), (frozenset(), None))
@@ -99,15 +114,45 @@ class Units(unittest.TestCase):
         self.assertEqual(forbidden(vigilance="rouge")[1], "vigilance")
 
 
+class RainGaugeFirst(unittest.TestCase):
+    """Frank, 9 November: « il faut être au conditionnel et plus se baser sur le pluviomètre quand il y est »."""
+
+    def test_with_a_gauge_the_forecast_never_shuts(self):
+        # Light rain two minutes away, a gauge at zero: nothing forbidden, the card says it in the conditional.
+        self.assertEqual(forbidden(0.0, rain_in=2, intensity=1), (frozenset(), None))
+        # Likely (moderate rain on the radar, or 60 % and more): no new airing, nothing shut.
+        self.assertEqual(forbidden(0.0, rain_in=2, intensity=2), (frozenset({"rain_likely"}), "rain_maybe"))
+        self.assertEqual(forbidden(0.0, rain_in=2, chance=70), (frozenset({"rain_likely"}), "rain_maybe"))
+        # The gauge measuring the rain shuts at once.
+        self.assertEqual(forbidden(1.2, rain_in=0, intensity=1), (frozenset({"open"}), "rain"))
+        # A gauge under a tree or an overhang does not count as one.
+        self.assertEqual(forbidden(0.0, rain_in=2, gauge=False)[1], "rain_soon")
+
+    def test_without_a_gauge_the_chance_decides(self):
+        self.assertEqual(forbidden(rain_in=2), (frozenset({"open"}), "rain_soon"))
+        self.assertEqual(forbidden(rain_in=2, chance=30), (frozenset(), None))
+        self.assertEqual(forbidden(rain_in=2, chance=70)[1], "rain_soon")
+
+    def test_likely_rain_holds_back_an_airing_but_shuts_nothing(self):
+        from advisor.decide import Gesture, Now, decide
+        from test_advisor_decide import TWINS, day
+        stuffy = Now(air=21.5, walls=21.5, opened=(), humidity=55.0, co2=1600.0)
+        found = decide(TWINS, stuffy, day(outdoor=17.0), forbidden=frozenset({"rain_likely"}))
+        self.assertNotIn(found.gesture.kind, ("open", "open_more"))
+        opened = Now(air=21.5, walls=21.5, opened=((1.0, 1.2),), humidity=55.0, co2=1600.0)
+        self.assertNotEqual(decide(TWINS, opened, day(outdoor=17.0), forbidden=frozenset({"rain_likely"})).rule, "safety")
+
+
 class RainThatDoesNotCome(unittest.TestCase):
     """5 November: « la pluie arrive » from 20 h 16, the first drops at the station at 21 h 49."""
 
-    def test_believed_45_minutes_without_a_drop(self):
+    def test_believed_10_minutes_without_a_drop(self):
+        # 9 November: the radar stuck at « dans 2 min » for 10 to 50 minutes, no drop.
         from advisor.safety import rain_believed
         rain_in, since = rain_believed(18, 0.0, None, 0)
         self.assertEqual((rain_in, since), (18, 0))
-        self.assertEqual(rain_believed(6, 0.0, since, 44 * 60), (6, 0))
-        self.assertEqual(rain_believed(6, 0.0, since, 46 * 60), (None, 0))
+        self.assertEqual(rain_believed(6, 0.0, since, 9 * 60), (6, 0))
+        self.assertEqual(rain_believed(6, 0.0, since, 11 * 60), (None, 0))
         # The radar moving a little further keeps the wait; far away or the rain falling ends it.
         self.assertEqual(rain_believed(36, 0.0, since, 50 * 60), (36, 0))
         self.assertEqual(rain_believed(90, 0.0, since, 50 * 60), (90, None))
@@ -120,9 +165,9 @@ class RainThatDoesNotCome(unittest.TestCase):
         rain_in, since = rain_believed(18, 0.0, None, 0)
         held, kept = rain_believed(25, 0.0, since, 5 * 60)
         self.assertEqual((held, kept), (RAIN_SOON, 0))
-        self.assertEqual(forbidden(0.0, rain_in=held)[1], "rain_soon")
+        self.assertEqual(forbidden(0.0, rain_in=held, intensity=2)[1], "rain_maybe")
         self.assertEqual(rain_believed(45, 0.0, since, 5 * 60), (45, 0))
-        self.assertEqual(rain_believed(25, 0.0, since, 46 * 60), (25, 0))
+        self.assertEqual(rain_believed(25, 0.0, since, 11 * 60), (25, 0))
         # Never said: 25 minutes away is not « soon ».
         self.assertEqual(rain_believed(25, 0.0, None, 0), (25, None))
 

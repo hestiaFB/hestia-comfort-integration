@@ -103,8 +103,10 @@ class _Sender:
 
 
 def loaded_entries(hass):
+    # Home Assistant drops runtime_data while a room unloads (a reload, a removal): such a room is not served yet.
     return sorted((e for e in hass.config_entries.async_entries(DOMAIN)
-                   if e.state is ConfigEntryState.LOADED and not e.data.get("home")), key=lambda e: e.title)
+                   if e.state is ConfigEntryState.LOADED and not e.data.get("home")
+                   and getattr(e, "runtime_data", None) is not None), key=lambda e: e.title)
 
 
 @websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/entries"})
@@ -174,6 +176,7 @@ def ws_home_subscribe(hass, connection, msg):
         connection.send_error(msg["id"], "not_configured", "Aucune pièce Hestia Comfort chargée")
         return
     coordinators = [e.runtime_data for e in entries]
+    by_entry = {e.entry_id: c for e, c in zip(entries, coordinators)}
     sender = _Sender(connection, msg["id"])
     pending = None
     # What each room and the synthesis were when last sent, and when (`changes` only).
@@ -191,7 +194,8 @@ def ws_home_subscribe(hass, connection, msg):
         pending = None
         views, keys = [], {}
         for entry in entries:
-            c = entry.runtime_data
+            # The coordinator seen at subscription: the room may be reloading, and Home Assistant has then dropped runtime_data.
+            c = getattr(entry, "runtime_data", None) or by_entry[entry.entry_id]
             live = c.last_update_success and c.data
             view = c.data if live else {
                 "version": 1, "entry_id": entry.entry_id, "title": entry.title,
@@ -246,10 +250,11 @@ def ws_home_subscribe(hass, connection, msg):
 @callback
 def ws_view(hass, connection, msg):
     entry = hass.config_entries.async_get_entry(msg["entry_id"])
-    if entry is None or entry.domain != DOMAIN or entry.state is not ConfigEntryState.LOADED:
+    coordinator = getattr(entry, "runtime_data", None) if entry is not None else None
+    if entry is None or entry.domain != DOMAIN or entry.state is not ConfigEntryState.LOADED or coordinator is None:
         connection.send_error(msg["id"], "not_found", "Pièce Hestia Comfort non chargée")
         return
-    connection.send_result(msg["id"], entry.runtime_data.data)
+    connection.send_result(msg["id"], coordinator.data)
 
 
 @websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/review"})
@@ -431,7 +436,7 @@ async def ws_relearn(hass, connection, msg):
     connection.send_result(msg["id"], {"lance": True})
 
 
-@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/set_analysis", vol.Required("enabled"): bool})
+@websocket_api.websocket_command({vol.Required("type"): "hestia_comfort/set_analysis", LANGUAGE: str, vol.Required("enabled"): bool})
 @websocket_api.require_admin
 @websocket_api.async_response
 async def ws_analysis(hass, connection, msg):

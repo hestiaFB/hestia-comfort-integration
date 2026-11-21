@@ -237,6 +237,9 @@
       "ventilation": {
         "name": "Ventilation advised"
       },
+      "boost": {
+        "name": "Boost advised"
+      },
       "humid": {
         "name": "Too humid"
       },

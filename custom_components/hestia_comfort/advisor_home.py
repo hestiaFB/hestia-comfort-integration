@@ -1,4 +1,4 @@
-"""The 3.0 advisor's house part (niak-comfort/docs/PASSAGE-CONFORT-3.md § 2.1, § 2.2): created once, for every room.
+"""The 3.0 advisor's house part (docs/PASSAGE-CONFORT-3.md § 2.1, § 2.2): created once, for every room.
 
 It holds what the rooms share — the forecast (Hestia Weather's air, Open-Meteo's sun), the station's own shade and the
 clouds the forecast missed, the house's heaters, the safety signals — and the rooms' clock: a decision every five
@@ -26,25 +26,33 @@ from homeassistant.util import dt as dt_util
 
 from . import schedule_link, weather_link
 from .advisor import VERSION as ADVISOR_VERSION
+from .advisor.board import OPEN_LEAST
 from .advisor.decide import Thermostat
 from .advisor.household import Habits
 from .advisor.nightly import learn_room
 from .advisor.observe import Series
+from .advisor.physics.heaters import heater
 from .advisor.physics.station_sun import cell, clouds_missed, corrected, learn_shade, share
 from .advisor.physics.sunlight import sun_position, through_windows
 from .advisor.physics.thermal import STEP, Inputs
 from .advisor.physics.water import absolute, relative
-from .advisor.safety import minutes, rain_believed
+from .advisor.safety import minutes, rain_believed, rain_held
 from .advisor_store import AdvisorFiles
 from .const import DOMAIN, VERSION
 from .engine import schedule
-from .room.advice import RoomAdvisor, house_heaters, leads, room_spec
+from .engine.sunlight import CONDITIONS, sky_factor
+from .room.advice import RoomAdvisor, heater_kinds, house_given_now, house_heaters, house_power_now, leads, room_spec
 
 _LOGGER = logging.getLogger(__name__)
+# The sky Hestia Weather sees now stands for the current hour and this many after it (advisor/knowing.py `CLEAR_SKY`).
+SKY_NOW_HOURS = 2
 DATA = f"{DOMAIN}_advisor"
 EVERY = timedelta(minutes=5)
 # Seconds a window must stay as it is before its room is advised again (a sash pushed to, then opened wide).
 WINDOW_SETTLE = 10
+# A window opened is advised again once it counts as an airing (advisor/board.py OPEN_LEAST), not at the next step: the
+# card said « Aérez » up to five minutes after the window was opened (Frank, 20 November: « 1 à 3 min »).
+WINDOW_AGED = OPEN_LEAST + 5
 # Seconds between tries of the first advice after a restart, while the measures arrive.
 START_RETRY = 15
 # Versatile Thermostat's reason when it turned itself off for an open window.
@@ -54,6 +62,7 @@ FORECAST = ("https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lo
 PAST_SUN = ("https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=shortwave_radiation,cloud_cover"
             "&past_days={days}&forecast_days=1&timezone=UTC")
 OFFSET_STEPS = 144      # twelve hours of five-minute steps
+STOVE_PATH_KEPT = timedelta(minutes=15)  # a stove's simulated power is followed this long by the other rooms
 # The nightly learning (advisor/nightly.py): at 3:30, and ten minutes after a start when the last one is a day old; from
 # the recorder's days (60 at most), with Open-Meteo's sun of those days.
 LEARN_AT, LEARN_AFTER_START, LEARN_DAYS = (3, 30), 600, 60
@@ -112,6 +121,16 @@ def night_history(hass, start, end, entity_ids, with_attributes):
     return out
 
 
+def share_caps(shares: dict) -> dict:
+    """{room: the most of the stove's heat it may receive tonight}: all the rooms together never more than all of it.
+    Over it (10 November: 128 %), each keeps its part of the whole; under it, each may grow by what is left."""
+    known = {room: max(0.0, share) if isinstance(share, (int, float)) else 0.0 for room, share in shares.items()}
+    total = sum(known.values())
+    if total > 1.0:
+        return {room: share / total for room, share in known.items()}
+    return {room: share + (1.0 - total) for room, share in known.items()}
+
+
 def _number(hass, entity_id, attribute=None):
     state = hass.states.get(entity_id) if entity_id else None
     if state is None:
@@ -143,14 +162,33 @@ WAITING = {"title": "Conseil en attente", "regle": "waiting", "geste": "nothing"
            "phrase": "Le moteur redémarre : le conseil revient dans une minute."}
 
 
+# Still nothing once the first steps are past: said why, never « Le moteur redémarre » for good (forum, 19 November: five
+# rooms on « Conseil en attente » for a day, no error in the log, the panel saying « rien à régler »).
+NO_OUTDOOR = {"title": "Conseil en attente", "regle": "waiting", "manque": "dehors", "geste": "nothing",
+              "phrase": "Pas de température du dehors : choisissez-la dans Réglages généraux."}
+NO_AIR = {"title": "Conseil en attente", "regle": "waiting", "manque": "temperature", "geste": "nothing",
+          "phrase": "Pas de température lue dans cette pièce : vérifiez son capteur dans les réglages de la pièce."}
+
+
 def result(hass, entry_id):
     """The decision shown for this room: its own, or the one of the room advising its shared air; None when no 3.0
-    advisor reads this room (no temperature sensor)."""
+    advisor reads this room (no temperature sensor). Not decided yet: why, once the first steps are past."""
     home = hass.data.get(DATA)
     advisor = home.advisor_of(entry_id) if home else None
     if advisor is None:
         return None
-    return advisor.result or WAITING
+    if advisor.result:
+        return advisor.result
+    waiting = getattr(home, "waiting", None)
+    return waiting(advisor) if waiting else WAITING
+
+
+def gestures(hass, entry_id, start, end):
+    """The gestures asked in this room's air between `start` and `end`, with their kWh (room/advice.py `gestures_between`);
+    None when no 3.0 advisor reads this room."""
+    home = hass.data.get(DATA)
+    advisor = home.advisor_of(entry_id) if home else None
+    return advisor.gestures_between(start, end) if advisor else None
 
 
 def knowing(hass, entry_id):
@@ -198,22 +236,31 @@ class AdvisorHome:
         self.rooms = {}             # entry_id of the room advising → RoomAdvisor
         self.listeners = {}         # entry_id → its windows' listener
         self.pending = {}           # entry_id → the decision waiting for its window to settle
+        self.aging = {}             # entry_id → the decision waiting for its window opened to count as an airing
         self.unsubscribe = []
         # One step at a time: the rooms registered together at a start share one first step, never one each.
         self.lock, self.soon = asyncio.Lock(), None
         self.started = False
         self.boot = dt_util.utcnow()
         self.houses = {}
+        # {stove's thermostat: (when, its share given off at each step)}: simulated in the room it stands in, followed by
+        # the other rooms it warms (`house_heat_steps`).
+        self.stove_paths = {}
         self.outdoor = (None, None)
         # The station's own reading, and how far Hestia Weather trusts it now (weather_link.station_trust): the
         # temperature it retains replaces a station warmed by its wall or its roof in the sun.
         self.outdoor_measured, self.trust, self.retained = (None, None), None, None
         # Since when the rain has been said due without a drop at the station (advisor/safety.py `rain_believed`).
         self.rain_soon_since = None
+        # The last rain announced: {gauge, intensity, chance} (`safety`).
+        self.rain_hint = {}
         self.learning = False
         # The nightly learning's own process failed once (night_worker.py): said once in the log, then in the threads.
         self.worker_failed = False
         self.forecast, self.forecast_at, self.forecast_source = {}, None, "Open-Meteo"
+        # What Hestia Weather's sky lets through, hour by hour (engine/sunlight.py `sky_factor`): its clouds against
+        # Open-Meteo's sun (labo, 20 November: 320 to 395 W/m² foreseen, « nuageux » and grey outside).
+        self.sky = {}
         # The station's own shade by the sun's position, and the clouds the forecast missed in the last two hours, read
         # where it sees the sun (advisor/physics/station_sun.py); None: the forecast sun is kept as it is.
         self.station_shade, self.sun_missed, self.sun_missed_hour, self.sun_recent = {}, None, None, []
@@ -252,6 +299,8 @@ class AdvisorHome:
             listener()
         if pending := self.pending.pop(advisor.entry_id, None):
             pending()
+        if aging := self.aging.pop(advisor.entry_id, None):
+            aging()
         if not self.rooms:
             for unsubscribe in self.unsubscribe:
                 unsubscribe()
@@ -278,6 +327,14 @@ class AdvisorHome:
         if pending := self.pending.pop(advisor.entry_id, None):
             pending()
         self.pending[advisor.entry_id] = async_call_later(self.hass, WINDOW_SETTLE, partial(self._advise_now, advisor))
+        if new.state == "on":
+            if aging := self.aging.pop(advisor.entry_id, None):
+                aging()
+            self.aging[advisor.entry_id] = async_call_later(self.hass, WINDOW_AGED, partial(self._advise_aged, advisor))
+
+    async def _advise_aged(self, advisor, now):
+        self.aging.pop(advisor.entry_id, None)
+        await self._advise_now(advisor, now)
 
     async def _advise_now(self, advisor, _now):
         self.pending.pop(advisor.entry_id, None)
@@ -321,6 +378,29 @@ class AdvisorHome:
         configuration = coordinator.home_configuration if coordinator else None
         return (configuration.home.get("foyer") if configuration else None) or {}
 
+    def waiting(self, advisor):
+        """What a room not advised yet says: the engine starting, or, its first steps past, what it lacks."""
+        if dt_util.utcnow() - self.boot < EVERY + timedelta(minutes=1):
+            return WAITING
+        if self.outdoor[0] is None:
+            return NO_OUTDOOR
+        if _number(self.hass, advisor.room["temperature"]) is None:
+            return NO_AIR
+        return WAITING
+
+    def _forecast_now(self, now):
+        """The outside now from the forecast (Hestia Weather's, or Open-Meteo's), between its two hours: (°C, %)."""
+        hour = now.replace(minute=0, second=0, microsecond=0)
+        a, b = self.forecast.get(hour), self.forecast.get(hour + timedelta(hours=1))
+        if not a or a[0] is None:
+            return None, None
+        share = (now - hour).total_seconds() / 3600
+        if b and b[0] is not None:
+            te = a[0] + (b[0] - a[0]) * share
+            rh = a[1] + (b[1] - a[1]) * share if a[1] is not None and b[1] is not None else a[1]
+            return te, rh
+        return a[0], a[1]
+
     def _read_outdoor(self):
         """The outside's temperature and humidity now. Where Hestia Weather does not trust its station at this moment (a
         wall or a roof in the sun, docs/STATION-EMPLACEMENT.md § 4.1 of Hestia Weather), its retained temperature is
@@ -339,12 +419,39 @@ class AdvisorHome:
             if humidity is not None:
                 humidity = round(relative(kept[0], absolute(temperature, humidity)), 1)
             temperature, self.retained = kept[0], {"temperature": kept[0], "now": kept[1], "why": kept[2]}
+        if temperature is None and not temperature_entity:
+            # No outdoor sensor at all (a Hestia Weather place without a station, nothing chosen in Confort): the forecast
+            # stands for the outside, as Hestia Weather's own « forecast » when it does not trust its station.
+            fc_te, fc_rh = self._forecast_now(dt_util.utcnow())
+            if fc_te is not None:
+                temperature, self.retained = fc_te, {"temperature": fc_te, "now": "forecast", "why": "no_sensor"}
+                if humidity is None:
+                    humidity = fc_rh
         self.outdoor = (temperature, humidity)
         return self.outdoor
 
     def house_heat(self):
-        """W the house's heaters give off now, wherever they stand."""
-        return sum((_number(self.hass, e, "power_percent") or 0.0) / 100 * w for e, w in self.houses.items())
+        """W the house's heaters give off now, wherever they stand: none from a stove waiting to be lit."""
+        kinds = heater_kinds(self.hass)
+        return sum(house_given_now(self.hass, e, kinds) * w for e, w in self.houses.items())
+
+    def house_heat_steps(self, now, steps):
+        """W the house's heaters give off at each coming step: a stove as its own room simulates it (5 min old at most,
+        STOVE_PATH_KEPT), the others as they are now. Kept at its power of the moment, a stove just lit at 100 % warmed
+        the other rooms two hours at full power (bilan of 11 November: Chambre M 24,8 °C foreseen, 21,8 °C measured)."""
+        out = [0.0] * steps
+        kinds = heater_kinds(self.hass)
+        for entity, watts in self.houses.items():
+            found = self.stove_paths.get(entity)
+            power = house_given_now(self.hass, entity, kinds)
+            shares = None
+            if found is not None and power > 0 and timedelta(0) <= now - found[0] <= STOVE_PATH_KEPT and found[1]:
+                shift = int((now - found[0]).total_seconds() // STEP)
+                shares = found[1][shift:] or found[1][-1:]
+            for k in range(steps):
+                share = shares[min(k, len(shares) - 1)] if shares else power
+                out[k] += share * watts
+        return out
 
     def safety(self):
         """(rain mm/h, gusts km/h, minutes before the rain, vigilance, where the wind comes from in degrees): from the home's
@@ -359,6 +466,9 @@ class AdvisorHome:
                 rate = _number(self.hass, rain["entity_id"])
             elif state.state in ("on", "off"):
                 rate = 1.0 if state.state == "on" else 0.0
+        # The rain measured now, before it is held: a window opened after the last drop is not told « il pleut ».
+        self.rain_now = rate
+        rate, self.rain_last = rain_held(rate, getattr(self, "rain_last", None), dt_util.utcnow().timestamp())
         gust_entity = (sources.get("wind_gust") or {}).get("entity_id")
         gust = _number(self.hass, gust_entity)
         if gust is not None:
@@ -378,6 +488,10 @@ class AdvisorHome:
         # A rain gauge under a tree or an overhang: its zero does not make the rain announced unbelieved.
         sheltered = weather_link.gauge_sheltered(self.trust) and weather_link.from_station(self.hass, place, rain.get("entity_id"))
         rain_in, self.rain_soon_since = rain_believed(rain_in, rate, self.rain_soon_since, dt_util.utcnow().timestamp(), sheltered)
+        # How sure the rain announced is, and whether a gauge in the open has the last word (advisor/safety.py).
+        self.rain_hint = {"gauge": rate is not None and not sheltered,
+                          "intensity": ahead.get("intensity") if isinstance(ahead.get("intensity"), int) else None,
+                          "chance": ahead.get("chance") if isinstance(ahead.get("chance"), (int, float)) else None}
         wind_from = _number(self.hass, (sources.get("wind_bearing") or {}).get("entity_id"))
         return rate, gust, rain_in, outlook.get("vigilance"), wind_from
 
@@ -464,11 +578,17 @@ class AdvisorHome:
         except Exception:  # noqa: BLE001 - Weather's forecast is a plus over Open-Meteo's
             _LOGGER.warning("Hestia Comfort: Hestia Weather's forecast unreadable, Open-Meteo kept")
             return
-        merged = dict(self.forecast)
+        merged, sky = dict(self.forecast), {}
         for h in hours:
             when = dt_util.as_utc(dt_util.parse_datetime(h["time"])).replace(minute=0, second=0, microsecond=0)
             sun = (self.forecast.get(when) or (None, None, None))[2]
             merged[when] = (h.get("temperature"), h.get("humidity"), sun)
+            # The cloud cover and the condition, the darker of the two: Météo-France says « nuageux » with a cover of
+            # 50 % (labo, 20 November afternoon, 100 to 150 W/m² measured for 320 to 395 foreseen).
+            said = [f for f in (sky_factor(h), CONDITIONS.get(h.get("condition"))) if f is not None]
+            if said:
+                sky[when] = min(said)
+        self.sky = sky
         if hours:
             self.forecast, self.forecast_source = merged, "Hestia Weather"
 
@@ -525,10 +645,50 @@ class AdvisorHome:
         if all(mean is not None for _, _, mean in recent):
             self.sun_missed_hour = hour
 
+    def sun_today(self, now):
+        """The forecast sun of each hour (W/m², horizontal), checked against the station like the coming steps', and what
+        Hestia Weather's sky lets through: {hour: (sun, sky)}, sky None when Weather does not say."""
+        hour = now.replace(minute=0, second=0, microsecond=0)
+        seen = self._sky_now()
+        out = {}
+        for when, fc in self.forecast.items():
+            sun, ahead = fc[2], (when - hour).total_seconds() / 3600
+            if sun is not None and self.sun_missed is not None:
+                sun = corrected(sun, ahead, self.sun_missed)
+            sky = self.sky.get(when)
+            # The sky seen now holds for this hour and the next SKY_NOW_HOURS: the hourly forecast promised « sunny »
+            # from 14 h under a sky Hestia Weather already called « cloudy » (labo, 20 November at 13 h 19).
+            if seen is not None and 0 <= ahead <= SKY_NOW_HOURS:
+                sky = seen if sky is None else min(sky, seen)
+            out[when] = (sun, sky)
+        return out
+
+    def _sky_now(self):
+        """What the sky lets through now, as Hestia Weather sees it (`sky_now`, from Hestia Weather 4.2): the darker of
+        its cloud cover and its condition. None from an older Hestia Weather, or before its first calculation."""
+        api = weather_link.api(self.hass)
+        read = getattr(api, "sky_now", None) if api else None
+        if read is None:
+            return None
+        try:
+            now = read(self._place())
+        except Exception:  # noqa: BLE001 - the sky now is a plus over the forecast
+            return None
+        if not now:
+            return None
+        said = [f for f in (sky_factor({"cloud_coverage": now.get("cloud_coverage")}), CONDITIONS.get(now.get("condition")))
+                if f is not None]
+        return min(said) if said else None
+
     def coming(self, now, steps, outdoor, outdoor_rh, house_heat, shade, glazing=None, opened=(), shutter=0.0):
         """The coming steps: the forecast, pulled toward the station's measure for the first hours."""
         start = self.forecast.get(now.replace(minute=0, second=0, microsecond=0))
         offset = outdoor - start[0] if start and start[0] is not None else 0.0
+        # The water too (bilan of 11 Nov.: 91 % forecast outside, 78 % at the station → « Refermez » for nothing): the
+        # forecast's own water, from its own temperature and humidity, pulled toward the station's like the temperature.
+        water_offset = 0.0
+        if start and start[0] is not None and start[1] is not None and outdoor_rh is not None:
+            water_offset = absolute(outdoor, outdoor_rh) - absolute(start[0], start[1])
         out = []
         hour = now.replace(minute=0, second=0, microsecond=0)
         for k in range(steps):
@@ -540,7 +700,12 @@ class AdvisorHome:
                 fc = (fc[0], fc[1], corrected(fc[2], ahead, self.sun_missed))
             # The gap between the station and the forecast holds for hours: it fades over twelve hours, not two.
             te = (fc[0] + offset * math.exp(-k / OFFSET_STEPS)) if fc and fc[0] is not None else outdoor
-            rh = fc[1] if fc and fc[1] is not None else outdoor_rh
+            fade = math.exp(-k / OFFSET_STEPS)
+            if fc and fc[0] is not None and fc[1] is not None:
+                water = absolute(fc[0], fc[1]) + water_offset * fade
+                water = min(max(water, 0.0), absolute(te, 100.0))
+            else:
+                water = absolute(te, outdoor_rh) if outdoor_rh is not None else None
             sun = fc[2] if fc and fc[2] is not None else 0.0
             local = dt_util.as_local(when)
             # The sun on each window by its orientation, when declared (an optional plus, CAHIER-MOTEUR.md § 6.7).
@@ -551,7 +716,7 @@ class AdvisorHome:
                 facades = tuple(through_windows(sun, elevation, azimuth, glazing, which) for which in (opened, (), range(len(glazing))))
             out.append((Inputs(te, sun=sun, hour=local.hour + local.minute / 60, house_heat=house_heat, shade=shade, shutter=shutter,
                                facade=facades[0], facade_shut=facades[1], facade_all=facades[2]),
-                        absolute(te, rh) if rh is not None else None))
+                        water))
         return out
 
     def _sun_check(self, now):
@@ -667,12 +832,16 @@ class AdvisorHome:
             zone = dt_util.get_time_zone(self.hass.config.time_zone)
             location = (self.hass.config.latitude, self.hass.config.longitude)
             reports = []
+            kinds = heater_kinds(self.hass)
+            house_idle = {e: heater(kinds.get(e)).idle for e in self.houses}
+            caps = share_caps({e: (a.learned or {}).get("heat", {}).get("share") for e, a in self.rooms.items() if e in specs}) \
+                if self.houses else {}
             for entry_id, spec in specs.items():
                 advisor = self.rooms.get(entry_id)
                 if advisor is None:
                     continue
                 arguments = (spec, advisor.learned, room_history(history, spec, outdoor, outdoor_rh, self.houses), sun, now,
-                             outdoor, outdoor_rh, location, zone, self.houses)
+                             outdoor, outdoor_rh, location, zone, self.houses, None, caps.get(entry_id), house_idle)
                 try:
                     entry, report = await self._learn_room(arguments)
                 except Exception:  # noqa: BLE001 - one room that fails keeps its twins

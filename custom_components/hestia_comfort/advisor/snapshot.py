@@ -38,15 +38,16 @@ def capture(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weight
             previous: Gesture | None = None, forbidden=frozenset(), proof: dict | None = None, holidays: bool = False,
             habits: Habits = Habits(), *,
             reason: str | None = None, held: float | None = None, tried: Gesture | None = None, aired: float | None = None,
-            failed: dict | None = None, pollen: Pollen | None = None,
+            failed: dict | None = None, pollen: Pollen | None = None, tried_held: float | None = None,
             end_hour: int, hour: float | None = None, language: str = "fr", room: str = "", when: str = "",
-            version: str = "") -> dict:
+            version: str = "", beyond_before: bool | None = None) -> dict:
     """The decision's inputs, as plain JSON."""
     return {"format": FORMAT, "version": version, "room": room, "when": when, "twins": _plain(twins), "now": _plain(now),
             "coming": [[_plain(u), water] for u, water in coming], "comfort": _plain(comfort), "weights": _plain(weights),
             "previous": _plain(previous), "forbidden": sorted(forbidden), "reason": reason, "proof": proof, "holidays": holidays,
             "habits": habits.setting(), "held": held, "tried": _plain(tried), "aired": aired, "failed": failed,
-            "pollen": _plain(pollen), "end_hour": end_hour, "hour": hour, "language": language}
+            "pollen": _plain(pollen), "tried_held": tried_held, "end_hour": end_hour, "hour": hour, "language": language,
+            "beyond_before": beyond_before}
 
 
 def restore(snap: dict) -> dict:
@@ -64,6 +65,7 @@ def restore(snap: dict) -> dict:
                   idle_thermostat=Thermostat(**t["idle_thermostat"]) if t.get("idle_thermostat") else None,
                   house_thermostat=Thermostat(**t["house_thermostat"]) if t.get("house_thermostat") else None,
                   house_power=t.get("house_power", 0.0), house_now=t.get("house_now", 0.0),
+                  house_idle=t.get("house_idle", 0.0), house_idle_for=t.get("house_idle_for"),
                   bearings=tuple(t.get("bearings", ())), cross=t.get("cross", 2.0))
     now = Now(**{**snap["now"], "opened": _pairs(snap["now"]["opened"])})
     coming = [(Inputs(**{**u, "windows": _pairs(u["windows"])}), water) for u, water in snap["coming"]]
@@ -73,7 +75,7 @@ def restore(snap: dict) -> dict:
             "habits": Habits.of(snap.get("habits")), "held": snap.get("held"),
             "tried": Gesture(**snap["tried"]) if snap.get("tried") else None, "aired": snap.get("aired"), "failed": snap.get("failed"),
             "pollen": Pollen(**{**snap["pollen"], "good": tuple(tuple(g) for g in snap["pollen"]["good"])})
-            if snap.get("pollen") else None}
+            if snap.get("pollen") else None, "tried_held": snap.get("tried_held")}
 
 
 def replay(snap: dict, **changes) -> tuple[Decision, dict]:
@@ -84,7 +86,8 @@ def replay(snap: dict, **changes) -> tuple[Decision, dict]:
     marks = {"minimum": c.minimum, "maximum": c.maximum, "humidity": c.humidity, "co2": c.co2, "particles": c.particles,
              "voc": c.voc}
     return decision, phrase(decision, snap["end_hour"], snap.get("language", "fr"), hour=snap.get("hour"),
-                            reason=snap.get("reason"), marks=marks)
+                            reason=snap.get("reason"), marks=marks, beyond_before=snap.get("beyond_before"),
+                            keep_beyond=bool(snap.get("keep_beyond")))
 
 
 def warmer(coming, degrees: float):

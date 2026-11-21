@@ -38,13 +38,24 @@ class Entities(unittest.TestCase):
             self.assertIn("humidity", keys["sensor"])
         self.assertNotIn("volume:advice", room_keys(cuisine)["sensor"])
 
-    def test_the_vmc_stays_useful_while_it_dries_a_humid_room(self):
-        humid = room("p", "Chambre P", v=verdict(humidity="very_humid"), ventilation=True)
-        self.assertTrue(binary_value("ventilation", humid.data["verdict"], [humid.data]))
-        dry = room("p", "Chambre P", v=verdict(humidity="normal"), ventilation=True)
-        self.assertFalse(binary_value("ventilation", dry.data["verdict"], [dry.data]))
-        asked = room("p", "Chambre P", v=verdict("ventilation"), ventilation=False)
-        self.assertTrue(binary_value("ventilation", asked.data["verdict"], [asked.data]))
+    def test_the_vmc_says_what_its_room_advises_in_any_room_of_the_air(self):
+        """engine/ventilation.py decides in each room; the entities only read it (tests/test_ventilation.py)."""
+        running = room("p", "Chambre P")
+        running.data["vmc"] = {"slow": True, "fast": False}
+        still = room("c", "Cuisine")
+        still.data["vmc"] = {"slow": False, "fast": None}
+        self.assertTrue(binary_value("ventilation", still.data["verdict"], [still.data, running.data]))
+        self.assertFalse(binary_value("ventilation", still.data["verdict"], [still.data]))
+        self.assertFalse(binary_value("boost", running.data["verdict"], [running.data]))
+        # Without its advice (an older view), nothing is advised.
+        self.assertFalse(binary_value("ventilation", verdict(), [room("a", "Chambre").data]))
+
+    def test_the_turbo_entity_belongs_to_the_room_that_has_one(self):
+        plain = room("a", "Chambre")
+        turbo = room("p", "Chambre P")
+        turbo.config = {"name": "Chambre P", "sources": {"ventilation_boost": "fan.contacteurs_l2"}}
+        self.assertNotIn("boost", room_keys(plain)["binary_sensor"])
+        self.assertIn("boost", room_keys(turbo)["binary_sensor"])
 
     def test_the_home_counts_a_shared_air_once(self):
         salon = room("s", "Salon", ["c"], "Salon · Cuisine", verdict("open", "action"))

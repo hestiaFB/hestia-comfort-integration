@@ -1,6 +1,7 @@
 import {html,nothing,type TemplateResult} from 'lit';
 import {INSIGHT_GROUPS,type Level,type InsightGroup} from '../types';
 import {icon} from '../ui/icons';
+import {t,tx} from '../i18n';
 
 /** The 3.0 advisor's decision for the room, as the HA de test publishes it (`sensor.conseil_3_<pièce>`), read by the card
  *  in place of the 2.1 advice: the banner, « À savoir » and « Pourquoi ? » (PASSAGE-CONFORT-3.md, the bridge of 1 November).
@@ -13,7 +14,9 @@ export interface Advisor3 {
   /** What the last opinion sent answered, shown in place of the buttons. */
   said?:string;
 }
-interface Slide3 {title:string;line:string;disk:string;level:Level;pill:string;learned?:string;cap?:string}
+interface Slide3 {title:string;line:string;disk:string;level:Level;pill:string;learned?:string;cap?:string;night?:string;when?:string}
+/** A slot's gesture is said for its slot (advisor/slots.py), never « Maintenant » above « vers 15 h ». */
+const SLOTS:Record<string,string>={matin:'Ce matin',apres_midi:'Cet après-midi',soir:'Ce soir',nuit:'Cette nuit'};
 
 const str=(x:unknown)=>typeof x==='string'?x:'';
 const list=(x:unknown)=>Array.isArray(x)?x.filter((i):i is string=>typeof i==='string'):[];
@@ -28,11 +31,20 @@ const RULES:Record<string,string>={nothing:'Aucun geste ne ferait mieux : la pi�
   unproven:'Un geste aiderait peut-être, mais son effet n’est pas encore prouvé dans cette pièce : il est à essayer.',
   best:'C’est le geste qui aide le plus, comparé à ne rien faire.',safety:'Une règle de sécurité impose ce geste.',
   overheat:'La pièce dépasse sa consigne depuis un moment : c’est une mesure, pas une prévision.',
+  stale:'Le CO₂ mesuré est trop haut : l’air est à renouveler. C’est une mesure, pas une prévision.',
   doubtful:'Une mesure semble fausse : pas de conseil tant qu’elle l’est.',
-  waiting:'Le moteur de conseil redémarre ; il reprend la pièce dès son premier passage.'};
-const LIMITS:Record<string,string>={rain:'il pleut',rain_soon:'la pluie arrive',gusts:'rafales de vent',vigilance:'vigilance météo',
+  waiting:'Le moteur de conseil redémarre ; il reprend la pièce dès son premier passage.',
+  creneau:'C’est le meilleur moment de ce créneau, choisi à son début : il ne changera plus d’ici là.',
+  urgent:'Une mesure est trop haute : à faire maintenant. C’est une mesure, pas une prévision.'};
+const LIMITS:Record<string,string>={rain:'il pleut',rain_soon:'la pluie pourrait arriver',rain_maybe:'la pluie pourrait arriver : pas de nouvelle aération',gusts:'rafales de vent',vigilance:'vigilance météo',
   away:'la maison est en mode absence',frost:'le gel est annoncé'};
 const SOURCES:Record<string,string>={co2:'CO₂',voc:'COV',particles:'particules',humidity:'humidité'};
+
+/** The room asleep (advice.py `reveil`): its waking hour, « 7 h » or « 6 h 45 »; nothing by day. */
+export function wake3(a:Record<string,unknown>):string|undefined{
+  const at=a.nuit===true?Date.parse(str(a.reveil)):NaN;if(Number.isNaN(at))return undefined;
+  const d=new Date(at),h=d.getHours(),m=d.getMinutes();return m?`${h} h ${String(m).padStart(2,'0')}`:`${h} h`;
+}
 
 /** The minutes left before shutting, from the time the engine gave: the card counts down between two of its steps. */
 export function countdown(a:Record<string,unknown>,now=Date.now()):string|null{
@@ -41,20 +53,36 @@ export function countdown(a:Record<string,unknown>,now=Date.now()):string|null{
   return left>0?`Laissez ouvert encore ${left} min`:'Refermez';
 }
 
-/** The colour and the pill: orange for a gesture, red for safety, green for one to try, blue otherwise (the charter). */
+/** The colour and the pill, the charter's meanings on the family the engine says (room/advice.py `famille`, moteur 3.18.0,
+ *  niak-comfort/docs/ETAT-DES-LIEUX-MOTEUR.md): blue, nothing to do (« Tout va bien », « Au mieux », an airing « En cours »);
+ *  green, a slot's good moment to seize (« Bon moment »); orange, a gesture that matters now (« À faire »: an urgency, or
+ *  shutting what is open); red, a warning (« Attention »); grey when the card cannot tell. Frank, 16 November: one family,
+ *  one colour, one pill — orange stays rare, so it means it. Before 3.18.0, from the gesture: orange for a gesture, red for
+ *  safety, green for one to try, blue otherwise. */
 export function level3(x:Advisor3):{level:Level;pill:string}{
-  const a=x.attributes,rule=str(a.regle),gesture=str(a.geste)||'nothing';
+  const a=x.attributes,rule=str(a.regle),gesture=str(a.geste)||'nothing',family=str(a.famille);
   if(rule==='doubtful')return {level:'neutral',pill:'À vérifier'};
   if(rule==='waiting')return {level:'neutral',pill:'Démarrage'};
+  if(family){
+    if(family==='securite')return {level:'urgent',pill:'Attention'};
+    if(family==='urgence')return {level:'action',pill:'À faire'};
+    if(family==='creneau')return {level:'benefit',pill:'Bon moment'};
+    // Shutting now, or the countdown over between two steps of the engine (`countdown`): « Refermez » is to do now.
+    if(family==='reponse'&&gesture!=='nothing')
+      return gesture==='close'&&(!a.apres||countdown(a)==='Refermez')?{level:'action',pill:'À faire'}:{level:'calm',pill:'En cours'};
+    return {level:'calm',pill:a.hors_plage===true?'Au mieux':'Tout va bien'};
+  }
   if(rule==='safety')return {level:'urgent',pill:'Attention'};
   // « Laissez ouvert »: the gesture is done, nothing more to do (advisor/decide.py `keep`).
   if(gesture==='keep')return {level:'calm',pill:'Au mieux'};
   if(gesture!=='nothing')return {level:'action',pill:'Geste conseillé'};
   if(str(a.a_essayer))return {level:'benefit',pill:'À saisir'};
+  // Read on the measures by the engine (room/advice.py `hors_plage`, 9 November); the line only for an older engine.
+  if(typeof a.hors_plage==='boolean')return {level:'calm',pill:a.hors_plage?'Au mieux':'Tout va bien'};
   return {level:'calm',pill:['insignificant','unproven'].includes(rule)||beyond(a)?'Au mieux':'Tout va bien'};
 }
 /** « Rien à faire » while a measure stays out of its range or mark: the engine's line says so (advisor/words.py). */
-const beyond=(a:Record<string,unknown>)=>/aucun geste ne ferait vraiment mieux|^(Ouverte ou fermée|Ouverte|Fermée) :/i.test(str(a.phrase));
+const beyond=(a:Record<string,unknown>)=>/aucun geste ne ferait vraiment mieux|rien de mieux à faire pour l’instant|rien de mieux à faire pour l'instant|^(Ouverte ou fermée|Ouverte|Fermée) :/i.test(str(a.phrase));
 
 /** The pictogram of a gesture to try, from its first words (« Aérez 20 min », « Lancez la VMC »…). */
 const TRY_DISKS:[RegExp,string][]=[[/^(Aérez|Ouvrez|Entrouvrez)/i,'open'],[/VMC/i,'vmc'],[/purificateur/i,'fan'],[/chauff|poêle|radiateur/i,'flame'],[/volet/i,'window'],[/^(Fermez|Refermez)/i,'shut']];
@@ -69,12 +97,13 @@ export function trial3(a:Record<string,unknown>):{title:string;line:string;disk:
 
 export function slides3(x:Advisor3):Slide3[]{
   const a=x.attributes,gesture=str(a.geste)||'nothing',{level,pill}=level3(x),tried=level==='benefit'?trial3(a):null;
-  if(tried)return [{...tried,level,pill,cap:'À essayer'}];
-  const proof=gesture!=='nothing'&&!['safety','overheat'].includes(str(a.regle))?PROOF[str(a.preuve)]:undefined;
+  const night=wake3(a),when=str(a.famille)==='creneau'?SLOTS[str(a.creneau)]:undefined;
+  if(tried)return [{...tried,level,pill,cap:'À essayer',night}];
+  const proof=gesture!=='nothing'&&!['safety','overheat','stale'].includes(str(a.regle))?PROOF[str(a.preuve)]:undefined;
   // « Optimisé par l'apprentissage » only for an effect this room has shown: a probable one is said « sans doute » in the line
   // (Chambre P, 3 November: the flask over a window it had never seen open).
   return [{title:countdown(a)??x.title,line:str(a.phrase),disk:str(a.regle)==='safety'?'rain':str(a.regle)==='waiting'?'clock':DISKS[gesture]??'check',level,pill,
-    learned:str(a.preuve)==='proven'?proof:undefined}];
+    learned:str(a.preuve)==='proven'?proof:undefined,night,when}];
 }
 
 /** « À savoir » from the 3.0 decision: what to try and the night first, then what is worth watching, then the passive advice.
@@ -94,6 +123,23 @@ export function factBox3(x:Advisor3,o:{show?:boolean;groups?:readonly InsightGro
     <h4>${icon(g.ic)}${g.title}</h4><ul>${g.lines.map(l=>html`<li>${icon(g.ic)}<span>${l}</span></li>`)}</ul></section>`)}</div></div>`:nothing;
 }
 
+interface DayRow {when:number;at:string;ic:string;kind:string;text:string;note?:string|TemplateResult}
+const clock=(ms:number)=>{const d=new Date(ms),h=d.getHours(),m=d.getMinutes();return m?`${h} h ${String(m).padStart(2,'0')}`:`${h} h`;};
+/** « Maintenant, puis » (Frank, 17 November): under the advice, the room's day — what was done, with what it did, what was
+ *  missed, without reproach, then what comes, hour by hour: the gestures the later slots will likely ask and what « À
+ *  venir » said (the heating, the rain). Two past lines at most, three to come. */
+export function day3(a:Record<string,unknown>,events:{when:number;at:string;ic:string;text:string;note?:string|TemplateResult}[]=[],now=Date.now()):TemplateResult|typeof nothing{
+  const items:DayRow[]=(Array.isArray(a.journee)?a.journee:[]).flatMap((x:unknown)=>{
+    const r=x as Record<string,unknown>,when=Date.parse(str(r.heure));
+    return Number.isNaN(when)?[]:[{when,at:clock(when),ic:str(r.genre)==='fait'?'check':'open',kind:str(r.genre),text:str(r.titre),note:str(r.detail)||undefined}];});
+  const past=items.filter(i=>i.when<=now).slice(-2);
+  const next=[...items.filter(i=>i.when>now),...events.filter(e=>e.when>now).map(e=>({...e,kind:e.ic==='heat'?'heat':e.ic==='rain'?'rain':e.ic==='sun'?'sun':'info'}))]
+    .sort((x,y)=>x.when-y.when).slice(0,3);
+  const rows=[...past,...next];
+  return rows.length?html`<div class="nc-day"><div class="nc-day-h">${t('Aujourd’hui')}</div>${rows.map(r=>html`<div class="nc-day-r" data-k=${r.kind}>
+    <span class="nc-day-t">${r.at}</span><span class="nc-day-d">${icon(r.ic)}</span><span class="nc-day-s"><b>${tx(r.text)}</b>${r.note?html` · ${typeof r.note==='string'?tx(r.note):r.note}`:nothing}</span></div>`)}</div>`:nothing;
+}
+
 const OPINIONS:[string,string][]=[['faux','Faux'],['inutile','Inutile'],['pas_maintenant','Pas maintenant']];
 
 /** « Pourquoi ? » from the 3.0 decision: the rule, the scenarios compared, what holds back, the source seen, the proof. */
@@ -102,10 +148,11 @@ export function why3(x:Advisor3):TemplateResult{
   const sources=a.sources&&typeof a.sources==='object'?Object.keys(a.sources as object).map(k=>SOURCES[k]??k):[];
   const row=(ic:string,label:string,text:string)=>html`<div class="nc-why-row">${icon(ic)}<span>${label}</span><b>${text}</b></div>`;
   const asked=str(a.geste)!=='nothing'||!!str(a.a_essayer);
-  const said=pill==='Au mieux'&&rule==='nothing'?'Une mesure sort de votre plage ou de son repère, mais aucun geste ne ferait mieux pour l’instant.':RULES[rule]??'';
+  const said=pill==='Au mieux'&&str(a.geste||'nothing')==='nothing'&&!['safety','doubtful','waiting'].includes(rule)?'Une mesure sort de votre plage ou de son repère, mais aucun geste ne ferait mieux pour l’instant.':RULES[rule]??'';
   return html`<p class="nc-why-head"><b>Pourquoi « ${pill} » ?</b> ${said}</p>
     ${list(a.pourquoi).map(l=>row('clock','Scénario',l))}
     ${limit?row('alert','Ce qui limite',limit):nothing}
+    ${wake3(a)?row('moon','Nuit',`pas d’aération proposée avant ${wake3(a)} ; une fenêtre ouverte ou un appareil allumé restent signalés`):nothing}
     ${sources.length?row('spark','Source en cours',sources.join(', ')+' : plus que d’habitude'):nothing}
     ${str(a.preuve)&&str(a.geste)!=='nothing'?row('flask','Preuve',PROOF[str(a.preuve)]??str(a.preuve)):nothing}
     ${x.send?html`<div class="nc-why-row nc-opinion">${icon('ask')}<span>Ce conseil ne va pas</span>${x.said?html`<b>${x.said}</b>`

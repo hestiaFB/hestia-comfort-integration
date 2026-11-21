@@ -239,6 +239,9 @@
       "ventilation": {
         "name": "VMC conseillée"
       },
+      "boost": {
+        "name": "Turbo conseillé"
+      },
       "humid": {
         "name": "Trop humide"
       },

@@ -146,6 +146,25 @@ class ReadApart(unittest.TestCase):
         self.assertIsNone(failed("co2", shares, self.opened, self.at, 19.2, 75.0))
 
 
+    def test_a_measure_sent_before_the_window_worked_says_nothing(self):
+        # Chambre A, 7 November: the hygrometer sent 67 % as the window opened at 9 h 24, then nothing until 63 % at
+        # 9 h 56; at 9 h 39 the airing was said useless on the 67 %. A value sent too soon after the opening is not read.
+        from advisor.opening import failed, seen_shares
+        sent = self.opened.since + timedelta(minutes=2)
+        shares = seen_shares(self.opened, self.at, 19.2, 75.0, {"air": sent, "humidity": sent})
+        self.assertEqual(shares, {})
+        self.assertIsNone(failed("humidity", shares, self.opened, self.at, 19.2, 75.0, {"humidity": sent}))
+
+    def test_a_measure_is_read_at_the_time_it_was_sent(self):
+        # Sent at 16 h 48, read at 17 h 10: against the forecast for 16 h 48, and said « en 28 min », not 50.
+        from advisor.opening import failed, seen_shares
+        sent = {"air": self.at, "humidity": self.at}
+        later = self.at + timedelta(minutes=22)
+        self.assertEqual(seen_shares(self.opened, later, 19.2, 75.0, sent), seen_shares(self.opened, self.at, 19.2, 75.0))
+        found = failed("humidity", seen_shares(self.opened, later, 19.2, 75.0, sent), self.opened, later, 19.2, 75.0, sent)
+        self.assertEqual(round(found["minutes"]), 28)
+
+
 class WithinPhysics(unittest.TestCase):
     def test_a_window_never_does_more_than_physics_allows(self):
         from advisor.physics.thermal import WINDOW_RANGE, bounded

@@ -15,6 +15,9 @@ class Heater:
     lag: float = 0.0            # minutes for the heat given off to cover two thirds of the way to the heat asked
     window_cut: bool = True     # an open window stops it (its thermostat's « window_turn_off »)
     efficiency: float = 1.0     # kWh of heat per kWh paid
+    # Share of its full power it still gives off while it burns and its thermostat asks 0 %: a pellet stove does not go
+    # out, it idles (Frank, 12 November: « il tourne au ralenti mais il chauffe quand même ou maintient »).
+    idle: float = 0.0
 
 
 # Ordinary values per kind. A radiant panel heats the walls and the people more than a convector does (the ressenti,
@@ -25,7 +28,7 @@ HEATERS = {
     "inertia": Heater(lag=30.0),                            # oil, stone, cast iron, central heating's water
     "floor": Heater(lag=180.0),
     "stove": Heater(lag=60.0, window_cut=False),            # wood stove, insert, fireplace
-    "pellet": Heater(lag=20.0),
+    "pellet": Heater(lag=20.0, idle=0.3),                  # its lowest flame: about a third of its power
     "ac": Heater(efficiency=3.0),                           # reversible air conditioning, heat pump
 }
 KINDS = tuple(HEATERS)

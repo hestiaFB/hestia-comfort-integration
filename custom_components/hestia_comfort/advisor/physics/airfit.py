@@ -11,9 +11,13 @@ import math
 from ..notes import SETTLE_STEPS, SHORTEST_STEPS, case, episodes, left_out, put_aside
 from .air import AirParams, ParticleParams, air_step, particles_step
 from .vents import leak_flow, window_flow
-from .water import WaterParams, water_step
+from .water import WaterParams, bounded, water_step
 
 HOUR, THREE = 12, 36
+# Eight hours ahead, from every sixth hour, without the last hour's correction (it fades within two): a twin good at one
+# and three hours may still drift over a night (bilan of 11 November: Chambre P, 89 % foreseen at 7 h, 82 % measured,
+# sources of 186 g/h at midnight balanced by leaks ×3.7). Weighed NIGHT_WEIGHT in the score.
+NIGHT, NIGHT_EVERY, NIGHT_WEIGHT = 96, 6, 0.5
 
 
 # Logarithms are kept within this, the search's first moves are these: a search started with the default tiny moves on a
@@ -44,7 +48,7 @@ def _stepper(kind, x, volume, rows):
         s = sample or s
         flow = _flow(x, volume, s)
         if kind == "water":
-            p = WaterParams(volume, _e(x[2]), _e(x[3]), x[4], x[5], x[6])
+            p = WaterParams(volume, *bounded(_e(x[2]), _e(x[3]), x[4], x[5], x[6]))
             return water_step(p, value, hidden, outdoor, flow, s.inputs.hour)
         if kind == "particles":
             p = ParticleParams(volume, _e(x[2]), x[3], x[4], x[5], x[6])
@@ -64,7 +68,7 @@ def _ok(rows):
 def _run(kind, x, volume, rows, since, until):
     """Forecasts of one and three hours from every half hour in [since, until), with the last hour's error added (as the
     heat's twin does); and each window opening. rows: (sample, measured value, outdoor value) every five minutes."""
-    out = {"hour": [], "three": [], "still_hour": [], "still_three": [], "gestures": [], "devices": []}
+    out = {"hour": [], "three": [], "night": [], "still_hour": [], "still_three": [], "gestures": [], "devices": []}
 
     model, ok = _stepper(kind, x, volume, rows), _ok(rows)
 
@@ -100,6 +104,11 @@ def _run(kind, x, volume, rows, since, until):
                 out["still_hour"].append(value - rows[i + HOUR][1])
                 out["three"].append(v + missed * math.exp(-(THREE - 1) / 24) - rows[i + THREE][1])
                 out["still_three"].append(value - rows[i + THREE][1])
+        if inside and s.when.minute == 0 and s.when.hour % NIGHT_EVERY == 0 and all(ok(i + k) for k in range(NIGHT + 1)):
+            v, h = value, hidden
+            for k in range(NIGHT):
+                v, h = model(v, h, i + k)
+            out["night"].append(v - rows[i + NIGHT][1])
         before = rows[i - 1][0].inputs if i else None
         if inside and before is not None and s.inputs.windows and not before.windows and all(ok(i + k) for k in range(HOUR + 1)):
             v, h = value, hidden
@@ -214,8 +223,9 @@ def values(kind: str, x, volume: float) -> tuple[dict, list[float]]:
     """The search's vector as a twin's parameters to keep, and its leaks and windows multipliers."""
     flow = [_e(x[0]), _e(x[1])]
     if kind == "water":
-        return {"volume": volume, "exchange": _e(x[2]), "reserve": _e(x[3]), "sources": x[4], "rhythm_cos": x[5],
-                "rhythm_sin": x[6]}, flow
+        exchange, reserve, steady, cos_, sin_ = bounded(_e(x[2]), _e(x[3]), x[4], x[5], x[6])
+        return {"volume": volume, "exchange": exchange, "reserve": reserve, "sources": steady, "rhythm_cos": cos_,
+                "rhythm_sin": sin_}, flow
     if kind == "air":
         return {"volume": volume, "sources": x[2], "rhythm_cos": x[3], "rhythm_sin": x[4]}, flow
     return {"volume": volume, "settling": _e(x[2]), "outdoor": x[3], "sources": x[4], "rhythm_cos": x[5],
@@ -223,8 +233,12 @@ def values(kind: str, x, volume: float) -> tuple[dict, list[float]]:
 
 
 def score(kind, x, volume, rows, since, until) -> float:
-    """Mean error at one hour plus at three hours: what the search lowers. Infinite without a forecast."""
+    """Mean error at one hour plus at three hours, and half the one at eight (NIGHT): what the search lowers. Infinite
+    without a forecast."""
     e = _run(kind, x, volume, rows, since, until)
     if not e["three"]:
         return float("inf")
-    return sum(abs(v) for v in e["hour"]) / len(e["hour"]) + sum(abs(v) for v in e["three"]) / len(e["three"])
+    found = sum(abs(v) for v in e["hour"]) / len(e["hour"]) + sum(abs(v) for v in e["three"]) / len(e["three"])
+    if e["night"]:
+        found += NIGHT_WEIGHT * sum(abs(v) for v in e["night"]) / len(e["night"])
+    return found

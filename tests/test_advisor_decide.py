@@ -155,8 +155,26 @@ class Steady(unittest.TestCase):
         shown = self.first.gesture
         demoted = decide(TWINS, self.now, self.coming, proof={}, previous=shown, held=10.0)
         self.assertEqual((demoted.gesture, demoted.rule), (shown, "kept"))
-        later = decide(TWINS, self.now, self.coming, proof={}, previous=shown, held=40.0)
+        # Under STALE_CO2, the half hour gone, a gesture whose effect is not proven goes back to « À essayer ».
+        calmer = replace(self.now, co2=1350.0)
+        later = decide(TWINS, calmer, self.coming, proof={}, previous=shown, held=40.0)
         self.assertEqual(later.rule, "unproven")
+
+    def test_co2_measured_high_asks_an_airing_whatever_the_proof(self):
+        # 1 600 ppm measured: « Aérez 10 min » on the banner, said as a fact (Salon · Cuisine, 8 November).
+        found = decide(TWINS, self.now, self.coming, proof={}, previous=None, held=None)
+        self.assertEqual((found.gesture, found.rule), (Gesture("open", 10), "stale"))
+        self.assertEqual(found.measured, {"co2": 1600.0})
+        # Said, it holds down to STALE_KEPT, not to come and go around the mark.
+        kept = decide(TWINS, replace(self.now, co2=1300.0), self.coming, proof={}, previous=Gesture("open", 10), held=40.0)
+        self.assertEqual(kept.rule, "stale")
+        gone = decide(TWINS, replace(self.now, co2=1100.0), self.coming, proof={}, previous=Gesture("open", 10), held=40.0)
+        self.assertNotEqual(gone.rule, "stale")
+        # Never at night, nor with a window already open.
+        self.assertNotEqual(decide(TWINS, replace(self.now, night=True), self.coming, proof={}).rule, "stale")
+        self.assertNotEqual(decide(TWINS, replace(self.now, opened=((1.2, 1.2),)), self.coming, proof={}).rule, "stale")
+        # Nor when a safety rule takes the windows away.
+        self.assertNotEqual(decide(TWINS, self.now, self.coming, proof={}, forbidden=frozenset({"open"})).rule, "stale")
 
 
 if __name__ == "__main__":
@@ -257,6 +275,65 @@ class TriedHolds(unittest.TestCase):
         self.assertEqual(decide(**args).passive, Gesture("open", 25))
         self.assertEqual(decide(**{**args, "tried": Gesture("open", 30)}).passive, Gesture("open", 30))
         self.assertEqual(decide(**{**args, "tried": Gesture("open", 5)}).passive, Gesture("open", 25))
+
+
+class EveningOf7November(unittest.TestCase):
+    """Chambre A, 7 November, bed at 21 h: from 19 h 33 to 20 h 42, seven changes for one point of humidity."""
+
+    def args(self, at, bed_in, **changes):
+        from advisor.snapshot import load, restore
+        args = restore(load(Path(__file__).parent / "fixtures" / f"chambre-a-7-novembre-{at}.json"))
+        return {**args, "now": replace(args["now"], bed_in=bed_in), **changes}
+
+    def test_the_gesture_on_the_banner_holds_against_one_to_try(self):
+        # 19 h 58: « Aérez 20 min vers 20 h 05 » shown for 25 min; « Aérez 25 min » now, only reinforced, sent the card to
+        # « Rien à faire — À essayer ». It stays on the banner its half hour.
+        decision = decide(**self.args("19h58", 62))
+        self.assertEqual((decision.gesture.kind, decision.gesture.minutes, decision.rule), ("open", 20, "kept"))
+        # Past its half hour, it may go.
+        self.assertNotEqual(decide(**self.args("19h58", 62, held=40.0)).rule, "kept")
+
+    def test_an_airing_newly_proposed_ends_well_before_bed(self):
+        # 20 h 28, bed in 32 min: « Aérez 30 min » would end at 20 h 58 and leave the card five minutes later. Not proposed;
+        # nor shorter, its effect only reinforced here (Frank's rule of 7 November).
+        decision = decide(**self.args("20h28", 32.0, previous=None, held=None))
+        self.assertEqual(decision.gesture.kind, "nothing")
+        self.assertIsNone(decision.passive)
+        # The same airing already on the card keeps the plain rule: it still fits.
+        held = decide(**self.args("20h28", 32.0, previous=Gesture("open", 30), held=5.0))
+        self.assertEqual(held.gesture, Gesture("open", 30))
+
+    def test_open_for_good_is_not_proposed_in_the_last_hour(self):
+        from advisor.decide import _past_bedtime
+        from advisor.household import Habits
+        now = Now(air=20.0, walls=20.0, opened=(), bed_in=55.0)
+        late = _past_bedtime(now, Habits())
+        self.assertTrue(late(Gesture("open")))
+        self.assertFalse(late(Gesture("open"), held=True))
+        # A 20-minute airing still ends 15 min before bed.
+        self.assertFalse(late(Gesture("open", 20)))
+
+
+class TriedKeepsItsMargin(unittest.TestCase):
+    def test_to_try_stays_while_it_helps_by_half_the_gain(self):
+        # Chambre M, 7 November from 20 h 20: « À essayer » came and went every five minutes, its gain at the threshold.
+        from advisor.snapshot import load, restore
+        args = restore(load(Path(__file__).parent / "fixtures" / "chambre-al-4-novembre-15h13.json"))
+        tried = decide(**args).passive
+        self.assertIsNotNone(tried)
+        nothing = decide(**args).scenarios[Gesture("nothing")]["total"]
+        gain = nothing - decide(**args).scenarios[tried]["total"]
+        # The same room with the gain shrunk between half the threshold and the threshold: kept, not dropped.
+        from advisor import decide as module
+        saved = module.GAIN
+        try:
+            module.GAIN = gain * 1.5
+            self.assertIsNone(decide(**args).passive)
+            self.assertEqual(decide(**{**args, "tried": tried}).passive, tried)
+            module.GAIN = gain * 2.5
+            self.assertIsNone(decide(**{**args, "tried": tried}).passive)
+        finally:
+            module.GAIN = saved
 
 
 class AiringUnderWay(unittest.TestCase):

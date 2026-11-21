@@ -7,7 +7,7 @@ trace, without limit, to be replayed (§ 16 bis.2).
 The engine also follows each gesture shown: done while it was shown, or replaced before. An advice never followed is a
 failure, not a success. (The 2.1 engine's own loop is engine/feedback.py; this one belongs to the 3.0 advisor.)
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
 from .decide import SHUTTER_OPEN, SHUTTER_SHUT, Gesture, Now
@@ -15,6 +15,10 @@ from .decide import SHUTTER_OPEN, SHUTTER_SHUT, Gesture, Now
 OPINIONS = ("faux", "inutile", "pas_maintenant")
 # The free note sent with an opinion, at most this many characters.
 NOTE = 500
+
+
+# An airing counts as followed once the window stayed open this share of what was asked, and at least these minutes.
+AIRED_SHARE, AIRED_LEAST = 0.5, 5
 
 
 @dataclass(frozen=True)
@@ -25,6 +29,10 @@ class Asked:
     title: str
     trial: bool = False
     target: float | None = None     # the set point « Remettez le chauffage à 19 °C » asks for
+    kwh: float | None = None        # what it costs against « do nothing », as simulated when first asked (decide.gesture_energy)
+    heated: bool = False            # those kWh are the simulated thermostat's, not only the heat let out
+    minutes: int | None = None      # how long the airing asked lasts
+    opened_at: datetime | None = None   # when the window was first seen open for it
 
 
 def done(kind: str, now: Now, target: float | None = None) -> bool:
@@ -56,10 +64,26 @@ def done(kind: str, now: Now, target: float | None = None) -> bool:
 
 
 def follow(asked: Asked | None, shown: Gesture | None, title: str, trial: bool, now: Now,
-           when: datetime) -> tuple[Asked | None, list[dict]]:
+           when: datetime, energy: tuple[float, bool] | None = None) -> tuple[Asked | None, list[dict]]:
     """The gesture followed from one decision to the next: what is asked now, and what was learned — a gesture done
-    while it was asked, or replaced by another before. `shown`: the gesture on the card now, None or « nothing » if none."""
+    while it was asked, or replaced by another before. `shown`: the gesture on the card now, None or « nothing » if none;
+    `energy`: its (kWh, heated) against « do nothing » (decide.gesture_energy), kept with it for Hestia Énergie."""
     out = []
+    if asked is not None and asked.kind == "open" and asked.minutes:
+        # An airing is followed when the window stayed open long enough (AIRED_SHARE of it): two minutes for « Aérez
+        # 20 min » were counted as followed (bilan of 11 November, Salon · Cuisine at 20 h 29).
+        needed = timedelta(minutes=max(AIRED_LEAST, asked.minutes * AIRED_SHARE))
+        if asked.opened_at is None and now.opened:
+            asked = replace(asked, opened_at=when)
+        if asked.opened_at is not None:
+            if when - asked.opened_at >= needed:
+                out.append(_record(asked, when, True))
+                asked = None
+            elif not now.opened:
+                out.append({**_record(asked, when, False), "trop_court": round((when - asked.opened_at).total_seconds() / 60)})
+                asked = None
+            else:
+                return asked, out
     if asked is not None:
         if done(asked.kind, now, asked.target):
             out.append(_record(asked, when, True))
@@ -68,13 +92,16 @@ def follow(asked: Asked | None, shown: Gesture | None, title: str, trial: bool, 
             out.append(_record(asked, when, False))
             asked = None
     if asked is None and shown is not None and shown.kind != "nothing" and not done(shown.kind, now, shown.target):
-        asked = Asked(shown.kind, when, title, trial, shown.target)
+        kwh, heated = energy if energy else (None, False)
+        asked = Asked(shown.kind, when, title, trial, shown.target, None if kwh is None else round(kwh, 2), heated,
+                      shown.minutes if shown.kind == "open" else None)
     return asked, out
 
 
 def _record(asked: Asked, when: datetime, followed: bool) -> dict:
     return {"geste": asked.kind, "conseil": asked.title, "essai": asked.trial, "suivi": followed,
-            "depuis": asked.since.isoformat(), "minutes": round((when - asked.since).total_seconds() / 60)}
+            "depuis": asked.since.isoformat(), "minutes": round((when - asked.since).total_seconds() / 60),
+            "kwh": asked.kwh, "chauffage": asked.heated}
 
 
 def declined(paused: dict[str, datetime], now: Now, when: datetime) -> frozenset[str]:
@@ -85,6 +112,43 @@ def declined(paused: dict[str, datetime], now: Now, when: datetime) -> frozenset
 
 def pause_until(when: datetime, minutes: int) -> datetime:
     return when + timedelta(minutes=minutes)
+
+
+# A gesture left on the card without being followed, then gone with nothing in its place, is not asked again for this
+# long (Chambre P, 8 November: « Ouvrez » at 18 h, 19 h and 20 h, each held 40 min, never followed). Shown less than
+# IGNORED_SHOWN minutes, it was not really left: the household may not have seen it.
+IGNORED_MINUTES = 120
+IGNORED_SHOWN = 10
+# The gestures it holds for: the airings and the devices, never shutting or the stove, which a measure asks.
+IGNORABLE = ("open", "open_more", "boost", "purify")
+# Unless the room gets clearly worse meanwhile, by this much on what the gesture was for.
+WORSE = {"humidity": 5.0, "mould": 5.0, "co2": 300.0, "particles": 10.0, "voc": 100.0, "heat": 1.0}
+
+
+def measured(subject: str | None, now: Now) -> float | None:
+    """The measure a gesture's subject is judged on: the humidity for the mould, the air for the heat."""
+    return {"humidity": now.humidity, "mould": now.humidity, "co2": now.co2, "particles": now.particles,
+            "voc": now.voc, "heat": now.air}.get(subject or "")
+
+
+def ignored(record: dict, gone: bool, safety: bool) -> bool:
+    """Whether a gesture just ended (`follow`'s record) was left: asked on the banner, not followed, shown long enough,
+    and `gone` with nothing in its place — not replaced by another gesture, nor taken away by a `safety` rule."""
+    return (not record["suivi"] and not record["essai"] and record["geste"] in IGNORABLE and gone and not safety
+            and record["minutes"] >= IGNORED_SHOWN)
+
+
+def left_aside(left: dict[str, tuple[datetime, str | None, float | None]], now: Now, when: datetime) -> dict[str, datetime]:
+    """Of the gestures left (kind → until when, subject, its measure then), those still put aside: within their pause,
+    and the room no worse by WORSE on their subject than when they were left."""
+    out = {}
+    for kind, (until, subject, then) in left.items():
+        value = measured(subject, now)
+        worse = (then is not None and value is not None and subject in WORSE
+                 and (abs(value - then) if subject == "heat" else value - then) >= WORSE[subject])
+        if until > when and not worse:
+            out[kind] = until
+    return out
 
 
 def followed_share(records: list[dict]) -> dict:

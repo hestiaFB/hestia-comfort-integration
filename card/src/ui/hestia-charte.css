@@ -43,11 +43,16 @@
   --nw-act: var(--hestia-act-color, var(--nw-level2));
   --nw-alert: var(--hestia-alert-color, var(--nw-level3));
   --nw-watch: var(--hestia-watch-color, oklch(.84 .13 86));
-  /* Part de couleur dans un texte coloré : 34 % reste lisible (contraste 4,5:1). */
+  /* Part de couleur dans un texte coloré : 34 % reste lisible (contraste 4,5:1). Part de couleur dans le fond d'une pastille. */
   --nw-ink: 34%;
+  --nw-chip-tint: 24%;
   --nw-ease: cubic-bezier(.2, .8, .2, 1);
   --nw-expand: .45s;
 }
+/* Le thème sombre : plus de couleur dans les fonds et les textes teintés, la palette inchangée. Sur un fond sombre, le bleu
+   et le vert pastel se fondaient en gris (Frank, 16 novembre : « les couleurs bleu et vert en mode sombre ne se
+   distinguaient pas assez » ; 2 % d'écart mesuré entre les deux pastilles). */
+:host([theme="dark"]) { --nw-ink: 62%; --nw-chip-tint: 48%; }
 button { font:inherit; color:inherit; }
 button:focus-visible { outline:2px solid var(--nw-accent); outline-offset:2px; }
 .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
@@ -61,7 +66,7 @@ button:focus-visible { outline:2px solid var(--nw-accent); outline-offset:2px; }
   max-width:100%; overflow:hidden; text-overflow:ellipsis; box-sizing:border-box; }
 /* Pastille d'info teintée. */
 .nw-chip { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:var(--nw-radius-pill); font-size:var(--nw-fs-small); line-height:18px; font-weight:600;
-  white-space:nowrap; border:1px solid transparent; background:color-mix(in oklab, var(--c) 24%, transparent); color:color-mix(in oklab, var(--c) var(--nw-ink), var(--nw-fg)); }
+  white-space:nowrap; border:1px solid transparent; background:color-mix(in oklab, var(--c) var(--nw-chip-tint), transparent); color:color-mix(in oklab, var(--c) var(--nw-ink), var(--nw-fg)); }
 .nw-chips { display:flex; flex-wrap:wrap; gap:8px; }
 /* ---------- Structure commune des cartes (style Trait, 3 novembre) : la même dans Weather, Confort et les prochaines briques. ---------- */
 /* La carte : Manrope, angles de 22 px ; la surface teintée des panneaux. */

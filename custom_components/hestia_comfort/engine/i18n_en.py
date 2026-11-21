@@ -88,6 +88,7 @@ EN: dict[str, str] = {
     "installé, aucun chauffage choisi dans une pièce": "installed, no heating chosen in a room",
     "Volets pilotés avec le soleil": "Shutters driven by the sun",
     "Choisissez les équipements parmi ceux proposés.": "Choose the equipment among those offered.",
+    "Choisissez comment tourne la VMC parmi les choix proposés.": "Choose how the ventilation runs among the choices offered.",
     "Volets pilotés par façade, règles et scénarios": "Shutters driven per facade, rules and scenarios",
     "Volets pilotés par façade : Confort sait s’il est en pause après un geste à la main, la position qu’il vise, et à quelle heure le soleil arrive sur la façade.": "Shutters driven per facade: Comfort knows when it pauses after a hand on the shutter, the position it aims at, and when the sun reaches the facade.",
     "Modes, verrou et ombrage des volets": "Shutter modes, lock and shading",

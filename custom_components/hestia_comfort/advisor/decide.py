@@ -7,6 +7,7 @@ nothing » by a clear gain, and a gesture already shown stays until another beat
 cost, instead of one per threshold (CAHIER-MOTEUR.md § 10, § 11). Safety rules only take gestures away.
 """
 from dataclasses import dataclass, field, replace
+from itertools import combinations
 
 from .household import Habits
 from .physics.air import AirParams, ParticleParams, air_step, particles_step
@@ -93,6 +94,8 @@ WARMING = 0.5
 
 # The stove's flame at its lowest: its thermostat asks this share of the power or less (0 to 1).
 STOVE_LOW = 0.1
+# Minutes before its schedule's warmer slot within which a stove burning above its set point is warming up for it.
+STOVE_BOOST_SOON = 90
 # The room still warming by this much over the last half hour, the stove at its lowest, is worth saying (°C).
 STOVE_RISE = 0.3
 
@@ -207,6 +210,26 @@ def sides_apart(bearings) -> bool:
     return any(abs((a - b + 180) % 360 - 180) >= CROSS_ANGLE for a in sides for b in sides)
 
 
+def one_side(bearings, among, areas=None) -> tuple[int, ...]:
+    """The windows of `among` (indices into `bearings`) a first airing opens: the most of them that face one side, the
+    larger first. Opened on two sides the air crosses the room: that is a second gesture, « Ouvrez aussi … », never the
+    first one asked (Frank, 20 November: « le courant d'air n'est jamais proposé en premier »)."""
+    among = tuple(among)
+    def side(i):
+        return bearings[i] if i < len(bearings) else None
+    if not sides_apart([side(i) for i in among]):
+        return among
+    best, best_area = (), -1.0
+    for size in range(len(among), 0, -1):
+        for group in combinations(among, size):
+            area = sum(areas[i] for i in group) if areas else 0.0
+            if not sides_apart([side(i) for i in group]) and area > best_area:
+                best, best_area = group, area
+        if best:
+            return best
+    return among
+
+
 @dataclass(frozen=True)
 class Twins:
     """The room's twins, each with the window effect its own sensor learned (CONCEPTION-MOTEUR.md § 1 bis)."""
@@ -240,11 +263,19 @@ class Twins:
     house_thermostat: Thermostat | None = None
     house_power: float = 0.0
     house_now: float = 0.0
+    # Share of its power the stove gives off while it burns at 0 % asked (advisor/physics/heaters.py `idle`).
+    house_idle: float = 0.0
+    # Minutes its idle flame still lasts once its thermostat asks 0 %, before the household's own automation puts it out
+    # (Habits.stove_idle_hold); None: until its schedule's lower slot.
+    house_idle_for: float | None = None
     # The side each window faces (°, in the order of `windows`; None when not declared), and how many times more air
     # crosses the room when windows on two sides are open (CAHIER-MOTEUR.md § 9.1, « ouvrir ici et là »): CIBSE AM10
     # gives two to three times a single-sided opening in a moderate wind. Supposed until the room shows it.
     bearings: tuple = ()
     cross: float = CROSS
+    # The windows « Aérez » opens (of `windows`), one side of the room: the part where the measure it is for is taken
+    # (room/advice.py `first_windows`). Empty: all of them.
+    first: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -254,6 +285,9 @@ class Now:
     opened: tuple[tuple[float, float], ...]     # the windows open now
     humidity: float | None = None               # %
     reserve: float | None = None                # g/m³, the walls' water
+    # Minutes after which the windows open now are taken as shut when nothing is done: the household's usual airing in
+    # the cold season (room/advice.py), None: left open over the whole horizon.
+    closing_in: float | None = None
     co2: float | None = None                    # ppm
     particles: float | None = None              # µg/m³
     voc: float | None = None                    # VOC index
@@ -283,6 +317,9 @@ class Now:
     # hour (`recent_sources`), carried into every scenario and fading over SOURCE_HOURS (Frank, 1 November: a cooking
     # going on, the window open, keeps the VOC level; shut, it would climb — « Refermez » was wrong).
     sources: dict | None = None
+    # Minutes until the household goes to bed in this room (`Sleep.bedtime`), in the evening; None at night, or unknown.
+    # An airing ends by then (`_past_bedtime`).
+    bed_in: float | None = None
 
 
 @dataclass
@@ -297,12 +334,27 @@ class Path:
     lost: float = 0.0           # kWh of heat let out through open windows
     heating: float = 0.0        # kWh the simulated thermostat spends
     heated: bool = False        # a thermostat was simulated: `heating` is what the gesture really costs
+    # The stove's share of its power given off at each step, when it is simulated (the room it stands in): the other
+    # rooms it warms follow it (bilan of 11 November: 100 % at lighting kept two hours, Chambre M 3 °C too warm).
+    stove: list[float] = field(default_factory=list)
 
     @property
     def spent(self) -> float:
         """kWh the scenario costs: what the thermostat spends when it is simulated — heat let out of a room the heating
         would not have warmed anyway costs nothing —, otherwise the heat the windows let out."""
         return self.heating if self.heated else self.lost
+
+
+def gesture_energy(paths: dict, gesture: "Gesture | None") -> tuple[float, bool] | None:
+    """(kWh, heated) a gesture costs against « do nothing », as its scenarios were simulated: more than zero, heat let
+    out that the heating must give back; less, heating saved (« Refermez », « Baissez le volet »). `heated`: the room's
+    thermostat was simulated, the kWh are what it spends; otherwise the heat the windows let out. None when the gesture
+    or « do nothing » was not simulated. Kept for Hestia Énergie (api.py `gestures`, CAHIER-MOTEUR.md § 17)."""
+    idle = paths.get(Gesture("nothing"))
+    chosen = paths.get(gesture) if gesture is not None else None
+    if idle is None or chosen is None:
+        return None
+    return chosen.spent - idle.spent, chosen.heated
 
 
 # The airings, later moments and devices' durations proposed are the household's (advisor/household.py `Habits`).
@@ -388,11 +440,13 @@ def _open(gesture: Gesture, now: Now, twins: Twins, k: int):
     if gesture.kind not in ("open", "close", "nothing"):
         return now.opened
     waited = k * STEP / 60 - (gesture.after or 0)
+    if gesture.kind == "nothing" and now.closing_in is not None and k * STEP / 60 >= now.closing_in:
+        return ()
     if gesture.kind == "nothing" or waited < 0:
         return now.opened if gesture.kind != "open" else ()
     if gesture.kind == "close":
         return ()
-    return twins.windows if gesture.minutes is None or waited < gesture.minutes else ()
+    return (twins.first or twins.windows) if gesture.minutes is None or waited < gesture.minutes else ()
 
 
 def _flow(learned, volume, windows, air, outdoor, wind, cross=1.0):
@@ -427,7 +481,11 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
     # window open now finds the core cooled), the stove's as measured.
     given = (twins.thermostat.power(now.air, coming[0][0].outdoor, now.opened)
              if twins.thermostat is not None and coming else 0.0)
-    house_given = twins.house_now
+    # A stove burning gives off its idle flame at least, whatever its thermostat asks (bilan of 12 November).
+    burning = now.house_running and twins.house_thermostat is not None
+    house_given = max(twins.house_now, twins.house_idle) if burning else twins.house_now
+    house_start = house_given
+    idle_minutes = 0.0
     for k, (u, outdoor_water) in enumerate(coming):
         windows = _open(gesture, now, twins, k)
         boost = twins.boost if _running(gesture, "boost", now.boosting, k) else 0.0
@@ -448,9 +506,19 @@ def simulate(twins: Twins, now: Now, coming: list[tuple[Inputs, float | None]], 
         if twins.house_thermostat is not None:
             # The stove follows the room too; the other house heaters stay as they are.
             stove = twins.house_thermostat.heater
-            running = 0.0 if gesture.kind == "heat_stop" else twins.house_thermostat.power(felt, u.outdoor, windows)
+            stat = twins.house_thermostat.scheduled(k * STEP / 60)
+            running = 0.0 if gesture.kind == "heat_stop" else stat.power(felt, u.outdoor, windows)
+            # Still burning while its set point holds: the idle flame at least; its schedule's lower slot puts it out.
+            # It idles a while at 0 %, then the household's automation puts it out (bilan of 13 November: at 0 % from
+            # 11 h 14, out at 11 h 56; 66 min on 11 November).
+            if running <= 0.0 and burning:
+                idle_minutes += STEP / 60
+            lasting = twins.house_idle_for is None or idle_minutes <= twins.house_idle_for
+            if burning and gesture.kind != "heat_stop" and stat.target >= twins.house_thermostat.target and lasting:
+                running = max(running, twins.house_idle)
             house_given = given_off(house_given, running, stove.lag, STEP)
-            u = replace(u, house_heat=max(0.0, u.house_heat + twins.house_power * (house_given - twins.house_now)))
+            u = replace(u, house_heat=max(0.0, u.house_heat + twins.house_power * (house_given - house_start)))
+            path.stove.append(house_given)
         before = air
         air, walls = step(twins.heat, air, walls, u)
         path.air.append(air + correction(DEFAULT_RECENT, now.missed, k))
@@ -620,7 +688,7 @@ def main_subject(scenarios: dict, gesture: Gesture) -> str | None:
 class Decision:
     gesture: Gesture
     gain: float                             # what it saves against « do nothing », in the cost's unit
-    rule: str                               # best | nothing | insignificant | kept | safety | unproven | overheat
+    rule: str                               # best | nothing | insignificant | kept | safety | unproven | overheat | stale
     scenarios: dict                         # gesture → its cost terms, for « Pourquoi ? » and the trace
     paths: dict = field(default_factory=dict, repr=False)
     level: str = PROVEN                     # how sure the effect it rests on is (advisor/proof.py)
@@ -671,6 +739,8 @@ FAST_SUBJECTS = ("co2", "particles", "voc")
 
 # A gesture shown stays at least this long while it still helps (CAHIER-MOTEUR.md § 18.3: one change per half hour).
 HOLD_MINUTES = 30
+# An airing said for later is kept rather than another moment this close to it (minutes).
+LATER_SLACK = 60
 
 
 # Among gestures of one kind, one costing this share more than the best (of its cost, or of GAIN) still counts as enough.
@@ -713,6 +783,33 @@ def _for_the_outside(later: Gesture, twins: Twins, now: Now, coming, comfort: Co
     return real - own > own
 
 
+# Minutes an airing newly proposed ends before bedtime at least: the time to get to it. Without it, « Aérez 30 min »
+# said at 20 h 28 for a bed at 21 h no longer fitted five minutes later and left the card (Chambre A, 7 November).
+BED_MARGIN = 15
+
+
+def _past_bedtime(now: Now, habits: Habits):
+    """Whether a gesture leaves a window open after bedtime (`Now.bed_in`): an airing, now or later, that ends after it;
+    a window shut only after it; « Ouvrez » for good in the last `airing_max` minutes. Half a step of slack: the steps
+    are not exactly five minutes apart. Nothing is past it at night, or for a household that would get up to shut it.
+    A gesture not yet on the card (`held` false) must leave more room: it ends BED_MARGIN before bedtime, and « Ouvrez »
+    for good is not proposed in the last twice `airing_max` minutes — an airing longer than the longest timed one,
+    that close to bedtime, would be a short one in disguise."""
+    if now.bed_in is None or habits.open_at_night:
+        return lambda g, held=False: False
+    edge = now.bed_in + STEP / 120
+
+    def late(g: Gesture | None, held: bool = False) -> bool:
+        if g is None:
+            return False
+        if g.kind in ("open", "open_more"):
+            if g.minutes is None:
+                return now.bed_in <= (habits.airing_max if held else 2 * habits.airing_max)
+            return (g.after or 0) + g.minutes > (edge if held else edge - BED_MARGIN)
+        return g.kind == "close" and (g.after or 0) > edge
+    return late
+
+
 def _too_long(g: Gesture, pollen: Pollen, short: bool = False) -> bool:
     """A gesture longer than a day of high pollens allows (advisor/pollen.py) to anything but the humidity, the mould or
     the CO₂: an airing longer than POLLEN_AIRING or without an end; with `short` (a window open that is not needed for
@@ -736,11 +833,48 @@ def _needed(paths: dict, comfort: Comfort, night: bool, tolerance: float) -> boo
                for g, path in paths.items() if g.kind in ("nothing", "keep") or (g.kind == "close" and g.after))
 
 
+# Measured CO₂ from which the air is to renew, whatever the windows' effect has shown here: a fact, not a forecast (Salon ·
+# Cuisine, 8 November: 1 380 to 1 519 ppm from 15 h 40 to 17 h 51, nothing but « À essayer », the windows' effect on its
+# CO₂ still supposed). Kept down to STALE_KEPT once said, not to come and go around the mark; STALE_AIRING minutes asked.
+STALE_CO2 = 1400.0
+STALE_KEPT = 1200.0
+STALE_AIRING = 10
+
+
 def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
            previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
            proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits(),
            held: float | None = None, tried: Gesture | None = None, aired: float | None = None,
-           failed: dict | None = None, pollen: Pollen | None = None) -> Decision:
+           failed: dict | None = None, pollen: Pollen | None = None, tried_held: float | None = None,
+           given: list[Gesture] | None = None) -> Decision:
+    """The gesture to advise (`_decide`), and the air measured stale asked to renew (STALE_CO2) when nothing else is.
+    `tried_held`: minutes « À essayer » has shown the same gesture (HOLD_MINUTES); `given`: the gestures weighed, instead
+    of the room's `candidates` (a slot's plan, advisor/slots.py `plan_pool`)."""
+    decision = _decide(twins, now, coming, comfort, weights, previous, forbidden, proof, holidays, habits, held, tried,
+                       aired, failed, pollen, tried_held, given)
+    airing = Gesture("open", minutes=STALE_AIRING)
+    said = previous is not None and previous == airing
+    if (said and decision.gesture == airing and decision.rule == "kept" and now.co2 is not None
+            and now.co2 >= STALE_KEPT and not now.opened):
+        # Held on the card: still the measure it was said for.
+        return replace(decision, rule="stale", measured={"co2": now.co2})
+    if decision.gesture.kind != "nothing" or decision.rule in ("safety", "ineffective", "overheat", "pollen"):
+        return decision
+    if (now.co2 is None or now.opened or now.night or airing not in decision.scenarios
+            or now.co2 < (STALE_KEPT if said else STALE_CO2) or _past_bedtime(now, habits)(airing, held=said)):
+        return decision
+    nothing = decision.scenarios[Gesture("nothing")]["total"]
+    found = (proof or {}).get(effect(airing, "co2"), SUPPOSED) if proof is not None else PROVEN
+    return Decision(airing, nothing - decision.scenarios[airing]["total"], "stale", decision.scenarios, decision.paths,
+                    level=found, measured={"co2": now.co2})
+
+
+def _decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights: Weights = Weights(),
+            previous: Gesture | None = None, forbidden: frozenset[str] = frozenset(),
+            proof: dict[str, str] | None = None, holidays: bool = False, habits: Habits = Habits(),
+            held: float | None = None, tried: Gesture | None = None, aired: float | None = None,
+            failed: dict | None = None, pollen: Pollen | None = None, tried_held: float | None = None,
+            given: list[Gesture] | None = None) -> Decision:
     """The gesture to advise. `forbidden`: kinds a safety rule takes away (« open » under the rain, in gusts…).
     `proof`: the level of the windows' effect on each subject (advisor/proof.py); None, all taken as proven.
     `held`: minutes `previous` has been on the card (HOLD_MINUTES); `tried`: the gesture shown « À essayer », as it
@@ -760,11 +894,19 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     # While the household sleeps, nobody gets up to open a window, unless it says it would (Frank, 31 October: « en plein
     # hiver, il y a très peu de chance que je laisse ouvert, même 20 min pour aérer en pleine nuit »): the night keeps
     # closing what was left open and the devices; a window for the night is said in the evening (`tonight`).
-    pool = candidates(now, twins, habits, comfort)
+    pool = list(given) if given is not None else candidates(now, twins, habits, comfort)
     previous = under_way(previous, now)
     # An airing « À essayer » followed is under way as well: it holds from the moment the window opens.
     if (previous is None or previous.kind == "nothing") and under_way(tried, now) != tried:
         previous, held = under_way(tried, now), 0.0
+    # A window is shut by bedtime: nobody gets up to shut it, and one left open stays open all night (Frank, 7 November:
+    # Chambre A goes to bed at 21 h, « Aérez 30 min » at 20 h 27 ended at 20 h 57 by chance). A gesture said before that
+    # would now run past it is not held.
+    late = _past_bedtime(now, habits)
+    if late(previous, held=True):
+        previous, held = None, None
+    if late(tried, held=True):
+        tried = None
     # Leaving open what is open is weighed as it is: the same scenario as doing nothing, said as a gesture when shutting
     # would clearly do worse (« Laissez ouvert »), or when it follows « Ouvrez » (`under_way`).
     if now.opened and Gesture("keep") not in pool:
@@ -778,6 +920,11 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         pool.append(tried)
     gestures = [g for g in pool if g.kind not in forbidden
                 and not (g.kind == "open" and g.minutes is None and "open_long" in forbidden)
+                # Nobody home (the alarm set to away): no window to open, and what is open is the alarm's business, not
+                # comfort's (Frank, 7 November: « il ne faut pas se substituer à l'alarme »).
+                and not (g.kind in ("open", "open_more") and "absent" in forbidden)
+                # The rain likely soon, a rain gauge watching (advisor/safety.py): no new airing, nothing shut for it.
+                and not (g.kind in ("open", "open_more") and "rain_likely" in forbidden)
                 and not (g.kind in ("open", "open_more") and now.night and not habits.open_at_night)
                 and not (g.kind == "open_more" and "open" in forbidden)
                 # Nobody gets up to see to the heating either (CAHIER-MOTEUR.md § 9.1 bis), nor comes back in ten minutes.
@@ -836,12 +983,28 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         worth = [g for g in worth if not (g.kind == "open" and g.after)]
         if previous is not None and previous.kind == "open" and previous.after:
             previous = None
+    # What runs past bedtime is left out, once the airings for later are sorted out. When the airing the room needs does
+    # not fit before it, a shorter one is said only if the windows' effect is proven here (Frank, 7 November: « si le conseil arrive à 20 h 55 pour 30 minutes
+    # d'aération, on ne propose pas d'aérer 5 minutes, sauf si c'est vraiment avéré ») — neither on the banner, nor
+    # « À essayer ». The scenarios were all simulated already: nothing more is computed.
+    if worth and now.bed_in is not None:
+        cut = late(_shortest(min(worth, key=order), worth, costs))
+        worth = [g for g in worth if not late(g, held=g in (previous, tried))
+                 and not (cut and g.kind in ("open", "open_more") and proof is not None
+                          and proof.get(effect(g, main_subject(costs, g)), SUPPOSED) != PROVEN)]
     best = min(worth, key=order) if worth else Gesture("nothing")
     best = _shortest(best, worth, costs)
     # Only how long changed (« Aérez 30 → 20 → 25 min » in twelve minutes, 2 November): the duration shown stays while it
     # is about as good, even if, on its own, it no longer makes the difference that would put it forward.
     longer = (previous is not None and previous in costs and best.kind != "nothing" and previous.kind == best.kind
               and previous.after == best.after)
+    # Nor only when: « Aérez 15 min vers 19 h 45 », « 20 min vers 19 h 50 », « 20 min vers 20 h 10 » in ten minutes
+    # (bilan of 11 November, Salon · Cuisine). The airing said for later stays while it is about as good and still helps.
+    # Nor from now to later: « Aérez 25 min », then « Aérez 10 min vers 21 h 30 » five minutes after (bilan of
+    # 12 November, Salon · Cuisine at 20 h 55 and 21 h 00).
+    longer = longer or (previous is not None and previous in costs and best.kind == previous.kind == "open"
+                        and abs((previous.after or 0) - (best.after or 0)) <= LATER_SLACK
+                        and nothing - costs[previous]["total"] >= GAIN / 2)
     if ((previous in worth or previous == Gesture("nothing") or longer) and previous != best
             and costs[previous]["total"] - costs[best]["total"] < MARGIN * max(costs[previous]["total"], GAIN)):
         best, rule = previous, "kept"
@@ -854,7 +1017,13 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
     stove = twins.house_thermostat
     if (stove is not None and now.house_running and not now.night and "heat_stop" not in forbidden
             # Half a step of slack: the steps are not exactly five minutes apart (1 November, 29 min 44 s at 21 h 13).
-            and now.overheated is not None and now.overheated >= habits.overheat_minutes - STEP / 120):
+            and now.overheated is not None and now.overheated >= habits.overheat_minutes - STEP / 120
+            # Never a room still under its range, nor while the stove warms up for its schedule's next, warmer slot: lit
+            # at 19 h 24 by the household's automation for the 20 h 29 boost, the Salon at 19,5 °C « pour 14 °C visés »
+            # (its range from 20 °C) was told to stop it (bilan of 15 November).
+            and now.air > comfort.minimum
+            and not (stove.then is not None and stove.at is not None and stove.then > stove.target
+                     and stove.at <= STOVE_BOOST_SOON)):
         # The stove does not stop by itself (Frank, 1 November): the room measured above its set point by the household's
         # margin for long enough asks to stop it, before any gesture of the twin. A fact measured, not a forecast.
         stop = Gesture("heat_stop")
@@ -880,6 +1049,16 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         # Open, and shutting now would clearly do worse: « Laissez ouvert », not « Rien à faire » (Frank, 5 November:
         # « Rien à faire » in Chambre A at 67 %, the window just opened, while shutting would end at 75 %).
         best, rule, gain = keep, "best", 0.0
+    if (best.kind == "nothing" and proof is not None and tried is not None and tried.kind != "nothing" and tried in costs
+            and nothing - costs[tried]["total"] >= GAIN / 2 and not late(tried, held=True)
+            and not (aired is not None and aired < RESTING_MINUTES and tried.kind == "open"
+                     and main_subject(costs, tried) not in FAST_SUBJECTS)):
+        # « À essayer » holds like the banner (HOLD_MINUTES): while it still helps by half the gain, it stays, rather than
+        # coming and going with a gain that hovers at the threshold (Chambre M, 7 November, every five minutes from 20 h 20).
+        found = proof.get(effect(tried, main_subject(costs, tried)), SUPPOSED)
+        if found != PROVEN:
+            return Decision(Gesture("nothing"), nothing - costs[tried]["total"], "unproven", costs, paths, level=found,
+                            passive=tried)
     if best.kind == "nothing" or proof is None:
         return Decision(best, gain, rule, costs, paths)
     # Only a proven effect sends a gesture to the banner as soon as it is significant; a reinforced one must be clear-cut;
@@ -896,10 +1075,20 @@ def decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weights
         return Decision(best, gain, rule, costs, paths, level=found)
     if hold and best == previous:
         return Decision(best, gain, "kept", costs, paths, level=found)
+    if hold and previous in costs and previous.kind != "nothing":
+        # The gesture on the banner stays there its half hour: a slightly different one, only to try, does not send it to
+        # « À essayer » (Chambre A, 7 November at 19 h 58: « Aérez 20 min vers 20 h 05 » became « Rien à faire — À essayer,
+        # Aérez 25 min », then « Rien à faire » at 20 h 03).
+        held_found = proof.get(effect(previous, main_subject(costs, previous)), SUPPOSED)
+        return Decision(previous, nothing - costs[previous]["total"], "kept", costs, paths, level=held_found)
     # « À essayer » holds like the banner: the gesture shown stays while it is about as good (MARGIN). It changed at every
     # step, « Ouvrez », « Aérez 25 min », « Aérez 30 min » (Chambre AL, 4 November: thirty times since 21 h).
-    if (tried is not None and tried != best and tried in worth
-            and costs[tried]["total"] - costs[best]["total"] < MARGIN * max(costs[tried]["total"], GAIN)):
+    # Of the same kind, it stays its half hour while it still helps by half the gain: « Aérez 5, 10, 15, 20 min » came in
+    # turn every 5 to 15 minutes (Salon · Cuisine, 8 November from 15 h 25).
+    if (tried is not None and tried != best and tried in costs
+            and ((tried in worth and costs[tried]["total"] - costs[best]["total"] < MARGIN * max(costs[tried]["total"], GAIN))
+                 or (tried.kind == best.kind and tried_held is not None and tried_held < HOLD_MINUTES
+                     and nothing - costs[tried]["total"] >= GAIN / 2))):
         best, gain = tried, nothing - costs[tried]["total"]
     return Decision(Gesture("nothing"), gain, "unproven", costs, paths, level=found, passive=best)
 

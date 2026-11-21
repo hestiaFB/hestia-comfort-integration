@@ -1,4 +1,4 @@
-"""The 3.0 advisor for one room, or for one shared air (niak-comfort/docs/PASSAGE-CONFORT-3.md § 2).
+"""The 3.0 advisor for one room, or for one shared air (docs/PASSAGE-CONFORT-3.md § 2).
 
 The room as the advisor sees it is read from Confort's own settings (`spec`): its sensors, its openings and their sizes,
 its heatings, its devices and their flows, its range and its household settings. Rooms sharing one air (« Salon ·
@@ -11,19 +11,24 @@ Taken over from the test Home Assistant's `hestia_advisor_dev` (Engine._advise a
 import asyncio
 from collections import deque
 from dataclasses import asdict, replace
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 import re
 
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
+from ..advisor.board import HUMID_LEAVE, OPEN_LEAST, SAFE_RULES, Board, choose, held_back, thresholds, urgent_decision
 from ..advisor.checks import GOOD, KINDS, Checker
-from ..advisor.decide import (SHUT_SHADE, SIGNIFICANT, RESTING_MINUTES, Gesture, Now, Twins, aged, decide, for_season, remembered, from_thermostat, heating_back,
+from ..advisor.decide import _flow as _water_flow
+from ..advisor.decide import GAIN, Decision, Weights, cost, one_side
+from ..advisor.decide import (SHUT_SHADE, SHUTTER_SHUT, SIGNIFICANT, RESTING_MINUTES, Gesture, Now, Twins, aged, decide, for_season, gesture_energy, remembered, from_thermostat, heating_back,
                               heating_off, main_subject, recent_sources, shutter_tonight, simulate, stove_idle, sun_gain,
                               tonight)
-from ..advisor.feedback import declined, follow, pause_until
+from ..advisor.feedback import declined, follow, measured, pause_until
 from ..advisor.household import Habits
+from ..advisor.identity import normal_of
+from ..advisor.slots import PLAN_AFTER, following, plan_habits, plan_pool, probable, slot_at
 from ..advisor.house import ORDINARY_VOLUME, Opening as Declared, Room
 from ..advisor.knowing import RoomView, Window, tips
 from ..advisor.nightly import RoomSpec
@@ -32,14 +37,16 @@ from ..advisor.opening import Opened, closed_cases, disturbed, failed, scaled, s
 from ..advisor.physics.air import AirParams, ParticleParams
 from ..advisor.physics.airfit import TWINS, first, untrained, values
 from ..advisor.physics.fit import HOUR
-from ..advisor.physics.sunlight import Overhang, facing, sun_position
+from ..advisor.physics.heaters import heater as heater_of
+from ..advisor.physics.sunlight import Overhang, bearing_name, facing, sun_position
 from ..advisor.physics.thermal import STEP, Params, bounded, glazing as glazing_of, ordinary, shutter_insulation, step
-from ..advisor.physics.water import WaterParams, absolute
+from ..advisor.physics.water import WaterParams, absolute, water_step, within
 from ..advisor.proof import CASES, ORDER, PROVEN, level, live, window_reinforced
 from ..advisor.pollen import today as pollen_today
-from ..advisor.safety import RAIN, forbidden, holidays, rained_on
+from ..advisor.safety import RAIN, RAIN_SOON, forbidden, holidays, rain_for, rained_on
 from ..advisor.snapshot import capture
-from ..advisor.words import TEXTS, doubt_text, doubtful_air, phrase, tip_text, tonight_text
+from ..advisor.words import (EDGE, TEXTS, airing_words, aside_line, aside_urgent, before_after, day_title, doubt_text, doubtful_air, dwelling_lines,
+                             measured_out, next_moment, normal_humidity, phrase, tip_text, tonight_text)
 from ..const import DOMAIN
 from ..engine.verdict import COLOURS, HUES, STATES, humidity_label
 
@@ -56,6 +63,16 @@ AIM_MINUTES = 60
 # little elsewhere (lab, 3 November: learned 0.74 in the Salon · Cuisine, 0 to 0.27 in the other rooms; the Chambre M,
 # given 0.2 before its first night, was forecast 30 °C at 20 h when the stove was lit, and told to open).
 HOUSE_SHARE, HOUSE_SHARE_OWN = 0.05, 0.6
+# « Au mieux » goes back to « Tout va bien » only once the forecast has stayed in its range this long: both took turns in
+# every room at once, 6 h 05, 6 h 50, 6 h 55, 7 h, 10 h, 10 h 35 (8 November). « Au mieux » says no gesture would do
+# better, true either way; « Tout va bien » is said when it holds.
+CALM_MINUTES = 60
+# The way the later slots' likely gestures are found: a new one finds them again at once, without waiting for the next slot
+# (2: judged at their own slot's end, 17 November).
+LIKELY_FORM = 3
+# The event sent with each new slot's gesture, urgency or safety rule, for the notifications (advisor/board.py).
+EVENT = f"{DOMAIN}_conseil"
+NOTIFIED = ("creneau", "urgence", "securite")
 # The walls' temperature is kept over a restart this long; older, it is taken back from the air of the last hours (a
 # restart just after the stove took the air for the walls: the Salon was forecast 1.5 °C too warm for five hours).
 WALLS_KEPT = timedelta(hours=1)
@@ -65,6 +82,8 @@ DAY_STEPS = 36
 # A step closer to the last one than this decides without moving the trail (a restart's retries, a tick come early).
 STEP_AT_LEAST = timedelta(minutes=4)
 VERSION = 1
+# The gestures asked, with their kWh, kept this long for Hestia Énergie (api.py `gestures`): two monthly bills.
+GESTURES_KEPT = timedelta(days=62)
 
 
 def _number(hass, entity_id, attribute=None):
@@ -83,17 +102,30 @@ GESTURE_KEYS = {"nothing": "none", "open": "open", "open_more": "open", "close":
                 "shutter_open": "covers", "heat_on": "heat", "heat_to": "heat", "heat_stop": "heat",
                 "keep": "keep_open"}
 # « Rien à faire » while a measure stays out of its range or mark (advisor/words.py): « Au mieux », as the card says.
-BEYOND = re.compile(r"aucun geste ne ferait vraiment mieux|^(Ouverte ou fermée|Ouverte|Fermée) :", re.IGNORECASE)
+# The pill under « Rien à faire » changes at most once in this many minutes (9 November: 159 changes in a day).
+PILL_MINUTES = 30
+BEYOND = re.compile(r"aucun geste ne ferait vraiment mieux|rien de mieux à faire pour l'instant|^(Ouverte ou fermée|Ouverte|Fermée) :", re.IGNORECASE)
 
 
 def banner_level(result: dict) -> tuple[str, str]:
     """(level, pill) of a 3.0 decision, as the card's banner shows it (card/src/views/advisor3.ts `level3`): orange for a
     gesture, red for safety, green for one to try, blue otherwise (PASSAGE-CONFORT-3.md § 6.4)."""
-    rule, gesture = result.get("regle"), result.get("geste") or "nothing"
+    rule, gesture, family = result.get("regle"), result.get("geste") or "nothing", result.get("famille")
     if rule == "doubtful":
         return "neutral", "À vérifier"
     if rule == "waiting":
         return "neutral", "Démarrage"
+    if family:
+        # One family, one colour, one pill (moteur 3.18.0, card/src/views/advisor3.ts `level3`): orange stays rare.
+        if family == "securite":
+            return "urgent", "Attention"
+        if family == "urgence":
+            return "action", "À faire"
+        if family == "creneau":
+            return "benefit", "Bon moment"
+        if family == "reponse" and gesture != "nothing":
+            return ("action", "À faire") if gesture == "close" and not result.get("apres") else ("calm", "En cours")
+        return "calm", "Au mieux" if result.get("hors_plage") is True else "Tout va bien"
     if rule == "safety":
         return "urgent", "Attention"
     if gesture == "keep":
@@ -103,6 +135,9 @@ def banner_level(result: dict) -> tuple[str, str]:
         return "action", "Geste conseillé"
     if result.get("a_essayer"):
         return "benefit", "À saisir"
+    if isinstance(result.get("hors_plage"), bool):
+        # Read on the measures by the engine (room/advice.py PILL_MINUTES), never guessed from the line.
+        return "calm", "Au mieux" if result["hors_plage"] else "Tout va bien"
     quiet = rule in ("insignificant", "unproven") or bool(BEYOND.search(result.get("phrase") or ""))
     return "calm", "Au mieux" if quiet else "Tout va bien"
 
@@ -144,6 +179,45 @@ def heater_power(hass, entity_id, declared=None):
     return float(power) if isinstance(power, (int, float)) and power > 0 else None
 
 
+FIGURES = re.compile(r"\d+(?:[,.]\d+)?")
+
+
+
+
+def phrase_subject(line) -> str:
+    """The banner's line without its figures: « Humidité 73 % à 7 h » and « Humidité 72 % à 8 h » say the same."""
+    return FIGURES.sub("#", line or "")
+
+
+def stove_waiting(hass, entity_id) -> bool:
+    """A house heater asked to heat that does not: its thermostat asks a share of power but says it is idle. The Salon's
+    stove waits for its lighting to be confirmed (10 November, 6 h and 17 h: 100 % asked a quarter of an hour, never lit);
+    lit, its thermostat says « heating » within a minute (3 November at 7 h 41)."""
+    state = hass.states.get(entity_id) if entity_id else None
+    if state is None or state.state != "heat":
+        return False
+    asked = state.attributes.get("power_percent")
+    return isinstance(asked, (int, float)) and asked > 0 and state.attributes.get("hvac_action") != "heating"
+
+
+def house_power_now(hass, entity_id) -> float:
+    """Share (0-1) of its power a house heater gives off now: what its thermostat asks, nothing while it waits."""
+    if stove_waiting(hass, entity_id):
+        return 0.0
+    return (_number(hass, entity_id, "power_percent") or 0.0) / 100
+
+
+def house_given_now(hass, entity_id, kinds: dict | None = None) -> float:
+    """Share (0-1) of its power a house heater gives off now: what its thermostat asks, at least its idle flame while it
+    burns (a pellet stove at 0 % still heats), nothing while it waits to be lit."""
+    asked = house_power_now(hass, entity_id)
+    state = hass.states.get(entity_id) if entity_id else None
+    if state is not None and state.attributes.get("hvac_action") == "heating":
+        kind = (kinds if kinds is not None else heater_kinds(hass)).get(entity_id)
+        return max(asked, heater_of(kind).idle)
+    return asked
+
+
 def house_heaters(hass) -> dict:
     """{thermostat: W} of the heaters set « chauffe toute la maison » in any room (a stove), whose power is known."""
     found = {}
@@ -175,9 +249,11 @@ def spec(coordinator, houses: dict) -> dict:
     """The room as the advisor reads it, from Confort's settings: the room's own, then those of the rooms sharing its air."""
     hass = coordinator.hass
     configs = [coordinator.config]
+    titles = [coordinator.config.get("name") or coordinator.config_entry.title]
     for partner in coordinator.partners:
         if entry := hass.config_entries.async_get_entry(partner["entry_id"]):
             configs.append({**entry.data, **entry.options})
+            titles.append(configs[-1].get("name") or entry.title)
     own = coordinator.config
     sources = coordinator.sources
     # « Votre maison » (HABITUDES-FOYER.md § 3 bis): what a window or a room does not set itself, it takes from the house.
@@ -246,6 +322,11 @@ def spec(coordinator, houses: dict) -> dict:
             "co2": sources.get("co2"), "particles": sources.get("pm25"), "voc": voc,
             "windows": windows, "kinds": kinds, "orientations": orientations, "sheltered": sheltered_from, "cover": cover, "cover_auto": cover_auto, "acp": acp,
             "panes": panes, "manual": sorted(manual),
+            # The rooms sharing this air, each with its windows and the sensors it holds: « Aérez » opens the part where
+            # the measure it is for is taken (Salon · Cuisine, 20 November: the VOC measured in the kitchen).
+            "parts": [{"name": title, "windows": list(config.get("windows", [])),
+                       "sources": sorted(k for k, v in (config.get("sources") or {}).items() if v)}
+                      for title, config in zip(titles, configs)] if len(configs) > 1 else [],
             "boost": devices.get("ventilation_boost"), "purifier": devices.get("purifier"),
             "thermostat": thermostat, "thermostat_plage": plage, "thermostat_reference": own.get("thermostat_reference", True) is not False,
             "comfort": comfort, "foyer": own.get("foyer") or {},
@@ -313,6 +394,72 @@ def _away_for(state, habits, now, local) -> float | None:
     return None
 
 
+# The source that measures each subject (Confort's settings), for the part of a shared air that holds it.
+SOURCE_OF = {"co2": "co2", "particles": "pm25", "voc": "voc", "humidity": "indoor_humidity", "mould": "indoor_humidity",
+             "heat": "indoor_temperature", "energy": "indoor_temperature"}
+
+
+def first_windows(room: dict, subject: str | None) -> tuple[tuple[str, ...], str | None]:
+    """The windows « Aérez » opens, and how the card names them (« Cuisine », « ouest »; None: all of the room's). In a
+    shared air, those of the part where `subject` is measured (Salon · Cuisine, 20 November: « Aérez 5 min » for the
+    kitchen's VOC); then one side of them only, the other side being « Ouvrez aussi » once open (advisor/decide.py
+    `one_side`)."""
+    entities = list(room["windows"])
+    if not entities:
+        return (), None
+    bearings = [(room["orientations"].get(e) or (None,))[0] for e in entities]
+    areas = [w * h for w, h in room["windows"].values()]
+    parts = [p for p in room.get("parts") or () if any(e in room["windows"] for e in p["windows"])]
+    key = SOURCE_OF.get(subject or "")
+    part = next((p for p in parts if key in p["sources"]), None) if key else None
+    among = [i for i, e in enumerate(entities) if part is None or e in part["windows"]] or list(range(len(entities)))
+    chosen = one_side(bearings, among, areas)
+    if len(chosen) == len(entities):
+        return tuple(entities), None
+    words = TEXTS["fr"]
+    held = [p["name"] for p in parts if all(entities[i] in p["windows"] for i in chosen)]
+    if len(parts) > 1 and held:
+        return tuple(entities[i] for i in chosen), held[0]
+    sides = list(dict.fromkeys(words[bearing_name(bearings[i])] for i in chosen if bearings[i] is not None))
+    return tuple(entities[i] for i in chosen), words["and"].join(sides) or None
+
+
+def airing_shown(board: Board, decision: Decision, measures: dict, normal: float | None, marks: dict, longest: int,
+                 now: datetime, as_local) -> tuple | None:
+    """The airing the household followed, as the card shows it while the windows are open: (gesture, rule, words, what
+    the snapshot keeps), or None when the engine's own answer stands (windows opened of the household's own accord, its
+    reason sorted while the engine keeps them open for something else). « Aération en cours · COV 268 · refermez vers
+    8 h 45 », then « Refermez » once it is done or its reason sorted (Frank, 20 November)."""
+    a = board.airing
+    if a is None:
+        return None
+    subject = a.get("subject")
+    measure = "humidity" if subject == "mould" else subject
+    value = measures.get(measure) if measure else None
+    leave = None
+    if a.get("reason") == "urgence" and subject:
+        limits = thresholds(subject, normal)
+        leave = limits[1] if limits else None
+    elif subject in ("co2", "particles", "voc"):
+        leave = marks.get(subject)
+    way = board.under_way(now, value, leave, longest)
+    # Its reason sorted or its time up, the engine keeping the window open for something else (the room cooled on a
+    # summer evening) says so itself: « Refermez » only instead of « Rien à faire ».
+    engine = decision.gesture
+    if way is None or (way["state"] != "running" and not (engine.kind == "nothing" or engine.kind == "close" and not engine.after)):
+        return None
+    end_local = as_local(way["end"]) if way["end"] is not None else None
+    said = airing_words(way, subject, value, (a.get("before") or {}).get(measure), end_local)
+    if way["state"] == "running":
+        left = (way["end"] - now).total_seconds() / 60 if way["end"] is not None else None
+        gesture, rule = (Gesture("close", after=max(1, round(left))) if left is not None else Gesture("keep")), "en_cours"
+    else:
+        gesture, rule = Gesture("close"), "reglee" if way["state"] == "resolved" else "finie"
+    snap = {"etat": way["state"], "raison": a.get("reason"), "sujet": subject,
+            "fin": way["end"].isoformat() if way["end"] is not None else None}
+    return gesture, rule, {**said, "subject": subject}, snap
+
+
 def room_spec(room: dict, habits=None, alarm=None, summer=False) -> RoomSpec:
     """The room as the nightly learning reads it; `habits`, `alarm` and `summer` say when its manual shutters are shut."""
     return RoomSpec(room["name"], room["temperature"], dict(room["windows"]), room["humidity"], room["thermostat"],
@@ -327,15 +474,26 @@ class RoomAdvisor:
     def __init__(self, coordinator, home):
         self.coordinator, self.home, self.hass = coordinator, home, coordinator.hass
         self.entry_id = coordinator.entry_id
+        # Since when the forecast is back in its range while « Au mieux » is kept (CALM_MINUTES).
+        self.calm_since = None
         self.store = Store(self.hass, VERSION, f"{DOMAIN}.advisor.{self.entry_id}")
         self.room = None
         self.learned, self.learned_at, self.earlier, self.report = None, None, [], None
         self.walls, self.hot_since = None, None
+        # The water the walls, the bedding and the furniture hold (g/m³ of the room's air), followed step by step with the
+        # measured humidity, as the walls' heat is: taken equal to the air, a shower's damp air or an airing's dry one was
+        # held by the walls too, and the twin foresaw 91 % at 7 h for 81 % (Chambre P, 12-13 November) or « sous 60 % vers
+        # 12 h » for 64 % after an airing (Chambre M, 13 November). None until the first step: then the air's.
+        self.reserve = None
+        # Since when the stove has burnt at 0 % (its idle flame), for `_idle_for`.
+        self.idle_since = None
         # The last hour, five minutes at a time: (when, air, walls, what acted on it), for the twin's trend; the last
         # half hour: (when, the room as measured, what acted on it, outdoor water), for the sources running now.
         self.trail, self.air_trail = deque(maxlen=HOUR), deque(maxlen=8)
         # When the windows were opened, and the air and humidity then: the gesture under way (proof.live).
         self.opening = None
+        # How the card names the windows « Aérez » opens, when not all of the room's (`first_windows`).
+        self.side = None
         # The same opening with the twin's forecast for it, to see how much of it the window really does (advisor/opening.py).
         self.opened_seen = None
         # What that forecast was made from (twins, the room, what acts on it), to forecast the airing as it was once shut;
@@ -347,6 +505,20 @@ class RoomAdvisor:
         self.tried = None
         # The gesture the card asks for, followed until done or replaced; the gestures put aside by « Pas maintenant ».
         self.asked, self.paused = None, {}
+        # The gestures left on the card without being followed: kind → (until when, its subject, its measure then).
+        self.left = {}
+        # Since when « À essayer » has shown the same gesture (advisor/decide.py HOLD_MINUTES).
+        self.tried_since = None
+        # The banner's gesture of the last step: (kind, subject, its measure then), for a gesture then left.
+        self.banner = None
+        # What the journal said last of this room: (title, to try, pill) — a reload does not write it again.
+        self.journaled = None
+        # (title, rule, line, since) of the line said: its subject held LINE_HOLD under the same title.
+        self.line_held = None
+        # The pill under « Rien à faire »: (a measure out of its range or mark, since when it says so) (PILL_MINUTES).
+        self.measured_pill = None
+        # The gestures asked and ended (followed or replaced), with their kWh: what Hestia Énergie reads (api.py `gestures`).
+        self.gestures = []
         # When an airing was last shut: the next opening waits until it is judged (advisor/decide.py RESTING_MINUTES).
         self.shut_at = None
         # What the airing advised was for (its subject, when last shown): an airing followed that does not do it is said
@@ -355,8 +527,10 @@ class RoomAdvisor:
         # When the rain was last measured falling: the hour after it, the air holds few pollens (advisor/pollen.py).
         self.rained_at = None
         self.checker, self.sensors = Checker(), {}
-        self.shown = None
         self.result = None
+        # The card's memory (advisor/board.py): the slot's gesture, the urgencies, the subject said while calm; and the
+        # last advice sent as an event, for the notifications (`hestia_comfort_conseil`).
+        self.board, self.notified = Board(), None
 
     @property
     def slug(self):
@@ -372,12 +546,17 @@ class RoomAdvisor:
         kept = await self.store.async_load() or {}
         self.learned = kept.get("twins") or first_twins(self.room, self.hass, self.home.houses)
         self.learned_at, self.earlier, self.report = kept.get("learned_at"), kept.get("earlier") or [], kept.get("report")
+        self.gestures = kept.get("gestures") or []
         if _resized(self.learned, self.room):
             self.learned = _remade(self.learned, self.learned_at, first_twins(self.room, self.hass, self.home.houses))
             self.learned_at = None
         state = kept.get("state") or {}
         at = dt_util.parse_datetime(state["at"]) if state.get("at") else None
         now = dt_util.utcnow()
+        try:
+            self.board.load(state.get("board"))
+        except (KeyError, TypeError, ValueError):
+            self.board = Board()
         if at and now - at < WALLS_KEPT:
             self.walls = state.get("walls")
             self.hot_since = dt_util.parse_datetime(state["hot_since"]) if state.get("hot_since") else None
@@ -388,12 +567,19 @@ class RoomAdvisor:
                 self.tried = (Gesture(**tried["gesture"]), dt_util.parse_datetime(tried["at"]))
             self.shut_at = dt_util.parse_datetime(state["shut_at"]) if state.get("shut_at") else None
             self.paused = {k: until for k, v in (state.get("paused") or {}).items() if (until := dt_util.parse_datetime(v)) and until > now}
+            self.left = {k: (until, v[1], v[2]) for k, v in (state.get("left") or {}).items()
+                         if (until := dt_util.parse_datetime(v[0])) and until > now}
+            self.tried_since = dt_util.parse_datetime(state["tried_since"]) if state.get("tried_since") else None
+            self.journaled = tuple(state["journaled"]) if state.get("journaled") else None
         if self.walls is None and self.room["temperature"]:
             self.walls = await self.home.mean_air(self.room["temperature"], now - timedelta(hours=WALLS_HOURS), now)
 
     def _state(self, now):
         state = {"at": now.isoformat(), "walls": self.walls, "hot_since": self.hot_since.isoformat() if self.hot_since else None,
-                 "paused": {k: v.isoformat() for k, v in self.paused.items()}}
+                 "paused": {k: v.isoformat() for k, v in self.paused.items()},
+                 "left": {k: [until.isoformat(), subject, value] for k, (until, subject, value) in self.left.items()},
+                 "tried_since": self.tried_since.isoformat() if self.tried_since else None,
+                 "journaled": list(self.journaled) if self.journaled else None, "board": self.board.state()}
         if self.previous:
             gesture, at, since = self.previous
             state["shown"] = {"gesture": asdict(gesture), "at": at.isoformat(), "since": since.isoformat()}
@@ -406,7 +592,7 @@ class RoomAdvisor:
 
     async def async_save(self, now):
         await self.store.async_save({"twins": self.learned, "learned_at": self.learned_at, "earlier": self.earlier[-7:],
-                                     "report": self.report, "state": self._state(now)})
+                                     "report": self.report, "state": self._state(now), "gestures": self.gestures})
 
     async def learned_now(self, entry, now, report):
         """A night's twins: kept, the previous ones remembered a week (PASSAGE-CONFORT-3.md § 2.5)."""
@@ -416,6 +602,17 @@ class RoomAdvisor:
         entry = {**entry, "fitted": bool(entry.get("fitted") or report.get("appris"))}
         self.learned, self.learned_at, self.report = entry, now.isoformat(), report
         await self.async_save(now)
+
+    def gestures_between(self, start, end):
+        """The gestures asked between `start` and `end` (aware datetimes): the ones ended, kept GESTURES_KEPT, and the one
+        on the card now (`fin` None). Each with its kWh against « do nothing », as simulated when it was first asked."""
+        out = [g for g in self.gestures
+               if dt_util.parse_datetime(g["depuis"]) < end and dt_util.parse_datetime(g["fin"]) > start]
+        if self.asked is not None and self.asked.since < end:
+            a = self.asked
+            out.append({"geste": a.kind, "conseil": a.title, "essai": a.trial, "suivi": None, "depuis": a.since.isoformat(),
+                        "fin": None, "kwh": a.kwh, "chauffage": a.heated})
+        return out
 
     def knowing(self):
         """What Hestia-FB knows of the room (« Ce que Hestia-FB sait de votre maison », CAHIER-HUB.md § 5.3): each effect it can
@@ -477,6 +674,14 @@ class RoomAdvisor:
         # The temperature first: without it, no advice.
         doubts.sort(key=lambda d: d["mesure"] != "temperature")
         return found, doubts
+
+    def _sent(self, kind):
+        """When the room's sensor of `kind` last sent a value, even an unchanged one; None without one."""
+        entity = self.room.get(kind)
+        state = self.hass.states.get(entity) if entity else None
+        if state is None:
+            return None
+        return getattr(state, "last_reported", None) or state.last_updated
 
     def _on(self, device):
         """Whether a declared device (entity, flow) runs now."""
@@ -565,7 +770,8 @@ class RoomAdvisor:
 
     def _good_to_know(self, now, air, opening, comfort, humidity=None, coldest=None, bedtime=None, asleep=False,
                       shutter_night=None, wake=None, back=None, off=None, end_hour=None, stove=None, sun_warms=None,
-                      outdoor=None, outdoor_rh=None, water=False, share=None, planned=None, pollen=None):
+                      outdoor=None, outdoor_rh=None, water=False, share=None, planned=None, pollen=None, airing_at=None,
+                      house=None, house_gap=1.5, sun_bonus=None):
         """« Bon à savoir »: the sun on the windows (Adaptive Cover Pro's hours first), a gesture seen to work."""
         local = dt_util.as_local(now)
         acp = {}
@@ -575,19 +781,63 @@ class RoomAdvisor:
             if start and end and dt_util.as_local(start).date() == local.date():
                 acp[entity] = (dt_util.as_local(start), dt_util.as_local(end))
         windows = [Window(e, (self.room["orientations"].get(e) or (None,))[0], acp.get(e)) for e in self.room["windows"]]
-        sun = {dt_util.as_local(h): v[2] for h, v in self.home.forecast.items()}
+        today = self.home.sun_today(now)
+        sun = {dt_util.as_local(h): v[0] for h, v in today.items()}
+        sky = {dt_util.as_local(h): v[1] for h, v in today.items() if v[1] is not None}
         # The coldest panes of the room mist first (advisor/physics/surface.py): a single glazing before a double one.
         panes = [(self.room.get("panes") or {}).get(e) or "double" for e in self.room["windows"]]
         coldest_pane = min(panes, key=["simple", "double", "triple"].index) if panes else None
-        view = RoomView(local, self.hass.config.latitude, self.hass.config.longitude, windows, sun, air, glazing=coldest_pane,
+        view = RoomView(local, self.hass.config.latitude, self.hass.config.longitude, windows, sun, air, sky=sky, glazing=coldest_pane,
                         minimum=comfort.minimum, maximum=comfort.maximum,
                         opened_at=dt_util.as_local(opening[0]) if opening else None,
                         air_at_opening=opening[1] if opening else None, humidity=humidity, coldest_tonight=coldest,
                         bedtime=bedtime, asleep=asleep, shutter_night=shutter_night, wake=wake, heating_back=back,
                         heating_off=off, end_hour=end_hour, stove_idle=stove, sun_gain=sun_warms,
                         outdoor=outdoor, outdoor_humidity=outdoor_rh, water_matters=water, window_share=share,
-                        humidity_at_opening=opening[2] if opening else None, heating_planned=planned, pollen=pollen)
+                        humidity_at_opening=opening[2] if opening else None, heating_planned=planned, pollen=pollen,
+                        airing_at=airing_at, house=house, house_gap=house_gap, sun_bonus=sun_bonus,
+                        shutters_manual=bool(self.room.get("manual")))
         return tips(view)
+
+    def _idle_for(self, entity_id, now, habits):
+        """Minutes the stove's idle flame still lasts: the household's hold, less the time it has already idled at 0 %."""
+        state = self.hass.states.get(entity_id) if entity_id else None
+        burning = state is not None and state.attributes.get("hvac_action") == "heating"
+        asked = state.attributes.get("power_percent") if state is not None else None
+        if burning and isinstance(asked, (int, float)) and asked <= 0:
+            self.idle_since = self.idle_since or now
+        else:
+            self.idle_since = None
+        spent = (now - self.idle_since).total_seconds() / 60 if self.idle_since else 0.0
+        return max(0.0, habits.stove_idle_hold - spent)
+
+    def _reserve_step(self, twins, current, acting, outdoor_water):
+        """The walls' water five minutes on, the room's air as measured (advisor/physics/water.py `water_step`)."""
+        if twins.water is None or current.humidity is None or outdoor_water is None:
+            return None
+        water = absolute(current.air, current.humidity)
+        reserve = self.reserve if self.reserve is not None else water
+        flow = _water_flow(twins.water_flow, twins.water.volume, acting.windows, current.air, acting.outdoor, acting.wind,
+                           acting.cross) + (twins.boost if current.boosting else 0.0)
+        return water_step(twins.water, water, reserve, outdoor_water, flow, acting.hour)[1]
+
+    def _house(self, home, name, twins):
+        """The stove burning: (the other rooms' mean air, as their last step measured it; this room's learned share of the
+        stove's heat). None when no house heater heats or fewer than two other rooms are known. A shared air (Salon ·
+        Cuisine) counts once."""
+        hass = self.hass
+        if not any((s := hass.states.get(e)) is not None and s.attributes.get("hvac_action") == "heating" for e in home.houses):
+            return None
+        airs = {}
+        for other in home.rooms.values():
+            result = other.result or {}
+            air = (result.get("mesures") or {}).get("air")
+            if result.get("piece") and result["piece"] != name and isinstance(air, (int, float)):
+                airs[result["piece"]] = air
+        if len(airs) < 2:
+            return None
+        share = twins.heat.share if twins is not None and twins.heat is not None else None
+        return sum(airs.values()) / len(airs), share
 
     def _tonight(self, twins, current, local, bedtime, wake, coming, comfort, proof, marks, taken, habits, pollen=None):
         """« Cette nuit, pensez à… »: in the evening, the windows at the room's bedtime judged over the whole night."""
@@ -648,12 +898,15 @@ class RoomAdvisor:
         # The room's main heating when it is a house heater (the Salon's stove): simulated as its thermostat.
         main = room["thermostat_plage"]
         house_power = houses.get(main, 0.0) if main else 0.0
+        main_house = main
         kinds = heater_kinds(hass)
-        house_stat = _kinded(home.thermostat(main), kinds, main) if house_power else None
+        # Waiting to be lit (asked, idle), the stove is not simulated: the forecast is the room's without it, never a
+        # promise that depends on a lighting no one has confirmed (10 November: « 21,7 °C à 20 h » for a room at 19 °C).
+        house_stat = _kinded(home.thermostat(main), kinds, main) if house_power and not stove_waiting(hass, main) else None
         house_heat = home.house_heat()
         twins = Twins(
             heat=heat, windows=tuple(sizes.values()),
-            water=WaterParams(**learned["water"]) if "water" in learned else None, water_flow=tuple(learned.get("water_flow", (1, 1))),
+            water=within(WaterParams(**learned["water"])) if "water" in learned else None, water_flow=tuple(learned.get("water_flow", (1, 1))),
             air=AirParams(**learned["air"]) if "air" in learned else None, air_flow=tuple(learned.get("air_flow", (1, 1))),
             particles=ParticleParams(**learned["particles"]) if "particles" in learned else None,
             particles_flow=tuple(learned.get("particles_flow", (1, 1))),
@@ -667,7 +920,9 @@ class RoomAdvisor:
             # The side each window faces, for the air crossing the room (« Ouvrez aussi la porte-fenêtre »).
             bearings=tuple((room["orientations"].get(e) or (None,))[0] for e in sizes),
             house_thermostat=house_stat, house_power=float(house_power) if house_stat else 0.0,
-            house_now=(_number(hass, main, "power_percent") or 0.0) / 100 if house_stat else 0.0)
+            house_now=house_power_now(hass, main) if house_stat else 0.0,
+            house_idle=heater_of(kinds.get(main)).idle if house_stat else 0.0,
+            house_idle_for=self._idle_for(main, now, habits) if house_stat else None)
         orientations = room["orientations"]
         # The manual shutters the household says shut now: away, at night, on summer's sunny side (HABITUDES-FOYER.md).
         # Shut, they keep the sun out and the heat in, as a connected one does; at night, those it shuts for the night.
@@ -698,6 +953,10 @@ class RoomAdvisor:
         glazing = seen(shut_now)
         opened_index = {i for i, e in enumerate(sizes) if (s := hass.states.get(e)) and s.state == "on"}
         coming = home.coming(now, steps, outdoor, outdoor_rh, house_heat, shaded(shut_now), glazing, opened_index, kept(shut_now))
+        if house_stat is None and house_heat:
+            # The stove as its own room simulates it, not held at its power of the moment (bilan of 11 November).
+            given = home.house_heat_steps(now, len(coming))
+            coming = [(replace(u, house_heat=given[k]), w) for k, (u, w) in enumerate(coming)]
         walls = self.walls if self.walls is not None else air
         # What acts on the room now, its own heating included: what the twin's trend is measured with.
         power = _number(hass, room["thermostat"], "power_percent")
@@ -714,28 +973,59 @@ class RoomAdvisor:
         # °C the room gained over the last half hour, measured.
         earlier = [a for t, a, *_ in self.trail if now - t >= timedelta(minutes=27.5)]
         rise = air - earlier[-1] if earlier else None
-        current = Now(air=air, walls=walls, opened=opened, humidity=measures["humidity"], co2=measures["co2"],
+        reserve = self.reserve if twins.water is not None and measures["humidity"] is not None else None
+        current = Now(air=air, walls=walls, opened=opened, humidity=measures["humidity"], co2=measures["co2"], reserve=reserve,
                       particles=measures["particles"], voc=measures["voc"],
                       boosting=self._on(room["boost"]), purifying=self._on(room["purifier"]),
                       night=night, missed=missed,
                       cover=None if position is None or driven else position / 100,
                       heating=None if twins.thermostat is None and twins.idle_thermostat is None else twins.thermostat is not None,
                       heating_target=twins.thermostat.target if twins.thermostat else None,
-                      house_running=burning, house_rise=rise, overheated=overheated)
+                      house_running=burning, house_rise=rise, overheated=overheated,
+                      bed_in=None if night else (bedtime - local).total_seconds() / 60)
         rain_rate, gust, rain_in, vigilance, wind_from = home.safety()
+        # The rain held after its last drop (advisor/safety.py RAIN_KEPT) keeps « Gardez fermé », never « Refermez » for
+        # a window opened once it had stopped: « Refermez : il pleut » at 16 h 21 in three rooms, the rain over at 16 h 03
+        # (bilan of 15 November, the household airing the house).
+        opened_since = ((self.opening[0] if self.opening else now).timestamp()) if opened else None
+        rain_rate = rain_for(rain_rate, getattr(home, "rain_now", None), getattr(home, "rain_last", None), opened_since)
         wet = {e for e in sizes if rained_on(room.get("sheltered", {}).get(e, False), (orientations.get(e) or (None,))[0], gust, wind_from)}
         wet_open = {e for i, e in enumerate(sizes) if i in opened_index} & wet
         shelter = "all" if sizes and not wet else "opened" if opened and not wet_open else None
         # Without an alarm, the empty hours the household set count as away: nobody there to make a gesture.
         rules_alarm = alarm if has_alarm or not away_now else "armed_away"
+        hint = getattr(home, "rain_hint", None) or {}
         taken, reason = forbidden(rain_rate, gust, rain_in, vigilance, rules_alarm, coldest=min(u.outdoor for u, _ in coming),
-                                  shelter=shelter)
+                                  shelter=shelter, gauge=hint.get("gauge"), intensity=hint.get("intensity"),
+                                  chance=hint.get("chance"))
         # The gestures answered « Pas maintenant », put aside for a while (CAHIER-MOTEUR.md § 15).
         aside = declined(self.paused, current, now)
-        taken = taken | aside
+        # A gesture left unfollowed is no longer put aside here: a slot's gesture is not asked again within its slot, an
+        # urgency waits on its own (advisor/board.py).
+        left_now = {}
+        put_aside = aside
+        # Until when each one waits: « Ouvrez » en pause jusqu'à 22 h 35 (bilan of 11 November).
+        aside_until = {k: max(u for u in (self.paused.get(k), left_now.get(k)) if u is not None) for k in put_aside}
+        safe_taken = taken
+        taken = taken | put_aside
         away = holidays(alarm)
         # The room's range as set in Confort, for the home's season (CAHIER-MOTEUR.md § 10.3).
         comfort = for_season(**room["comfort"], season=self.coordinator.season_name)
+        # A heated room with the outside colder than its minimum: an airing of a set length (« Aérez 25 min ») or « Laissez
+        # ouvert encore 10 min », never « Ouvrez » or « Laissez ouvert » with no end. Nobody leaves a window open all morning
+        # at 9 °C: the card promised 53 % for a window open till noon, the household opened 25 min and the room came back
+        # to 65 % (bilan of 13 November, Chambre A) ; three evenings running, the bedrooms' « Ouvrez » was never followed
+        # (12 November). An airing of a set length says what stays an hour after shutting (advisor/words.py `_lasting`).
+        heated = twins.thermostat is not None or twins.idle_thermostat is not None or twins.house_thermostat is not None \
+            or bool(house_heat)
+        cold_season = heated and outdoor < comfort.minimum
+        if cold_season:
+            endless = frozenset({"open_long", "keep"})
+            taken, safe_taken = taken | endless, safe_taken | endless
+            if reason == "frost":
+                # The long openings are already left out: « Gardez fermé : le gel est annoncé » only came and went every
+                # half hour with a forecast hovering at 1 °C, in every room, all night (bilan of 14 November).
+                reason = None
         # The thermostat's set point stands as the room's minimum, eco included (CAHIER-MOTEUR.md § 6.8), unless the
         # room says otherwise; the room's main thermostat when it is not its own (the Salon follows the stove).
         main = room["thermostat_plage"] or room["thermostat"]
@@ -746,6 +1036,11 @@ class RoomAdvisor:
                                       aimed.get("preset", stat.attributes.get("preset_mode")),
                                       (stat.attributes.get("preset_temperatures") or {}).get("comfort_temp"))
         opening = self._opening(now, opened, air, current.humidity)
+        if cold_season and opened and opening:
+            # Left as it is, the window is shut once the household's usual airing is over, not left open till noon: the
+            # card said « repasse seule sous 60 % » for a window it supposed open all morning (bilan of 13 November).
+            open_for = (now - opening[0]).total_seconds() / 60
+            current = replace(current, closing_in=max(STEP / 60, habits.airing_max - open_for))
         # A day of high pollens, for a household that said someone is allergic (« Réglages du foyer », advisor/pollen.py).
         raining = rain_rate is not None and rain_rate > RAIN
         if raining:
@@ -755,14 +1050,17 @@ class RoomAdvisor:
                               raining, opening[0] if opening else None)
         # The window open now, seen at work: the rest of the airing is judged with the share of its forecast it really does
         # (Chambre P, 3 November: one leaf ajar, « 13,6 points d'humidité en moins » while the humidity rose).
-        shares = seen_shares(self.opened_seen, now, air, current.humidity) if opened and self.opened_seen else {}
+        # Each measure read at the time its sensor sent it: one that reports every half hour says nothing yet of the
+        # airing (advisor/opening.py `seen_shares`).
+        read = {"air": self._sent("temperature"), "humidity": self._sent("humidity")}
+        shares = seen_shares(self.opened_seen, now, air, current.humidity, read) if opened and self.opened_seen else {}
         share = shares.get("heat", shares.get("water"))
         if share is not None:
             twins = scaled(twins, share, water=shares.get("water"))
         # The airing advised and followed, doing less than it was to: said as measured (advisor/decide.py `failed`).
         followed_aim = (self.aim is not None and opened and self.opened_seen is not None
                         and self.aim[1] >= self.opened_seen.since - timedelta(minutes=AIM_MINUTES))
-        failure = failed(self.aim[0], shares, self.opened_seen, now, air, current.humidity) if followed_aim else None
+        failure = failed(self.aim[0], shares, self.opened_seen, now, air, current.humidity, read) if followed_aim else None
         proof = self._proof(current, outdoor, coming[0][1])
         # A source running now (a cooking, a shower…): the last half hour replayed on the twin against the measures.
         # Replayed in the executor, as the decision below (PLAN-OPTIMISATION.md, point 8): Home Assistant does not wait.
@@ -779,15 +1077,11 @@ class RoomAdvisor:
             if found:
                 current = replace(current, sources=found)
         self._settled(now, current)
-        # The gesture shown last, counted down to now (« encore 10 min » five minutes on is « encore 5 min »).
+        # The card's memory (advisor/board.py): what is shown changes on an event, never when a timer runs out. The
+        # gesture shown last, counted down to now (« encore 10 min » five minutes on is « encore 5 min »).
         shown_before, shown_at, shown_since = self.previous or (None, now, now)
         previous = aged(shown_before, (now - shown_at).total_seconds() / 60)
-        # How long it has been on the card: held half an hour while it still helps (advisor/decide.py HOLD_MINUTES).
-        held = (now - shown_since).total_seconds() / 60
-        # The gesture shown « À essayer », counted down too: it holds while it is about as good.
-        tried_before, tried_at = self.tried or (None, now)
-        tried = aged(tried_before, (now - tried_at).total_seconds() / 60)
-        # Minutes since an airing was shut: the next opening for a slow subject waits until it is judged.
+        # Minutes since an airing was shut: the next opening waits until it is judged.
         aired = (now - self.shut_at).total_seconds() / 60 if self.shut_at and not opened else None
         marks = {"minimum": comfort.minimum, "maximum": comfort.maximum, "humidity": comfort.humidity, "co2": comfort.co2,
                  "particles": comfort.particles, "voc": comfort.voc}
@@ -797,26 +1091,156 @@ class RoomAdvisor:
             night_coming = home.coming(now, int((wake - local).total_seconds() // STEP), outdoor, outdoor_rh, house_heat,
                                        shaded(shut_night), seen(shut_night), opened_index, kept(shut_night))
 
+        # In the heating season the sun on the windows is a bonus of warmth, said without a figure (Frank, 20 November:
+        # « trop de paramètres », Chambre A's twin had learned its south window 30 times weaker than Chambre M's, the same
+        # sun warming both alike on the 19th). Not at night, not in summer, not in a room already too warm.
+        heating_season = not night and not summer and air <= comfort.maximum and bedtime > local
+        # What the last « Rien à faire » said of the measures (« Au mieux »), kept near a bound (advisor/words.py EDGE).
+        beyond_before = (self.result or {}).get("au_dela")
+        # A window open for less than OPEN_LEAST is someone going through: for comfort, the room is still shut; the rain
+        # and the gusts shut at once (Buanderie, 7 November: « Refermez » four times, 20 s to 2 min, at each passage).
+        # An airing already under way (Home Assistant restarted, a window opened more) or just shut (`Board.resumable`) is
+        # not someone going through.
+        young = bool(opened) and opening is not None and now - opening[0] < timedelta(seconds=OPEN_LEAST) \
+            and "open" not in safe_taken and self.board.airing is None and not self.board.resumable(now)
+        decided_on = replace(current, opened=()) if young else current
+        airing_now = bool(decided_on.opened)
+        # The slot's gesture followed: the window opened while it was shown is its airing under way (« Laissez ouvert
+        # encore 20 min »), even opened before its moment.
+        plan_before = self.board.plan_shown(now)
+        if airing_now and plan_before is not None:
+            previous = replace(plan_before.left(now), after=None)
+            self.board.followed()
+        elif not airing_now and previous is not None and previous.kind in ("close", "keep"):
+            previous = None
+        # The urgencies, on the measures (advisor/board.py): never at night, nobody gets up; the humidity on the room's own
+        # normal (advisor/identity.py), and only when the outside air is drier.
+        slot = slot_at(local, habits)
+        card = (self.learned or {}).get("identite")
+        inside_water = absolute(air, current.humidity) if current.humidity is not None else None
+        outside_water = coming[0][1] if coming else None
+        drier = inside_water - outside_water if inside_water is not None and outside_water is not None else None
+        measures_now = {} if night else {"co2": current.co2, "particles": current.particles, "voc": current.voc,
+                                         "humidity": current.humidity}
+        urgent = self.board.urgent_now(measures_now, normal_of(card, "humidite", slot.name), drier, airing_now, now)
+        # « Aérez » opens one side, in the part where the measure it is for is taken: the urgency's, the airing's under
+        # way, the slot's; and says which (`first_windows`).
+        aim_first = (urgent[0] if urgent is not None else (self.board.airing or {}).get("subject")
+                     or (self.board.plan.words.get("subject") if self.board.plan is not None else None))
+        opens_first, self.side = first_windows(room, aim_first)
+        if len(opens_first) < len(sizes):
+            twins = replace(twins, first=tuple(sizes[e] for e in opens_first))
+        # A room humid by nature (its identity card): no airing of a slot for its humidity while it stays near its own normal;
+        # it is an advice for the dwelling (Frank, 16 November: « pas essayer de rendre cette pièce comme les autres »).
+        chronic = any(c.get("sujet") == "humidite" for c in (card or {}).get("chronique") or ())
+        normal_h = normal_of(card, "humidite", slot.name)
+
+        def near_normal(subject, slack=0.0):
+            return (chronic and subject in ("humidity", "mould") and current.humidity is not None and normal_h is not None
+                    and current.humidity < normal_h + HUMID_LEAVE + slack)
+        # The household's day (the card's « Maintenant, puis »): a new one with the morning; the slot's gesture missed, the
+        # airing done with what it did.
+        self.board.new_day(slot.start.date().isoformat())
+        self.board.close_missed(now)
+        measures_all = {"humidity": current.humidity, "co2": current.co2, "voc": current.voc, "particles": current.particles,
+                        "heat": air}
+        if airing_now and self.board.airing is None:
+            # What the household followed in opening: the slot's gesture, an urgency shown or put aside, and for how long it
+            # was asked. The card then keeps it with its countdown (Frank, 20 November: « Aérez 5 min » for the kitchen's
+            # VOC followed, « Rien à faire » three minutes after; Chambres A and M, « Aérez 20 min » followed, the same).
+            waiting_u = self.board.aside(now)
+            followed = None
+            if plan_before is not None:
+                followed = ("creneau", plan_before.words.get("subject"), plan_before.gesture.minutes)
+            elif urgent is not None or waiting_u:
+                subject_u = urgent[0] if urgent is not None else min(waiting_u.items(), key=lambda kv: kv[1])[0]
+                asked_u = self.board.asked.get(subject_u)
+                followed = ("urgence", subject_u, asked_u[1] if asked_u else None)
+            aim = (followed[1] if followed else None) or (urgent[0] if urgent else None) or "humidity"
+            started = {**measures_all, "humidity": opening[2] if opening and opening[2] is not None else current.humidity,
+                       "heat": opening[1] if opening else air}
+            self.board.start_airing(opening[0] if opening else now, started, {"mould": "humidity", "energy": "heat"}.get(aim, aim),
+                                    minutes=followed[2] if followed else None, reason=followed[0] if followed else None)
+        elif not airing_now and self.board.airing is not None:
+            self.board.end_airing(now, measures_all)
+        # The slot's gesture, planned once when the slot begins, the room shut (advisor/slots.py): its forecast covers the
+        # slot and PLAN_AFTER minutes more.
+        planning = self.board.needs_plan(slot.key) and not airing_now
+        # The slot's gesture, its moment come, that a safety takes away (the rain, nobody home): kept as planned, neither
+        # said again on the room under the rain nor dropped for it; the card says « Gardez fermé : il pleut » meanwhile,
+        # then the same gesture once the rain is over (labo, 18 November: « Aérez 45 min » with the rain at 12 h 55 in the
+        # Chambre A, then « Rien à faire » for the rest of the slot).
+        held_plan = (plan_before is not None and not airing_now and plan_before.left(now).after is None
+                     and held_back(plan_before.gesture, safe_taken))
+        coming_plan, plan_end, plan_left, plan_outdoor = None, None, slot.minutes_left(local), None
+        coming_day, later_spans = None, []
+        if planning and slot.name != "nuit" and plan_left > 0:
+            plan_steps = int((plan_left + PLAN_AFTER) // (STEP / 60))
+            coming_plan = home.coming(now, plan_steps, outdoor, outdoor_rh, house_heat, shaded(shut_now), glazing,
+                                      opened_index, kept(shut_now))
+            if house_stat is None and house_heat:
+                given_heat = home.house_heat_steps(now, len(coming_plan))
+                coming_plan = [(replace(u, house_heat=given_heat[k]), w) for k, (u, w) in enumerate(coming_plan)]
+            plan_end = (local + timedelta(seconds=STEP * len(coming_plan))).hour
+            slot_steps = coming_plan[:max(1, int(plan_left // (STEP / 60)))]
+            plan_outdoor = sum(u.outdoor for u, _ in slot_steps) / len(slot_steps)
+        # The later slots of the day: their likely gesture, said « probable » until their own plan; once per slot, or as soon
+        # as it is missing (a restart).
+        likely_key = f"{slot.key}#{LIKELY_FORM}"
+        wants_likely = self.board.likely_for != likely_key and slot.name != "nuit" and not airing_now
+        if wants_likely:
+            later = following(local, habits)
+            if later:
+                day_steps = int(((later[-1].end - local).total_seconds() / 60 + PLAN_AFTER) // (STEP / 60))
+                coming_day = home.coming(now, day_steps, outdoor, outdoor_rh, house_heat, shaded(shut_now), glazing,
+                                         opened_index, kept(shut_now))
+                if house_stat is None and house_heat:
+                    given_day = home.house_heat_steps(now, len(coming_day))
+                    coming_day = [(replace(u, house_heat=given_day[k]), w) for k, (u, w) in enumerate(coming_day)]
+                for sl in later:
+                    a0, b0 = (sl.start - local).total_seconds() / 60, (sl.end - local).total_seconds() / 60
+                    span = coming_day[int(a0 // (STEP / 60)):max(int(a0 // (STEP / 60)) + 1, int(b0 // (STEP / 60)))]
+                    later_spans.append((sl.name, a0, b0, sum(u.outdoor for u, _ in span) / len(span) if span else None))
+
         def think():
             """The decision and everything simulated around it, in the executor (PLAN-OPTIMISATION.md, point 8): it only
-            reads what was gathered above, never Home Assistant nor the room's own state, which change back on the loop."""
-            decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                              holidays=away, habits=habits, held=held, tried=tried, aired=aired, failed=failure,
-                              pollen=pollen)
-            if decision.rule == "unproven" and opened and opening:
+            reads what was gathered above, never Home Assistant nor the room's own state, which change back on the loop.
+            The decision says what is best now, with no memory of what was shown but a countdown under way; the card's
+            memory chooses what is shown (advisor/board.py)."""
+            decision = decide(twins, decided_on, coming, comfort, previous=previous, forbidden=taken, proof=proof,
+                              holidays=away, habits=habits, aired=aired, failed=failure, pollen=pollen)
+            if decision.rule == "unproven" and airing_now and opening:
                 # The gesture under way may show its effect now (CAHIER-MOTEUR.md § 4.1).
                 subject = main_subject(decision.scenarios, decision.passive)
                 if self._seen(subject, decision, opening, now, air, current.humidity):
                     proof[subject] = PROVEN
-                    decision = decide(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                                      holidays=away, habits=habits, held=held, tried=tried, aired=aired, failed=failure,
-                                      pollen=pollen)
-            snap = capture(twins, current, coming, comfort, previous=previous, forbidden=taken, proof=proof,
-                           holidays=away, habits=habits, reason=reason, held=held, tried=tried, aired=aired, failed=failure,
-                           pollen=pollen, end_hour=end_hour, hour=local.hour + local.minute / 60,
-                           room=name, when=now.isoformat(), version=home.version)
-            # The local time now: a later gesture says its hour (« Aérez 5 min vers 13 h 50 »), never only its length.
-            words = phrase(decision, end_hour, marks=marks, hour=local.hour + local.minute / 60, reason=reason)
+                    decision = decide(twins, decided_on, coming, comfort, previous=previous, forbidden=taken, proof=proof,
+                                      holidays=away, habits=habits, aired=aired, failed=failure, pollen=pollen)
+            plan = None
+            if coming_plan:
+                plan = decide(twins, decided_on, coming_plan, comfort, forbidden=taken, proof=proof, holidays=away,
+                              habits=plan_habits(habits, plan_left), aired=aired, pollen=pollen,
+                              given=plan_pool(decided_on, twins, habits, comfort, plan_left, plan_outdoor, local.minute % 30))
+            likely = []
+            for slot_name_l, a0_l, b0_l, out_l in later_spans:
+                # Judged at its own slot's end and PLAN_AFTER more, as the slot's plan is: at the day's end, an airing of the
+                # afternoon had long done its work (17 November at the lab: no likely gesture at all).
+                found_l = probable(twins, decided_on, coming_day[:int((b0_l + PLAN_AFTER) // (STEP / 60))], comfort, Weights(),
+                                   habits, a0_l, b0_l, out_l, local.minute % 30)
+                if found_l:
+                    likely.append((slot_name_l, found_l))
+            # The slot's gesture once its moment has come: its promise said again on the room as it stands now, never a
+            # time already past (bilan of 17 November).
+            refresh = None
+            if (plan_before is not None and not plan_before.trial and not airing_now and Gesture("nothing") in decision.scenarios
+                    and plan_before.left(now).after is None and not held_plan):
+                g_now = plan_before.left(now)
+                path_now = simulate(twins, decided_on, coming, g_now)
+                refresh = (g_now, path_now, cost(path_now, comfort, Weights(), g_now, decided_on.night))
+            snap = capture(twins, decided_on, coming, comfort, previous=previous, forbidden=taken, proof=proof,
+                           holidays=away, habits=habits, reason=reason, held=None, tried=None, aired=aired, failed=failure,
+                           pollen=pollen, tried_held=None, end_hour=end_hour, hour=local.hour + local.minute / 60,
+                           room=name, when=now.isoformat(), version=home.version, beyond_before=beyond_before)
             # What the shutter closed at bedtime would keep by waking up: a passive advice (advisor/knowing.py).
             shutter_night = shutter_tonight(twins, current, night_coming, 0 if night else int((bedtime - local).total_seconds() // 60)) \
                 if night_coming else None
@@ -831,64 +1255,210 @@ class RoomAdvisor:
             if night_coming and not night and local >= bedtime - timedelta(hours=habits.tonight_before):
                 night_text = self._tonight(twins, current, local, bedtime, wake, night_coming, comfort, proof, marks, taken, habits,
                                            pollen)
-            return decision, snap, words, shutter_night, back, off, stove, sun_gain(twins, current, coming), night_text
+            # The bonus of the heating season, and whether the connected shutter keeps it out (« ouvrez le volet »); out
+            # of it, the °C the sun adds (two simulations, spared when the bonus is said without a figure).
+            bonus = {"closed": bool(twins.shutter_area) and current.cover is not None and current.cover <= SHUTTER_SHUT} \
+                if heating_season else None
+            warms = sun_gain(twins, current, coming) if bonus is None else None
+            # What the sun line is judged on, kept in the snapshot (the Atelier): « no sign of the sun » is then read there.
+            snap["soleil"] = {"rechauffe": None if warms is None else round(warms, 2), "bonus": bonus}
+            return (decision, plan, snap, shutter_night, back, off, stove, (warms, bonus), night_text, likely, refresh)
 
-        decision, snap, words, shutter_night, back, off, stove, sunny, night_text = await hass.async_add_executor_job(think)
+        decision, plan_decision, snap, shutter_night, back, off, stove, sunny, night_text, likely, refresh = \
+            await hass.async_add_executor_job(think)
+        hour_now = local.hour + local.minute / 60
+        # The slot's gesture, fixed for the slot: its words said as planned (« Aérez 45 min vers 14 h 30 »), and as they
+        # will read once its moment has come (« Aérez 45 min »). The night's is said in the evening (« Cette nuit… »).
+        if planning and (slot.name == "nuit" or plan_left <= 0):
+            self.board.set_plan(slot.key, now, slot.end, Gesture("nothing"), {}, False)
+        elif plan_decision is not None:
+            trial = plan_decision.gesture.kind == "nothing" and plan_decision.passive is not None
+            chosen = plan_decision.passive if trial else plan_decision.gesture
+            if chosen.kind != "nothing" and near_normal(main_subject(plan_decision.scenarios, chosen)):
+                # The Chambre P at its 79 %: « Aérez 45 min : moisissure » every morning (bilan of 17 November).
+                chosen, trial = Gesture("nothing"), False
+            planned = phrase(plan_decision, plan_end, marks=marks, hour=hour_now, reason=reason) if chosen.kind != "nothing" else {}
+            if chosen.kind != "nothing":
+                ready = replace(plan_decision, gesture=replace(chosen, after=None), passive=None, rule="best")
+                # Its promise as it reads once its moment has come, fixed for the slot: true whenever the window is opened,
+                # not said again on the room at each step (Chambre A, 20 November: « vers 8 h 30 », 9 h, 9 h 15, 10 h).
+                planned = {**planned, "title_now": phrase(ready, plan_end, marks=marks, hour=hour_now)["title"],
+                           "line_now": phrase(plan_decision, plan_end, marks=marks, reason=reason, fixed=True)["line"],
+                           "level": plan_decision.level, "gain": round(plan_decision.gain, 2)}
+            self.board.set_plan(slot.key, now, slot.end, chosen, planned, trial)
+            snap["creneau"] = {"cle": slot.key, "geste": asdict(chosen), "essai": trial, "titre": planned.get("title")}
+        if wants_likely:
+            self.board.set_likely(likely_key, [{"at": (now + timedelta(minutes=g.after or 0)).isoformat(), "kind": g.kind, "minutes": g.minutes,
+                                    "slot": slot_name_l, "subject": subject_l}
+                                   for slot_name_l, (g, gain_l, subject_l) in likely if not near_normal(subject_l)])
+        # The slot's gesture, its moment come: no longer useful, it goes quietly (the room improved by itself); otherwise
+        # its promise stays as planned (`line_now`).
+        if refresh is not None and self.board.plan is not None:
+            g_now, path_now, cost_now = refresh
+            gain_now = decision.scenarios[Gesture("nothing")]["total"] - cost_now["total"]
+            if gain_now < GAIN / 3:
+                self.board.plan.done = True
+        # What the card shows (advisor/board.py): the safety first, then the household airing now, an urgency measured,
+        # the slot's gesture, and otherwise « Rien à faire ».
+        plan = self.board.plan_shown(now)
+        asked = urgent_decision(decision, urgent[0], urgent[1], proof, self.board.asked.get(urgent[0])) \
+            if urgent is not None and decision.rule not in SAFE_RULES and not airing_now else None
+        family = choose(decision, airing_now, asked, plan, put_aside, air, comfort.minimum)
+        if family == "creneau" and held_plan:
+            family = "calme"
+        # The safety said under « Rien à faire » only when it holds back a gesture the room needs: the slot's, or an
+        # urgency's airing; otherwise in « À savoir » (advisor/board.py `held_back`).
+        urgent_held = urgent is not None and asked is None and not airing_now and held_back(Gesture("open", 10), safe_taken)
+        calm_reason = reason if held_plan or urgent_held else None
+        shown_decision = asked if asked is not None and family == "urgence" \
+            else decision if family in ("securite", "reponse", "urgence") else None
+        if family == "creneau":
+            left = plan.left(now)
+            words = {"subject": None, "why": [], "try": None, "beyond": False, **plan.words}
+            if left.after is None and words.get("title_now") and not plan.trial:
+                words["title"] = words["title_now"]
+                if words.get("line_now"):
+                    words["line"] = words["line_now"]
+            shown_decision = replace(decision, gesture=Gesture("nothing") if plan.trial else left, rule="creneau",
+                                     gain=plan.words.get("gain", 0.0), level=plan.words.get("level", decision.level),
+                                     passive=left if plan.trial else None, measured=None)
+            self.board.calm, self.board.calm_normal = None, False
+        elif shown_decision is not None:
+            words = phrase(shown_decision, end_hour, marks=marks, hour=hour_now, reason=reason, beyond_before=beyond_before)
+            self.board.calm, self.board.calm_normal = None, False
+        else:
+            # « Rien à faire », its subject kept while it stays true (advisor/words.py `calm_subject`); nothing to try
+            # outside the slots: « À essayer » came and went every half hour (bilan of 16 November, Chambre A).
+            shown_decision = replace(decision, gesture=Gesture("nothing"), passive=None, rule="nothing", gain=0.0,
+                                     measured=None)
+            words = phrase(shown_decision, end_hour, marks=marks, hour=hour_now, reason=calm_reason,
+                           beyond_before=beyond_before, calm_subject=self.board.calm)
+            self.board.calm = words.get("calm")
+            waiting = self.board.aside(now)
+            normal_said, self.board.calm_normal = self.board.calm_normal, False
+            if waiting and not calm_reason:
+                # An urgency left unfollowed: the measure, the gesture, no hurry (Frank, 17 November: « « Aérez 10 min » en
+                # pause jusqu'à 10 h 45 », « on ne sait pas comment interpréter cette phrase »). The next reminder is the « i »'s.
+                subject, until = min(waiting.items(), key=lambda kv: kv[1])
+                value = measures_now.get(subject)
+                kind_w, minutes_w = self.board.asked.get(subject, ("open", 10))
+                if value is not None:
+                    words = {**words, "line": aside_urgent(subject, value, kind_w, minutes_w)}
+                    snap["en_pause"] = subject
+            if not calm_reason and "en_pause" not in snap:
+                # Nothing to do now: the day's next good moment (« Prochain bon moment : cet après-midi vers 15 h, aérer 30
+                # min »), or the room at its own normal.
+                upcoming = next((x for x in self.board.likely if dt_util.parse_datetime(x["at"]) > now), None)
+                if upcoming is not None:
+                    words = {**words, "line": next_moment(upcoming["slot"], dt_util.as_local(dt_util.parse_datetime(upcoming["at"])),
+                                                          upcoming["kind"], upcoming["minutes"])}
+                elif near_normal("humidity", EDGE["humidity"] if normal_said else 0.0) and words.get("calm") in (None, "humidity"):
+                    # Kept within EDGE of its bound once said: « normal pour cette pièce » and « rien de mieux » took
+                    # turns 23 times on 18 November in the Chambre P, its humidity hovering at its bound.
+                    words = {**words, "line": normal_humidity(current.humidity)}
+                    self.board.calm_normal = True
+        # The airing followed, kept with what it is for and its countdown, until it is done or its reason sorted: never
+        # « Rien à faire » meanwhile (advisor/board.py `Board.under_way`). The safety, a room gone too cold, an airing that
+        # does not work, the pollens, or the other side to open as well still come first.
+        if (family == "reponse" and self.board.airing is not None and decision.rule not in ("ineffective", "pollen")
+                and decision.gesture.kind != "open_more"):
+            shown_w = airing_shown(self.board, decision, measures_all, normal_h, marks, habits.airing_max, now,
+                                   dt_util.as_local)
+            if shown_w is not None:
+                gesture_w, rule_w, said, snap["en_cours"] = shown_w
+                shown_decision = replace(decision, gesture=gesture_w, rule=rule_w, passive=None, measured=None)
+                words = {**words, **said}
+        shown_gesture = shown_decision.passive if shown_decision.gesture.kind == "nothing" and shown_decision.passive \
+            else shown_decision.gesture
+        snap["famille"] = family
+        if family == "urgence" and asked is not None and urgent is not None:
+            self.board.asked[urgent[0]] = (asked.gesture.kind, asked.gesture.minutes)
+        if house_stat is not None:
+            # The stove's power as simulated here, for the other rooms it warms (AdvisorHome.house_heat_steps).
+            idle_path = decision.paths.get(Gesture("nothing"))
+            if idle_path is not None and idle_path.stove:
+                home.stove_paths[main_house] = (now, list(idle_path.stove))
+        elif main_house in home.stove_paths:
+            home.stove_paths.pop(main_house, None)
         # What the twin gives the windows left open, from the moment they are first seen open; a safety rule that shuts
         # them weighs no scenario (Salon · Cuisine, 4 November at 6 h 26: the advice failed on it), the next step will.
         path = decision.paths.get(Gesture("nothing"))
-        if opened and opening and self.opened_seen is None and path is not None:
+        # Not while the room is still judged shut (advisor/board.py OPEN_LEAST): its forecast is then the shut room's.
+        if opened and opening and self.opened_seen is None and path is not None and snap["now"].get("opened"):
             self.opened_seen = Opened(opening[0], opening[1], opening[2], tuple(path.air), tuple(path.humidity or ()))
             self.opened_from = (twins, current, coming)
         snap["pas_maintenant"] = sorted(aside)
-        same = shown_before is not None and (shown_before.kind, shown_before.after is None) == (decision.gesture.kind, decision.gesture.after is None)
+        same = shown_before is not None and (shown_before.kind, shown_before.after is None) == (shown_gesture.kind, shown_gesture.after is None)
         # A countdown kept goes on from when it was said (`remembered`), not from this step.
-        kept, kept_at = remembered(shown_before, shown_at, decision.gesture, now)
+        kept, kept_at = remembered(shown_before, shown_at, shown_gesture, now)
         self.previous = (kept, kept_at, shown_since if same else now)
-        # Kept through a step where a safety rule takes the gesture away (a gust): it comes back as it was, not anew.
-        if decision.passive is not None:
-            self.tried = remembered(tried_before, tried_at, decision.passive, now)
-        # What an airing shown (on the banner or to try) is for: what it will be judged on once followed.
-        for shown_now, aim in ((decision.gesture, words.get("subject")),
-                               (decision.passive, decision.passive and main_subject(decision.scenarios, decision.passive))):
-            if shown_now is not None and shown_now.kind in ("open", "open_more") and aim:
-                self.aim = (aim, now)
+        self.tried, self.tried_since = None, None
+        # What an airing shown is for: what it will be judged on once followed.
+        if shown_gesture.kind in ("open", "open_more") and words.get("subject"):
+            self.aim = (words["subject"], now)
         if decision.rule == "ineffective":
             self.failed_at = (decision.measured["subject"], now)
-        elif decision.gesture.kind != "nothing" or not taken:
-            self.tried = None
         if stepping:
             # The walls follow the measured air, five minutes at a time.
             self.trail.append((now, air, walls, acting))
             self.air_trail.append((now, measured_now, acting, coming[0][1]))
             _, self.walls = step(heat, air, walls, acting)
+            self.reserve = self._reserve_step(twins, current, acting, coming[0][1])
         coldest = min(u.outdoor for u, _ in night_coming) if night_coming else None
         # The humidity in question: a window open, above its mark, or a gesture for it — then the outside air is said in
         # water, the reason an airing dries the room even at 78 % outside (advisor/knowing.py `outside_water`).
         water = bool(current.opened) or (current.humidity is not None and current.humidity > comfort.humidity) \
-            or words.get("subject") == "humidity" \
-            or (decision.passive is not None and main_subject(decision.scenarios, decision.passive) == "humidity")
+            or words.get("subject") == "humidity"
         # The set point the room's schedule raises next (ha-chauffage): « Chauffage prévu à 17 h ».
         stat = twins.thermostat or twins.idle_thermostat
-        planned = ({"at": local + timedelta(minutes=stat.at), "temperature": stat.then}
+        # A schedule changes on the minute: the minutes counted from a slightly earlier « now » are rounded back to it
+        # (Chambre P, 7 November: « Chauffage prévu à 20 h 29 » for a change at 20 h 30).
+        planned = ({"at": (local + timedelta(minutes=stat.at, seconds=30)).replace(second=0, microsecond=0), "temperature": stat.then}
                    if stat and stat.at is not None and stat.then is not None and stat.then > stat.target else None)
+        # The airing on the banner for the humidity: the outside air of its moment, for « À savoir » (bilan of 11 November).
+        airing_at = None
+        if shown_gesture.kind in ("open", "open_more") and words.get("subject") in ("humidity", "mould") and coming:
+            after = shown_gesture.after or 0
+            airing_at = (coming[min(int(after // (STEP / 60)), len(coming) - 1)][1], local + timedelta(minutes=after))
         good = self._good_to_know(now, air, opening, comfort, current.humidity, coldest, bedtime, night, shutter_night, wake,
-                                  back, off, end_hour, stove, sunny, outdoor, outdoor_rh, water,
-                                  share, planned, pollen)
+                                  back, off, end_hour, stove, sunny[0], outdoor, outdoor_rh, water,
+                                  share, planned, pollen, airing_at, self._house(home, name, twins), habits.house_gap,
+                                  sun_bonus=sunny[1])
         good_words = [tip_text(t, now=local) for t in good]
         # An airing that did not work, kept in mind: said until it is judged, an hour after it was shut.
         if self.failed_at is not None and now - self.failed_at[1] < timedelta(minutes=RESTING_MINUTES):
             texts = TEXTS["fr"]
             good_words.insert(0, texts["ineffective_noted"].format(what=texts[f"ineffective_{self.failed_at[0]}"]))
+        # The rain announced that shuts nothing (a rain gauge watching, or Météo-France unsure): said in the conditional,
+        # first in « À savoir » (Frank, 9 November: « la prévision reste une prévision »).
+        if (rain_in is not None and 0 <= rain_in <= RAIN_SOON and not (rain_rate is not None and rain_rate > RAIN)
+                and reason not in ("rain", "rain_soon")):
+            at = local + timedelta(minutes=rain_in)
+            at = at.replace(minute=at.minute // 5 * 5, second=0, microsecond=0)
+            good_words.insert(0, TEXTS["fr"]["rain_maybe_at"].format(
+                at=f"{at.hour} h" if at.minute == 0 else f"{at.hour} h {at.minute:02d}"))
+        # A safety the card's line does not say (it holds back nothing the room needs): said here, as a fact.
+        if (reason in ("rain", "rain_soon", "gusts", "vigilance", "away") and family != "securite"
+                and not (family == "calme" and calm_reason)):
+            good_words.insert(0, TEXTS["fr"][f"known_{reason}"])
         # « Cette nuit, pensez à refermer » says nothing more than a banner already saying « Refermez ».
-        if night_text and decision.gesture.kind != "close":
+        if night_text and shown_gesture.kind != "close":
             good_words.insert(0, night_text)
-        if decision.gesture.kind == "nothing" and good and good[0].kind in ("open_warms", "open_cools"):
-            words["line"] = good_words[0]
+        if family == "calme" and not calm_reason and good and good[0].kind in ("open_warms", "open_cools"):
+            # The tip itself, not what « À savoir » put before it (the rain, the night).
+            words["line"] = tip_text(good[0], now=local)
+        # Which windows « Aérez » means, when not all of them: « Aérez 5 min côté Cuisine ».
+        if shown_gesture.kind == "open" and self.side and words.get("title"):
+            words = {**words, "title": TEXTS["fr"]["where"].format(title=words["title"],
+                                                                    side=TEXTS["fr"]["side"].format(names=self.side))}
         # The gesture the card asks for, followed: done while shown, or replaced before (CAHIER-MOTEUR.md § 15).
-        trial = decision.gesture.kind == "nothing" and decision.passive is not None and bool(words["try"])
-        shown = decision.passive if trial else decision.gesture
-        self.asked, followed = follow(self.asked, shown, words["try"] if trial else words["title"], trial, current, now)
+        trial = shown_decision.gesture.kind == "nothing" and shown_decision.passive is not None and bool(words["try"])
+        shown = shown_gesture
+        self.asked, followed = follow(self.asked, shown, words["try"] if trial else words["title"], trial, current, now,
+                                      gesture_energy(decision.paths, shown))
+        if followed:
+            since = (now - GESTURES_KEPT).isoformat()
+            self.gestures = [g for g in self.gestures if g["fin"] >= since] + [{**r, "fin": now.isoformat()} for r in followed]
         # Our analysis tools (advisor_home.py `analysis`, PLAN-OPTIMISATION.md point 16): the files the Atelier reads,
         # written only while they are on. The advice and the learning never read them back.
         analysing = home.analysis()
@@ -897,40 +1467,97 @@ class RoomAdvisor:
                 self.paused.pop(record["geste"], None)
             if analysing:
                 await hass.async_add_executor_job(home.files.feedback, {"heure": now.isoformat(), "piece": name, "type": "suivi", **record})
+        self.left = {k: v for k, v in self.left.items() if v[0] > now}
+        banner_subject = words.get("subject") if shown_decision.gesture.kind != "nothing" else None
+        self.banner = (shown_decision.gesture.kind, banner_subject, measured(banner_subject, current)) \
+            if shown_decision.gesture.kind != "nothing" else None
         self.result = {"title": words["title"], "phrase": words["line"], "pourquoi": words["why"],
-                       "sujet": words["subject"], "regle": decision.rule, "gain": round(decision.gain, 2),
-                       "geste": decision.gesture.kind, "minutes": decision.gesture.minutes, "apres": decision.gesture.after,
+                       "sujet": words["subject"], "regle": shown_decision.rule, "gain": round(shown_decision.gain, 2),
+                       "geste": shown_decision.gesture.kind, "minutes": shown_decision.gesture.minutes,
+                       "apres": shown_decision.gesture.after,
                        "sources": {k: round(v, 2) for k, v in (current.sources or {}).items()} or None,
                        # When to shut, for the card's « encore 4 min » between two steps.
-                       "refermer_a": (now + timedelta(minutes=decision.gesture.after)).isoformat()
-                       if decision.gesture.kind == "close" and decision.gesture.after and decision.gesture.after < 60 else None,
-                       "nuit": night, "interdit": reason, "vacances": away,
+                       "refermer_a": (now + timedelta(minutes=shown_decision.gesture.after)).isoformat()
+                       if shown_decision.gesture.kind == "close" and shown_decision.gesture.after
+                       and shown_decision.gesture.after < 60 else None,
+                       # The card's moon on the banner's picture: no airing proposed until this waking up (8 November).
+                       "nuit": night, "reveil": dt_util.as_local(wake).isoformat() if night else None,
+                       "interdit": reason, "vacances": away,
                        "ecart_1h": None if missed is None else round(missed, 2), "piece": name,
                        "mesures": {"air": air, "humidite": current.humidity, "co2": current.co2, "particules": current.particles,
                                    "cov": current.voc, "dehors": outdoor, "fenetres": len(opened)},
-                       "plage": [comfort.minimum, comfort.maximum], "cette_nuit": night_text, "preuve": decision.level,
+                       "plage": [comfort.minimum, comfort.maximum], "cette_nuit": night_text, "preuve": shown_decision.level,
                        "part_fenetre": None if share is None else round(share, 2),
                        "preuves": proof, "a_essayer": words["try"], "bon_a_savoir": good_words,
                        # The shutter to lower tonight, said in « Bon à savoir »: the card's shutter follows it, never the
                        # 2.1 rule (« à fermer » at nightfall under « Rien à faire »).
                        "volet": "fermer" if any(t.kind in ("shutter_night", "shutter_night_energy") for t in good) else None,
                        "pas_maintenant": {k: dt_util.as_local(until).strftime("%H h %M") for k, until in self.paused.items() if k in aside},
-                       "douteuses": doubt_text(doubts), "calcule_a": now.isoformat(), "moteur": home.version}
-        changed = self.shown != (words["title"], words["try"])
+                       "douteuses": doubt_text(doubts), "calcule_a": now.isoformat(), "moteur": home.version,
+                       "au_dela": words.get("beyond"), "hors_plage": self._pill(current, air, marks, now),
+                       # The card's memory (advisor/board.py): the family of what is shown, the slot, the room's identity
+                       # card (advisor/identity.py) and what is chronic in it, an advice for the dwelling.
+                       "famille": family, "creneau": slot.name, "identite": card,
+                       "conseil_logement": dwelling_lines(card), "journee": self._day(now)}
+        # A change of advice, of what to try, or of the pill: the journal says the pill too (9 November: 167 changes of
+        # « Au mieux » and « Tout va bien » in a day, none in the journal).
+        pill = banner_level(self.result)[1]
+        changed = tuple(self.journaled or ())[:3] != (words["title"], words["try"], pill)
+        # The line's subject changing (its figures aside) is journaled too, without a snapshot: 10 November, 19 h of
+        # « Rien à faire » left no word of « 21,7 °C à 20 h » said at 17 h for a room at 19 °C.
+        subject = phrase_subject(words["line"])
+        said = changed or tuple(self.journaled or ())[3:] != (subject,)
         # The situation of this step, kept in memory: « Ce conseil ne va pas » joins it to the report, even with no file.
         self.snap = snap
         if analysing:
             await hass.async_add_executor_job(home.files.keep, self.slug, now, local, snap, decision, words, changed)
-        if changed:
-            self.shown = (words["title"], words["try"])
-        if changed and analysing:
+        if said:
+            self.journaled = (words["title"], words["try"], pill, subject)
+        if said and analysing:
             await hass.async_add_executor_job(home.files.journal, {
-                "heure": now.isoformat(), "moteur": home.version, "piece": name, "conseil": words["title"], "phrase": words["line"],
-                "pourquoi": words["why"], "a_essayer": words["try"], "preuve": decision.level, "bon_a_savoir": good_words,
-                "gain": round(decision.gain, 2), "ecart_1h": None if missed is None else round(missed, 2),
+                "heure": now.isoformat(), "moteur": home.version, "piece": name, "motif": "conseil" if changed else "phrase",
+                "conseil": words["title"], "phrase": words["line"],
+                "pastille": pill, "regle": shown_decision.rule, "interdit": reason, "famille": family,
+                "pourquoi": words["why"], "a_essayer": words["try"], "preuve": shown_decision.level, "bon_a_savoir": good_words,
+                "gain": round(shown_decision.gain, 2), "ecart_1h": None if missed is None else round(missed, 2),
                 "mesures": {"air": air, "dehors": outdoor, "fenetres_ouvertes": len(opened), "humidite": current.humidity,
                             "co2": current.co2, "particules": current.particles, "cov": current.voc}})
+        # A new slot's gesture, an urgency or a safety rule: an event Home Assistant's automations may send to a phone
+        # (ETAT-DES-LIEUX-MOTEUR.md § 4.5). Once per advice, never for « Rien à faire » nor an answer to a gesture.
+        notice = (family, words["title"]) if family in NOTIFIED else None
+        if notice is not None and notice != self.notified:
+            hass.bus.async_fire(EVENT, {"entry_id": self.entry_id, "piece": name, "famille": family,
+                                        "niveau": "creneau" if family == "creneau" else family, "titre": words["title"],
+                                        "phrase": words["line"], "a_essayer": words["try"], "nuit": night})
+        # A slot's gesture held back by the rain is the same advice when it comes back: not sent again.
+        if not held_plan:
+            self.notified = notice
         return True
+
+    def _day(self, now) -> list[dict]:
+        """The household's day for the card's « Maintenant, puis » (advisor/board.py): what was done, with what it did, what
+        was missed, without reproach, and what the later slots will likely ask."""
+        words, out = TEXTS["fr"], []
+        for x in self.board.today:
+            if x["genre"] == "fait":
+                out.append({"heure": x["at"], "genre": "fait", "titre": words["day_done"].format(minutes=x["minutes"]),
+                            "detail": before_after(x.get("subject") or "humidity", x.get("before"), x.get("after"))})
+            else:
+                out.append({"heure": x["at"], "genre": "rate", "titre": day_title(x["kind"], x["minutes"]), "detail": words["day_missed"]})
+        for x in self.board.likely:
+            if dt_util.parse_datetime(x["at"]) > now:
+                out.append({"heure": x["at"], "genre": "probable", "titre": day_title(x["kind"], x["minutes"]),
+                            "detail": words["day_probable"]})
+        return sorted(out, key=lambda i: i["heure"])
+
+    def _pill(self, current, air, marks, now) -> bool:
+        """« Au mieux » (True) or « Tout va bien » (False) under « Rien à faire », on the measures as they are now: a
+        margin at each bound (advisor/words.py EDGE) and at most one change per PILL_MINUTES."""
+        out = measured_out(replace(current, air=air), marks, self.measured_pill[0] if self.measured_pill else None)
+        if self.measured_pill is None or (out != self.measured_pill[0]
+                                          and now - self.measured_pill[1] >= timedelta(minutes=PILL_MINUTES)):
+            self.measured_pill = (out, now)
+        return self.measured_pill[0]
 
     async def opinion(self, kind, note):
         """« Ce conseil ne va pas » (CAHIER-MOTEUR.md § 15): the situation kept without limit, with its trace, to be

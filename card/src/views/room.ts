@@ -1,5 +1,5 @@
-import {factBox3,slides3,why3} from './advisor3';
-import {fullBody,fullPiece} from './full';
+import {day3,factBox3,slides3,why3} from './advisor3';
+import {dayEvents,fullBody,fullPiece} from './full';
 import {html,svg,nothing,LitElement,type TemplateResult} from 'lit';
 import {property,state} from 'lit/decorators.js';
 import {SCALE_MARKS,CHIPS,TILE_BLOCKS,DETAIL_ROWS,INSIGHT_TOPICS,INSIGHT_GROUPS,PIECES,type Piece,type Config,type View,type Level,type Format,type BannerBlock,type Chip,type HorizonSubject,type Horizon,type NextChange} from '../types';
@@ -20,12 +20,12 @@ const offWords:Record<string,string>={window:'fenêtre ouverte',auto_start_stop:
 /** The banner's mood, which sets the ring and the light: « Au mieux » is calm, but not « Tout va bien ». */
 export const mood=(s:{level:Level;pill?:string}|undefined,level:Level)=>s?.pill==='Au mieux'?'best':s?.level??level;
 /** Each pill carries its mark, so states read apart without relying on colour alone. */
-const PILL_MARKS:Record<string,string>={'Tout va bien':'check','Au mieux':'best','Conseil optimisé':'flask','Trop frais':'temp','Démarrage':'clock','Capteurs muets':'mute','Un capteur muet':'mute','Plus tard':'clock'};
+const PILL_MARKS:Record<string,string>={'En cours':'clock','Tout va bien':'check','Au mieux':'best','Conseil optimisé':'flask','Trop frais':'temp','Démarrage':'clock','Capteurs muets':'mute','Un capteur muet':'mute','Plus tard':'clock'};
 const LEVEL_MARKS:Record<string,string>={calm:'check',benefit:'spark',action:'hand',urgent:'alert',neutral:'help'};
 export const pillMark=(pill:string,level:Level,learned=false)=>html`<span class="nc-mark">${icon(learned?'flask':PILL_MARKS[pill]??LEVEL_MARKS[level]??'info')}${tx(pill)}</span>`;
 export const pills:Record<Level,string>={calm:'Tout va bien',benefit:'À saisir',action:'Geste conseillé',urgent:'Attention',neutral:'À vérifier'};
 /** The banner's pill, the room's state alone (30 October, evening): what the advice learned or what is out goes elsewhere. */
-const STATE_PILLS=new Set(['Tout va bien','Au mieux','À saisir','Geste conseillé','Attention','À vérifier','Démarrage','Capteurs muets','Un capteur muet']);
+const STATE_PILLS=new Set(['Tout va bien','Au mieux','À saisir','Geste conseillé','Bon moment','À faire','En cours','Attention','À vérifier','Démarrage','Capteurs muets','Un capteur muet']);
 export const statePill=(s:{level:Level;pill?:string}|undefined,level:Level)=>s?.pill&&STATE_PILLS.has(s.pill)?s.pill:pills[s?.level??level];
 const hour=(iso:string)=>{const h=new Date(iso).getHours();return h===0?'minuit':h===12?'midi':h+' h';};
 /** « 15 h 20 », to the five minutes: when to shut before a coming rain. */
@@ -36,7 +36,9 @@ const deg=(v:number|null)=>v===null?'—':number(v)+' °C';
 export interface Advice {title:string;line:TemplateResult|string;disk:string;cap?:string;
   /** Learned on this room by its twin: the basis, said under the gesture (« d'après 31 aérations »). */ learned?:string;
   /** A state that is not advice (sensors loading or silent) brings its own words and colour. */ pill?:string;level?:Level;
-  /** The banner's scene (window, VMC, radiator) in place of the pictogram; none keeps the pictogram. */ scene?:Scene|null}
+  /** The banner's scene (window, VMC, radiator) in place of the pictogram; none keeps the pictogram. */ scene?:Scene|null;
+  /** The room sleeps: its waking hour (« 7 h »), a small moon on the banner's picture. */ night?:string;
+  /** When the gesture is for, said above it: the slot of a slot's gesture (« Cet après-midi », moteur 3.18.0). */ when?:string}
 /** Reasons that only say « keep closed »: the engine lowers them to calm when nothing is open and no reflex is at stake. */
 const QUIET=['drying_unavailable','drying_slow','drying_night','drying_alone','opening_blocked','cooling_unavailable','precool_later'];
 /** The banner: the gesture in a few words, then why in one line. The full explanation stays behind « i ». */
@@ -746,7 +748,8 @@ export function details(v:View,config:Config):TemplateResult[] {
 
 export interface CardState {why:boolean;tilesOpen:boolean;detailsOpen:boolean;horizonAlt?:boolean;
   /** The tile unfolded by a tap; « Prochaines heures » folded or not on the full card. */ unfolded?:boolean;horizonOpen?:boolean;
-  toggle:(k:'why'|'tilesOpen'|'detailsOpen'|'horizonAlt'|'unfolded'|'horizonOpen')=>void;uid:string;configure?:()=>void}
+  /** « Bon à savoir » of the full card, folded at first (7 November). */ knowOpen?:boolean;
+  toggle:(k:'why'|'tilesOpen'|'detailsOpen'|'horizonAlt'|'unfolded'|'horizonOpen'|'knowOpen')=>void;uid:string;configure?:()=>void}
 /** The « i » panel: needs, constraints and how complete the picture is, one line each. */
 export function whyLines(v:View):TemplateResult {
   const a=v.assessment;
@@ -799,7 +802,7 @@ export function hero(o:{name:string;level:Level;slides:Slide[];scaleLabel:string
 }
 /** The room card's banner (30 October, evening): the room and its day, the state's pill, then the advice beside its tinted
  * square and « En ce moment » on the right. A still light of the advice's colour starts here and runs on behind « À savoir ». */
-export function banner(o:{name:string;sub?:string;level:Level;slides:Slide[];st:CardState;why:TemplateResult;still?:boolean;now?:TemplateResult|typeof nothing;compact?:boolean;after?:TemplateResult|typeof nothing}):TemplateResult {
+export function banner(o:{name:string;sub?:string;level:Level;slides:Slide[];st:CardState;why:TemplateResult;still?:boolean;now?:TemplateResult|typeof nothing;compact?:boolean;after?:TemplateResult|typeof nothing;day?:TemplateResult|typeof nothing}):TemplateResult {
   const first=o.slides[0];
   const pill=html`<span class="nw-chip nc-level">${pillMark(statePill(first,o.level),first?.level??o.level)}</span>`;
   return html`<div class=${'nc-b'+(o.compact?' compact':'')} data-mood=${mood(o.slides[0],o.level)}>
@@ -807,7 +810,7 @@ export function banner(o:{name:string;sub?:string;level:Level;slides:Slide[];st:
     <div class="nc-b-top"><div class="nc-b-id"><div class="nc-b-name"><h2 class="nw-title">${o.name}</h2><button class="nw-info" aria-label=${t('Pourquoi ce conseil ?')} aria-expanded=${o.st.why} aria-controls=${o.st.uid+'-why'} @click=${(e:Event)=>{e.stopPropagation();o.st.toggle('why');}}></button>${pill}</div>${o.sub?html`<span class="nc-b-sub">${o.sub}</span>`:nothing}</div>
       ${o.now&&o.now!==nothing?html`<div class="nc-b-now">${o.now}</div>`:nothing}</div>
     <div class="nc-why nc-b-why nw-glass" id=${o.st.uid+'-why'} ?hidden=${!o.st.why}>${o.why}</div>
-    <div class="nc-b-main nw-glass nw-band" data-level=${first?.level??o.level}><hestia-advice-ticker layout="banner" .slides=${o.slides.slice(0,1)} .still=${!!o.still}></hestia-advice-ticker></div>
+    <div class="nc-b-main nw-glass nw-band" data-level=${first?.level??o.level}><hestia-advice-ticker layout="banner" .slides=${o.slides.slice(0,1)} .still=${!!o.still}></hestia-advice-ticker>${o.day??nothing}</div>
     ${o.after??nothing}
   </div>`;
 }
@@ -1056,18 +1059,21 @@ export function roomCard(v:View,config:Config,st:CardState,format:Format='full',
     const blocks=(config.tile_blocks??TILE_BLOCKS).filter(b=>b!=='scale');
     const chips=open?nothing:chipRow([...chipValues(v,(config.tile_chips??CHIPS).filter(c=>c!=='temperature')),...partners.flatMap(p=>chipValues(p,['humidity']).map(c=>({...c,text:p.title+' '+c.text})))]);
     return html`<ha-card class=${'nc-c nc-tile-card'+(open?' open':' folded')} data-level=${top} ?data-starting=${!!v.starting}>
-      ${banner({name,level:top,slides:all,st,why:whyRoom(v,all[0]),still,now,compact:true,after:html`${chips}${format==='tile'?html`<span class="nc-handle" aria-hidden="true"></span>`:nothing}`})}
+      ${banner({name,level:top,slides:all,st,why:whyRoom(v,all[0]),still,now,compact:true,day:v.advisor?day3(v.advisor.attributes,dayEvents(v)):nothing,after:html`${chips}${format==='tile'?html`<span class="nc-handle" aria-hidden="true"></span>`:nothing}`})}
       ${open?html`${fullBody(v,config,st,partners,blocks)}<div class="nc-foot"><span>${partners.length?t('Capteurs de {rooms}',{rooms:[v,...partners].map(r=>r.title).join(' et ')}):t('Capteurs de la pièce')}</span><span>${format==='tile'?t('Appui : replier · '):''}${t('Appui long : carte complète')}</span></div>`:nothing}
     </ha-card>`;
   }
   return html`<ha-card class="nc-c nc-full-card" data-level=${top} ?data-starting=${!!v.starting}>
-    ${banner({name,level:top,slides:all,st,why:whyRoom(v,all[0]),still,now})}
+    ${banner({name,level:top,slides:all,st,why:whyRoom(v,all[0]),still,now,day:v.advisor?day3(v.advisor.attributes,dayEvents(v)):nothing})}
     ${fullBody(v,config,st,partners)}
   </ha-card>`;
 }
 
 /** The advices, one at a time every 4.5 s (as Hestia Weather's ticker). Every slide sits in the same place,
     so the card keeps the height of the longest one. Pauses on hover or focus; a tap shows the next one. */
+/** The room asleep (8 November): a small moon on the banner's picture, as the learning's flask; « i » says why. */
+const moon=(s:Slide)=>s.night?html`<span class="nc-night" title=${t('Nuit : conseils en pause jusqu’à {h}',{h:s.night})}>${icon('moon')}</span>`:nothing;
+
 export class HestiaAdviceTicker extends LitElement {
   @property({attribute:false}) slides:Slide[]=[];
   @property({type:Boolean}) still=false;
@@ -1113,7 +1119,7 @@ export class HestiaAdviceTicker extends LitElement {
   /** The banner's layout: its tinted square with the pictogram, then « Action à faire », the advice, why, and what to touch. */
   private banner(list:Slide[],many:boolean,i:number){
     // The kicker says when: now, or under way; nothing when there is nothing to do.
-    const when=(s:Slide)=>s.cap==='À essayer'?t('À essayer'):/^(Encore |Laissez ouvert)|^Aération en cours$/.test(s.title)?t('En cours'):s.title==='Rien à faire'||s.level==='neutral'||s.level==='calm'?'':t('Maintenant');
+    const when=(s:Slide)=>s.when&&s.cap!=='À essayer'?tx(s.when):s.cap==='À essayer'?t('À essayer'):/^(Encore |Laissez ouvert)|^Aération en cours$/.test(s.title)?t('En cours'):s.title==='Rien à faire'||s.level==='neutral'||s.level==='calm'?'':t('Maintenant');
     // « Puis refermez » is the gesture's second half: in the title. The other tags were said elsewhere (À savoir, the « i »).
     const title=(s:Slide)=>s.cap==='Puis refermez'?`${tx(s.title)}, ${tx('puis refermez')}`:tx(s.title);
     return html`<div class="nw-band-row" @mouseenter=${()=>this.hold(true)} @mouseleave=${()=>this.hold(false)} @focusin=${()=>this.hold(true)} @focusout=${()=>this.hold(false)}>
@@ -1122,8 +1128,8 @@ export class HestiaAdviceTicker extends LitElement {
           ${when(s)||s.learned?html`<div class="nw-band-kicker">${when(s)?html`<span>${when(s)}</span>`:nothing}${s.learned?html`<span class="nc-bt-learned" title=${tx(s.learned)}>${icon('flask')}${t('Optimisé par l’apprentissage')}</span>`:nothing}</div>`:nothing}
           <p class="nw-band-title">${title(s)}</p>${s.line?html`<p class="nw-band-line">${tl(s.line)}</p>`:nothing}</div>`)}</div>
       </div>
-      <div class="nw-band-pic nc-stack" aria-hidden="true">${list.map((s,k)=>s.scene?html`<div class=${'nc-slide nc-scene'+(k===i?' on':k===this.previous?' out':'')} data-level=${s.level}>${scene(s.scene)}</div>`
-        :html`<div class=${'nc-slide nc-orb'+(k===i?' on':k===this.previous?' out':'')} data-level=${s.level} data-mood=${mood(s,s.level)}><span class="nc-orb-ring"></span>${icon(s.disk)}${s.learned?html`<span class="nc-orb-learned">${icon('flask')}</span>`:nothing}</div>`)}</div>
+      <div class="nw-band-pic nc-stack" aria-hidden="true">${list.map((s,k)=>s.scene?html`<div class=${'nc-slide nc-scene'+(k===i?' on':k===this.previous?' out':'')} data-level=${s.level}>${scene(s.scene)}${moon(s)}</div>`
+        :html`<div class=${'nc-slide nc-orb'+(k===i?' on':k===this.previous?' out':'')} data-level=${s.level} data-mood=${mood(s,s.level)}><span class="nc-orb-ring"></span>${icon(s.disk)}${s.learned?html`<span class="nc-orb-learned">${icon('flask')}</span>`:nothing}${moon(s)}</div>`)}</div>
     </div>`;
   }
 }

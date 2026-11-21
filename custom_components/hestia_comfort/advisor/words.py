@@ -19,7 +19,7 @@ TEXTS = {
         "nothing": "Rien à faire", "keep": "Laissez ouvert", "close": "Refermez", "open": "Aérez {minutes} min", "open_long": "Ouvrez",
         "close_later": "Refermez vers {at}", "open_later": "Aérez {minutes} min vers {at}", "close_soon": "Laissez ouvert encore {after} min", "open_more": "Ouvrez aussi {which} {minutes} min", "open_more_plain": "les autres fenêtres", "opened_more": "Ouvertes des deux côtés {minutes} min", "instead": "{line} au lieu de {minutes}",
         "heat": "vous gardez {value} °C d'ici {hour} h", "heat_open": "{value} °C de mieux d'ici {hour} h",
-        "humidity": "{chosen} % d'humidité au lieu de {idle} %", "humidity_at": "{chosen} % d'humidité à {at} au lieu de {idle} %", "humidity_brief": "l'humidité baisse pendant l'aération, puis revient", "co2": "l'air redevient sain en {minutes} min",
+        "humidity": "{chosen} % d'humidité au lieu de {idle} %", "humidity_at": "{chosen} % d'humidité à {at} au lieu de {idle} %", "humidity_brief": "l'humidité baisse pendant l'aération, puis revient", "co2": "l'air redevient sain en {minutes} min", "co2_during": "l'air redevient sain avant la fin",
         "particles": "les particules retombent en {minutes} min", "voc": "le COV retombe en {minutes} min", "energy": "{value} kWh de chauffage économisés",
         "mould": "moins de risque de moisissure sur les murs froids",
         "sure": "{line}", "unsure": "{line}, sans doute",
@@ -31,8 +31,16 @@ TEXTS = {
         "humidity_at_likely": "l'humidité devrait passer à {chosen} % vers {at} au lieu de {idle} %", "humidity_at_maybe": "l'humidité pourrait passer à {chosen} % vers {at}",
         "humidity_brief_likely": "l'humidité devrait baisser pendant l'aération, puis revenir", "humidity_brief_maybe": "l'humidité pourrait baisser pendant l'aération, puis revenir",
         "co2_likely": "l'air devrait redevenir sain en {minutes} min", "co2_maybe": "l'air pourrait redevenir sain en {minutes} min",
+        "co2_during_likely": "l'air devrait redevenir sain avant la fin", "co2_during_maybe": "l'air pourrait redevenir sain avant la fin",
         "particles_likely": "les particules devraient retomber en {minutes} min", "particles_maybe": "les particules pourraient retomber en {minutes} min",
         "voc_likely": "le COV devrait retomber en {minutes} min", "voc_maybe": "le COV pourrait retomber en {minutes} min",
+        "co2_at": "l'air redevient sain vers {at}", "co2_at_likely": "l'air devrait redevenir sain vers {at}", "co2_at_maybe": "l'air pourrait redevenir sain vers {at}",
+        "particles_at": "les particules retombent vers {at}", "particles_at_likely": "les particules devraient retomber vers {at}", "particles_at_maybe": "les particules pourraient retomber vers {at}",
+        "voc_at": "le COV retombe vers {at}", "voc_at_likely": "le COV devrait retomber vers {at}", "voc_at_maybe": "le COV pourrait retomber vers {at}",
+        "humidity_after": "{chosen} % d'humidité une heure après l'aération au lieu de {idle} %", "humidity_after_likely": "l'humidité devrait passer à {chosen} % une heure après l'aération au lieu de {idle} %", "humidity_after_maybe": "l'humidité pourrait passer à {chosen} % une heure après l'aération",
+        "co2_after": "l'air redevient sain {minutes} min après avoir refermé", "co2_after_likely": "l'air devrait redevenir sain {minutes} min après avoir refermé", "co2_after_maybe": "l'air pourrait redevenir sain {minutes} min après avoir refermé",
+        "particles_after": "les particules retombent {minutes} min après avoir refermé", "particles_after_likely": "les particules devraient retomber {minutes} min après avoir refermé", "particles_after_maybe": "les particules pourraient retomber {minutes} min après avoir refermé",
+        "voc_after": "le COV retombe {minutes} min après avoir refermé", "voc_after_likely": "le COV devrait retomber {minutes} min après avoir refermé", "voc_after_maybe": "le COV pourrait retomber {minutes} min après avoir refermé",
         "energy_likely": "environ {value} kWh de chauffage économisés", "energy_maybe": "peut-être {value} kWh de chauffage économisés",
         "mould_likely": "devrait limiter la moisissure sur les murs froids", "mould_maybe": "pourrait limiter la moisissure sur les murs froids",
         "maybe": "{line}, à vérifier",
@@ -45,13 +53,15 @@ TEXTS = {
         "nothing_line": "Ouverte ou fermée, la pièce restera dans votre plage",
         "nothing_shut": "La pièce restera dans votre plage",
         "try": "À essayer — {title} : {line}",
-        "keep_shut": "Gardez fermé : {why}",
+        "keep_shut": "Gardez fermé : {why}", "rain_maybe_at": "La pluie pourrait arriver vers {at}",
         "tonight_close": "Cette nuit, pensez à refermer : {line}", "tonight_open": "Cette nuit, pensez à ouvrir : {line}",
-        "safety_rain": "il pleut", "safety_rain_soon": "la pluie arrive", "safety_gusts": "rafales de vent",
+        "known_rain": "Il pleut", "known_rain_soon": "La pluie pourrait arriver bientôt", "known_gusts": "Rafales de vent",
+        "known_vigilance": "Vigilance météo rouge", "known_away": "La maison est en mode absence",
+        "safety_rain": "il pleut", "safety_rain_soon": "la pluie pourrait arriver", "safety_rain_maybe": "la pluie pourrait arriver", "safety_gusts": "rafales de vent",
         "safety_vigilance": "vigilance météo", "safety_away": "la maison est en mode absence", "safety_frost": "le gel est annoncé",
         "sun": "Soleil sur {window} de {start} à {end}", "sun_strong": "Grand soleil prévu sur {window} de {start} à {end}",
         "sun_now": "Soleil sur {window} jusqu'à {end}", "sun_now_strong": "Grand soleil sur {window} jusqu'à {end}",
-        "window": "la fenêtre {direction}", "windows": "les fenêtres {direction}", "window_plain": "les fenêtres", "and": " et ", "sun_gain": "{line} : +{gain} °C dans la pièce",
+        "window": "la fenêtre {direction}", "windows": "les fenêtres {direction}", "window_plain": "les fenêtres", "and": " et ", "sun_gain": "{line} : +{gain} °C dans la pièce", "sun_bonus": "{line} : un bonus de chaleur", "sun_bonus_if": "{line} : un bonus de chaleur, si les volets sont ouverts", "sun_open": "{line} : ouvrez le volet pour en profiter",
         "heat_on": "Rallumez le chauffage", "heat_to": "Remettez le chauffage à {target} °C",
         "heated": "Chauffage rallumé", "heated_to": "Chauffage à {target} °C",
         "shutter_close": "Baissez le volet", "shutter_open": "Ouvrez le volet", "shuttered": "Volet baissé", "unshuttered": "Volet ouvert",
@@ -64,9 +74,28 @@ TEXTS = {
         "heat_stop": "Coupez le poêle",
         "stove_off": "Poêle coupé",
         "overheat": "{air} °C pour {target} °C visés, depuis {minutes} min",
+        "stale": "CO₂ mesuré à {co2} ppm : l'air est à renouveler",
+        "normal_humidity": "Humidité {value} % : normal pour cette pièce",
+        "next_moment": "Prochain bon moment : {when} vers {at}, {gesture}",
+        "slot_matin": "ce matin", "slot_apres_midi": "cet après-midi", "slot_soir": "ce soir", "slot_demain": "demain matin",
+        "act_open": "aérer {minutes} min", "act_boost": "lancer la VMC rapide {minutes} min", "act_purify": "lancer le purificateur {minutes} min",
+        "day_open": "Aérer {minutes} min", "day_boost": "VMC rapide {minutes} min", "day_purify": "Purificateur {minutes} min",
+        "day_done": "Aérée {minutes} min", "day_missed": "pas fait", "day_probable": "probable",
+        "aside_urgent_co2": "CO₂ encore élevé ({value} ppm) : {gesture} aiderait, quand vous pourrez",
+        "aside_urgent_voc": "COV encore élevé ({value}) : {gesture} aiderait, quand vous pourrez",
+        "aside_urgent_particles": "Particules encore élevées ({value} µg/m³) : {gesture} aiderait, quand vous pourrez",
+        "aside_urgent_humidity": "Humidité encore élevée ({value} %) : {gesture} aiderait, quand vous pourrez",
+        "urgent_co2": "CO₂ {value} ppm : {line}", "urgent_humidity": "Humidité {value} % : {line}",
+        "urgent_particles": "Particules {value} µg/m³ : {line}", "urgent_voc": "COV {value} : {line}",
+        "dwelling_humid": "Humide en permanence : {median} % d'humidité en moyenne depuis deux semaines. Aérer ne suffira "
+                          "pas ; un déshumidificateur ou un chauffage doux et continu aideront",
+        "dwelling_co2": "Air souvent confiné : le CO₂ monte jusqu'à {high} ppm. Une aération plus régulière ou une VMC "
+                        "aideront",
         "stove_hold": "Le poêle tourne au minimum : sans lui, la pièce reste au-dessus de {minimum} °C jusqu'à {at}",
         "stove_hold_long": "Le poêle tourne au minimum : sans lui, la pièce reste au-dessus de {minimum} °C au moins jusqu'à {hour} h",
         "stove_rising": "Le poêle tourne au minimum et la pièce monte encore : {change} °C de plus en 30 min",
+        "below_house": "{gap} °C sous la moyenne de la maison ({mean} °C) : porte fermée, radiateur dégagé, sonde bien placée ?",
+        "below_house_far": "{gap} °C sous la moyenne de la maison ({mean} °C) : le poêle chauffe peu cette pièce",
         "doubtful": "Mesure douteuse", "doubtful_air": "La température semble fausse ({why}) : pas de conseil tant qu'elle l'est",
         "doubtful_aside": "Mesure douteuse, laissée de côté : {what}", "doubt": "{measure} ({why})",
         "doubt_range": "{value} : valeur impossible", "doubt_jump": "saut soudain à {value}", "doubt_frozen": "figée depuis {since}",
@@ -80,15 +109,26 @@ TEXTS = {
         "outside_drier": "Dehors, l'air est plus sec qu'ici : aérer assèche",
         "outside_wetter": "Dehors, l'air est plus humide qu'ici : aérer ferait monter l'humidité",
         "outside_same": "Dehors, l'air est aussi humide qu'ici : aérer n'assèche pas",
+        "outside_drier_later": "Vers {at}, l'air dehors sera plus sec qu'ici : le bon moment pour aérer",
         "open_warms": "Laissez ouvert : la pièce a gagné {change} °C depuis {since}",
         "open_cools": "Laissez ouvert : la pièce a perdu {change} °C depuis {since}",
         "time": "{h} h {m:02d}", "time_hour": "{h} h",
         "north": "nord", "north_east": "nord-est", "east": "est", "south_east": "sud-est", "south": "sud",
         "south_west": "sud-ouest", "west": "ouest", "north_west": "nord-ouest",
         "out_humidity": "Humidité {value} % à {hour} h", "out_co2": "CO₂ {value} ppm à {hour} h",
-        "out_particles": "Particules {value} µg/m³ à {hour} h", "out_voc": "COV {value} à {hour} h", "out_nothing": "{what} : aucun geste ne ferait vraiment mieux",
+        "out_particles": "Particules {value} µg/m³ à {hour} h", "out_voc": "COV {value} à {hour} h", "out_nothing": "{what} : rien de mieux à faire pour l'instant", "aside_line": "« {title} » en pause jusqu'à {at} : {line}",
         "held_open": "Ouverte : {air} °C à {hour} h", "held_shut": "Fermée : {air} °C à {hour} h",
-        "nothing_out": "Ouverte ou fermée : {air} °C à {hour} h", "nothing_out_shut": "Aucun geste ne ferait vraiment mieux : {air} °C à {hour} h",
+        "nothing_out": "Ouverte ou fermée : {air} °C à {hour} h", "nothing_out_shut": "{air} °C à {hour} h : rien de mieux à faire pour l'instant",
+        "back_humidity": "L'humidité repasse seule sous {mark} % {when}", "back_co2": "Le CO₂ repasse seul sous {mark} ppm {when}",
+        "back_particles": "Les particules repassent seules sous {mark} µg/m³ {when}", "back_voc": "Les COV repassent seuls sous {mark} {when}",
+        "back_at": "vers {at}", "back_in": "d'ici {minutes} min",
+        "back_open_humidity": "L'humidité repasse sous {mark} % {when}, fenêtre ouverte", "back_open_co2": "Le CO₂ repasse sous {mark} ppm {when}, fenêtre ouverte",
+        "back_open_particles": "Les particules repassent sous {mark} µg/m³ {when}, fenêtre ouverte", "back_open_voc": "Les COV repassent sous {mark} {when}, fenêtre ouverte",
+        "under_way": "Aération en cours", "under_way_line": "{what} · refermez vers {at}", "under_way_open": "{what} · laissez ouvert",
+        "under_way_resolved": "{what} : c'est réglé", "under_way_done": "Aérée {minutes} min : {change}", "under_way_done_plain": "Aérée {minutes} min",
+        "what_co2": "CO₂ {value} ppm", "what_particles": "Particules {value} µg/m³", "what_voc": "COV {value}", "what_humidity": "Humidité {value} %",
+        "what_mould": "Humidité {value} %", "what_heat": "{value} °C", "what_energy": "{value} °C",
+        "side": "côté {names}", "where": "{title} {side}",
     },
     "en": {
         "boost": "Run the ventilation fast for {minutes} min", "boost_off": "Set the ventilation back to normal",
@@ -97,7 +137,7 @@ TEXTS = {
         "nothing": "Nothing to do", "keep": "Leave it open", "close": "Close", "open": "Air for {minutes} min", "open_long": "Open",
         "close_later": "Close around {at}", "open_later": "Air {minutes} min around {at}", "close_soon": "Leave it open {after} more min", "open_more": "Open {which} too for {minutes} min", "open_more_plain": "the other windows", "opened_more": "Open on both sides {minutes} min", "instead": "{line} instead of {minutes}",
         "heat": "you keep {value} °C until {hour}:00", "heat_open": "{value} °C better by {hour}:00",
-        "humidity": "{chosen}% humidity instead of {idle}%", "humidity_at": "{chosen}% humidity at {at} instead of {idle}%", "humidity_brief": "the humidity drops while airing, then comes back", "co2": "the air is fresh again in {minutes} min",
+        "humidity": "{chosen}% humidity instead of {idle}%", "humidity_at": "{chosen}% humidity at {at} instead of {idle}%", "humidity_brief": "the humidity drops while airing, then comes back", "co2": "the air is fresh again in {minutes} min", "co2_during": "the air is fresh again before the end",
         "particles": "the particles settle in {minutes} min", "voc": "the VOC falls back in {minutes} min", "energy": "{value} kWh of heating saved",
         "mould": "less risk of mould on the cold walls",
         "sure": "{line}", "unsure": "{line}, most likely",
@@ -107,8 +147,16 @@ TEXTS = {
         "humidity_at_likely": "the humidity should go to {chosen} % around {at} instead of {idle} %", "humidity_at_maybe": "the humidity could go to {chosen} % around {at}",
         "humidity_brief_likely": "the humidity should drop while airing, then come back", "humidity_brief_maybe": "the humidity could drop while airing, then come back",
         "co2_likely": "the air should be healthy again in {minutes} min", "co2_maybe": "the air could be healthy again in {minutes} min",
+        "co2_during_likely": "the air should be healthy again before the end", "co2_during_maybe": "the air could be healthy again before the end",
         "particles_likely": "the particles should settle in {minutes} min", "particles_maybe": "the particles could settle in {minutes} min",
         "voc_likely": "the VOC should drop in {minutes} min", "voc_maybe": "the VOC could drop in {minutes} min",
+        "co2_at": "the air is fresh again around {at}", "co2_at_likely": "the air should be healthy again around {at}", "co2_at_maybe": "the air could be healthy again around {at}",
+        "particles_at": "the particles settle around {at}", "particles_at_likely": "the particles should settle around {at}", "particles_at_maybe": "the particles could settle around {at}",
+        "voc_at": "the VOC falls back around {at}", "voc_at_likely": "the VOC should drop around {at}", "voc_at_maybe": "the VOC could drop around {at}",
+        "humidity_after": "{chosen}% humidity an hour after airing instead of {idle}%", "humidity_after_likely": "the humidity should go to {chosen} % an hour after airing instead of {idle} %", "humidity_after_maybe": "the humidity could go to {chosen} % an hour after airing",
+        "co2_after": "the air is fresh again {minutes} min after closing", "co2_after_likely": "the air should be healthy again {minutes} min after closing", "co2_after_maybe": "the air could be healthy again {minutes} min after closing",
+        "particles_after": "the particles settle {minutes} min after closing", "particles_after_likely": "the particles should settle {minutes} min after closing", "particles_after_maybe": "the particles could settle {minutes} min after closing",
+        "voc_after": "the VOC falls back {minutes} min after closing", "voc_after_likely": "the VOC should drop {minutes} min after closing", "voc_after_maybe": "the VOC could drop {minutes} min after closing",
         "energy_likely": "about {value} kWh of heating saved", "energy_maybe": "perhaps {value} kWh of heating saved",
         "mould_likely": "should limit mould on the cold walls", "mould_maybe": "could limit mould on the cold walls",
         "maybe": "{line}, to be checked",
@@ -120,13 +168,15 @@ TEXTS = {
         "nothing_line": "Open or shut, the room stays in your range",
         "nothing_shut": "The room stays in your range",
         "try": "Worth a try — {title}: {line}",
-        "keep_shut": "Keep it shut: {why}",
+        "keep_shut": "Keep it shut: {why}", "rain_maybe_at": "Rain could come around {at}",
         "tonight_close": "Tonight, remember to close: {line}", "tonight_open": "Tonight, remember to open: {line}",
-        "safety_rain": "it is raining", "safety_rain_soon": "rain is coming", "safety_gusts": "gusts of wind",
+        "known_rain": "It is raining", "known_rain_soon": "Rain might come soon", "known_gusts": "Gusts of wind",
+        "known_vigilance": "Red weather warning", "known_away": "The home is set to away",
+        "safety_rain": "it is raining", "safety_rain_soon": "rain might come", "safety_rain_maybe": "rain might come", "safety_gusts": "gusts of wind",
         "safety_vigilance": "weather warning", "safety_away": "the home is set to away", "safety_frost": "frost is forecast",
         "sun": "Sun on {window} from {start} to {end}", "sun_strong": "Bright sun expected on {window} from {start} to {end}",
         "sun_now": "Sun on {window} until {end}", "sun_now_strong": "Bright sun on {window} until {end}",
-        "window": "the {direction} window", "windows": "the {direction} windows", "window_plain": "the windows", "and": " and ", "sun_gain": "{line}: +{gain} °C in the room",
+        "window": "the {direction} window", "windows": "the {direction} windows", "window_plain": "the windows", "and": " and ", "sun_gain": "{line}: +{gain} °C in the room", "sun_bonus": "{line}: a bonus of warmth", "sun_bonus_if": "{line}: a bonus of warmth, if the shutters are open", "sun_open": "{line}: open the shutter to make the most of it",
         "heat_on": "Turn the heating back on", "heat_to": "Set the heating back to {target} °C",
         "heated": "Heating on", "heated_to": "Heating at {target} °C",
         "shutter_close": "Lower the shutter", "shutter_open": "Open the shutter", "shuttered": "Shutter down", "unshuttered": "Shutter open",
@@ -139,9 +189,28 @@ TEXTS = {
         "heat_stop": "Turn the stove off",
         "stove_off": "Stove off",
         "overheat": "{air} °C for {target} °C aimed at, for {minutes} min",
+        "stale": "CO₂ measured at {co2} ppm: the air needs renewing",
+        "normal_humidity": "Humidity {value} %: normal for this room",
+        "next_moment": "Next good moment: {when} around {at}, {gesture}",
+        "slot_matin": "this morning", "slot_apres_midi": "this afternoon", "slot_soir": "this evening", "slot_demain": "tomorrow morning",
+        "act_open": "air {minutes} min", "act_boost": "run the fast ventilation {minutes} min", "act_purify": "run the purifier {minutes} min",
+        "day_open": "Air {minutes} min", "day_boost": "Fast ventilation {minutes} min", "day_purify": "Purifier {minutes} min",
+        "day_done": "Aired {minutes} min", "day_missed": "not done", "day_probable": "likely",
+        "aside_urgent_co2": "CO₂ still high ({value} ppm): to {gesture} would help, when you can",
+        "aside_urgent_voc": "VOC still high ({value}): to {gesture} would help, when you can",
+        "aside_urgent_particles": "Particles still high ({value} µg/m³): to {gesture} would help, when you can",
+        "aside_urgent_humidity": "Humidity still high ({value} %): to {gesture} would help, when you can",
+        "urgent_co2": "CO₂ {value} ppm: {line}", "urgent_humidity": "Humidity {value} %: {line}",
+        "urgent_particles": "Particles {value} µg/m³: {line}", "urgent_voc": "VOC {value}: {line}",
+        "dwelling_humid": "Always humid: {median} % on average over two weeks. Airing will not be enough; a dehumidifier "
+                          "or a gentle, steady heating will help",
+        "dwelling_co2": "Often stuffy: the CO₂ rises up to {high} ppm. Airing more regularly or a ventilation unit will "
+                        "help",
         "stove_hold": "The stove runs at its lowest: without it, the room stays above {minimum} °C until {at}",
         "stove_hold_long": "The stove runs at its lowest: without it, the room stays above {minimum} °C until {hour}:00 at least",
         "stove_rising": "The stove runs at its lowest and the room is still warming: {change} °C more in 30 min",
+        "below_house": "{gap} °C below the house's mean ({mean} °C): door shut, radiator clear, sensor well placed?",
+        "below_house_far": "{gap} °C below the house's mean ({mean} °C): the stove warms this room little",
         "doubtful": "Doubtful measure", "doubtful_air": "The temperature looks wrong ({why}): no advice while it does",
         "doubtful_aside": "Doubtful measure, left aside: {what}", "doubt": "{measure} ({why})",
         "doubt_range": "{value}: impossible value", "doubt_jump": "sudden jump to {value}", "doubt_frozen": "frozen since {since}",
@@ -155,15 +224,26 @@ TEXTS = {
         "outside_drier": "The air outside is drier than in here: airing dries the room",
         "outside_wetter": "The air outside is more humid than in here: airing would raise the humidity",
         "outside_same": "The air outside is as humid as in here: airing does not dry the room",
+        "outside_drier_later": "Around {at}, the air outside will be drier than in here: the right time to air",
         "open_warms": "Leave it open: the room gained {change} °C since {since}",
         "open_cools": "Leave it open: the room lost {change} °C since {since}",
         "time": "{h}:{m:02d}", "time_hour": "{h}:00",
         "north": "north", "north_east": "north-east", "east": "east", "south_east": "south-east", "south": "south",
         "south_west": "south-west", "west": "west", "north_west": "north-west",
         "out_humidity": "Humidity {value} % at {hour}:00", "out_co2": "CO₂ {value} ppm at {hour}:00",
-        "out_particles": "Particles {value} µg/m³ at {hour}:00", "out_voc": "VOC {value} at {hour}:00", "out_nothing": "{what}: no gesture would really do better",
+        "out_particles": "Particles {value} µg/m³ at {hour}:00", "out_voc": "VOC {value} at {hour}:00", "out_nothing": "{what}: nothing better to do for now", "aside_line": "« {title} » paused until {at}: {line}",
         "held_open": "Open: {air} °C at {hour}:00", "held_shut": "Shut: {air} °C at {hour}:00",
-        "nothing_out": "Open or shut: {air} °C at {hour}:00", "nothing_out_shut": "No gesture would really do better: {air} °C at {hour}:00",
+        "nothing_out": "Open or shut: {air} °C at {hour}:00", "nothing_out_shut": "{air} °C at {hour}:00: nothing better to do for now",
+        "back_humidity": "Humidity falls back under {mark} % on its own {when}", "back_co2": "CO₂ falls back under {mark} ppm on its own {when}",
+        "back_particles": "Particles fall back under {mark} µg/m³ on their own {when}", "back_voc": "VOCs fall back under {mark} on their own {when}",
+        "back_at": "around {at}", "back_in": "within {minutes} min",
+        "back_open_humidity": "Humidity falls back under {mark} % {when}, window open", "back_open_co2": "CO₂ falls back under {mark} ppm {when}, window open",
+        "back_open_particles": "Particles fall back under {mark} µg/m³ {when}, window open", "back_open_voc": "VOCs fall back under {mark} {when}, window open",
+        "under_way": "Airing under way", "under_way_line": "{what} · close around {at}", "under_way_open": "{what} · leave it open",
+        "under_way_resolved": "{what}: sorted", "under_way_done": "Aired {minutes} min: {change}", "under_way_done_plain": "Aired {minutes} min",
+        "what_co2": "CO₂ {value} ppm", "what_particles": "Particles {value} µg/m³", "what_voc": "VOC {value}", "what_humidity": "Humidity {value}%",
+        "what_mould": "Humidity {value}%", "what_heat": "{value} °C", "what_energy": "{value} °C",
+        "side": "on the {names} side", "where": "{title} {side}",
     },
     "de": {
         "boost": "Lüftung {minutes} Min. auf hohe Stufe", "boost_off": "Lüftung zurück auf normale Stufe",
@@ -172,7 +252,7 @@ TEXTS = {
         "nothing": "Nichts zu tun", "keep": "Offen lassen", "close": "Schließen", "open": "{minutes} Min. lüften", "open_long": "Öffnen",
         "close_later": "Gegen {at} schließen", "open_later": "Gegen {at} {minutes} Min. lüften", "close_soon": "Noch {after} Min. offen lassen", "open_more": "Auch {which} {minutes} Min. öffnen", "open_more_plain": "die anderen Fenster", "opened_more": "Auf beiden Seiten offen {minutes} Min.", "instead": "{line} statt in {minutes}",
         "heat": "Sie behalten {value} °C bis {hour} Uhr", "heat_open": "{value} °C besser bis {hour} Uhr",
-        "humidity": "{chosen} % Feuchte statt {idle} %", "humidity_at": "{chosen} % Feuchte um {at} statt {idle} %", "humidity_brief": "die Feuchte sinkt beim Lüften und steigt danach wieder", "co2": "die Luft ist in {minutes} Min. wieder frisch",
+        "humidity": "{chosen} % Feuchte statt {idle} %", "humidity_at": "{chosen} % Feuchte um {at} statt {idle} %", "humidity_brief": "die Feuchte sinkt beim Lüften und steigt danach wieder", "co2": "die Luft ist in {minutes} Min. wieder frisch", "co2_during": "die Luft ist vor dem Ende wieder frisch",
         "particles": "die Partikel setzen sich in {minutes} Min.", "voc": "die VOC sinken in {minutes} Min.", "energy": "{value} kWh Heizenergie gespart",
         "mould": "weniger Schimmelgefahr an kalten Wänden",
         "sure": "{line}", "unsure": "{line}, voraussichtlich",
@@ -182,8 +262,16 @@ TEXTS = {
         "humidity_at_likely": "die Feuchte dürfte gegen {at} auf {chosen} % statt {idle} % gehen", "humidity_at_maybe": "die Feuchte könnte gegen {at} auf {chosen} % gehen",
         "humidity_brief_likely": "die Feuchte dürfte beim Lüften sinken und dann zurückkehren", "humidity_brief_maybe": "die Feuchte könnte beim Lüften sinken und dann zurückkehren",
         "co2_likely": "die Luft dürfte in {minutes} Min. wieder gesund sein", "co2_maybe": "die Luft könnte in {minutes} Min. wieder gesund sein",
+        "co2_during_likely": "die Luft dürfte vor dem Ende wieder gesund sein", "co2_during_maybe": "die Luft könnte vor dem Ende wieder gesund sein",
         "particles_likely": "die Partikel dürften in {minutes} Min. sinken", "particles_maybe": "die Partikel könnten in {minutes} Min. sinken",
         "voc_likely": "die VOC dürften in {minutes} Min. sinken", "voc_maybe": "die VOC könnten in {minutes} Min. sinken",
+        "co2_at": "die Luft ist gegen {at} wieder frisch", "co2_at_likely": "die Luft dürfte gegen {at} wieder gesund sein", "co2_at_maybe": "die Luft könnte gegen {at} wieder gesund sein",
+        "particles_at": "die Partikel setzen sich gegen {at}", "particles_at_likely": "die Partikel dürften sich gegen {at} setzen", "particles_at_maybe": "die Partikel könnten sich gegen {at} setzen",
+        "voc_at": "die VOC sinken gegen {at}", "voc_at_likely": "die VOC dürften gegen {at} sinken", "voc_at_maybe": "die VOC könnten gegen {at} sinken",
+        "humidity_after": "{chosen} % Feuchte eine Stunde nach dem Lüften statt {idle} %", "humidity_after_likely": "die Feuchte dürfte eine Stunde nach dem Lüften auf {chosen} % statt {idle} % gehen", "humidity_after_maybe": "die Feuchte könnte eine Stunde nach dem Lüften auf {chosen} % gehen",
+        "co2_after": "die Luft ist {minutes} Min. nach dem Schließen wieder frisch", "co2_after_likely": "die Luft dürfte {minutes} Min. nach dem Schließen wieder gesund sein", "co2_after_maybe": "die Luft könnte {minutes} Min. nach dem Schließen wieder gesund sein",
+        "particles_after": "die Partikel setzen sich {minutes} Min. nach dem Schließen", "particles_after_likely": "die Partikel dürften sich {minutes} Min. nach dem Schließen setzen", "particles_after_maybe": "die Partikel könnten sich {minutes} Min. nach dem Schließen setzen",
+        "voc_after": "die VOC sinken {minutes} Min. nach dem Schließen", "voc_after_likely": "die VOC dürften {minutes} Min. nach dem Schließen sinken", "voc_after_maybe": "die VOC könnten {minutes} Min. nach dem Schließen sinken",
         "energy_likely": "etwa {value} kWh Heizung gespart", "energy_maybe": "vielleicht {value} kWh Heizung gespart",
         "mould_likely": "dürfte Schimmel an kalten Wänden begrenzen", "mould_maybe": "könnte Schimmel an kalten Wänden begrenzen",
         "maybe": "{line}, noch zu prüfen",
@@ -195,13 +283,15 @@ TEXTS = {
         "nothing_line": "Offen oder geschlossen, der Raum bleibt in Ihrem Bereich",
         "nothing_shut": "Der Raum bleibt in Ihrem Bereich",
         "try": "Einen Versuch wert — {title}: {line}",
-        "keep_shut": "Geschlossen lassen: {why}",
+        "keep_shut": "Geschlossen lassen: {why}", "rain_maybe_at": "Regen könnte gegen {at} kommen",
         "tonight_close": "Heute Nacht schließen: {line}", "tonight_open": "Heute Nacht öffnen: {line}",
-        "safety_rain": "es regnet", "safety_rain_soon": "Regen kommt", "safety_gusts": "Windböen",
+        "known_rain": "Es regnet", "known_rain_soon": "Regen könnte bald kommen", "known_gusts": "Windböen",
+        "known_vigilance": "Rote Unwetterwarnung", "known_away": "Das Haus ist auf Abwesenheit gestellt",
+        "safety_rain": "es regnet", "safety_rain_soon": "Regen könnte kommen", "safety_rain_maybe": "Regen könnte kommen", "safety_gusts": "Windböen",
         "safety_vigilance": "Unwetterwarnung", "safety_away": "das Haus ist auf Abwesenheit gestellt", "safety_frost": "Frost ist angesagt",
         "sun": "Sonne auf {window} von {start} bis {end}", "sun_strong": "Viel Sonne erwartet auf {window} von {start} bis {end}",
         "sun_now": "Sonne auf {window} bis {end}", "sun_now_strong": "Viel Sonne auf {window} bis {end}",
-        "window": "dem Fenster nach {direction}", "windows": "den Fenstern nach {direction}", "window_plain": "den Fenstern", "and": " und ", "sun_gain": "{line}: +{gain} °C im Raum",
+        "window": "dem Fenster nach {direction}", "windows": "den Fenstern nach {direction}", "window_plain": "den Fenstern", "and": " und ", "sun_gain": "{line}: +{gain} °C im Raum", "sun_bonus": "{line}: ein Wärmebonus", "sun_bonus_if": "{line}: ein Wärmebonus, wenn die Läden offen sind", "sun_open": "{line}: Laden öffnen, um sie zu nutzen",
         "heat_on": "Heizung wieder einschalten", "heat_to": "Heizung wieder auf {target} °C stellen",
         "heated": "Heizung an", "heated_to": "Heizung auf {target} °C",
         "shutter_close": "Rollladen herunterlassen", "shutter_open": "Rollladen öffnen", "shuttered": "Rollladen unten", "unshuttered": "Rollladen offen",
@@ -214,9 +304,28 @@ TEXTS = {
         "heat_stop": "Ofen ausschalten",
         "stove_off": "Ofen aus",
         "overheat": "{air} °C bei {target} °C Ziel, seit {minutes} min",
+        "stale": "CO₂ gemessen bei {co2} ppm: die Luft muss erneuert werden",
+        "normal_humidity": "Feuchte {value} %: normal für diesen Raum",
+        "next_moment": "Nächster guter Moment: {when} gegen {at}, {gesture}",
+        "slot_matin": "heute Morgen", "slot_apres_midi": "heute Nachmittag", "slot_soir": "heute Abend", "slot_demain": "morgen früh",
+        "act_open": "{minutes} Min. lüften", "act_boost": "Lüftung {minutes} Min. auf Stufe 2", "act_purify": "Luftreiniger {minutes} Min. laufen lassen",
+        "day_open": "{minutes} Min. lüften", "day_boost": "Lüftung {minutes} Min.", "day_purify": "Luftreiniger {minutes} Min.",
+        "day_done": "{minutes} Min. gelüftet", "day_missed": "nicht gemacht", "day_probable": "wahrscheinlich",
+        "aside_urgent_co2": "CO₂ noch hoch ({value} ppm): {gesture} würde helfen, wenn Sie können",
+        "aside_urgent_voc": "VOC noch hoch ({value}): {gesture} würde helfen, wenn Sie können",
+        "aside_urgent_particles": "Partikel noch hoch ({value} µg/m³): {gesture} würde helfen, wenn Sie können",
+        "aside_urgent_humidity": "Feuchte noch hoch ({value} %): {gesture} würde helfen, wenn Sie können",
+        "urgent_co2": "CO₂ {value} ppm: {line}", "urgent_humidity": "Feuchte {value} %: {line}",
+        "urgent_particles": "Feinstaub {value} µg/m³: {line}", "urgent_voc": "VOC {value}: {line}",
+        "dwelling_humid": "Dauerhaft feucht: im Mittel {median} % seit zwei Wochen. Lüften allein reicht nicht; ein "
+                          "Luftentfeuchter oder eine milde, gleichmäßige Heizung helfen",
+        "dwelling_co2": "Oft stickige Luft: das CO₂ steigt bis {high} ppm. Regelmäßigeres Lüften oder eine Lüftungsanlage "
+                        "helfen",
         "stove_hold": "Der Ofen läuft auf kleinster Stufe: ohne ihn bleibt der Raum bis {at} über {minimum} °C",
         "stove_hold_long": "Der Ofen läuft auf kleinster Stufe: ohne ihn bleibt der Raum mindestens bis {hour} Uhr über {minimum} °C",
         "stove_rising": "Der Ofen läuft auf kleinster Stufe und der Raum wird weiter wärmer: {change} °C mehr in 30 min",
+        "below_house": "{gap} °C unter dem Mittel des Hauses ({mean} °C): Tür zu, Heizkörper frei, Fühler gut platziert?",
+        "below_house_far": "{gap} °C unter dem Mittel des Hauses ({mean} °C): der Ofen heizt diesen Raum wenig",
         "doubtful": "Zweifelhafter Messwert", "doubtful_air": "Die Temperatur scheint falsch ({why}): kein Rat, solange sie es ist",
         "doubtful_aside": "Zweifelhafter Messwert, beiseitegelassen: {what}", "doubt": "{measure} ({why})",
         "doubt_range": "{value}: unmöglicher Wert", "doubt_jump": "plötzlicher Sprung auf {value}", "doubt_frozen": "unverändert seit {since}",
@@ -230,15 +339,26 @@ TEXTS = {
         "outside_drier": "Draußen ist die Luft trockener als hier: Lüften trocknet",
         "outside_wetter": "Draußen ist die Luft feuchter als hier: Lüften würde die Feuchte erhöhen",
         "outside_same": "Draußen ist die Luft so feucht wie hier: Lüften trocknet nicht",
+        "outside_drier_later": "Gegen {at} ist die Luft draußen trockener als hier: der richtige Moment zum Lüften",
         "open_warms": "Offen lassen: der Raum hat seit {since} {change} °C gewonnen",
         "open_cools": "Offen lassen: der Raum hat seit {since} {change} °C verloren",
         "time": "{h}:{m:02d} Uhr", "time_hour": "{h} Uhr",
         "north": "Norden", "north_east": "Nordosten", "east": "Osten", "south_east": "Südosten", "south": "Süden",
         "south_west": "Südwesten", "west": "Westen", "north_west": "Nordwesten",
         "out_humidity": "Feuchte {value} % um {hour} Uhr", "out_co2": "CO₂ {value} ppm um {hour} Uhr",
-        "out_particles": "Partikel {value} µg/m³ um {hour} Uhr", "out_voc": "VOC {value} um {hour} Uhr", "out_nothing": "{what}: keine Geste wäre wirklich besser",
+        "out_particles": "Partikel {value} µg/m³ um {hour} Uhr", "out_voc": "VOC {value} um {hour} Uhr", "out_nothing": "{what}: im Moment nichts Besseres zu tun", "aside_line": "„{title}“ pausiert bis {at}: {line}",
         "held_open": "Offen: {air} °C um {hour} Uhr", "held_shut": "Geschlossen: {air} °C um {hour} Uhr",
-        "nothing_out": "Offen oder geschlossen: {air} °C um {hour} Uhr", "nothing_out_shut": "Keine Geste wäre wirklich besser: {air} °C um {hour} Uhr",
+        "nothing_out": "Offen oder geschlossen: {air} °C um {hour} Uhr", "nothing_out_shut": "{air} °C um {hour} Uhr: im Moment nichts Besseres zu tun",
+        "back_humidity": "Feuchte sinkt von selbst unter {mark} % {when}", "back_co2": "CO₂ sinkt von selbst unter {mark} ppm {when}",
+        "back_particles": "Partikel sinken von selbst unter {mark} µg/m³ {when}", "back_voc": "VOC sinken von selbst unter {mark} {when}",
+        "back_at": "gegen {at}", "back_in": "in {minutes} Min.",
+        "back_open_humidity": "Feuchte sinkt unter {mark} % {when}, Fenster offen", "back_open_co2": "CO₂ sinkt unter {mark} ppm {when}, Fenster offen",
+        "back_open_particles": "Partikel sinken unter {mark} µg/m³ {when}, Fenster offen", "back_open_voc": "VOC sinken unter {mark} {when}, Fenster offen",
+        "under_way": "Lüftung läuft", "under_way_line": "{what} · gegen {at} schließen", "under_way_open": "{what} · offen lassen",
+        "under_way_resolved": "{what}: erledigt", "under_way_done": "{minutes} Min. gelüftet: {change}", "under_way_done_plain": "{minutes} Min. gelüftet",
+        "what_co2": "CO₂ {value} ppm", "what_particles": "Feinstaub {value} µg/m³", "what_voc": "VOC {value}", "what_humidity": "Feuchte {value} %",
+        "what_mould": "Feuchte {value} %", "what_heat": "{value} °C", "what_energy": "{value} °C",
+        "side": "Seite {names}", "where": "{title} ({side})",
     },
 }
 STEP_MINUTES = 5
@@ -306,11 +426,19 @@ def _name(gesture: Gesture, path, words, opened: bool) -> str:
     return words["shut"]
 
 
+# The subject said before is kept while the gesture lowers it by this share of what it lowers most (`phrase`).
+SUBJECT_KEPT = 0.8
+
+
 def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool = True,
-           marks: dict | None = None, hour: float | None = None, reason: str | None = None) -> dict:
+           marks: dict | None = None, hour: float | None = None, reason: str | None = None,
+           beyond_before: bool | None = None, keep_beyond: bool = False, subject_before: str | None = None,
+           calm_subject: str | None = None, hold_subject: bool = False, fixed: bool = False) -> dict:
     """The banner's title and line, and the lines of « Pourquoi ? »; `hour`: the local time now, for a later gesture;
     `marks`: the room's range and marks, as `Comfort` holds them; `reason`: the safety rule that shuts, if one does
-    (advisor/safety.py)."""
+    (advisor/safety.py); `beyond_before`: whether the last « Rien à faire » said a measure out of its range or mark
+    (« Au mieux »), kept while the forecast stays within EDGE of it; `keep_beyond`: « Au mieux » kept although the
+    forecast came back in its range, until it has stayed there a while (room/advice.py CALM_MINUTES)."""
     words = TEXTS[language]
     # A reinforced effect is said in the conditional (CAHIER-MOTEUR.md § 4.1).
     # A supposed one too, when the card keeps it a while (an airing under way, advisor/decide.py `under_way`).
@@ -330,6 +458,21 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     # Something is open when closing is one of the scenarios.
     opened = any(g.kind == "close" for g in decision.scenarios)
     gesture, subject = decision.gesture, subject_of(decision)
+    # The subject said before stays while the gesture still does about as much for it: the mould and the humidity took
+    # turns every half hour on an « Ouvrez » held two hours (bilan of 13 November, Chambre A, 7 h 04 to 8 h 34).
+    if subject_before and subject and subject_before != subject and gesture.kind != "nothing":
+        idle, chosen = decision.scenarios.get(reference(decision.scenarios, gesture)), decision.scenarios.get(gesture)
+        if idle and chosen and subject_before in idle and subject_before in chosen:
+            # `hold_subject`: the slot's subject, kept as long as the gesture lowers it at all.
+            lowered = idle[subject_before] - chosen[subject_before]
+            if (lowered > 0 if hold_subject else lowered >= SUBJECT_KEPT * (idle[subject] - chosen[subject])):
+                subject = subject_before
+    if decision.rule == "stale":
+        # Asked for the CO₂ measured: what the airing will be judged on (room/advice.py `aim`).
+        subject = "co2"
+    elif decision.rule == "urgent" and decision.measured:
+        # An urgency (advisor/board.py): asked for the measure that set it off, said on it.
+        subject = next(iter(decision.measured))
     if gesture.kind == "close" and gesture.after and gesture.after < SOON:
         # Shut in a few minutes: how long is left, said again at each step until « Refermez » (Frank, 1 November).
         title = words["close_soon"].format(after=gesture.after)
@@ -346,20 +489,54 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         title = words[gesture.kind].format(minutes=gesture.minutes, target=_degrees(gesture.target, language))
     paths = decision.paths
     line = ""
+    beyond_now = False
+    calm = None
     if gesture.kind == "nothing":
         # « Open or shut » only when something is open; « in your range » only when it is true (31 October, Chambre P at
         # 18 °C, its window open: « la pièce restera dans votre plage » was not).
         idle = paths.get(Gesture("nothing"))
-        if decision.passive is not None and idle is not None and idle.air:
+        # The subject said while the room stays calm, kept while it is still true within its EDGE (advisor/board.py):
+        # « 17,2 °C à 20 h » and « Humidité 70 % à 23 h » took turns nine times a day in each room (bilan of 16 November).
+        held_values = getattr(idle, calm_subject, None) if idle is not None and calm_subject in EDGE and calm_subject != "heat" else None
+        if decision.passive is None and calm_subject == "heat" and idle is not None and idle.air \
+                and _outside(idle.air[-1], marks["minimum"], marks["maximum"], EDGE["heat"], True):
+            line = words["nothing_out" if opened else "nothing_out_shut"].format(air=_number(idle.air[-1], language), hour=end_hour)
+            beyond_now, calm = True, "heat"
+        elif decision.passive is None and held_values \
+                and _outside(held_values[-1], float("-inf"), marks[calm_subject], EDGE[calm_subject], True):
+            what = words[f"out_{calm_subject}"].format(value=round(held_values[-1]), hour=end_hour)
+            line = words["out_nothing"].format(what=what)
+            beyond_now, calm = True, calm_subject
+        elif decision.passive is not None and idle is not None and idle.air:
             # A gesture held back for want of proof: « open or shut » would say it changes nothing, which is untrue.
             line = words["held_open" if opened else "held_shut"].format(air=_number(idle.air[-1], language), hour=end_hour)
-        elif idle is not None and idle.air and not marks["minimum"] <= idle.air[-1] <= marks["maximum"]:
+        elif idle is not None and idle.air and _outside(idle.air[-1], marks["minimum"], marks["maximum"], EDGE["heat"],
+                                                        beyond_before):
             line = words["nothing_out" if opened else "nothing_out_shut"].format(air=_number(idle.air[-1], language), hour=end_hour)
-        elif idle is not None and (beyond := _beyond(idle, marks)):
+            beyond_now, calm = True, "heat"
+        elif idle is not None and (beyond := _beyond(idle, marks, beyond_before)):
             # The heat in its range, not the rest (rejeu of 10 days: « dans votre plage » at 77 % of humidity).
             measure, value = beyond
             what = words[f"out_{measure}"].format(value=round(value), hour=end_hour)
             line = words["out_nothing"].format(what=what)
+            beyond_now, calm = True, measure
+        elif idle is not None and (back := _back_alone(idle, marks)):
+            # Above its mark now, back under it by itself before the end: not « la pièce restera dans votre plage » at
+            # 1 118 ppm (Salon · Cuisine, 8 November at 10 h 40), nor at a VOC of 441 while cooking (13 h 05).
+            measure, minutes = back
+            if hour is not None:
+                at = round((hour * 60 + minutes) / 5) * 5 % (24 * 60)
+                when = words["back_at"].format(at=_time(time(at // 60, at % 60), words))
+            else:
+                when = words["back_in"].format(minutes=minutes)
+            # A window open: the room is aired, not falling back « on its own » (Chambre A, 20 November at 8 h 44).
+            what = words[f"back_open_{measure}" if opened else f"back_{measure}"].format(mark=round(marks[measure]), when=when)
+            line = words["out_nothing"].format(what=what)
+            beyond_now, calm = True, measure
+        elif idle is not None and idle.air and keep_beyond:
+            # « Au mieux » kept: what it says stays true, no gesture would do better (room/advice.py CALM_MINUTES).
+            line = words["nothing_out" if opened else "nothing_out_shut"].format(air=_number(idle.air[-1], language), hour=end_hour)
+            beyond_now = True
         else:
             line = words["nothing_line" if opened else "nothing_shut"]
     if subject and paths:
@@ -375,7 +552,11 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             values = {"chosen": round(chosen.humidity[k]), "idle": round(idle.humidity[k])}
             if values["idle"] - values["chosen"] < 1:
                 line = say("humidity_brief")
-            elif hour is not None:
+            elif fixed and gesture.minutes:
+                # The slot's promise, said once for the slot and true whenever the window is opened: « vers 8 h 30 »,
+                # 9 h, 9 h 15, then 10 h as the morning went on (Chambre A, 20 November).
+                line = say("humidity_after", **values)
+            elif hour is not None and not fixed:
                 # Said to the quarter of an hour, or at the forecast's end for a window left open: a time that moved five
                 # minutes at every step changed the line each time (Chambre AL, 4 November).
                 if gesture.kind in ("open", "open_more", "keep") and not gesture.minutes:
@@ -388,8 +569,21 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         elif subject in ("co2", "particles", "voc"):
             series = getattr(chosen, subject)
             minutes = _back_under(series, marks[subject]) if series else None
-            if minutes:
-                line = say(subject, minutes=minutes)
+            if minutes and subject == "co2" and gesture.minutes and minutes <= gesture.minutes:
+                # Back under its mark before the airing ends: « Aérez 15 min : l'air pourrait redevenir sain en 5 min »
+                # read as a contradiction (Salon · Cuisine, 8 November at 15 h 40).
+                line = say("co2_during")
+            elif minutes and gesture.minutes and minutes > gesture.minutes and fixed:
+                after = minutes - gesture.minutes
+                line = say(f"{subject}_after", minutes=after if after <= 15 else int(round(after / 15) * 15))
+            elif minutes and gesture.minutes and minutes > gesture.minutes and hour is not None:
+                # Back under its mark after a timed airing has ended: said as an hour, « Aérez 5 min : le COV devrait
+                # retomber en 30 min » read as a contradiction (labo, 19 November at 9 h 26). To the quarter of an hour.
+                at = round((hour * 60 + minutes) / 15) * 15 % (24 * 60)
+                line = say(f"{subject}_at", at=_time(time(at // 60, at % 60), words))
+            elif minutes:
+                # To the quarter of an hour beyond one: « retombe en 30, 45, 60, 75 min » moved at every step.
+                line = say(subject, minutes=minutes if minutes <= 15 else int(round(minutes / 15) * 15))
                 # Opened on both sides: how much sooner than with the windows open now (« en 5 min au lieu de 15 »).
                 without = _back_under(getattr(idle, subject), marks[subject]) if gesture.kind == "open_more" else None
                 if without and without > minutes:
@@ -410,6 +604,10 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         line = words["overheat"].format(air=_number(m["air"], language), target=_degrees(m["target"], language),
                                         minutes=round(m["minutes"]))
         shaded.append("fact")
+    elif decision.rule == "stale" and decision.measured:
+        # The CO₂ measured high: a fact, said as such, whatever the windows' effect has shown here (advisor/decide.py STALE_CO2).
+        line = words["stale"].format(co2=round(decision.measured["co2"]))
+        shaded.append("fact")
     elif decision.rule == "safety" and reason and f"safety_{reason}" in words:
         line = words[f"safety_{reason}"]
         shaded.append("fact")
@@ -426,6 +624,13 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             line = words["maybe"].format(line=line) if tier == "_maybe" else line
         else:
             line = words["sure" if sure else "unsure"].format(line=line)
+    if decision.rule == "urgent" and decision.measured and line:
+        # An urgency says the measure that set it off first (advisor/board.py): « CO₂ 1 450 ppm : … ».
+        what, value = next(iter(decision.measured.items()))
+        if f"urgent_{what}" in words:
+            # « 1 450 ppm », the thousands apart as the card says them (a narrow space in French).
+            shown = f"{round(value):,}".replace(",", "\u202f" if language == "fr" else ",")
+            line = words[f"urgent_{what}"].format(value=shown, line=line)
     # « Pourquoi ? » compares two or three scenarios (CAHIER-MOTEUR.md § 14): doing nothing, the advice, and the best
     # other one when it differs.
     # « Laissez ouvert » is the scenario of doing nothing: said against shutting now, as its line is.
@@ -440,7 +645,7 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
             if path.humidity:
                 text += words["why_humidity"].format(humidity=round(path.humidity[-1]))
             why.append(text)
-    out = {"title": title, "line": line, "subject": subject, "why": why, "try": None}
+    out = {"title": title, "line": line, "subject": subject, "why": why, "try": None, "beyond": beyond_now, "calm": calm}
     if decision.passive is not None:
         # Held back for want of proof: said as a passive advice, to try.
         tried = phrase(replace(decision, gesture=decision.passive, passive=None, rule="best"), end_hour, language,
@@ -449,10 +654,56 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
     return out
 
 
-def _beyond(path, marks) -> tuple[str, float] | None:
-    """The first subject the room ends above its mark: humidity, CO₂, particles."""
+# Within this much of its range or mark, a forecast keeps what the last « Rien à faire » said of it: « Au mieux » and
+# « Tout va bien » took turns every half hour all night, the forecast at 18,6 °C for a range from 18,5 °C (7 November,
+# every room). Less than one feels, and than the twin is sure of.
+EDGE = {"heat": 0.3, "humidity": 2.0, "co2": 50.0, "particles": 2.0, "voc": 10.0}
+
+
+def _outside(value: float, low: float, high: float, edge: float, before: bool | None) -> bool:
+    """Whether `value` is out of [low, high]: clearly, or within `edge` of a bound as it was said before."""
+    if value < low - edge or value > high + edge:
+        return True
+    if low + edge <= value <= high - edge:
+        return False
+    return before if before is not None else not low <= value <= high
+
+
+def measured_out(now, marks: dict, before: bool | None = None) -> bool:
+    """Whether a measure of the room is out of its range or mark now, as measured (the pill « Au mieux » rather than
+    « Tout va bien »): clearly out by EDGE, or within EDGE of a bound as it was said `before`. Neither the line, nor the
+    rule, nor the rain or the alarm play a part (9 November: the 91 « Tout va bien » of a day all said at 62 to 82 % of
+    humidity, each time a « Gardez fermé : … » took the line's place)."""
+    checks = [(now.air, marks["minimum"], marks["maximum"], EDGE["heat"])]
+    checks += [(getattr(now, subject), float("-inf"), marks[subject], EDGE[subject])
+               for subject in ("humidity", "co2", "particles", "voc")]
+    clear_in = True
+    for value, low, high, edge in checks:
+        if value is None:
+            continue
+        if value < low - edge or value > high + edge:
+            return True
+        if not low + edge <= value <= high - edge:
+            clear_in = False
+    return False if clear_in else bool(before)
+
+
+def _back_alone(path, marks) -> tuple[str, int] | None:
+    """The first subject above its mark now (clearly, by EDGE) that comes back under it by itself within the forecast:
+    (subject, minutes until then)."""
+    for subject in ("humidity", "co2", "particles", "voc"):
+        values = getattr(path, subject)
+        if values and values[0] > marks[subject] + EDGE[subject]:
+            minutes = _back_under(values, marks[subject])
+            if minutes:
+                return subject, minutes
+    return None
+
+
+def _beyond(path, marks, before: bool | None = None) -> tuple[str, float] | None:
+    """The first subject the room ends above its mark: humidity, CO₂, particles; within EDGE of it, as said before."""
     for subject, values in (("humidity", path.humidity), ("co2", path.co2), ("particles", path.particles), ("voc", path.voc)):
-        if values and values[-1] > marks[subject]:
+        if values and _outside(values[-1], float("-inf"), marks[subject], EDGE[subject], before):
             return subject, values[-1]
     return None
 
@@ -466,6 +717,81 @@ def tonight_text(decision: Decision, wake_hour: int, language: str = "fr", marks
 
 def _time(when, words) -> str:
     return words["time_hour"].format(h=when.hour) if when.minute == 0 else words["time"].format(h=when.hour, m=when.minute)
+
+
+def _thousands(value: float, language: str) -> str:
+    return f"{round(value):,}".replace(",", "\u202f" if language == "fr" else ",")
+
+
+def act_text(kind: str, minutes: int | None, language: str = "fr") -> str:
+    """A gesture said as one does it, lower case: « aérer 5 min », « lancer la VMC rapide 30 min »."""
+    words = TEXTS[language]
+    key = f"act_{kind if kind in ('boost', 'purify') else 'open'}"
+    return words[key].format(minutes=minutes or 10)
+
+
+def day_title(kind: str, minutes: int | None, language: str = "fr") -> str:
+    """A gesture in the day's list (« Maintenant, puis »): « Aérer 30 min », « VMC rapide 30 min »."""
+    words = TEXTS[language]
+    return words[f"day_{kind if kind in ('boost', 'purify') else 'open'}"].format(minutes=minutes or 10)
+
+
+def aside_urgent(subject: str, value: float, kind: str, minutes: int | None, language: str = "fr") -> str:
+    """An urgency left unfollowed, said plainly (Frank, 17 November: « « Aérez 10 min » en pause jusqu'à 10 h 45 », « on ne
+    sait pas comment interpréter cette phrase »): the measure, the gesture, and no hurry. The next reminder is the « i »'s."""
+    words = TEXTS[language]
+    return words[f"aside_urgent_{subject}"].format(value=_thousands(value, language), gesture=act_text(kind, minutes, language))
+
+
+def next_moment(slot: str, at, kind: str, minutes: int | None, language: str = "fr") -> str:
+    """« Prochain bon moment : cet après-midi vers 15 h, aérer 30 min » (ETAT-DES-LIEUX-MOTEUR.md, bandeau « Maintenant, puis »)."""
+    words = TEXTS[language]
+    return words["next_moment"].format(when=words[f"slot_{slot}"], at=_time(time(at.hour, at.minute - at.minute % 5), words),
+                                       gesture=act_text(kind, minutes, language))
+
+
+def before_after(subject: str, before: float | None, after: float | None, language: str = "fr") -> str | None:
+    """What an airing did, as measured: « 68 % → 61 % », « 1 450 → 820 ppm », « 19,2 → 18,4 °C »."""
+    if before is None or after is None:
+        return None
+    if subject == "humidity":
+        return f"{round(before)} % → {round(after)} %"
+    if subject == "co2":
+        return f"{_thousands(before, language)} → {_thousands(after, language)} ppm"
+    if subject == "particles":
+        return f"{round(before)} → {round(after)} µg/m³"
+    if subject == "heat":
+        return f"{_number(before, language)} → {_number(after, language)} °C"
+    return f"{round(before)} → {round(after)}"
+
+
+def normal_humidity(value: float, language: str = "fr") -> str:
+    """A room humid by nature, at its normal: « Humidité 77 % : normal pour cette pièce »."""
+    return TEXTS[language]["normal_humidity"].format(value=round(value))
+
+
+def dwelling_lines(card: dict | None, language: str = "fr") -> list[str]:
+    """What is chronic in a room (advisor/identity.py), said as an advice for the dwelling, not a daily one: the Chambre
+    P, an old garage, lives at 75-80 % of humidity (Frank, 16 November: « cela peut se transformer en conseil du
+    logement »)."""
+    words = TEXTS[language]
+    out = []
+    for found in (card or {}).get("chronique") or ():
+        if found.get("sujet") == "humidite":
+            out.append(words["dwelling_humid"].format(median=round(found["mediane"])))
+        elif found.get("sujet") == "co2":
+            out.append(words["dwelling_co2"].format(high=round(found["haut"])))
+    return out
+
+
+def aside_line(alternative: dict, until, language: str = "fr") -> str:
+    """« Rien à faire » while a gesture that would help waits in its pause (not followed, or « Pas maintenant »): said as
+    such, never « aucun geste ne ferait vraiment mieux » (bilan of 11 November, Chambres P, M and AL at 20 h 36).
+    `alternative`: the words of the decision the pause took away; `until`: its local end."""
+    words = TEXTS[language]
+    at = round((until.hour * 60 + until.minute) / 5) * 5 % (24 * 60)
+    return words["aside_line"].format(title=alternative["title"], at=_time(time(at // 60, at % 60), words),
+                                      line=alternative["line"])
 
 
 def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
@@ -482,6 +808,11 @@ def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
         going = now is not None and v["start"] <= now
         key = ("sun_now" if going else "sun") + ("_strong" if tip.level == REINFORCED else "")
         line = words[key].format(window=window, start=_time(v["start"], words), end=_time(v["end"], words))
+        bonus = v.get("bonus")
+        if bonus is not None:
+            # The heating season: a bonus of warmth, without a figure (Frank, 20 November).
+            key = "sun_open" if bonus.get("closed") else "sun_bonus_if" if v.get("manual") else "sun_bonus"
+            return words[key].format(line=line)
         # What it does to the room, when known: the reason the line is there.
         return words["sun_gain"].format(line=line, gain=_number(v["gain"], language)) if v.get("gain") is not None else line
     if tip.kind == "mist":
@@ -496,6 +827,12 @@ def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
         return words[key].format(since=_time(v["since"], words), air_then=_number(v["air_then"], language),
                                  air=_number(v["air"], language), humidity_then=round(v["humidity_then"] or 0),
                                  humidity=round(v["humidity"] or 0))
+    if tip.kind in ("below_house", "below_house_far"):
+        return words[tip.kind].format(gap=_number(v["gap"], language), mean=_number(v["mean"], language))
+    if tip.kind == "outside_drier_later":
+        at = v["at"]
+        at = time(at.hour, at.minute // 5 * 5)
+        return words["outside_drier_later"].format(at=_time(at, words))
     if tip.kind.startswith("outside_"):
         return words[tip.kind].format(rh=round(v["outdoor_humidity"]), outdoor=_number(v["outdoor"], language),
                                       outside=_number(v["outside"], language), inside=_number(v["inside"], language))
@@ -549,3 +886,34 @@ def _why(d: dict, words: dict, language: str) -> str:
 
 def _doubt(d: dict, words: dict, language: str) -> str:
     return words["doubt"].format(measure=words[f"m_{d['mesure']}"], why=_why(d, words, language))
+
+
+def _measure_value(subject: str, value: float, language: str) -> str:
+    if subject == "co2":
+        return _thousands(value, language)
+    if subject in ("heat", "energy"):
+        return _number(value, language)
+    return str(round(value))
+
+
+def airing_words(way: dict, subject: str | None, value: float | None, before: float | None, local_end,
+                 language: str = "fr") -> dict:
+    """The airing followed, as the card says it (advisor/board.py `Board.under_way`): « Aération en cours » with what it
+    is for and when to shut, « Refermez » once it is done or its reason is sorted. `local_end`: its end, local."""
+    words = TEXTS[language]
+    what = words[f"what_{subject}"].format(value=_measure_value(subject, value, language)) \
+        if subject and value is not None and f"what_{subject}" in words else None
+    state = way["state"]
+    if state == "running":
+        if local_end is None:
+            return {"title": words["under_way"], "line": words["under_way_open"].format(what=what) if what else words["keep"]}
+        at = _time(time(local_end.hour, local_end.minute), words)
+        line = words["under_way_line"].format(what=what, at=at) if what else words["close_later"].format(at=at)
+        return {"title": words["under_way"], "line": line}
+    if state == "resolved" and what:
+        return {"title": words["close"], "line": words["under_way_resolved"].format(what=what)}
+    change = before_after("humidity" if subject == "mould" else subject, before, value, language) if subject else None
+    minutes = round(way["minutes"])
+    line = words["under_way_done"].format(minutes=minutes, change=change) if change else \
+        words["under_way_done_plain"].format(minutes=minutes)
+    return {"title": words["close"], "line": line}

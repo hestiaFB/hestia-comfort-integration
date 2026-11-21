@@ -24,6 +24,7 @@ Il suffit de changer le dossier. Tout le reste est repris seul.
    - Le Marketplace voit que l'ancien dossier n'est plus là et ne bloque plus.
    - Une réparation « intégration introuvable » peut apparaître pour Niak Confort : laissez-la, elle partira seule.
 4. **Paramètres → Marketplace → Hestia Confort → Télécharger** (la dernière version).
+   - Pour une bêta (par exemple 3.1.0b16), choisissez-la dans la liste des versions avant de télécharger : sinon, le Marketplace propose la dernière version stable.
 5. **Redémarrez Home Assistant.**
 6. **Paramètres → Appareils et services → Ajouter une intégration → Hestia Confort.**
    - Hestia Confort retrouve votre installation et la reprend : rien n'est créé en double.
@@ -61,7 +62,7 @@ Since 2.0, Hestia Confort's technical name is `hestia_comfort` (formerly `niak_c
 1. Make a backup (Settings → System → Backups).
 2. Delete the folder `/config/custom_components/niak_comfort` (File editor, Studio Code Server or Samba). Nothing else.
 3. Restart Home Assistant. A repair saying Niak Confort is not found may show: leave it.
-4. Settings → Marketplace → Hestia Confort → Download (latest version).
+4. Settings → Marketplace → Hestia Confort → Download (latest version). For a beta (such as 3.1.0b16), pick it in the list of versions first: otherwise the Marketplace offers the latest stable.
 5. Restart Home Assistant.
 6. Settings → Devices & services → Add integration → Hestia Confort. It finds your installation and carries it over: nothing is set up twice.
 7. Open Hestia-FB → Home: the « Moving to the Hestia name » box shows each step.

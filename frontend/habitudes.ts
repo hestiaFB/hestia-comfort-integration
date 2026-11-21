@@ -59,12 +59,12 @@ export function questions(o:HabitsContext):Asked[]{
  return list;
 }
 
-const seen=(f:Foyer,key:Question)=>(f.repondu??[]).includes(key);
+export const seen=(f:Foyer,key:Question)=>(f.repondu??[]).includes(key);
 /** The questions not answered yet (« Ça dépend » or « Je ne sais pas » count: a question is never asked twice). */
 export function unanswered(o:HabitsContext):number{return questions(o).filter(q=>!seen(o.foyer,q.key)).length;}
 /** Where the questionnaire opens: its first question not answered yet (the first one when all are). */
 export function firstUnanswered(o:HabitsContext):number{const i=questions(o).findIndex(q=>!seen(o.foyer,q.key));return i<0?0:i;}
-const noted=(f:Foyer,key:Question):Foyer=>({...f,repondu:[...new Set([...(f.repondu??[]),key])]});
+export const noted=(f:Foyer,key:Question):Foyer=>({...f,repondu:[...new Set([...(f.repondu??[]),key])]});
 
 /** What a choice opens: the empty hours, the laundry's rooms, the weekend's waking hour. */
 function extra(o:HabitsContext,key:Question):TemplateResult|typeof nothing{
@@ -77,6 +77,15 @@ function extra(o:HabitsContext,key:Question):TemplateResult|typeof nothing{
    @click=${()=>change({...f,linge_pieces:chosen.includes(r.entry_id)?chosen.filter(x=>x!==r.entry_id):[...chosen,r.entry_id]})}>${r.title}</button>`)}</span>`;}
  if(key==='fin_weekend'&&f.sommeil?.fin_weekend){const s=f.sommeil;return html`<span class="nk-unit">${t('Vers')}</span>${time(t('Lever du week-end'),s.fin_weekend!,v=>change({...f,sommeil:{...s,fin_weekend:v}}))}`;}
  return nothing;
+}
+
+/** One question as the installation guide shows it (guide.ts): its title and why, then its choices and what they open. */
+export function questionBody(o:HabitsContext,key:Question):{title:string;why:string;body:TemplateResult}|null{
+ const q=questions(o).find(x=>x.key===key);if(!q)return null;
+ const f=o.foyer,value=q.value(f,seen(f,q.key)),more=extra(o,q.key);
+ return {title:q.title,why:q.why,body:html`${q.group===t(VOLETS)?html`<p class="hb-rooms">${o.manual.join(', ')}</p>`:nothing}
+ <div class="hb-choices" role="group" aria-label=${q.title}>${q.choices.map(([v,l])=>html`<button type="button" class="hb-choice" aria-pressed=${String(value===v)} ?disabled=${o.busy} @click=${()=>o.change(noted(q.answer(f,v),q.key))}>${l}</button>`)}</div>
+ ${more===nothing?nothing:html`<div class="hb-more">${q.key==='linge_pieces'?html`<span>${t('Dans quelle pièce ?')}</span>`:nothing}${more}</div>`}`};
 }
 
 function row(o:HabitsContext,q:Asked):TemplateResult{

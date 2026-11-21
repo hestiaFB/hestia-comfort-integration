@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import {build} from 'esbuild';
 const root=new URL('../',import.meta.url),temp=await mkdtemp(join(tmpdir(),'hestia-comfort-card-'));
-await build({entryPoints:['src/types.ts','src/view.ts','src/live.ts','src/views/room.ts','src/views/horizon.ts','src/ui/scene.ts','src/editor.ts','src/hass-change.ts'].map(p=>fileURLToPath(new URL(p,root))),outdir:temp,
+await build({entryPoints:['src/types.ts','src/view.ts','src/live.ts','src/views/room.ts','src/views/full.ts','src/views/advisor3.ts','src/views/horizon.ts','src/ui/scene.ts','src/editor.ts','src/hass-change.ts'].map(p=>fileURLToPath(new URL(p,root))),outdir:temp,
   bundle:true,platform:'node',format:'esm',outExtension:{'.js':'.mjs'},logLevel:'silent'});
 const {cleanConfig,cleanHomeConfig,homeAction,cleanReviewConfig,kindOf,KINDS}=await import(pathToFileURL(join(temp,'types.mjs')));
 const {isView,numeric,summary,readingStatus,coverageText,windFrom,evolutionLines,co2Metric,solarMetric}=await import(pathToFileURL(join(temp,'view.mjs')));
@@ -777,4 +777,71 @@ test('the banner draws each gesture as its scene: the window and which way the a
   assert.equal(sceneFor(s('Mesures en chargement','clock','neutral'),room('incomplete_data')),null);
   assert.equal(sceneFor(s('Mesures absentes','mute','neutral'),room('incomplete_data')),null);
   assert.equal(hourOf(-10),'night');assert.equal(hourOf(25),'day');assert.equal(hourOf(2,new Date('2026-11-02T08:00:00')),'dawn');assert.equal(hourOf(2,new Date('2026-11-02T17:30:00')),'dusk');
+});
+
+test('« Bon à savoir » of the full card: one folded box, the dated lines in « À venir », the heating said once (7 November)',async()=>{
+  const {fullBody}=await import(pathToFileURL(join(temp,'views/full.mjs')));
+  const flat=t=>t==null?'':Array.isArray(t)?t.map(flat).join(''):typeof t!=='object'?String(t):t.strings?t.strings.map((x,i)=>x+(i<t.values.length?flat(t.values[i]):'')).join(''):'';
+  const at=new Date(Date.now()+2*3600e3);at.setSeconds(0,0);const hh=`${at.getHours()} h ${String(at.getMinutes()).padStart(2,'0')}`;
+  const v={...fresh(),advisor:{title:'Rien à faire',attributes:{regle:'nothing',geste:'nothing',bon_a_savoir:[
+    `Chauffage prévu à ${hh} : 20 °C visés`,"Dehors, l'air est plus sec qu'ici : aérer assèche",
+    "Ouverte depuis 9 h 05 : 19,2 → 18,8 °C : elle renouvelle peu l'air","Chauffage éteint : le rallumer donnerait 1,2 °C de plus d'ici 22 h"]}}};
+  v.assessment={...v.assessment,features:{...v.assessment.features,planned:{at:at.toISOString(),preset:'comfort',temperature:20}}};
+  const config=cleanConfig({type:'custom:hestia-comfort-card',format:'full'});
+  const st=open=>({why:false,tilesOpen:true,detailsOpen:false,knowOpen:open,uid:'t',toggle(){}});
+  const folded=flat(fullBody(v,config,st(false),[])),opened=flat(fullBody(v,config,st(true),[]));
+  // Folded: the box says how many lines, none of them.
+  assert.match(folded,/Bon à savoir<\/span><span class="nw-sum">3</);
+  assert.doesNotMatch(folded,/plus sec qu/);
+  // Unfolded: the three lines without a time to come, the past and the horizon among them.
+  for(const x of [/plus sec qu/,/Ouverte depuis 9 h 05/,/d'ici 22 h/])assert.match(opened.split('nc-know')[1]??'',x);
+  // The heating's change is said once, in the banner's day (« Maintenant, puis », 17 November), no longer in « À venir ».
+  assert.equal((opened.match(/Chauffage prévu/g)??[]).length,0);
+  const {dayEvents}=await import(pathToFileURL(join(temp,'views/full.mjs')));
+  const said=dayEvents(v).map(e=>flat(e.text)+' '+flat(e.note)).join(' | ');
+  assert.equal((said.match(/Chauffage prévu/g)??[]).length,1);
+  assert.doesNotMatch(said,/confort \(20/);
+  // Without the engine's line, the card says the schedule's change itself.
+  const alone={...v,advisor:{...v.advisor,attributes:{...v.advisor.attributes,bon_a_savoir:[]}}};
+  assert.match(dayEvents(alone).map(e=>flat(e.text)+' '+flat(e.note)).join(' '),/confort \(20/);
+});
+
+test('the sun on the windows is said in the day, not lost (labo, 20 November at 11 h 16)',async()=>{
+  const {dayEvents}=await import(pathToFileURL(join(temp,'views/full.mjs')));
+  const {day3}=await import(pathToFileURL(join(temp,'views/advisor3.mjs')));
+  const flat=t=>t==null?'':Array.isArray(t)?t.map(flat).join(''):typeof t!=='object'?String(t):t.strings?t.strings.map((x,i)=>x+(i<t.values.length?flat(t.values[i]):'')).join(''):'';
+  const end=new Date(Date.now()+3*3600e3);end.setSeconds(0,0);const hh=`${end.getHours()} h ${String(end.getMinutes()).padStart(2,'0')}`;
+  const v={...fresh(),advisor:{title:'Rien à faire',attributes:{regle:'nothing',geste:'nothing',bon_a_savoir:[
+    `Grand soleil sur la fenêtre sud jusqu'à ${hh} : environ +1,1 °C au coucher, si les volets sont ouverts`]}}};
+  const events=dayEvents(v);
+  assert.equal(events.length,1);
+  assert.equal(events[0].ic,'sun');
+  const out=flat(day3({},events));
+  assert.match(out,/data-k="?sun/);
+  assert.match(out,/Grand soleil sur la fenêtre sud/);
+  assert.match(out,/au coucher/);
+});
+
+test('« Maintenant, puis »: under the advice, the day done then what comes, hour by hour (17 November)',async()=>{
+  const {day3}=await import(pathToFileURL(join(temp,'views/advisor3.mjs')));
+  const flat=t=>t==null?'':Array.isArray(t)?t.map(flat).join(''):typeof t!=='object'?String(t):t.strings?t.strings.map((x,i)=>x+(i<t.values.length?flat(t.values[i]):'')).join(''):'';
+  const now=Date.now(),iso=(h)=>new Date(now+h*3600e3).toISOString();
+  const out=flat(day3({journee:[{heure:iso(-2),genre:'fait',titre:'Aérée 15 min',detail:'68 % → 61 %'},{heure:iso(-1),genre:'rate',titre:'Aérer 10 min',detail:'pas fait'},
+    {heure:iso(3),genre:'probable',titre:'Aérer 30 min',detail:'probable'}]},[{when:now+3600e3,at:'+1 h',ic:'heat',text:'Chauffage',note:'21,5 °C'}],now));
+  assert.match(out,/Aujourd’hui/);
+  // Done, then missed, then the heating, then the likely airing: in time order.
+  const order=['Aérée 15 min','Aérer 10 min','Chauffage','Aérer 30 min'].map(x=>out.indexOf(x));
+  assert.deepEqual([...order].sort((x,y)=>x-y),order);
+  assert.ok(order.every(i=>i>=0));
+  // Nothing to say: nothing drawn.
+  assert.equal(typeof day3({},[],now),'symbol');
+});
+
+test('the room asleep: a small moon on the banner, its waking hour said, none by day (8 November)',()=>{
+  const wake=new Date(2026,10,9,6,45).toISOString();
+  const at=(advice3)=>slides({...fresh(),advisor:{title:'Rien à faire',attributes:{geste:'nothing',regle:'nothing',...advice3}}})[0];
+  assert.equal(at({nuit:true,reveil:wake}).night,'6 h 45');
+  assert.equal(at({nuit:true,reveil:new Date(2026,10,9,7,0).toISOString()}).night,'7 h');
+  assert.equal(at({nuit:false,reveil:null}).night,undefined);
+  assert.equal(at({nuit:true}).night,undefined);
 });

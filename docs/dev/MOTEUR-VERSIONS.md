@@ -20,6 +20,237 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.22.3 — 21 novembre 2026
+
+Labo en 3.22.2, Salon · Cuisine, 21/11 : 8 h 56 urgence particules « Aérez 5 min côté Salon », 9 h 01 22 « Rien à faire » (règle nothing, « repassent seules sous 15 µg/m³ vers 9 h 20 », PM2.5 43), 9 h 06 22 de nouveau urgence (PM2.5 40) ; fenêtres fermées ; 26 et 34 µg/m³ mesurés à 9 h 20. `urgent_decision` renvoyait None quand aucun scénario ne baissait strictement le coût du sujet (prévision de baisse seule).
+- `urgent_decision` : sans scénario qui aide et avec `before` (le geste demandé par cette urgence), ce geste est gardé si son coût du sujet ≤ celui de `nothing` (jamais quand aérer ferait pire, dehors plus chargé).
+- `Board.urgent_now` : l'urgence finie (mesure sous le seuil de sortie) oublie son geste (`asked.pop`) ; mise de côté, elle le garde pour « … quand vous pourrez ».
+- Tests : tests/test_bilan_19_novembre.py `UrgencyDoesNotGoAndComeBack`.
+
+### 3.22.2 — 20 novembre 2026
+
+Labo en 3.22.1, 13 h 19 : toujours « Grand soleil ». Prévisions horaires (Météo-France, met.no) « sunny » de 14 h à 16 h sans couverture ; état actuel « cloudy » partout ; station 100 à 150 W/m², à l'ombre l'après-midi (`sun_missed` None).
+- `AdvisorHome._sky_now()` : `api.sky_now()` de Hestia Weather (ajout compatible de l'API v1, Weather 4.2, branche ciel-actuel), min(`sky_factor` de la couverture, `CONDITIONS` de la condition) ; None sans la méthode.
+- `sun_today` : pour l'heure en cours et les `SKY_NOW_HOURS` = 2 suivantes, sky = min(prévu, maintenant).
+- Choix de Frank (carte de décision, 13 h 22) : « Weather partage le ciel actuel ».
+
+### 3.22.1 — 20 novembre 2026
+
+Labo, 13 h 12 (Frank) : « Grand soleil » sous un ciel gris. Open-Meteo `shortwave_radiation` 395/341/321 W/m² à 12, 13, 14 h ; station 154/130/100 ; Météo-France « nuageux », met.no 51 %. `sun_missed` restait None : la station est à l'ombre l'après-midi.
+- `AdvisorHome.sky` : heure UTC → min(`sky_factor` de la couverture, `CONDITIONS` de la condition) lus dans Hestia Weather. `AdvisorHome.sun_today(now)` : {heure: (soleil corrigé par `sun_missed` comme `coming`, sky)}.
+- `RoomView.sky` ; `knowing.CLEAR_SKY = 0.75` : une heure sous ce ciel vaut 0 W/m² pour `strong` et `bright` (le bonus et « Grand soleil »). Éclaircies (0,6) et nuageux (0,25) en dessous.
+- Tests : tests/test_soleil_gain.py (nuageux, nuageux à 50 % de couverture, couvert à 90 %, quelques nuages).
+
+### 3.22.0 — 20 novembre 2026
+
+Frank, 11 h 39 : « trop de paramètres […] un conseil passif […] un bonus de chaleur, sans précisions, de telle heure à telle heure, suivant l'orientation ». Labo, 11 h 25 : Chambre A `glass` appris 0,013 contre 0,44 en Chambre M, mêmes fenêtres déclarées (S, volets manuels), même soleil ; le 19/11 de 11 h à 14 h sans poêle, A +0,8 °C, M +1,0 °C.
+- `sun_saved` et `_dark` retirés (decide.py), `SUN_ENERGY`, `SUN_KEPT`, `SUN_STEPS` aussi. `RoomView.sun_bonus` = {closed} en saison de chauffe (pas la nuit, pas l'été, air ≤ max), None sinon.
+- `sun_on_windows` : avec `sun_bonus`, la ligne sort si une heure de prévision ≥ `STRONG_SUN` (200 W/m²) reste sur la plage de la fenêtre, heure en cours comprise ; niveau renforcé ; textes `sun_bonus`, `sun_bonus_if`, `sun_open`, sans chiffre. Sans `sun_bonus` : l'ancienne règle (`sun_gain >= SUN_COUNTS`).
+- `sun_gain` n'est plus calculé en saison de chauffe. `snap["soleil"]` = {rechauffe (None en saison de chauffe), bonus}.
+- Tests : tests/test_soleil_gain.py réécrit (bonus, journée grise, fin du grand soleil, volets, anglais et allemand).
+
+### 3.21.2 — 20 novembre 2026
+
+Labo en 3.21.1, 11 h 16 : Chambres A et M à +1,5 °C/h au soleil, aucune ligne. Deux causes.
+- Moteur : avec `sun_saved`, l'ancienne règle (`sun_gain >= SUN_COUNTS`) n'était plus regardée. Maintenant : `sun_saved` sous ses seuils → l'ancienne règle et son texte (« +N °C dans la pièce »).
+- Carte (hors moteur) : `dayEvents` (card/src/views/full.ts) ne gardait que chauffage, pluie, température ; une ligne de « Bon à savoir » avec une heure part dans « Aujourd'hui », donc le soleil était jeté. Ajouté, `data-k="sun"`.
+- Instantané : `snap["soleil"]` = {rechauffe, jusqu_au_coucher, pas}, pour lire dans l'Atelier pourquoi une ligne manque.
+
+### 3.21.1 — 20 novembre 2026
+
+Labo en 3.21.0 depuis 9 h 38 : à 9 h 43, aucune ligne « Soleil sur … ». La règle était « kWh si thermostat, sinon °C » ; la spec dit « ou ». Une pièce au-dessus de sa consigne (Chambre A, 18,6 °C pour 18 °C) n'épargne aucun kWh.
+- `knowing.sun_on_windows` : la ligne s'affiche si `energy >= SUN_ENERGY` ou `kept >= SUN_KEPT`.
+- `words.tip_text` : « kWh en moins » seulement si le thermostat est simulé et `energy >= SUN_ENERGY`, sinon « +N °C au coucher ».
+- Cause possible aussi : ciel couvert ce matin-là. À revoir pendant une heure de soleil.
+
+### 3.21.0 — 20 novembre 2026
+
+Spec « Confort · Ce qui joue sur chaque pièce » (validée par Frank le 19 novembre), partie « Le soleil compté comme un gain ». Ligne d'information seulement : aucune valeur donnée aux calories dans le choix des gestes.
+- `decide.sun_saved(twins, now, coming)` : la pièce laissée telle quelle jusqu'au coucher, avec et sans soleil (`_dark`) ; {"energy": kWh de chauffage épargnés (thermostat simulé), "kept": °C gardés à la fin, "heated", "closed"}. Volet relié fermé (`cover <= SHUTTER_SHUT`) : ce que donnerait `shutter_open` au lieu du soleil.
+- `room/advice.py` : `sun_coming` jusqu'au coucher (`SUN_STEPS` = 14 h au plus), hors nuit, hors été, pièce sous son maximum ; sinon `None` et l'ancienne règle (`SUN_COUNTS`, 0,5 °C).
+- `knowing.sun_on_windows` : avec `sun_saved`, la ligne s'affiche si `energy >= SUN_ENERGY` (0,25 kWh, la moitié de `SIGNIFICANT["energy"]`) avec thermostat, sinon `kept >= SUN_KEPT` (0,3 °C, à régler au labo). `shutters_manual` (volets « manuel » déclarés) : « si les volets sont ouverts ».
+- `words` : `sun_spared[_if]`, `sun_kept[_if]`, `sun_open`, `sun_open_kept` en fr, en, de.
+- Charge : jusqu'à 3 simulations de 168 pas par pièce et par pas de 5 min. À mesurer au labo avant la stable (`hestia-labo/confort/`).
+- Tests : `tests/test_soleil_gain.py`.
+
+### 3.20.0 — 20 novembre 2026
+
+Maison en 3.19.4 (Confort 3.1.0b18), matinée du 20 novembre : conseils suivis puis « Rien à faire » 3 minutes après l'ouverture (Salon · Cuisine, urgence COV « Aérez 5 min » ; Chambres A et M, créneau « Aérez 20 min »). Cause : depuis 3.18.0, la couche du tableau (urgences, créneaux) est au-dessus de `decide`, qui ne reçoit plus `held` et dont le `previous` n'est jamais le geste d'urgence ; la famille « reponse » montrait donc le `nothing` de `decide`, qui suppose la fenêtre refermée d'elle-même après `airing_max` (`closing_in`).
+- `Board.start_airing(…, minutes, reason)` garde ce que le foyer a suivi : « urgence » (sujet et minutes de `Board.asked`) ou « creneau » (sujet et minutes du plan). `Board.under_way` : « running » jusqu'à la fin, « resolved » sous le seuil de sortie (urgence : `thresholds`, sinon le repère de CO₂/particules/COV), « done » à la fin ; mesure rapide encore au-dessus à la fin : +`EXTEND` (5) min, jusqu'à `max(airing_max, minutes)`. Raison absente (fenêtre ouverte d'elle-même) : `None`, `decide` répond comme avant.
+- `room/advice.py airing_shown` : en famille « reponse », le geste montré devient « close after N » (« en_cours »), `keep` sans durée, ou « close » (« reglee », « finie »). Fini ou réglé, il ne remplace que `nothing` ou un `close` immédiat : si `decide` veut garder ouvert pour autre chose, il parle. `words.airing_words` : « Aération en cours » / « COV 268 · refermez vers 8 h 45 » / « COV 69 : c'est réglé » / « Aérée 20 min : 67 % → 61 % ».
+- `Board.paused` et `RESUME` (3 min) : fenêtres refermées puis rouvertes, même aération (même début, même raison), et la ligne du jour n'est pas doublée. `Board.resumable` : la réouverture compte tout de suite (pas d'attente `OPEN_LEAST`). Créneau refermé en moins de `DONE_LEAST` : le plan revient (`plan.done = False`).
+- `young` ne vaut plus pendant une aération en cours : après un redémarrage, `opening` repart de zéro, ce qui terminait l'aération.
+- `advisor_home._window_moved` : une ouverture relance le conseil à `OPEN_LEAST + 5` s (`WINDOW_AGED`), en plus de `WINDOW_SETTLE`.
+- `decide.Twins.first` et `decide.one_side` : « open » ouvre un seul côté (le plus de fenêtres à moins de `CROSS_ANGLE`, la plus grande surface d'abord) ; le courant d'air reste `open_more`. `room/advice.py first_windows` : dans un air partagé, la partie qui porte le capteur du sujet (`spec()["parts"]`, `SOURCE_OF`), sujet pris de l'urgence, de l'aération en cours ou du plan. Le titre dit « côté Cuisine » (ou la direction pour une pièce seule sur deux côtés).
+- Créneau : `words.phrase(…, fixed=True)` → `humidity_after` (« … une heure après l'aération ») et `{co2,particles,voc}_after` (« … N min après avoir refermé »), calculé une fois au plan (`line_now`). `fresh_line` supprimée ; le recalcul ne sert plus qu'à retirer un créneau devenu inutile.
+- `words` : `back_open_{mesure}` quand une fenêtre est ouverte (« L'humidité repasse sous 60 % vers 8 h 55, fenêtre ouverte »), au lieu de « repasse seule ».
+- Tests : `tests/test_matinee_20_novembre.py` (rejeu de la matinée et tous les cas : COV, humidité, CO₂, chaleur ; passages, rafales, refermée tôt, réglée tôt, pire à la fin, pluie, laissée ouverte, redémarrage, nuit, deux pièces à une minute).
+- Limite connue : la mesure d'humidité de la Chambre A vue à 8 h 44 datait d'avant l'ouverture (capteur lent) ; rien à corriger côté moteur.
+
+### 3.19.4 — 19 novembre 2026
+
+Bilan du 19 novembre (labo en 3.19.2 depuis le 18 à 18 h 32, maison en 3.19.1).
+- `board.urgent_decision(…, before)` : le (geste, minutes) demandé au pas précédent pour cette mesure (`Board.asked`) est gardé s'il est encore parmi ceux qui font au moins 80 % de l'effet du meilleur. Chambre P, 18 novembre : 30, 25, 20, 25 min en 35 min.
+- `words.phrase(…, hold_subject=True)` : le sujet passé (`subject_before`) est gardé tant que le geste le baisse, sans le seuil `SUBJECT_KEPT`. `room/advice.py` le passe pour la phrase rafraîchie du créneau (`fresh_line`), avec le sujet du plan. Chambre AL, 18 novembre : humidité et moisissure en alternance, 6 fois en une heure.
+- `words.phrase` : CO₂, particules ou COV sous leur seuil après la fin d'une aération minutée → l'heure, au quart d'heure (`{sujet}_at`), au lieu des minutes. Salon · Cuisine, 19 novembre à 9 h 26 : « Aérez 5 min » / « le COV devrait retomber en 30 min ».
+- Pas corrigé : « Turbo conseillé » de la Chambre P en double au démarrage du labo (`ID …_boost already exists`, 17 et 18 novembre, quelques secondes après le démarrage, sans pile d'appels). Rien dans le code ne crée cette entité deux fois ; à reproduire au labo avec les journaux en debug.
+
+### 3.19.3 — 19 novembre 2026
+
+Retour du forum (3.1.0b16 depuis la 2.1.0b8) : 5 pièces sur « Conseil en attente » pendant une journée, aucun message dans le journal, « rien à régler » dans le panneau. Le lieu Hestia Weather n'a pas de station, donc aucune source `outdoor_temperature` : `_tick` s'arrêtait à `outdoor is None` à chaque pas.
+- `AdvisorHome._read_outdoor` : sans aucune entité de température dehors, la prévision (`self.forecast`, Hestia Weather ou Open-Meteo), interpolée entre ses deux heures (`_forecast_now`), tient lieu de dehors ; `retained` = {now: forecast, why: no_sensor}. Un capteur choisi mais muet n'est pas remplacé (c'est l'affaire des contrôles).
+- `advisor_home.result` : une pièce pas encore conseillée passé `EVERY` + 1 min après le démarrage dit ce qui manque (`waiting`) : `NO_OUTDOOR` ou `NO_AIR`, règle `waiting` gardée pour la carte, champ `manque`.
+- L'apprentissage de nuit reste sans dehors mesuré : il demande toujours un capteur dehors (son historique). Sans lui, la pièce garde ses jumeaux de départ.
+
+### 3.19.2 — 18 novembre 2026
+
+Point de suivi du 18 nov. (maison et labo en 3.19.1).
+- La sécurité (`reason` de `safety.forbidden`) ne fait la phrase du calme (« Gardez fermé : … ») que si elle retire un geste voulu (`board.held_back`) : le geste du créneau dont l'heure est venue (`held_plan`) ou l'aération d'une urgence mesurée sans autre geste possible (`urgent_held`). Sinon `calm_reason` est None : phrase du calme habituelle, prochain bon moment ou urgence en pause, et la sécurité va dans « À savoir » (`known_rain`, `known_rain_soon`, `known_gusts`, `known_vigilance`, `known_away`). Constat : 6 à 8 changements de phrase par pièce et par jour, 23 en Chambre P (pluie, absence, rien de mieux, normale).
+- « Normal pour cette pièce » (`normal_humidity`) gardé jusqu'à `EDGE["humidity"]` (2 points) au-dessus de son seuil une fois dit (`Board.calm_normal`, gardé au redémarrage).
+- Geste du créneau retenu par la sécurité (`held_plan`) : famille « calme » avec « Gardez fermé : … », plan gardé tel quel (pas de `refresh`, pas d'effacement à gain < GAIN/3, pas de nouvel événement `notified`). Constat au labo : Chambre A, AL, Buanderie, « Aérez 45 min » puis « Rien à faire » à l'arrivée de la pluie.
+- Urgence mise de côté : pas de retour avant `ASIDE_LEAST` 60 min, même au-delà de `WORSE` (`Urgent.aside_since`, gardé au redémarrage). Constat : COV revenu à 12 h 11 le 17 nov.
+- Au calme, l'astuce « ouvrir réchauffe / rafraîchit » mise en phrase est prise du conseil lui-même (`tip_text(good[0])`), plus de la première ligne de « À savoir », qui pouvait être la pluie ou la nuit.
+
+### 3.19.1 — 17 novembre 2026
+
+- Les moments des créneaux et des gestes probables tombent sur les demi-heures de l'horloge (`slots.moments`, `offset` = minutes depuis la dernière demi-heure) : « vers 12 h 20 » lu comme une heure au hasard à la maison le 17 nov. ; `LIKELY_FORM` 3 pour les recalculer.
+
+### 3.19.0 — 17 novembre 2026
+
+Premier matin de la 3.18.0 à la maison et choix de Frank pour le bandeau (« C · Maintenant, puis », maquette hestia-ecosysteme/maquettes/maquette-bandeau-journee.html).
+- La journée de la pièce (`Board.today`, `likely`, `airing`) : aération faite avec sa mesure avant / après (`start_airing` / `end_airing`, `DONE_LEAST` 3 min), geste de créneau manqué (`close_missed`, « pas fait »), gestes probables des créneaux suivants (`slots.following`, `slots.probable`, calculés une fois par créneau ou dès qu'ils manquent, `likely_for`). Résultat `journee` : [{heure, genre fait | rate | probable, titre, detail}].
+- Le geste du créneau reste jusqu'à la fin du créneau (`PLAN_GRACE` retiré) ; son heure venue, sa promesse est recalculée sur la pièce telle qu'elle est (`refresh`), et il s'efface s'il n'aide plus (gain < GAIN/3). Constat : « Aérez 10 min » de 7 h 04 effacé à 7 h 49.
+- Pièce humide par nature (carte d'identité, chronique humidité) : pas de geste de créneau ni de geste probable pour l'humidité ou la moisissure tant qu'elle reste à moins de `HUMID_LEAVE` de sa normale (`near_normal`). Constat : Chambre P « Aérez 45 min : moisissure » à 79 %.
+- Phrases sans mots du moteur : « rien de mieux à faire pour l'instant » ; urgence non suivie « COV encore élevé (387) : aérer 5 min aiderait, quand vous pourrez » (`aside_urgent`, le vrai geste gardé dans `Board.asked`) ; au calme, « Prochain bon moment : cet après-midi vers 15 h, aérer 30 min » (`next_moment`) ou « Humidité 77 % : normal pour cette pièce » (`normal_humidity`).
+- Carte : « Aujourd'hui » sous le conseil (`advisor3.ts` `day3`), avec le chauffage et la pluie de « À venir » (`full.ts` `dayEvents`) ; la section « À venir » n'est plus répétée sous le bandeau avec le moteur 3.
+
+### 3.18.0 — 16 novembre 2026
+
+Refonte de l'affichage (niak-comfort/docs/ETAT-DES-LIEUX-MOTEUR.md), demande de Frank du 16 nov. (« Tous les jours on a le même type d'erreur yoyo ») : 10 jours de maison, 43 yoyos (titre qui part et revient en 5 à 60 min sans fenêtre), 39 aérations sur 47 retirées sans geste, le plus souvent à 30 min pile (`HOLD_MINUTES`).
+- `advisor/slots.py` : quatre créneaux (matin du lever à `noon` 12 h, après-midi jusqu'à `evening` 18 h, soir jusqu'au coucher, nuit). Un geste par pièce et par créneau, décidé une fois au début du créneau par `decide(given=plan_pool(...))` : aérations `PLAN_AIRINGS` 10 à 60 min (`plan_max`, réglage `aeration_creneau_max_min`), moments toutes les `PLAN_EVERY` 30 min jusqu'à la fin du créneau, prévision jusqu'à `PLAN_AFTER` 120 min après. Signification jugée au bout fixe de cette prévision.
+- `advisor/board.py` : la mémoire de la carte. Familles : sécurité (`SAFE_RULES`), réponse à un geste (fenêtre ouverte depuis `OPEN_LEAST` 60 s ; urgente si fermer et la pièce sous son minimum), urgence mesurée (`URGENT` CO₂ 1400/1100, particules 25/15, COV 250/150 ; humidité normale de la pièce + `HUMID_ENTER` 8 / + `HUMID_LEAVE` 3, jamais sous `HUMID_FLOOR` 70, dehors plus sec de `DRIER` 2 g/m³), créneau, calme. Entrée d'une urgence après `ENTER_STEPS` 2 pas, `PATIENCE` 45 min puis de côté `ASIDE` 120 min sauf `WORSE`. Pas d'urgence la nuit. Geste d'urgence : `urgent_decision` (le moins cher qui baisse le sujet, le plus court à 80 %).
+- `advisor/identity.py` : carte d'identité refaite chaque nuit dans `learn_room` (`entry["identite"]`) : normale par créneau (14 j, p10/médiane/p90 air, humidité, CO₂), retard sur le dehors (corrélation 0-24 h), chaleur du jumeau en chiffres (perte en 1 h à −10 °C, inertie, chauffage, aération 20 min), eau aux bornes, aérations mesurées contre promises par créneau, habitudes d'ouverture (28 j, ≥ 3 min), chronique (humidité médiane ≥ 70 %, CO₂ p90 ≥ 1400) → `words.dwelling_lines` (« conseil du logement »).
+- `words.phrase(calm_subject=)` : sous « Rien à faire », le sujet dit reste tant qu'il est vrai (bande `EDGE`) ; règle `urgent` dite sur sa mesure.
+- `room/advice.py` : `decide` sans `held`, `tried`, `tried_held` (seul le compte à rebours en cours) ; retirés de l'affichage : `LINE_HOLD`, `EVENING_TOLERANCE`, `GRACE_MINUTES` (→ `OPEN_LEAST`), mise de côté `IGNORED` ; « À essayer » seulement pour le geste d'un créneau. Événement `hestia_comfort_conseil` à chaque nouveau conseil de créneau, urgence ou sécurité. Résultat : `famille`, `creneau`, `identite`, `conseil_logement`.
+- Couleurs (carte, `banner_level`) par famille : sécurité rouge « Attention », urgence orange « À faire », créneau vert « Bon moment », réponse bleu « En cours » (orange « À faire » pour refermer maintenant), calme bleu. Urgence dite avec sa mesure (`words` `urgent_*`). Mode sombre : `--nw-chip-tint` / `--nw-ink` (charte) et `--nc-wash` / `--nc-glow` (carte) relevés, palette inchangée.
+
+### 3.17.1 — 15 novembre 2026
+
+Bilan du dimanche 15 nov. (3.17.0 depuis le 13 nov. 15 h 08), accord de Frank (« Oui, corrige »).
+- Pluie : `safety.rain_for(held, measured, last, opened_since)` — la pluie tenue (`RAIN_KEPT`) ne vaut que pour une pièce fermée ou dont la fenêtre était déjà ouverte pendant la pluie ; `AdvisorHome.rain_now` garde la mesure avant tenue. Constat : 15 h 04 (pluie finie 14 h 52) et 16 h 21 en A, M, SdB (pluie finie 16 h 03), grande aération de la famille.
+- Poêle : la règle `overheat` exige `now.air > comfort.minimum` et se tait à `STOVE_BOOST_SOON` 90 min d'un créneau plus chaud du planning. Rejeux : Salon 14 nov. 19 h 55 « Coupez le poêle : 19,5 °C pour 14 °C visés » → « Rien à faire » ; 13 h 50 « 24,1 °C pour 21,5 » gardé. Le boost de 20 h 29 venait de l'automatisation du foyer, pas du planning du thermostat.
+- Gel : en saison de chauffe (`cold_season`), la raison `frost` est retirée (les ouvertures longues le sont déjà) : plus de bascule « Gardez fermé : le gel est annoncé » toutes les 30 min (nuit du 13 au 14 nov., prévision à 1 °C, 3,7 °C mesurés).
+- Soir : en saison de chauffe, à `tonight_before` h du coucher, `habits.tolerance` × `EVENING_TOLERANCE` 2 (seuils de signification doublés). Constat : « Aérez 25-30 min » A et M pour 4 points, 3 fois, jamais suivi.
+- Reste : effet de la VMC rapide de la Chambre P trop optimiste (« sous 60 % vers 23 h 15 », 68 % mesuré) — à étudier après la stable.
+- Tests : tests/test_bilan_15_novembre.py (4). 971 OK.
+
+### 3.17.0 — 13 novembre 2026
+
+Bilan du 13 nov. (jour 1 du gel en 3.16.0) et remarque de Frank sur la Chambre A (« prévu 57 %, c'est quand même assez flou et optimiste » : 72 → 57 % fenêtre ouverte, puis 65 %), accord « corrige tous les points ». Le gel repart de zéro.
+- Saison de chauffe (`room/advice.py` `cold_season` : pièce chauffée — thermostat, thermostat éteint, poêle ou chaleur de maison — et dehors sous le minimum de la plage) : `open_long` et `keep` interdits, jusque dans la décision de « en pause » (`safe_taken`) ; remplace la règle du soir de 3.16.0. Fenêtre ouverte : `Now.closing_in` = `habits.airing_max` − minutes d'ouverture ; `decide._open` ferme la fenêtre du scénario « rien » à ce moment. Rejeux Chambre A : 7 h 04 « Ouvrez » → « Aérez 30 min » ; 9 h 10 « Laissez ouvert 51 % à 12 h » → « Rien à faire — Humidité 65 % à 12 h » (mesuré 65-66 %).
+- Eau des murs : `RoomAdvisor.reserve` suivi à chaque pas (`_reserve_step`, `water_step` sur l'humidité mesurée), passé dans `Now.reserve` (toujours None avant : la réserve partait de l'air). Rejeu Chambre M 11 h 09 : 59 % → 65 % prévus à 13 h (mesuré 64-65 %). Attendu aussi sur la nuit de la Chambre P (pic de douche 92 % à 22 h 34, 91 % prévus à 7 h, 81 % mesurés).
+- Poêle : `Twins.house_idle_for` (`RoomAdvisor._idle_for` : `Habits.stove_idle_hold` 45 min, réglage `poele_ralenti_min`, moins le temps déjà passé à 0 %) ; `simulate` compte les minutes à 0 % et coupe la flamme minimale au-delà. Constat : 0 % à 11 h 14, éteint à 11 h 56 ; 66 min le 11 nov.
+- Passage : la grâce de `GRACE_MINUTES` vaut aussi pour `keep` (sauf après un « Aérez »/« Ouvrez »).
+- Tenue : `LATER_SLACK` 60 min ; `words.phrase(subject_before=)` garde le sujet précédent si le geste le baisse d'au moins `SUBJECT_KEPT` 0,8 fois le sujet principal.
+- Outil : `snapshot.restore` reprend `house_idle` et `house_idle_for`.
+- Bornes physiques du jumeau d'eau (accord de Frank « Oui, ajoute-les ») : `physics/water.bounded` / `within` — `EXCHANGE` 0,05-5 h⁻¹, `RESERVE` 2-50 volumes, sources 0-`SOURCES_MAX` 150 g/h, amplitude du rythme ≤ sources (jamais négatives). Appliquées dans la recherche (`airfit._stepper`), à l'enregistrement (`airfit.values`) et à l'usage (`room/advice.py`, jumeaux déjà appris corrigés sans attendre la nuit). Constat maison : AL −150 g/h, échange 54,6, réserve 0,02 ; Buanderie −7,6 ; P 147 ± 185 ; SdB réserve 44 (gardée). Rejeu Buanderie du labo : « Aérez 5 min : 59 % au lieu de 71 % » → 64 % puis 68 %.
+- Tests : tests/test_bilan_13_novembre.py (9). 967 OK.
+
+### 3.16.0 — 12 novembre 2026
+
+Bilan du 12 nov. (19 h de prod en 3.15.0), accord de Frank (« ok pour les corrections » + le poêle au ralenti « chauffe quand même ou maintient »). Mineur : la chaleur du poêle change pour toutes les pièces, jour et nuit.
+- Poêle au ralenti : `heaters.Heater.idle` (granulés 0,3) ; `room/advice.py` `house_given_now` (au moins `idle` en `heating`) pour `AdvisorHome.house_heat` et `house_heat_steps` ; `Twins.house_idle` ; `simulate` : brûlant (`now.house_running`), le poêle donne au moins `idle` tant que la consigne de son planning (`scheduled`) ne baisse pas, `heat_stop` l'éteint ; le delta part de `house_start`. Nuit : `lit_power(..., idle)`, `learn_room(..., house_idle)` (dernier argument, `advisor_home` le passe). `house_now` reste ce qui est demandé (`STOVE_LOW`, « Le poêle tourne au minimum »). Constat : 13 h 07 à 0 % « heating », Chambre M 20,0 → 21,7 °C de 12 h à 13 h 30, simulée sans poêle.
+- Pluie : `safety.rain_held`, `RAIN_KEPT` 30 min après la dernière pluie mesurée (`AdvisorHome.rain_last`). Constat : bruine 11 h 11 → 14 h 03, 6 bascules dans 7 pièces.
+- Soir : `open_long` interdit dans une pièce au thermostat en chauffe quand `bed_in` ≤ `habits.tonight_before` h. Rejeu Chambre AL 11 nov. 20 h 35 : « Ouvrez » → « Rien à faire » (une aération courte ne change rien de net).
+- Tenue : `LATER_SLACK` aussi de maintenant à plus tard (`after` None = 0). Rejeu Salon 11 nov. 21 h 00 : « Aérez 10 min vers 21 h 30 » → « Aérez 25 min » gardé. `line_held` clé sur le titre seul (best → kept cassait la tenue).
+- Tests : tests/test_bilan_12_novembre.py (8). 959 OK.
+
+### 3.15.1 — 12 novembre 2026
+
+Demande de Frank (12 nov.) : le template chauffage (`chauffage/maison/3-bilan-template.yaml`, `plus_froide`, `S.ecart_zone`) disait « Antoine est 1,8 °C sous la moyenne de la maison », la carte de la Chambre A rien (19,3 °C « Agréable » dans sa plage).
+- `advisor/knowing.py` `below_house` (fournisseur, information, jamais un geste : aucune porte intérieure connue du moteur) : `RoomView.house` = (moyenne de l'air des autres pièces au dernier pas, part du poêle apprise `twins.heat.share`), seulement quand un chauffage de maison est en `heating` ; dit si moyenne − air ≥ `Habits.house_gap` (réglage `ecart_maison`, 1,5 °C par défaut), pas la nuit. `below_house_far` si la part < `SMALL_SHARE` 0,15 (« le poêle chauffe peu cette pièce »), sinon les questions du template.
+- `room/advice.py` `_house(home, name, twins)` : une pièce par nom (air partagé compté une fois), au moins deux autres pièces.
+- Tests : tests/test_maison_moyenne.py (4). 951 OK.
+
+### 3.15.0 — 11 novembre 2026
+
+Bilan du 11 nov. (24 h de prod en 3.14.1), accord de Frank (« Les points 1 à 4 » puis « et le reste »). Mineur : le score de l'apprentissage change pour toutes les pièces.
+- Humidité dehors : `advisor_home.py` `coming()` ne prend plus `rh = fc[1]` brut avec la température recalée ; l'eau (g/m³) de la prévision, calculée sur sa propre température, est recalée sur la station (`water_offset`, même fondu que la température, `OFFSET_STEPS`), bornée à la saturation. Constat : 15 h 47, station 19,6 °C / 78 % (13,2 g/m³), moteur 15,4 g/m³ → « Refermez » Salon (77 % contre 72 %) ; rejeu de l'instantané avec la station : « Rien à faire ».
+- Poêle dans les autres pièces : `Path.stove` (part donnée par pas, pièce du poêle) → `AdvisorHome.stove_paths` ; `house_heat_steps(now, steps)` les suit (≤ `STOVE_PATH_KEPT` 15 min, décalé du temps écoulé), sinon la puissance du moment. Avant, `Inputs.house_heat` restait à `power_percent` du moment tout l'horizon : allumage à 12 h 38 (100 %), Chambre M (part 0,12) 24,8 °C prévus à 15 h, 21,8 mesurés.
+- Geste mis de côté (`left_aside`, « Pas maintenant ») : `put_aside`/`aside_until`/`safe_taken` ; sous « Rien à faire », une décision sans eux ; si elle choisit un geste mis de côté, `words.aside_line` (« « Ouvrez » en pause jusqu'à 22 h 35 : … »), `snap["en_pause"]`.
+- « À savoir » : `RoomView.airing_at` (eau dehors au départ de l'aération du bandeau, son heure) ; `outside_water` dit `outside_drier_later` si l'air sera plus sec à ce moment, sinon rien au lieu de `outside_same`/`outside_wetter`.
+- Apprentissage : `airfit._run` ajoute `night` (prévision à 8 h, `NIGHT` 96 pas, toutes les `NIGHT_EVERY` 6 h, sans correction) ; `score` + `NIGHT_WEIGHT` 0,5 × sa moyenne. Rejeu de la nuit Chambre P (sources 186 g/h à minuit, fuites ×3,72) : 86 % prévus à 7 h, 82 % mesurés.
+- Tenue : `decide.LATER_SLACK` 30 min (« Aérez … vers … » gardé si même geste, moment proche, gain ≥ GAIN/2) ; « À essayer » garde son texte pour le même (geste, durée) ; `LINE_HOLD` 30 min sur le sujet de la phrase sous le même (titre, règle), sauf pause et règles de fait.
+- Suivi : `feedback.Asked.minutes/opened_at` ; une aération est suivie après `AIRED_SHARE` 0,5 de sa durée (`AIRED_LEAST` 5 min), sinon notée non suivie avec `trop_court`.
+- Tests : tests/test_bilan_11_novembre.py (11) ; test_advisor_feedback et test_api_gestures adaptés. 947 OK (HA 2026.11.0).
+
+### 3.14.1 — 10 novembre 2026
+
+Bilan du 10 nov. (19 h de prod en 3.14.0), accord de Frank (« ok pour les 4 » + la VMC arrêtée à la main).
+- Poêle en attente : `room/advice.py` `stove_waiting(hass, e)` (`power_percent` > 0 et `hvac_action` ≠ `heating`, thermostat en `heat`) et `house_power_now`. En attente, `house_thermostat` vaut None (le poêle n'est pas simulé) et `house_now` 0 ; `advisor_home.py` `house_heat()` passe par `house_power_now`. Au repos (hors-gel, 0 %), le poêle reste simulé avec son planning. Constat : le 10 nov. à 6 h-6 h 15 et 17 h-17 h 15, `boost` 21,5 et 100 % demandés, `idle` (confirmation non donnée, prise à 0 W) ; prévisions à 20 h : Salon 21,7 °C (mesuré 19,1), Chambre M 23,1 (19,9), Salle de bain 23,0 (18,7). Le 3 nov., une fois allumé, `heating` arrive en une minute.
+- Nuit : `advisor/bench/history.py` `lit_power` remplace `attribute(..., "power_percent")` pour les chauffages de la maison dans `nightly.samples` (0 en attente ; sans `hvac_action` dans l'historique, la puissance reste comptée).
+- Parts du poêle : `advisor_home.py` `share_caps` (au-dessus de 100 %, chaque pièce garde sa part du total ; en dessous, chacune peut monter de ce qui reste), passées à `learn_room(..., share_max=)`. La part est ramenée sous le plafond avant le jugement (rapport `part_maison`), puis `fit(share_max=)` → `params_of`. Avant : Salon 0,55, SdB 0,27, AL 0,15, M 0,15, A 0,09, P 0,07 (total 1,28).
+- Journal : `phrase_subject` (chiffres → #) ; une ligne `motif: "phrase"` quand seul le sujet de la phrase change, sans instantané ; `journaled` passe à 4 éléments.
+- VMC (`engine/ventilation.py`, hors moteur mais livrée avec) : `NIGHT_SHOWER` 20 min de turbo la nuit ; arrêt à la main (`advise(..., running)`, état réel lu par `coordinator._vmc_running`) → `MANUAL_REST` 2 h sans rien conseiller, levé par une nouvelle douche, la petite vitesse d'une VMC « en continu » gardée ; repos de l'extracteur doublé à chaque heure inutile (`rests`, plafond `REST_MAX` 8 h), levé si l'air dehors est plus sec d'au moins `CLEARER` 1 g/m³. Constat : le 9 nov., douche détectée à 23 h 22 (79 → 87 %), L1+L2 jusqu'à l'arrêt à la main à 23 h 52, puis L1 relancée de 0 h 10 à 0 h 13 par l'automatisation à la fin du turbo.
+- Tests : `tests/test_bilan_10_novembre.py`, `NightShowerTests`, `StoppedByHandTests`, `LongerRestTests`.
+
+### 3.14.0 — 9 novembre 2026
+
+Points 1 et 2 du bilan du 9 nov., accord de Frank (« Oui, les deux »).
+- Pastille : `advisor/words.py` `measured_out(now, marks, before)`. Hors plage si une mesure (air, humidité, CO₂, particules, COV) dépasse sa limite de plus de `EDGE`. Dans la plage si toutes sont à `EDGE` à l'intérieur. Entre les deux, on garde `before`. `room/advice.py` `_pill` donne `PILL_MINUTES` (30) au moins entre deux changements et met l'attribut `hors_plage` dans le résultat. `banner_level` et la carte (`level3`) le lisent ; la regex `BEYOND` ne sert plus qu'aux anciens moteurs. Étude du 9 nov. : les 91 « Tout va bien » d'une journée étaient tous faux (humidité entre 62 et 82 %). Les 83 passages venaient de « Gardez fermé : … » qui remplaçait la phrase « au-delà » : 71 fois la pluie annoncée, 12 fois l'absence. Simulation sur 9 jours de mesures réelles : 40 bascules au total, contre 159 en une seule journée.
+- Pluie : `advisor/safety.py` `forbidden(gauge=, intensity=, chance=)`. Avec pluviomètre (`gauge`, par défaut `rain_rate` connu ; pas pour un pluviomètre abrité), la pluie annoncée ne retire jamais `open`. Si elle est probable (`intensity ≥ LIKELY_INTENSITY` = 2, ou `chance ≥ LIKELY_CHANCE` = 60), elle retire `rain_likely` (raison `rain_maybe`), et `decide` écarte alors les ouvertures sans rien faire fermer. Sans pluviomètre : `rain_soon` comme avant, sauf si `chance < SURE_CHANCE` (50). `RAIN_SOON_WAIT` passe de 45 à 10 min. `advisor_home.py` `rain_hint` vient de `outlook["rain"]` (Hestia Weather 3.6.1 : `intensity`, `chance`). `room/advice.py` : ligne « La pluie pourrait arriver vers … » en tête d'« À savoir » quand rien n'est fermé pour elle. Textes `safety_rain_soon` et `safety_rain_maybe` au conditionnel. Carte : `LIMITS.rain_maybe`.
+- Tests : `MeasuredPill`, `banner_level` avec `hors_plage`, `RainGaugeFirst` ; attente de 10 min dans `RainThatDoesNotCome`.
+
+### 3.13.0 — 9 novembre 2026
+
+Bilan des 24 h en prod du 8 nov. 18 h au 9 nov. 18 h 40 (moteur 3.12.1). Frank a validé les points 3, 4 et 5. Les points 1 (pastille) et 2 (pluie annoncée) sont à l'étude et ne sont pas dans cette version.
+- `advisor/decide.py` : `decide` enveloppe `_decide`. Règle `stale` : CO₂ mesuré ≥ `STALE_CO2` (1 400 ppm), pièce fermée, ni nuit ni coucher (`_past_bedtime`), « Aérez `STALE_AIRING` (10) min » permis (présent dans les scénarios, donc ni pluie, ni absence, ni pollens) et rien d'autre au bandeau. Dans ce cas, le geste va au bandeau quelle que soit la preuve, `measured={"co2"}`. Une fois affiché, il tient jusqu'à `STALE_KEPT` (1 200 ppm). S'il est tenu (`kept`), il redevient `stale`. Cas du Salon · Cuisine le 8 nov. : de 15 h 40 à 17 h 51, entre 1 380 et 1 519 ppm, le CO₂ n'avait qu'« À essayer » (effet `supposed`). Rejeu de 17 h 35 sans la pluie annoncée : `stale`, « Aérez 10 min ».
+- `advisor/decide.py` : `tried_held` (minutes depuis le premier affichage du même « À essayer », `room/advice.py` `tried_since`). Un essai du même genre tient `HOLD_MINUTES` tant qu'il gagne GAIN/2, même hors `MARGIN`. Avec `tried_held=10`, le rejeu de 15 h 50 garde « Aérez 15 min » au lieu de « 20 min ».
+- `advisor/words.py` : `stale` (fait) ; `co2_during(_likely/_maybe)` quand le CO₂ repasse sous sa marque avant la fin de l'aération ; minutes de retour arrondies au quart d'heure au-delà de 15.
+- `advisor/feedback.py` : `ignored`, `left_aside`, `measured`, `IGNORED_MINUTES` (120), `IGNORED_SHOWN` (10), `IGNORABLE` (open, open_more, boost, purify), `WORSE`. `room/advice.py` : `self.banner` (genre, sujet, mesure), `self.left`, ajoutés à `taken` par `declined`. Ils sont sauvegardés dans l'état. Ne compte que pour un geste du bandeau resté au moins 10 min et parti sans remplaçant. Un retrait par une règle de sécurité ne compte pas. Cas de la Chambre P le 8 nov. : « Ouvrez » à 18 h, 19 h et 20 h, tenu 40 min chaque fois.
+- `room/advice.py` : journal sur (titre, essai, pastille) au lieu de (titre, essai), avec `pastille`, `regle`, `interdit`. `journaled` est sauvegardé dans l'état, donc pas de doublon au rechargement (Buanderie, 17 h 01). Les instantanés suivent le même critère.
+- `advisor/snapshot.py` : `tried_held` capturé et relu.
+- Carte : règle `stale` dans « Pourquoi ? », sans ligne « Preuve ».
+- Tests : `test_co2_measured_high_asks_an_airing_whatever_the_proof`, `StaleAir`, `Left`. Le maintien de `Steady` est testé à 1 350 ppm.
+
+### 3.12.1 — 8 novembre 2026
+
+Bilan de la nuit et de la matinée du 8 novembre en prod (3.12.0) ; accord de Frank (« corrige les points négatifs »). Aucun geste ne change : seuls la ligne de « Rien à faire » et la pastille.
+- `advisor/words.py` : `_back_alone` — une mesure au-dessus de sa marque au premier pas (de plus que `EDGE`) qui repasse dessous avant la fin de l'horizon est dite (`back_<sujet>`, « vers 11 h 05 » ou « d'ici 25 min »), sous la forme `out_nothing` (« … : aucun geste ne ferait vraiment mieux ») : pastille « Au mieux », la carte la lit de la même façon. Salon · Cuisine 10 h 40 : 1 118 ppm, prévu sous 1 000 ppm en 25 min, mesuré 898 ppm à 11 h 08. Le « Rien à faire » lui-même était juste : la pièce à 19,3 °C pour 21,5 °C, aérer 5 min coûtait 0,3 de chauffage pour 0,03 de CO₂.
+- `advisor/words.py` `phrase(keep_beyond=)` et `room/advice.py` `CALM_MINUTES` (60) : « Au mieux » → « Tout va bien » seulement après une heure de prévision dans la plage (`calm_since`, remis à zéro par un geste ou un retour au-delà) ; « Au mieux » gardé dit `nothing_out(_shut)`. Prod 8 nov. : bascules simultanées dans toutes les pièces à 6 h 05, 6 h 50, 6 h 55, 7 h, 10 h, 10 h 35 (cause commune non retrouvée : la prod n'écrivait pas d'instantanés). L'instantané garde `keep_beyond`, que `replay` relit.
+- Rejeu des 10 instantanés du Salon du 8 nov. (labo) : 6 lignes changent, aucun geste.
+
+### 3.12.0 — 7 novembre 2026
+
+Moins de yoyo, après le bilan d'une journée en prod (7 novembre, moteur 3.10) et au labo (3.11.2) ; accord de Frank sur les quatre points et sur l'alarme (« on parle de confort, pas de sécurité »).
+- `room/advice.py` : **« À essayer » n'était jamais retenu** — `self.tried` effacé au même pas que noté (`elif gesture != nothing or not taken`) ; effacé maintenant seulement sans `passive`. C'est ce qui le faisait clignoter (Chambre M, 20 h 20-20 h 45).
+- `advisor/opening.py` : `seen_shares(..., read=)` et `failed(..., read=)` lisent chaque mesure à l'heure où le capteur l'a envoyée (`last_reported`) et seulement envoyée `OBSERVE_MINUTES` après l'ouverture ; les minutes dites sont celles de la mesure. `room/advice.py` `_sent()`. Chambre A, 9 h 39 : « ne fait pas l'effet prévu, 68 → 67 % » sur une valeur envoyée à l'ouverture (capteur muet de 9 h 24 à 9 h 56, puis 63 %).
+- `advisor/decide.py` : le geste du bandeau tenu (`hold`, HOLD_MINUTES) l'emporte sur un nouveau meilleur seulement « À essayer » (règle `kept`) ; « À essayer » (`tried`) tenu tant qu'il gagne GAIN/2 quand plus rien ne vaut GAIN (même pause `aired` que `worth`).
+- `advisor/decide.py` : `_past_bedtime` → `late(g, held=False)` ; un geste pas encore affiché finit `BED_MARGIN` (15 min) avant le coucher, « Ouvrez » sans fin interdit dans les 2 × `airing_max` dernières minutes ; un geste déjà affiché (`previous`, `tried`) garde la règle de 3.11.2.
+- `room/advice.py` : `GRACE_MINUTES` (3) — un « Refermez » de confort (`best`/`kept`, sans `after`) sur une ouverture de moins de 3 min, sans « Refermez » déjà affiché, est redécidé pièce fermée (`decided_on`) ; l'instantané garde ces entrées ; `opened_seen` attend la fin de la grâce. Buanderie : 4 « Refermez » de 20 s à 2 min.
+- `advisor/words.py` : `EDGE` (0,3 °C, 2 points, 50 ppm, 2 µg, 10) et `_outside` — près d'une limite, la phrase garde ce que disait le dernier « Rien à faire » (`beyond_before`, attribut `au_dela` du résultat, clé `beyond_before` des instantanés, None pour les anciens).
+- `advisor/safety.py` : l'alarme en absence retire `absent` (aucune ouverture proposée) au lieu de `open` : plus de « Refermez » de sécurité. Raison `away` gardée pour « Gardez fermé ».
+- Tests : `EveningOf7November`, `TriedKeepsItsMargin` (test_advisor_decide), `EdgeOfTheRange` (test_advisor_words), lecture à l'heure d'envoi (test_advisor_opening), alarme (test_advisor_safety), `AiringEndsByBedtime` mis à la marge. Fixtures `chambre-a-7-novembre-19h58.json`, `-20h28.json`. 884 tests OK.
+- Rejeu des 1 873 instantanés du labo (3-7 nov.) : 5 conseils changés, aucune erreur — Chambre A le 7 à 19 h 58 (geste tenu), Chambre P le 4 à 19 h 54 (« Aérez 10 min » tenu), Chambre AL le 6 à 12 h 57 et 13 h 42 (« À essayer » gardé), Chambre M le 7 à 21 h 02 (« Ouvrez » à moins d'une heure du coucher). Le gain principal est dans l'enchaînement des pas, que les instantanés isolés ne montrent pas.
+
+### 3.11.2 — 7 novembre 2026
+
+L'aération finit au coucher de la pièce (Frank, 7 novembre, Chambre A couchée à 21 h, « Aérez 30 min » à 20 h 27).
+- `advisor/decide.py` : `Now.bed_in`, minutes jusqu'au coucher (`Sleep.bedtime`), None la nuit ; gardé dans les instantanés, None pour les anciens. `_past_bedtime(now, habits)` : un « open »/« open_more » qui finit après le coucher (`after + minutes`), un « close » après lui, « Ouvrez » sans fin dans les `airing_max` dernières minutes ; demi-pas de marge ; rien la nuit ni avec `open_at_night`.
+- `decide` : `previous` et `tried` qui débordent ne sont plus tenus ; juste avant le choix du geste (après le tri des aérations « plus tard »), les gestes qui débordent sortent de `worth`. Si le geste qu'on aurait conseillé débordait (`cut`), une ouverture plus courte reste seulement si son effet est PROVEN — ni bandeau, ni « À essayer » sinon. Aucun scénario de plus simulé.
+- `room/advice.py` : `bed_in` donné à `Now` ; heure du chauffage prévu arrondie à la minute (`planned`).
+- Tests : `tests/test_advisor_household.py` `AiringEndsByBedtime` (instantané réel Chambre AL du 4 novembre).
+- Rejeu des 1 830 instantanés du labo (3-7 nov.) : 7 conseils changés — Chambre A le 7 à 20 h 33 (« Ouvrez » sans fin, coucher dans 26 min → rien), Chambre M le 5 de 21 h 33 à 21 h 48 (« Refermez dans 45-60 min » → 10-15 min, coucher à 22 h). Temps de décision identique (43,3 s → 43,2 s).
+
+### 3.11.1 — 7 novembre 2026
+
+Les gestes conseillés gardent leurs kWh, pour Hestia Énergie (`hestia_comfort_api.gestures`, INTERFACE.md d'Énergie § 2, CAHIER-MOTEUR § 17). Rien de recalculé, aucun conseil changé.
+- `advisor/decide.py` : `gesture_energy(paths, gesture)` → `(kWh, heated)` = `paths[geste].spent − paths[rien].spent`, l'écart que la trace montre déjà ; None si l'un des deux n'est pas simulé (les « Fermez » de sécurité).
+- `advisor/feedback.py` : `Asked.kwh`, `Asked.heated`, pris au premier affichage (`follow(..., energy)`) ; `_record` ajoute `kwh` et `chauffage` (aussi dans `retours.jsonl` quand l'analyse est allumée).
+- `room/advice.py` : `RoomAdvisor.gestures`, les gestes finis (suivis ou remplacés) avec `fin`, gardés `GESTURES_KEPT` (62 jours) dans le Store de la pièce (clé `gestures`) ; `gestures_between(start, end)` y ajoute le geste encore affiché (`fin` None). Ne dépend pas de l'interrupteur `analysis`.
+- `api.py` : `gestures(entry_id, start, end)`, `version` reste 1. Tests : `tests/test_api_gestures.py` (instantanés réels du labo).
+- Rejeu des 1 682 instantanés du labo (3-7 nov.) : 379 gestes affichés sur 381 retrouvent leurs kWh, 374 égaux à la trace gardée ; chaîne complète pièce par pièce : 99 gestes, 97 avec kWh, gestes et « suivi » conformes à `retours.jsonl` (les écarts viennent des instantanés, gardés seulement aux changements de conseil).
+
 ### 3.11.0 — 6 novembre 2026
 
 Le réglage « Allergie aux pollens » (`home.pollen_allergy`, Confort 2.1.0b2) n'était plus lu par le moteur 3. Règle revue et validée par Frank le 6 nov. (les quatre choix recommandés, puis la durée nécessaire pour l'humidité et le CO₂ après le rejeu des 3-6 nov.). Nouvelle source : les pollens du jour de Hestia Weather (`api.pollen`, via `configuration.pollen()`, donnés seulement si quelqu'un est allergique).

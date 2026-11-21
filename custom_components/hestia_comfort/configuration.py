@@ -15,6 +15,7 @@ from .const import DOMAIN, OUTDOOR_AREAS, SOURCES
 from .engine.i18n import t
 from .discovery import OUTDOOR, candidate, catalog, overview, suggestions, voc_device_class
 from .engine.assessment import EXPOSURES, KINDS, Settings
+from .engine.ventilation import DEFAULT_MODE as VENTILATION_DEFAULT, MODES as VENTILATION_MODES
 from .air_references import AIR_DEFAULTS, AIR_REFERENCE_VERSION
 from .foyer import clean_foyer
 from .advisor.physics.heaters import KINDS as HEATER_BEHAVIOURS
@@ -287,6 +288,10 @@ class Configuration:
         thermostat_reference = payload.get("thermostat_reference", True)
         if not isinstance(thermostat_reference, bool):
             raise ValueError(t("« Minimum repris du thermostat » doit être oui ou non."))
+        # How its VMC runs (« Fonctionnement »): a classic one always, an extractor when it helps (engine/ventilation.py).
+        ventilation_mode = payload.get("ventilation_mode", VENTILATION_DEFAULT)
+        if ventilation_mode not in VENTILATION_MODES:
+            raise ValueError(t("Choisissez comment tourne la VMC parmi les choix proposés."))
         # What the room holds that changes its air (« Équipements »): a shower or a bath, in the room or opening onto it.
         equipment = payload.get("equipment", [])
         if not isinstance(equipment, list) or any(e not in EQUIPMENT for e in equipment):
@@ -465,6 +470,7 @@ class Configuration:
                    "windows_unmeasured": windows_unmeasured and not windows,
                    "persons": list(dict.fromkeys(persons)), "open_to": list(dict.fromkeys(open_to)), "equipment": list(dict.fromkeys(equipment)),
                    "equipment_links": links, "custom_equipment": cleaned_custom, "room": cleaned_room, "flows": cleaned_flows,
+                   "ventilation_mode": ventilation_mode,
                    "foyer": room_foyer, "heaters": cleaned_heaters, "thermostat_plage": plage}
         return cleaned, warnings
 

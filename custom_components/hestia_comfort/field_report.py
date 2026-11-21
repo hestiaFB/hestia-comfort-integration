@@ -1,4 +1,4 @@
-"""« Participez à l'amélioration du moteur » (niak-comfort/docs/REGLAGES-3.md § 4.1, PASSAGE-CONFORT-3.md § 7 bis).
+"""« Participez à l'amélioration du moteur » (docs/REGLAGES-3.md § 4.1, PASSAGE-CONFORT-3.md § 7 bis).
 
 While the advice engine is in beta (advisor/__init__.py BETA), each home can download what its engine forecast and
 measured, what each room learned and the situations reported with « Ce conseil ne va pas », to share it in a GitHub

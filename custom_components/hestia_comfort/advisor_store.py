@@ -1,4 +1,4 @@
-"""What the 3.0 advisor keeps on disk (niak-comfort/docs/PASSAGE-CONFORT-3.md § 2.5).
+"""What the 3.0 advisor keeps on disk (docs/PASSAGE-CONFORT-3.md § 2.5).
 
 In `<config>/hestia_comfort/`: the journal of the advice changes (60 days), the replayable snapshots (10 days), the
 situations the household reported with « Ce conseil ne va pas » (without limit), the opinions and the gestures followed.

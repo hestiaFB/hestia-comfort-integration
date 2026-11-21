@@ -35,18 +35,12 @@ export function foyerPage(o:Options){
  const f={...FOYER_DEFAULTS,...o.foyer},set=(key:keyof Foyer,value:unknown)=>{const next={...o.foyer,[key]:value} as Foyer;if(JSON.stringify(value)===JSON.stringify(FOYER_DEFAULTS[key as keyof typeof FOYER_DEFAULTS]))delete next[key];o.change(next);};
  const choice=(key:keyof Foyer,label:string,values:number[],word:(n:number)=>string)=>html`<select aria-label=${label} ?disabled=${o.busy} @change=${(e:Event)=>set(key,Number((e.target as HTMLSelectElement).value))}>${values.map(v=>html`<option value=${v} ?selected=${(f as Record<string,unknown>)[key]===v}>${word(v)}</option>`)}</select>`;
  const pick=<T extends string>(key:keyof Foyer,label:string,values:[T,string][])=>html`<select aria-label=${label} ?disabled=${o.busy} @change=${(e:Event)=>set(key,(e.target as HTMLSelectElement).value)}>${values.map(([v,w])=>html`<option value=${v} ?selected=${(f as Record<string,unknown>)[key]===v}>${t(w)}</option>`)}</select>`;
- const time=(label:string,value:string,change:(v:string)=>void)=>html`<input type="time" aria-label=${label} .value=${value} ?disabled=${o.busy} @change=${(e:Event)=>{const v=(e.target as HTMLInputElement).value;if(v)change(v);}}>`;
  const row=(label:string,value:unknown,sub?:unknown)=>listRow({label,value,sub});
- const tol=Math.max(0,TOLERANCES.indexOf(f.tolerance));
  const context:HabitsContext|undefined=o.home?{foyer:o.foyer,busy:o.busy,change:o.change,manual:o.home.manual,absences:o.home.absences,rooms:o.home.rooms}:undefined;
  return html`${o.head===false?nothing:pageHead({back:o.back,title:t('Réglages du foyer'),subtitle:t('Votre façon de vivre, pour toute la maison. Une pièce qui vit autrement se règle dans son onglet « La pièce ».')})}
- ${listSection(t('Sommeil'),[row(t('Coucher'),time(t('Coucher'),f.sommeil.debut,v=>set('sommeil',{debut:v,fin:f.sommeil.fin}))),row(t('Lever'),time(t('Lever'),f.sommeil.fin,v=>set('sommeil',{debut:f.sommeil.debut,fin:v}))),
-  ...(context?[weekendRow(context)]:[]),
-  row(t('Ouvrir une fenêtre la nuit'),toggle(t('Ouvrir une fenêtre la nuit'),f.ouvrir_la_nuit,on=>set('ouvrir_la_nuit',on),o.busy),f.ouvrir_la_nuit?t('Hestia-FB peut conseiller d’ouvrir pendant le sommeil.'):t('Aucune ouverture conseillée pendant le sommeil.'))],
-  {help:html`<p>${t('La nuit, Hestia-FB ne propose que les gestes importants. L’alarme en mode nuit compte aussi.')}</p>`})}
+ ${sleepSection(o,context)}
  ${context&&o.home?html`${houseSection({...context,uses:o.home.uses})}${habitsSection(context)}`:nothing}
- ${listSection(t('Conseils'),[row(t('Combien de conseils'),// To the right, more advice; its two ends said (Frank, 5 November: « la barre n'indique rien »).
-  html`<span class="hb-scale"><input type="range" aria-label=${t('Combien de conseils')} min="0" max="4" step="1" .value=${String(4-tol)} ?disabled=${o.busy} @change=${(e:Event)=>set('tolerance',TOLERANCES[4-Number((e.target as HTMLInputElement).value)])}><span class="hb-ends" aria-hidden="true"><span>${t('Moins')}</span><span>${t('Plus')}</span></span></span>`,t(toleranceWords[tol])),
+ ${listSection(t('Conseils'),[toleranceRow(o),
   row(t('Aération la plus longue'),choice('aeration_max_min',t('Aération la plus longue'),[10,15,20,30,45,60],duration)),
   row(t('Gestes « plus tard », jusqu’à'),choice('plus_tard_max_min',t('Gestes « plus tard », jusqu’à'),[30,60,120,180,240],duration)),
   row(t('VMC et purificateur conseillés, au plus'),choice('appareils_max_min',t('VMC et purificateur conseillés, au plus'),[15,30,45,60,90,120],duration)),
@@ -65,6 +59,22 @@ export function foyerPage(o:Options){
    value:html`${choice('depassement',t('Conseiller de le couper quand il chauffe trop'),[0.5,1,1.5,2,2.5,3],n=>'+ '+degrees(n))}${choice('depassement_min',t('Pendant'),[10,15,20,30,45,60,90,120],n=>t('pendant {d}',{d:duration(n)}))}`})],
   {help:html`<p>${t('Pour le chauffage de toute la maison : poêle, chaudière, pompe à chaleur. Pas les radiateurs d’une seule pièce.')}</p><p>${t('Hestia-FB ne le commande pas : il vous conseille de le couper, vous décidez. Rallumer coûte de l’énergie et de l’usure : le conseil ne vient que si la maison tient assez longtemps.')}</p>`}):nothing}`;
 }
+
+/** Sets one key of the household, a default value dropped (only what the person set is kept). */
+function setter(o:{foyer:Foyer;change:(next:Foyer)=>void}){return (key:keyof Foyer,value:unknown)=>{const next={...o.foyer,[key]:value} as Foyer;if(JSON.stringify(value)===JSON.stringify(FOYER_DEFAULTS[key as keyof typeof FOYER_DEFAULTS]))delete next[key];o.change(next);};}
+/** « Sommeil »: going to bed, getting up (the week-end's too, with the habits), a window at night. Réglages and the guide. */
+export function sleepSection(o:{foyer:Foyer;busy:boolean;change:(next:Foyer)=>void},context?:HabitsContext){
+ const f={...FOYER_DEFAULTS,...o.foyer},set=setter(o),row=(label:string,value:unknown,sub?:unknown)=>listRow({label,value,sub});
+ const time=(label:string,value:string,change:(v:string)=>void)=>html`<input type="time" aria-label=${label} .value=${value} ?disabled=${o.busy} @change=${(e:Event)=>{const v=(e.target as HTMLInputElement).value;if(v)change(v);}}>`;
+ return listSection(t('Sommeil'),[row(t('Coucher'),time(t('Coucher'),f.sommeil.debut,v=>set('sommeil',{debut:v,fin:f.sommeil.fin}))),row(t('Lever'),time(t('Lever'),f.sommeil.fin,v=>set('sommeil',{debut:f.sommeil.debut,fin:v}))),
+  ...(context?[weekendRow(context)]:[]),
+  row(t('Ouvrir une fenêtre la nuit'),toggle(t('Ouvrir une fenêtre la nuit'),f.ouvrir_la_nuit,on=>set('ouvrir_la_nuit',on),o.busy),f.ouvrir_la_nuit?t('Hestia-FB peut conseiller d’ouvrir pendant le sommeil.'):t('Aucune ouverture conseillée pendant le sommeil.'))],
+  {help:html`<p>${t('La nuit, Hestia-FB ne propose que les gestes importants. L’alarme en mode nuit compte aussi.')}</p>`});}
+/** « Combien de conseils »: five notches, more to the right. */
+export function toleranceRow(o:{foyer:Foyer;busy:boolean;change:(next:Foyer)=>void}){
+ const f={...FOYER_DEFAULTS,...o.foyer},set=setter(o),tol=Math.max(0,TOLERANCES.indexOf(f.tolerance)),row=(label:string,value:unknown,sub?:unknown)=>listRow({label,value,sub});
+ return row(t('Combien de conseils'),// To the right, more advice; its two ends said (Frank, 5 November: « la barre n'indique rien »).
+  html`<span class="hb-scale"><input type="range" aria-label=${t('Combien de conseils')} min="0" max="4" step="1" .value=${String(4-tol)} ?disabled=${o.busy} @change=${(e:Event)=>set('tolerance',TOLERANCES[4-Number((e.target as HTMLInputElement).value)])}><span class="hb-ends" aria-hidden="true"><span>${t('Moins')}</span><span>${t('Plus')}</span></span></span>`,t(toleranceWords[tol]));}
 
 /** « Différent du foyer pour cette pièce »: a box per setting a room may set apart; ticked, it opens on the house's value. */
 export function roomFoyer(o:{house:Foyer;room:Foyer;busy:boolean;change:(next:Foyer)=>void;manual?:boolean}){

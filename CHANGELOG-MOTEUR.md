@@ -4,9 +4,318 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
-## 3.11.0 — 6 novembre 2026
+## 3.22.3 — 21 novembre 2026
+
+Dans Confort 3.1.0b19.
+
+### Corrections
+
+- Une urgence ne s'efface plus pour revenir cinq minutes plus tard. Au Salon · Cuisine, le 21 novembre au labo, la carte a dit « Aérez 5 min », puis « Rien à faire » (« les particules repassent seules »), puis de nouveau « Aérez 5 min », fenêtres fermées ; les particules étaient encore hautes vingt minutes après. Le geste demandé reste tant qu'il ne fait pas pire que ne rien faire, jusqu'à ce que la mesure redescende vraiment.
+
+## 3.22.2 — 20 novembre 2026
+
+Dans Confort 3.1.0b19. Demande Hestia Weather 4.2 (le ciel de maintenant) ; avec une Weather plus ancienne, rien ne change.
+
+### Corrections
+
+- Le ciel de maintenant compte : si Hestia Weather voit un ciel nuageux, pas de « Grand soleil » pour l'heure en cours et les deux suivantes, même si la prévision heure par heure annonce du soleil. Le 20 novembre à 13 h 19, toutes les prévisions disaient « ensoleillé » de 14 h à 16 h sous un ciel gris.
+
+## 3.22.1 — 20 novembre 2026
+
+Dans Confort 3.1.0b19.
+
+### Corrections
+
+- Plus de « Grand soleil » par temps gris. Le 20 novembre après-midi, la carte l'annonçait au labo alors que Météo-France disait « nuageux » : la prévision chiffrée du soleil attendait 320 à 395 W/m², la station en a mesuré 100 à 150. Maintenant, une heure que Hestia Weather dit nuageuse, couverte ou à éclaircies ne compte pas comme du grand soleil. La prévision est aussi corrigée par ce que la station a mesuré, quand elle voit le soleil.
+
+## 3.22.0 — 20 novembre 2026
+
+Dans Confort 3.1.0b19.
+
+### Ce qui change
+
+- En saison de chauffe, le soleil est dit comme un bonus de chaleur, sans chiffre : « Grand soleil sur la fenêtre sud jusqu'à 16 h 35 : un bonus de chaleur ». Avant le soleil, « de 11 h à 16 h 35 ». La ligne apparaît quand un grand soleil est prévu sur les heures où il touche la fenêtre, selon son orientation, et part quand il n'y en a plus. Avec des volets sans capteur : « … si les volets sont ouverts ». Volet relié fermé : « … : ouvrez le volet pour en profiter ».
+- Les chiffres de 3.21 (kWh de chauffage en moins, °C au coucher) sont retirés : ils venaient de ce que le moteur apprend de chaque pièce, trop incertain pour le soleil. La Chambre A, plein sud, n'avait jamais sa ligne : le moteur la croyait 30 fois moins sensible au soleil que la Chambre M, alors que le 19 novembre les deux ont pris presque autant (+0,8 et +1,0 °C).
+- Hors saison de chauffe, rien ne change : le soleil est dit quand il réchauffe la pièce d'au moins 0,5 °C.
+- Moins de calcul : en saison de chauffe, le soleil ne demande plus de simulation jusqu'au coucher.
+
+## 3.21.2 — 20 novembre 2026
+
+Dans Confort 3.1.0b19.
+
+### Corrections
+
+- Une pièce qui se réchauffe au soleil le dit de nouveau (« +0,8 °C dans la pièce »), même quand le soleil n'épargne pas de chauffage ce soir. En 3.21.0 et 3.21.1, la nouvelle règle avait remplacé l'ancienne au lieu de s'y ajouter.
+
+## 3.21.1 — 20 novembre 2026
+
+Dans Confort 3.1.0b19.
+
+### Corrections
+
+- La ligne du soleil s'affiche aussi dans une pièce plus chaude que sa consigne : le soleil n'y épargne pas de chauffage, mais il garde la pièce plus chaude jusqu'au coucher (« environ +0,6 °C au coucher »). Au labo, le 20 novembre à 9 h 43, aucune pièce n'en parlait.
+
+## 3.21.0 — 20 novembre 2026
+
+Dans Confort 3.1.0b19.
+
+### Ce qui change
+
+- En saison de chauffe, le soleil compte comme un gain dans « Bon à savoir » : « Soleil sur la fenêtre sud jusqu'à 16 h 35 : environ 0,6 kWh de chauffage en moins ce soir ». Avant, la ligne n'apparaissait que si le soleil réchauffait la pièce d'au moins 0,5 °C tout de suite, et la Chambre A exposée sud n'en parlait pas.
+- Sans thermostat : « … : environ +0,4 °C au coucher ». Avec des volets sans capteur : « … si les volets sont ouverts ». Volet relié fermé : « … : ouvrez le volet pour en profiter (environ 0,6 kWh) ».
+- Les gestes du bandeau ne changent pas. Au-dessus du maximum et en été, le soleil reste jugé comme avant.
+
+
+Dans Confort 3.1.0b19.
+
+### Ce qui change
+
+- Pendant une aération lancée pour une raison (une urgence ou le bon moment du créneau), la carte garde cette raison et dit quand refermer : « Aération en cours · COV 268 · refermez vers 8 h 45 ». Elle ne dit plus « Rien à faire » tant que la raison n'est pas réglée. Raison réglée ou temps écoulé : « Refermez », avec ce que l'aération a fait (« Aérée 20 min : 67 % → 61 % »).
+- Si le COV, le CO₂ ou les particules sont encore trop hauts à la fin, l'aération continue 5 minutes de plus, jusqu'à la plus longue aération de votre foyer.
+- « Aérez » nomme la partie à ouvrir quand la pièce en a plusieurs : « Aérez 5 min côté Cuisine » pour le COV mesuré dans la cuisine. Le courant d'air (ouvrir aussi l'autre côté) vient en second, jamais en premier.
+- La promesse du créneau ne bouge plus : « 55 % d'humidité une heure après l'aération au lieu de 70 % », au lieu d'une heure qui reculait toute la matinée.
+
+### Corrections
+
+- Une fenêtre ouverte compte comme une aération dès sa première minute passée, et la carte se met à jour aussitôt, au lieu d'attendre jusqu'à 5 minutes.
+- Fenêtre refermée puis rouverte dans les 3 minutes : c'est la même aération, avec le même compte à rebours.
+- Après un redémarrage de Home Assistant, l'aération en cours continue.
+- Fenêtre ouverte, plus de « l'humidité repasse seule sous 60 % » : la phrase dit « fenêtre ouverte ».
+
+## 3.19.4 — 19 novembre 2026
+
+Dans Confort 3.1.0b18.
+
+### Corrections
+
+- Une urgence garde la durée qu'elle a demandée tant que cette durée aide presque autant. Exemple : au labo, le 18 novembre, la Chambre P a reçu « Aérez 30 min », puis 25, 20 et 25 min en 35 minutes.
+- Pendant le créneau, la phrase reste sur le même sujet tant que le geste l'améliore. Exemple : au labo, le 18 novembre, « Aérez 30 min » en Chambre AL a parlé tour à tour de l'humidité et de la moisissure, 6 fois en une heure.
+- Après une courte aération, le moment où l'air redevient sain est dit en heure : « Aérez 5 min : le COV devrait retomber vers 10 h », au lieu de « … en 30 min », qui semblait contredire les 5 minutes.
+
+## 3.19.3 — 19 novembre 2026
+
+Dans Confort 3.1.0b17.
+
+### Corrections
+
+- Sans capteur de température dehors, par exemple avec un lieu Hestia Weather sans station, le moteur prend la prévision pour le dehors. Avant, il ne donnait jamais de conseil et les cartes restaient sur « Conseil en attente », sans message d'erreur.
+- Une carte qui n'a toujours pas de conseil après le démarrage dit pourquoi : « Pas de température du dehors » ou « Pas de température lue dans cette pièce », au lieu de « Le moteur redémarre » sans fin.
+
+## 3.19.2 — 18 novembre 2026
+
+Dans Confort 3.1.0b16.
+
+### Corrections
+
+- Sous « Rien à faire », la phrase ne change plus quand il se met à pleuvoir ou que la maison passe en mode absence. « Gardez fermé : il pleut » ne s'affiche que si la pluie empêche un vrai geste ; sinon, la pluie est dite dans « À savoir ». Exemple : le 18 novembre, la phrase a changé 6 à 8 fois par pièce, et 23 fois en Chambre P.
+- « Humidité 78 % : normal pour cette pièce » reste affiché tant que l'humidité reste proche de sa normale, au lieu d'alterner avec « rien de mieux à faire ».
+- Le conseil du créneau ne disparaît plus à cause de la pluie : pendant la pluie, la carte dit « Gardez fermé : il pleut », puis le même conseil revient quand elle s'arrête, sans nouvelle notification. Exemple : au labo, le 18 novembre, « Aérez 45 min » en Chambre A a laissé place à « Rien à faire » pour tout l'après-midi.
+- Une urgence mise de côté ne revient pas avant une heure, même si la mesure monte. Exemple : le 17 novembre, l'alerte COV est revenue 11 minutes après, pour un pic de cuisine.
+
+## 3.19.1 — 17 novembre 2026
+
+Dans Confort 3.1.0b15.
+
+### Corrections
+
+- Les heures annoncées tombent sur la demi-heure. Exemple : « vers 12 h » au lieu de « vers 12 h 20 ».
+
+## 3.19.0 — 17 novembre 2026
+
+Dans Confort 3.1.0b14.
+
+### Nouveautés
+
+- La journée de la pièce sous le conseil : ce qui a été fait, avec ce que ça a donné (« Aérée 15 min : 68 % → 61 % »), ce qui n'a pas été fait, puis ce qui vient, heure par heure (« 15 h · Aérer 30 min, probable », le chauffage).
+- Quand il n'y a rien à faire, la carte annonce le prochain bon moment : « Prochain bon moment : cet après-midi vers 15 h, aérer 30 min ».
+
+### Corrections
+
+- Le geste du créneau reste affiché jusqu'à la fin du créneau, avec une promesse toujours à jour. Exemple : le 17 novembre, « Aérez 10 min » de 7 h 04 avait disparu à 7 h 49.
+- Une pièce humide par nature n'a plus de conseil chaque jour pour son humidité habituelle. Exemple : la Chambre P à 79 %.
+- Des phrases simples : « COV encore élevé (387) : aérer 5 min aiderait, quand vous pourrez » au lieu de « « Aérez 10 min » en pause jusqu'à 10 h 45 ».
+
+## 3.18.0 — 16 novembre 2026
+
+Dans Confort 3.1.0b13.
+
+### Nouveautés
+
+- Le conseil vient par créneaux : un geste au plus par pièce le matin, l'après-midi et le soir, au meilleur moment du créneau, fixé à son début. Exemple : « Aérez 45 min vers 14 h 30 » reste affiché tel quel jusqu'à 15 h 15, puis disparaît s'il n'a pas été suivi.
+- Les urgences restent à toute heure, sur une mesure : CO₂, particules fines, COV, humidité bien au-dessus de la normale de la pièce. Chacune est dite une fois, puis mise en pause 2 h si elle n'est pas suivie.
+- Chaque pièce a sa carte d'identité, refaite chaque nuit : sa normale, son isolation, son inertie, son chauffage, ce que fait une aération, les habitudes du foyer. La Chambre P vit à 77 % d'humidité : c'est sa normale, les conseils en tiennent compte.
+- Ce qui est permanent devient un conseil du logement. Exemple : « Humide en permanence : aérer ne suffira pas ».
+- Un événement Home Assistant à chaque nouveau conseil, pour l'envoyer sur le téléphone.
+- Une urgence dit sa mesure. Exemple : « CO₂ 1 450 ppm : l'air redevient sain en 15 min ».
+
+### Corrections
+
+- Plus de conseil qui part et revient : en 10 jours, 43 allers-retours sans fenêtre touchée.
+- Sous « Rien à faire », la phrase garde son sujet.
+- Une fenêtre ouverte moins d'une minute ne change plus le conseil.
+
+## 3.17.1 — 15 novembre 2026
+
+Dans Confort 3.1.0b12.
+
+### Corrections
+
+- Plus de « Refermez : il pleut » pour une fenêtre ouverte après la pluie. La pluie reste dite 30 minutes après la dernière goutte seulement pour une pièce fermée (« Gardez fermé »). Exemple : le 14 novembre à 16 h 21, trois chambres affichaient « Refermez » alors que la pluie s'était arrêtée à 16 h 03.
+- Plus de « Coupez le poêle » dans une pièce encore sous sa plage. Exemple : le 14 novembre à 19 h 55, le Salon à 19,5 °C (plage à partir de 20 °C) était en train de chauffer pour le boost de 20 h 29.
+- « Gardez fermé : le gel est annoncé » ne clignote plus la nuit en saison de chauffe.
+- Le soir, en saison de chauffe, un geste doit faire deux fois plus de différence pour être proposé. Exemple : « Aérez 25 min » pour 4 points d'humidité, redemandé trois fois dans les chambres, n'est plus proposé.
+
+## 3.17.0 — 13 novembre 2026
+
+Dans Confort 3.1.0b11.
+
+### Corrections
+
+- En saison de chauffe, plus de « Ouvrez » ni de « Laissez ouvert » sans fin : une aération d'une durée précise, dont la carte annonce ce qui reste une heure après avoir refermé. Exemple : le 13 novembre, « Ouvrez » promettait 53 % à 11 h dans la Chambre A pour une fenêtre ouverte toute la matinée ; ouverte 25 minutes, la chambre est remontée à 65 %. Le rejeu annonce maintenant 65 %.
+- Une fenêtre ouverte sans conseil est supposée refermée à la fin de l'aération habituelle du foyer (30 min par défaut), et non laissée ouverte jusqu'à midi.
+- L'eau gardée par les murs, la literie et les meubles est suivie à chaque pas. Après une aération ou une douche, l'humidité qui remonte est prévue. Exemple : la Chambre M annonçait « sous 60 % vers 12 h », elle est restée à 64 % ; le rejeu prévoit maintenant 65 %.
+- Le poêle au ralenti s'éteint dans les prévisions après 45 minutes à 0 %, comme le fait l'automatisation du foyer (réglage « poele_ralenti_min »).
+- « Laissez ouvert » ne s'affiche plus quelques secondes à chaque passage par une porte-fenêtre.
+- Une aération annoncée pour plus tard garde son heure tant qu'un autre moment n'est pas nettement meilleur (jusqu'à une heure d'écart).
+- La phrase garde son sujet tant que le geste fait à peu près autant pour lui.
+- Les rejeux de l'Atelier gardent la flamme minimale du poêle.
+- Le jumeau d'humidité reste dans ce qu'une pièce peut faire : une pièce ne fait pas disparaître d'eau, ses murs échangent l'humidité en heures et non en minutes. Exemple : la Chambre AL avait appris qu'elle « absorbait » 150 g d'eau par heure ; au labo, la Buanderie promettait « 59 % au lieu de 71 % » pour 5 minutes d'aération, elle annonce maintenant une remontée à 68 %.
+
+## 3.16.0 — 12 novembre 2026
+
+Dans Confort 3.1.0b10.
+
+### Corrections
+
+- Le poêle au ralenti chauffe toujours. Quand son thermostat demande 0 % mais qu'il brûle encore, il compte pour environ un tiers de sa puissance, dans les prévisions comme dans l'apprentissage de nuit. Exemple : le 12 novembre, poêle à 0 % dès 13 h 07, et la Chambre M a pris 1,8 °C entre 12 h et 13 h 30.
+- Sous une pluie fine, « Gardez fermé : il pleut » reste 30 minutes après la dernière goutte. Avant, il s'allumait et s'éteignait 6 fois en 3 heures dans toutes les pièces.
+- Le soir, une pièce chauffée n'affiche plus « Ouvrez » sans durée : seulement une aération courte, si elle aide vraiment. Exemple : 3 soirs de suite, « Ouvrez » dans les chambres n'a jamais été suivi.
+- « Aérez 25 min » ne devient plus « Aérez 10 min vers 21 h 30 » cinq minutes plus tard.
+- La phrase garde vraiment son sujet 30 minutes sous le même conseil.
+
+## 3.15.1 — 12 novembre 2026
+
+Dans Confort 3.1.0b9.
+
+### Nouveautés
+
+- Quand le poêle chauffe, « À savoir » signale une pièce nettement plus froide que le reste de la maison. Exemple : « 1,8 °C sous la moyenne de la maison (21,2 °C) : le poêle chauffe peu cette pièce ». Si le poêle devrait bien la chauffer, la carte demande plutôt : « porte fermée, radiateur dégagé, sonde bien placée ? ». L'écart minimal est un réglage du foyer, 1,5 °C par défaut.
+
+## 3.15.0 — 11 novembre 2026
+
+Dans Confort 3.1.0b8.
+
+### Corrections
+
+- L'humidité de l'air dehors est prise sur votre station, plus seulement sur la prévision. Exemple : le 11 novembre à 15 h 47, la prévision disait 91 %, la station 78 %, et le Salon affichait « Refermez » pour rien.
+- La chaleur du poêle dans les autres pièces suit sa vraie courbe : fort à l'allumage, puis au ralenti. Exemple : à midi, la Chambre M annonçait 24,8 °C à 15 h ; il a fait 21,8 °C.
+- Un conseil non suivi et mis en pause est dit comme tel : « « Ouvrez » en pause jusqu'à 22 h 35 : 75 % d'humidité au lieu de 80 % ». Avant, la carte disait « aucun geste ne ferait vraiment mieux », ce qui était faux.
+- « À savoir » ne contredit plus le conseil. Exemple : « Aérez 30 min vers 19 h » s'affichait avec « Dehors, l'air est aussi humide qu'ici : aérer n'assèche pas ». Il dit maintenant « Vers 19 h, l'air dehors sera plus sec qu'ici : le bon moment pour aérer », ou rien.
+- Une aération n'est comptée comme faite que si la fenêtre est restée ouverte au moins la moitié du temps demandé (5 min au moins). Exemple : 2 minutes pour « Aérez 20 min » ne comptent plus.
+
+### Améliorations
+
+- L'apprentissage de nuit juge aussi chaque pièce sur 8 heures, pas seulement sur 1 et 3 heures. Exemple : la Chambre P annonçait 89 % d'humidité à 7 h, il y en a eu 82 %.
+- « À essayer » garde le même texte tant que c'est le même geste. Avant, « le COV devrait retomber en 15, 30, 45, 75 min » changeait toutes les 5 minutes.
+- « Aérez … vers … » garde son heure et sa durée tant qu'elles restent bonnes. Avant : « 15 min vers 19 h 45 », puis « 20 min vers 19 h 50 », puis « 20 min vers 20 h 10 » en dix minutes.
+- La phrase garde son sujet au moins 30 minutes sous le même conseil. Avant, la température et l'humidité se relayaient plusieurs fois par heure.
+
+## 3.14.1 — 10 novembre 2026
+
+Dans Confort 3.1.0b7.
+
+### Corrections
+
+- Un poêle qui attend qu'on confirme son allumage n'est plus compté comme allumé. Exemple : le 10 novembre à 17 h, le poêle n'a jamais démarré, mais le Salon à 19 °C annonçait « 21,7 °C à 20 h » et la Chambre M « 23,1 °C ». Les prévisions de la maison se font maintenant sans lui, jusqu'à ce qu'il chauffe vraiment.
+- L'apprentissage de nuit ne compte plus ces demandes du poêle restées sans allumage.
+- La chaleur du poêle partagée entre les pièces ne dépasse plus 100 %. Elle dépassait 128 % : la salle de bain, par exemple, en recevait plus d'un quart.
+- La nuit, la VMC rapide lancée par une douche s'arrête au bout de 20 minutes au lieu d'une heure. Exemple : le 9 novembre, douche à 23 h 22, VMC arrêtée à la main à 23 h 52.
+- Une VMC arrêtée à la main n'est plus relancée pendant 2 heures, sauf nouvelle douche. Le 10 novembre à 0 h 10, elle était repartie 3 minutes après avoir été arrêtée.
+- L'extracteur qui ne sèche pas la pièce se repose plus longtemps à chaque essai : 2 heures, puis 4, puis 8. Il repart plus tôt si l'air dehors devient nettement plus sec. Exemple : la Chambre P à 80 % a tourné trois heures pour rien le 10 novembre.
+
+### Améliorations
+
+- Le journal du « Je participe » note aussi le changement de phrase, sans tenir compte des chiffres. Exemple : « Humidité 73 % à 7 h » et « Humidité 72 % à 8 h » ne font qu'une ligne.
+
+## 3.14.0 — 9 novembre 2026
+
+Dans Confort 3.1.0b6.
+
+### Améliorations
+
+- La pastille se lit sur les mesures du moment. « Tout va bien » : toutes les mesures sont dans votre plage. « Au mieux » : au moins une en sort, mais aucun geste n'aiderait. La pluie, l'absence et la phrase du conseil ne la changent plus, et elle change au plus une fois par demi-heure. Exemple : le 9 novembre, la Chambre P à 80 % d'humidité affichait « Tout va bien » chaque fois que la pluie était annoncée.
+- La pluie annoncée est dite au conditionnel : « la pluie pourrait arriver ».
+- Avec un pluviomètre, c'est lui qui décide. Une pluie seulement annoncée ne fait plus refermer : elle s'affiche dans « À savoir » (« La pluie pourrait arriver vers 21 h 50 »). Elle empêche seulement de proposer une nouvelle aération quand la pluie est probable : pluie modérée ou forte au radar, ou probabilité Météo-France d'au moins 60 %.
+- Sans pluviomètre, la pluie annoncée fait toujours refermer, sauf si Météo-France donne moins de 50 % de probabilité.
+- Une annonce « pluie dans 2 min » sans une goutte au pluviomètre n'est plus crue après 10 minutes, au lieu de 45.
+
+## 3.13.0 — 9 novembre 2026
 
 Pas encore dans une version de Confort.
+
+### Nouveautés
+
+- Quand le CO₂ mesuré dépasse 1 400 ppm, Hestia conseille d'aérer, même si l'effet de la fenêtre n'est pas encore prouvé dans la pièce. Exemple : « Aérez 10 min — CO₂ mesuré à 1 470 ppm : l'air est à renouveler ». Le conseil reste affiché tant que le CO₂ ne repasse pas sous 1 200 ppm. Rien la nuit, ni pendant la pluie ou l'absence.
+
+### Améliorations
+
+- Un conseil laissé sans suite n'est pas reproposé avant 2 heures, sauf si la pièce se dégrade nettement (5 points d'humidité de plus, par exemple). Exemple : la Chambre P recevait « Ouvrez » à 18 h, 19 h et 20 h.
+- « À essayer » garde la même durée au moins une demi-heure. Exemple : le Salon proposait tour à tour d'aérer 5, 10, 15 puis 20 min.
+- Le temps annoncé pour retrouver un air sain est arrondi au quart d'heure. Quand l'air redevient sain avant la fin de l'aération, la carte dit « avant la fin » au lieu de « Aérez 15 min : l'air pourrait redevenir sain en 5 min ».
+- Le journal du « Je participe » note la pastille, la règle appliquée et ce qui interdit d'ouvrir. Une ligne est aussi écrite quand seule la pastille change.
+
+### Corrections
+
+- Le journal n'écrit plus deux fois la même ligne quand une pièce est rechargée.
+
+## 3.12.1 — 8 novembre 2026
+
+Dans Confort 3.1.0b3.
+
+### Améliorations
+
+- Quand le CO₂ ou les COV dépassent leur seuil mais vont redescendre seuls, Hestia le dit. Exemple : « Le CO₂ repasse seul sous 1000 ppm vers 11 h 05 » au lieu de « La pièce restera dans votre plage » à 1 118 ppm.
+- La pastille ne repasse de « Au mieux » à « Tout va bien » qu'après une heure de calme. Exemple : le 8 novembre au matin, elle changeait six fois dans toutes les pièces en même temps.
+
+## 3.12.0 — 7 novembre 2026
+
+Dans Confort 3.1.0b1.
+
+### Améliorations
+
+- Un conseil affiché reste en place au moins une demi-heure tant qu'il aide encore. Exemple : « Aérez 20 min vers 20 h 05 » ne se change plus en « À essayer — Aérez 25 min » cinq minutes avant l'heure.
+- « À essayer » ne clignote plus : il reste tant qu'il aide encore un peu, au lieu d'apparaître et disparaître toutes les 5 minutes.
+- Une nouvelle aération se termine au moins 15 minutes avant le coucher. Exemple : coucher à 21 h, « Aérez 30 min » n'est plus proposé à 20 h 28. Une heure avant le coucher, Hestia ne dit plus « Ouvrez » sans durée.
+- Une fenêtre ou une porte qu'on vient d'ouvrir n'affiche pas « Refermez » pendant 3 minutes : le temps de passer. La pluie et le vent fort font toujours refermer tout de suite.
+- La nuit, la pastille ne passe plus de « Tout va bien » à « Au mieux » toutes les demi-heures quand une mesure frôle la limite de votre plage.
+
+### Corrections
+
+- Hestia ne dit plus qu'une aération « ne fait pas l'effet prévu » avant que le capteur ait envoyé une nouvelle mesure. Exemple : le capteur de la Chambre A n'envoie qu'une mesure toutes les 30 minutes ; l'aération était jugée sur l'humidité d'avant l'ouverture.
+- L'alarme en mode absence ne fait plus dire « Refermez » : c'est le rôle de l'alarme, pas de Confort. Hestia ne propose simplement pas d'ouvrir quand personne n'est là.
+
+## 3.11.2 — 7 novembre 2026
+
+Dans Confort 3.1.0b1.
+
+### Améliorations
+
+- Une aération conseillée se termine au plus tard à l'heure du coucher de la pièce. Exemple : coucher à 21 h, conseil à 20 h 40 : « Aérez 30 min » n'est plus proposé.
+- Si l'aération utile ne tient plus avant le coucher, Hestia ne propose pas une aération raccourcie, même en « À essayer », sauf si la pièce a déjà prouvé que ses fenêtres font l'effet voulu et que la version courte change vraiment quelque chose.
+- Une fenêtre ouverte le soir est à refermer avant le coucher : « Laissez ouvert encore 10 min » plutôt que 60.
+- Le chauffage prévu est annoncé à la bonne minute (20 h 30, plus 20 h 29).
+
+## 3.11.1 — 7 novembre 2026
+
+Dans Confort 3.1.0b1.
+
+### Améliorations
+
+- Chaque geste conseillé garde ce qu'il coûte ou économise en chauffage, en kWh. Hestia Énergie pourra le lire pour le dire en euros.
+
+## 3.11.0 — 6 novembre 2026
+
+Dans Confort 3.1.0b1.
 
 ### Corrections
 

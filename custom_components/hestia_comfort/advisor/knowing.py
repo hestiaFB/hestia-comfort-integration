@@ -19,6 +19,10 @@ SUN_COUNTS = 0.5
 # Strong sun: this much horizontal sun forecast on average over the hours the sun is on the window (W/m²); a clear
 # autumn noon gives about 450, an overcast sky under 150.
 STRONG_SUN = 200.0
+# Nor when Hestia Weather's sky lets less than this through (engine/sunlight.py `sky_factor`: a cloud cover above about
+# 70 %, « nuageux », « éclaircies »): Open-Meteo foresaw 320 to 395 W/m² on 20 November afternoon, grey and « nuageux »
+# at Météo-France, and the card said « Grand soleil » (Frank, 13 h 12).
+CLEAR_SKY = 0.75
 # The significant gap of the heat (decide.SIGNIFICANT["heat"]), for a gesture seen to work now.
 HEAT_GAP = 1.5
 
@@ -74,11 +78,25 @@ class RoomView:
     stove_idle: dict | None = None
     # °C the sun adds to the room over the coming hours (advisor/decide.py `sun_gain`); None when not known.
     sun_gain: float | None = None
+    # In the heating season, the sun is a bonus of warmth, said without a figure: {"closed": the connected shutter is
+    # shut}; None out of it, the sun then said when it warms the room by SUN_COUNTS.
+    sun_bonus: dict | None = None
+    # Hour → what Hestia Weather's sky lets through, 0 to 1 (engine/sunlight.py `sky_factor`); an hour missing: not said.
+    sky: dict = field(default_factory=dict)
+    # Shutters without a sensor on the room's windows (« volet manuel »): the bonus is then said « if open ».
+    shutters_manual: bool = False
     # The outside air, and whether the room's humidity is in question now: a window open, the humidity above its mark, a
     # gesture or a tip for it (`outside_water`).
     outdoor: float | None = None
     outdoor_humidity: float | None = None
     water_matters: bool = False
+    # The airing on the banner for the humidity: (the outside's water when it starts, g/m³; its local start). The tip then
+    # speaks of that moment, not of now (bilan of 11 November: « Aérez 30 min vers 19 h » beside « aérer n'assèche pas »).
+    airing_at: tuple | None = None
+    # The stove burning: (the other rooms' mean air, the room's learned share of the stove's heat or None), for
+    # `below_house`; `house_gap`: the household's threshold (°C).
+    house: tuple | None = None
+    house_gap: float = 1.5
     # The share of its forecast the window open now really does (advisor/opening.py), and the humidity when it was opened.
     window_share: float | None = None
     humidity_at_opening: float | None = None
@@ -87,10 +105,16 @@ class RoomView:
 
 
 def sun_on_windows(view: RoomView) -> list[Tip]:
-    """When the sun is on the room's windows today, still to come or going on, in one line for the whole room, and only
-    when it warms the room by SUN_COUNTS at least: supposed by their orientation, reinforced by a strong sun forecast.
-    Adaptive Cover Pro's hours, when it drives the window, come before the computed ones."""
-    if view.sun_gain is not None and view.sun_gain < SUN_COUNTS:
+    """When the sun is on the room's windows today, still to come or going on, in one line for the whole room: supposed
+    by their orientation, reinforced by a strong sun forecast. Adaptive Cover Pro's hours, when it drives the window,
+    come before the computed ones.
+
+    In the heating season the line is a passive bonus of warmth, from such an hour to such an hour, said only when a
+    strong sun is forecast on those hours and never with a figure: the twins could not tell it (Frank, 20 November,
+    Chambre A's twin had learned its south window 30 times weaker than Chambre M's, the same sun warming both alike on
+    the 19th). Out of it, the sun is said when it warms the room by SUN_COUNTS."""
+    bonus = view.sun_bonus
+    if bonus is None and view.sun_gain is not None and view.sun_gain < SUN_COUNTS:
         return []
     midnight = view.now.replace(hour=0, minute=0, second=0, microsecond=0)
     spans = {}
@@ -108,15 +132,24 @@ def sun_on_windows(view: RoomView) -> list[Tip]:
     if not spans:
         return []
     ordered = sorted(spans.items(), key=lambda item: item[0][1])
-    strong = False
+    strong = bright = False
+    this_hour = view.now.replace(minute=0, second=0, microsecond=0)
     for (direction, start, end), entities in ordered:
-        hours = [v for h, v in view.sun_forecast.items() if v is not None and start.replace(minute=0) <= h < end]
-        strong = strong or (bool(hours) and sum(hours) / len(hours) >= STRONG_SUN)
+        # An hour Hestia Weather says cloudy is no strong sun, whatever Open-Meteo foresees.
+        hours = {h: (v if view.sky.get(h, 1.0) >= CLEAR_SKY else 0.0) for h, v in view.sun_forecast.items()
+                 if v is not None and start.replace(minute=0) <= h < end}
+        strong = strong or (bool(hours) and sum(hours.values()) / len(hours) >= STRONG_SUN)
+        # The bonus: a strong sun still to come on these windows, this hour included.
+        bright = bright or any(v >= STRONG_SUN for h, v in hours.items() if h >= this_hour)
+    if bonus is not None and not bright:
+        return []
     # The sides in the order the sun reaches them: « les fenêtres est, sud et ouest ».
     directions = list(dict.fromkeys(direction for (direction, _, _), _ in ordered if direction is not None))
     start, end = min(s for (_, s, _), _ in ordered), max(e for (_, _, e), _ in ordered)
     return [Tip("sun", {"directions": directions, "windows": sum(len(e) for _, e in ordered), "start": start, "end": end,
-                        "gain": view.sun_gain}, "light", 1, end, REINFORCED if strong else SUPPOSED)]
+                        "gain": None if bonus is not None else view.sun_gain, "bonus": bonus,
+                        "manual": view.shutters_manual},
+                "light", 1, end, REINFORCED if strong or bonus is not None else SUPPOSED)]
 
 
 def gesture_seen(view: RoomView) -> list[Tip]:
@@ -232,8 +265,34 @@ def outside_water(view: RoomView) -> list[Tip]:
         return []
     inside, outside = absolute(view.air, view.humidity), absolute(view.outdoor, view.outdoor_humidity)
     kind = "outside_drier" if outside <= inside - WATER_GAP else "outside_wetter" if outside >= inside + WATER_GAP else "outside_same"
+    if view.airing_at is not None and kind != "outside_drier":
+        later, at = view.airing_at
+        if later is not None and later <= inside - WATER_GAP and at > view.now:
+            return [Tip("outside_drier_later", {"at": at, "inside": inside, "outside": later}, "humidity", 3, None, PROVEN)]
+        # The airing dries by the room's own water carried away (cooking, breath), not by a drier outside: the tip
+        # would contradict the banner, it is left out.
+        return []
     return [Tip(kind, {"outdoor": view.outdoor, "outdoor_humidity": view.outdoor_humidity, "inside": inside, "outside": outside},
                 "humidity", 3, None, PROVEN)]
+
+
+# A room that gets less than this share of the stove's heat (learned each night): its gap is the house's layout, not
+# a fault (Chambre A, 0,09 on 11 November).
+SMALL_SHARE = 0.15
+
+
+def below_house(view: RoomView) -> list[Tip]:
+    """« 1,8 °C sous la moyenne de la maison (21,2 °C) », the stove burning (Frank, 12 November: the template chauffage
+    said it of Antoine's room, the card said nothing). Its reason when the twin knows it: a small share of the stove's
+    heat; otherwise the questions the template asks (door, radiator, sensor). Information, never a gesture."""
+    if view.house is None or view.air is None or view.asleep:
+        return []
+    mean, share = view.house
+    gap = mean - view.air
+    if gap < view.house_gap:
+        return []
+    kind = "below_house_far" if share is not None and share < SMALL_SHARE else "below_house"
+    return [Tip(kind, {"gap": gap, "mean": mean}, "heat", 2, None, PROVEN)]
 
 
 def window_weak(view: RoomView) -> list[Tip]:
@@ -258,7 +317,7 @@ def pollen_today(view: RoomView) -> list[Tip]:
     return [Tip("pollen", {"level": found.level, "main": found.main}, "air", 4, None, PROVEN)]
 
 
-PROVIDERS = [pollen_today, window_weak, outside_water, gesture_seen, mist_tonight, heating_catches_up, heating_planned, heating_is_off, stove_at_its_lowest, shutter_at_night,
+PROVIDERS = [pollen_today, window_weak, outside_water, below_house, gesture_seen, mist_tonight, heating_catches_up, heating_planned, heating_is_off, stove_at_its_lowest, shutter_at_night,
              sun_on_windows]
 
 

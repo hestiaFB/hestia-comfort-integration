@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Indicateur de nuit</title>
+<link rel="stylesheet" href="../styles.css">
+<style>
+main {max-width:1100px;margin:0 auto;padding:0 16px 40px}
+.prop {margin:28px 0 8px;padding-top:20px;border-top:1px solid var(--line)}
+.prop h2 {margin:0 0 4px;font-size:17px}
+.prop p {margin:0 0 14px;color:var(--fg2);font-size:14px;max-width:70ch}
+.pair {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:20px;align-items:start}
+.pair figure {margin:0}
+.pair figcaption {font-size:12px;color:var(--fg2);margin-bottom:6px}
+.crop {max-height:330px;overflow:hidden;-webkit-mask-image:linear-gradient(#000 85%,transparent);mask-image:linear-gradient(#000 85%,transparent)}
+hestia-comfort-card {display:block;min-width:0}
+@media (max-width:760px){.pair{grid-template-columns:1fr}}
+</style></head>
+<body><header class="page-head"><div><h1>Indicateur de nuit</h1><p>La vraie carte, pièce endormie (lever 7 h) : la petite lune sur l’image.</p></div>
+<label class="demo-note">Thème <select id="theme"><option value="dark">Sombre</option><option value="light">Clair</option></select></label></header>
+<main id="main"></main>
+<script>customElements.define('home-assistant', class extends HTMLElement {});</script>
+<script type="module" src="nuit.js"></script></body></html>

@@ -1,10 +1,427 @@
 ## À venir
 
+## 3.1.0 — Le nouveau moteur de conseil
+
+**Tout ce qui change depuis la dernière version stable, la 1.7.31.**
+**Un nouveau moteur de conseil : un geste au plus par pièce le matin, l'après-midi et le soir, au meilleur moment.**
+**Des cartes et un panneau refaits, avec un guide d'installation pas à pas.**
+**Un Confort beaucoup plus léger : Home Assistant ne se fige plus, même sur une petite box.**
+
+### Vos retours comptent
+
+- Cette version est toute neuve : le moteur a été écrit de zéro. Il a tourné plusieurs semaines chez nous, mais chaque maison est différente.
+- Dites-nous ce qui marche et ce qui ne va pas : « Ce conseil ne va pas » sur la carte, une issue sur GitHub, ou le fil du forum HACF. Chaque retour améliore les conseils de tous.
+- Les conseils ne sont pas infaillibles. Le moteur apprend tous les jours de votre maison : il conseille peu les premiers jours, puis de plus en plus juste. Fiez-vous aussi à ce que vous sentez.
+
+### Avant de mettre à jour
+
+- Faites une sauvegarde : Paramètres → Système → Sauvegardes.
+- Hestia Confort prend son nom technique `hestia_comfort`. Au premier démarrage, tout passe seul au nouveau nom : pièces, réglages, apprentissages, entités, tableaux de bord et automatisations faites dans l'interface. Un encart dans **Hestia-FB → Accueil** suit chaque étape.
+- Si une réparation « quelques lignes à changer à la main » apparaît, elle liste les fichiers YAML à modifier.
+- Vous êtes passé par la 1.7.31 et le Marketplace ne propose plus de mise à jour : la réparation « Hestia Confort : reprendre les mises à jour » apparaît dans **Paramètres**. Un appui, et le Marketplace suit de nouveau Hestia Confort.
+- Si le Marketplace refuse la mise à jour (« changed its domain »), ou si HACS affiche « No manifest.json file found », suivez [docs/PASSAGE-HESTIA.md](docs/PASSAGE-HESTIA.md) : un dossier à supprimer, deux redémarrages, rien n'est perdu.
+- Vous testiez une bêta (2.1.0b8 ou 3.1.0b16 à b19) : la mise à jour se fait directement, vos pièces, réglages et entités sont gardés.
+- Mettez Hestia Weather à jour aussi, si vous l'avez (4.1.0 conseillée).
+- Le nouveau moteur change des valeurs d'entités. Vérifiez les automatisations qui s'en servent :
+  - « État » ne donne plus que `calm`, `best`, `benefit`, `action`, `urgent` et `neutral` ;
+  - toutes les valeurs de « Raison » changent ;
+  - le % d'« Apprentissage » compte les effets prouvés dans la pièce.
+- Une VMC classique pilotée par « VMC conseillée » : choisissez « En continu » dans Équipements, sinon elle s'arrêtera la nuit.
+
+### Nouveautés
+
+- Un nouveau moteur de conseil. Pour chaque pièce, il compare les gestes possibles (ouvrir, refermer, VMC, purificateur, volet, chauffage) et garde celui qui aide le plus. Il apprend chaque nuit comment la pièce réagit et dit à quel point il est sûr.
+- Le conseil par créneaux : un geste au plus par pièce le matin, l'après-midi et le soir. Exemple : « Aérez 45 min vers 14 h 30 ».
+- Les urgences à toute heure, avec leur mesure : CO₂, particules fines, COV, humidité très au-dessus de la normale de la pièce. Exemple : « CO₂ 1 450 ppm : l'air redevient sain en 15 min ».
+- Un conseil suivi reste affiché jusqu'au bout : « Aération en cours », pourquoi, et quand refermer. « Aérez » dit quelle partie ouvrir quand la pièce en a plusieurs.
+- Sous le conseil, la journée de la pièce : ce qui est fait, ce qui ne l'est pas, puis la suite heure par heure. Quand il n'y a rien à faire, le prochain bon moment.
+- En hiver, quand un grand soleil est prévu, la carte le dit comme un bonus de chaleur, avec ses heures selon l'orientation de la fenêtre. Rien quand la météo annonce un ciel nuageux.
+- Chaque pièce a sa carte d'identité, refaite chaque nuit : sa normale, son isolation, son chauffage. Une pièce humide par nature n'a plus de conseil chaque jour pour son humidité.
+- Un conseil du logement pour ce qui est permanent. Exemple : « Humide en permanence : aérer ne suffira pas ».
+- Un événement Home Assistant à chaque nouveau conseil, pour l'envoyer sur le téléphone.
+- Les couleurs suivent le conseil : bleu rien à faire, vert « Bon moment », orange « À faire », rouge « Attention ».
+- Les cartes sont refaites : un bandeau qui dit le geste, sa durée et sa raison, puis « À venir », puis une case par mesure avec sa courbe. Nouvelles cartes à la pièce : Température, Humidité, Air, Ouvertures, Chauffage et À venir. Le ressenti de la pièce.
+- Le panneau Confort est refait, avec un guide d'installation, une question à la fois.
+- Une lumière peut montrer le conseil : un bandeau WLED ou une ampoule couleur.
+- La VMC : un réglage « En continu » ou « À la demande », et une entité « Turbo conseillé » qui s'allume pendant une douche.
+- La nuit, une petite lune : les conseils sont en pause jusqu'au réveil.
+- Quand le poêle chauffe, « À savoir » dit si la pièce est nettement plus froide que le reste de la maison.
+- Les volets pilotés par CoverAutomatic, Cover Extender ou Adaptive Cover Pro sont reconnus.
+- Sans capteur de température dehors, la prévision de Hestia Weather tient lieu de dehors.
+- Participez à l'amélioration du moteur : sur l'accueil du panneau, un rapport anonyme à télécharger et à partager si vous le voulez.
+- Le menu et les réglages communs de Hestia-FB parlent allemand.
+
+### Améliorations
+
+- Confort est beaucoup plus léger et le panneau s'ouvre plus vite. Une mise à jour de la météo ne recalcule plus les pièces quand rien de ce qu'elles lisent n'a changé.
+- Des conseils qui tiennent : plus de conseil ni d'urgence qui part et revient, une durée qui ne change plus toutes les cinq minutes, des heures rondes (« vers 15 h 30 »).
+- La pluie annoncée est dite au conditionnel. Avec un pluviomètre, seule la pluie mesurée fait refermer.
+- En saison de chauffe, une aération a une durée précise et annonce l'humidité qui restera une fois la fenêtre refermée.
+- Le poêle n'est compté que lorsqu'il chauffe vraiment.
+- La pastille se lit sur les mesures : « Tout va bien » seulement si tout est dans votre plage.
+- La carte se met à jour une minute après l'ouverture d'une fenêtre.
+
 ### Corrections
 
-- Avec Hestia Weather, chaque pièce se recalculait à chaque mise à jour de la météo (toutes les minutes), même quand rien de ce qu’elle lit n’avait changé : l’heure de calcul de la pluie et des pollens était prise pour un changement. Confort ne recalcule plus que quand la pluie, l’air, les pollens, les prévisions ou les alertes changent vraiment. Moins de travail pour les petites machines.
+- Plus de « Refermez » pour une fenêtre ouverte après la pluie, en mode absence, ou au passage d'une porte.
+- « VMC conseillée » ne reste plus allumée toute la nuit dans une pièce qu'elle n'arrive pas à assécher.
+- Plus de « Coupez le poêle » dans une pièce encore sous sa plage.
+- Une pièce en train de se recharger ne coupe plus la carte du logement.
+- L'interrupteur « Je participe » est de nouveau enregistré, et « VMC conseillée » reprend son état au redémarrage.
+- Sur téléphone, la carte ne déborde plus à droite.
 
-### Moteur de conseil 3.10.0 — inchangé
+### Moteur de conseil 3.22.3
+
+- Remplace le moteur de la 1.7.31. Le détail de chaque version est dans [CHANGELOG-MOTEUR.md](CHANGELOG-MOTEUR.md).
+
+## 3.1.0b19 — Un conseil suivi va jusqu'au bout
+
+**Un conseil suivi reste affiché jusqu'au bout, avec la partie de la pièce à ouvrir.**
+**Le soleil d'hiver est dit comme un bonus de chaleur, jamais par temps gris.**
+
+### Corrections
+
+- Après avoir ouvert pour un conseil, la carte dit « Aération en cours », pourquoi, et quand refermer. Elle ne passe plus à « Rien à faire » au bout de 3 minutes (Salon · Cuisine, Chambres A et M, le 20 novembre).
+- « Aérez » dit quelle partie ouvrir quand la pièce en a plusieurs (« côté Cuisine »).
+- La promesse du bon moment ne recule plus à chaque mise à jour.
+- La carte se met à jour une minute après l'ouverture d'une fenêtre, au lieu de 1 à 5 minutes.
+- La ligne du soleil s'affiche dans « Aujourd'hui » sous le conseil ; avant, la carte la perdait.
+- Dans « Aujourd'hui », une heure longue (« jusqu'à 14 h ») ne passe plus sous sa pastille.
+- Une urgence ne s'efface plus pour revenir cinq minutes plus tard (« Aérez 5 min », « Rien à faire », « Aérez 5 min » au Salon · Cuisine).
+- Sur téléphone, la carte ne déborde plus à droite (« stable », les barres Ressenti et Humidité, l'Air, les appareils).
+
+### Nouveau
+
+- En hiver, quand un grand soleil est prévu, la carte le dit comme un bonus de chaleur, avec ses heures selon l'orientation de la fenêtre : « Grand soleil sur la fenêtre sud jusqu'à 16 h 35 : un bonus de chaleur ». Rien quand la météo annonce un ciel nuageux, ni quand Hestia Weather voit qu'il fait gris maintenant (avec Weather 4.2).
+
+### Moteur de conseil 3.22.3
+
+- L'aération en cours, la partie à ouvrir et la promesse fixe du créneau (3.20.0).
+- Le soleil dit comme un bonus de chaleur en saison de chauffe (3.21.0 à 3.22.2).
+- Une urgence qui ne s'efface plus pour revenir (3.22.3).
+
+## 3.1.0b18 — Des conseils qui tiennent
+
+**Une urgence garde sa durée, un créneau garde son sujet, et l'air sain est annoncé à une heure claire.**
+
+### Corrections
+
+- Une urgence ne change plus de durée toutes les cinq minutes (« Aérez 30 min », puis 25, 20, 25).
+- Pendant un créneau, la phrase sous le conseil ne passe plus sans cesse de l'humidité à la moisissure.
+- « Aérez 5 min : le COV devrait retomber vers 10 h » au lieu de « … en 30 min », qui semblait contredire les 5 minutes.
+
+### Moteur de conseil 3.19.4
+
+- La durée d'une urgence et le sujet d'un créneau tiennent ; l'air sain après une courte aération dit en heure.
+
+## 3.1.0b17 — Des conseils même sans station
+
+**Sans capteur de température dehors, les conseils arrivent quand même.**
+
+### Corrections
+
+- Sans capteur de température dehors (un lieu Hestia Weather sans station, par exemple), les conseils arrivent : la prévision tient lieu de dehors. Avant, les cartes restaient sur « Conseil en attente ».
+- Une carte sans conseil après le démarrage dit ce qui lui manque, au lieu de « Le moteur redémarre » sans fin.
+
+### Moteur de conseil 3.19.3
+
+- Le dehors pris de la prévision quand aucun capteur ne le mesure.
+
+## 3.1.0b16 — Le nouveau moteur de conseil, en bêta
+
+**Tout ce qui change depuis la dernière bêta publiée, la 2.1.0b8.**
+**Un nouveau moteur de conseil : un geste au plus par pièce le matin, l'après-midi et le soir, au meilleur moment.**
+**Des cartes et un panneau refaits, avec un guide d'installation pas à pas.**
+**Un Confort beaucoup plus léger : Home Assistant ne se fige plus, même sur une petite box.**
+
+### Avant de mettre à jour
+
+- Faites une sauvegarde : Paramètres → Système → Sauvegardes.
+- Vous êtes en 2.1.0b8 : la mise à jour se fait directement dans le Marketplace, avec les bêtas affichées. Vos pièces, réglages et entités sont gardés.
+- Vous êtes en 1.7.x : tout passe seul au nouveau nom `hestia_comfort`, un encart dans **Hestia-FB → Accueil** suit chaque étape. Si le Marketplace refuse la mise à jour, suivez [docs/PASSAGE-HESTIA.md](docs/PASSAGE-HESTIA.md).
+- Mettez Hestia Weather à jour aussi, si vous l'avez (3.6.1 ou plus récent pour la force et la probabilité de la pluie).
+- Le nouveau moteur change des valeurs d'entités. Vérifiez les automatisations qui s'en servent :
+  - « État » ne donne plus que `calm`, `best`, `benefit`, `action`, `urgent` et `neutral` ;
+  - toutes les valeurs de « Raison » changent ;
+  - le % d'« Apprentissage » compte les effets prouvés dans la pièce.
+- Une VMC classique pilotée par « VMC conseillée » : choisissez « En continu » dans Équipements, sinon elle s'arrêtera la nuit.
+- Les premiers jours, Hestia conseille peu : elle attend d'avoir vu chaque geste marcher chez vous.
+
+### Nouveautés
+
+- Un nouveau moteur de conseil. Pour chaque pièce, il compare les gestes possibles (ouvrir, refermer, VMC, purificateur, volet, chauffage) et garde celui qui aide le plus. Il apprend chaque nuit comment la pièce réagit et dit à quel point il est sûr.
+- Le conseil par créneaux : un geste au plus par pièce le matin, l'après-midi et le soir. Exemple : « Aérez 45 min vers 14 h 30 ».
+- Les urgences à toute heure, avec leur mesure : CO₂, particules fines, COV, humidité très au-dessus de la normale de la pièce. Exemple : « CO₂ 1 450 ppm : l'air redevient sain en 15 min ».
+- Sous le conseil, la journée de la pièce : ce qui est fait, ce qui ne l'est pas, puis la suite heure par heure. Quand il n'y a rien à faire, le prochain bon moment.
+- Chaque pièce a sa carte d'identité, refaite chaque nuit : sa normale, son isolation, son chauffage. Une pièce humide par nature n'a plus de conseil chaque jour pour son humidité.
+- Un conseil du logement pour ce qui est permanent. Exemple : « Humide en permanence : aérer ne suffira pas ».
+- Un événement Home Assistant à chaque nouveau conseil, pour l'envoyer sur le téléphone.
+- Les couleurs suivent le conseil : bleu rien à faire, vert « Bon moment », orange « À faire », rouge « Attention ».
+- Les cartes sont refaites : un bandeau qui dit le geste, sa durée et sa raison, puis « À venir », puis une case par mesure avec sa courbe. Nouvelles cartes à la pièce : Température, Humidité, Air, Ouvertures, Chauffage et À venir. Le ressenti de la pièce.
+- Le panneau Confort est refait, avec un guide d'installation, une question à la fois. On l'ouvre depuis la vue d'ensemble, la page Pièces, une pièce ou Réglages.
+- Une lumière peut montrer le conseil : un bandeau WLED ou une ampoule couleur.
+- La VMC : un réglage « En continu » ou « À la demande », et une entité « Turbo conseillé » qui s'allume pendant une douche.
+- La nuit, une petite lune : les conseils sont en pause jusqu'au réveil.
+- Quand le poêle chauffe, « À savoir » dit si la pièce est nettement plus froide que le reste de la maison.
+- Les volets pilotés par CoverAutomatic ou Cover Extender sont reconnus.
+- Participez à l'amélioration du moteur : sur l'accueil du panneau, un rapport anonyme à télécharger et à partager si vous le voulez, et « Ce conseil ne va pas » sur la carte pour signaler un conseil.
+
+### Améliorations
+
+- Confort est beaucoup plus léger et le panneau s'ouvre plus vite.
+- Des conseils qui tiennent : plus de conseil qui part et revient, une phrase stable sous « Rien à faire », des heures rondes (« vers 15 h 30 »).
+- La pluie annoncée est dite au conditionnel. Avec un pluviomètre, seule la pluie mesurée fait refermer.
+- En saison de chauffe, une aération a une durée précise et annonce l'humidité qui restera une fois la fenêtre refermée.
+- Le poêle n'est compté que lorsqu'il chauffe vraiment.
+- La pastille se lit sur les mesures : « Tout va bien » seulement si tout est dans votre plage.
+
+### Corrections
+
+- Plus de « Refermez » pour une fenêtre ouverte après la pluie, en mode absence, ou au passage d'une porte.
+- « VMC conseillée » ne reste plus allumée toute la nuit dans une pièce qu'elle n'arrive pas à assécher.
+- Plus de « Coupez le poêle » dans une pièce encore sous sa plage.
+- Une pièce en train de se recharger ne coupe plus la carte du logement.
+- L'interrupteur « Je participe » est de nouveau enregistré, et « VMC conseillée » reprend son état au redémarrage.
+
+### Moteur de conseil 3.19.2
+
+- Remplace le moteur de la 2.1.0b8. Le détail de chaque version est dans [CHANGELOG-MOTEUR.md](CHANGELOG-MOTEUR.md).
+
+## 3.1.0b15 — Des heures rondes
+
+### Corrections
+
+- Les heures des conseils tombent sur la demi-heure : « vers 12 h », « vers 15 h 30 ».
+
+### Moteur de conseil 3.19.1
+
+- Heures calées sur la demi-heure.
+
+## 3.1.0b14 — Maintenant, puis
+
+### Nouveautés
+
+- Sous le conseil, la journée de la pièce : ce qui est fait, ce qui ne l'est pas, puis la suite heure par heure, chauffage compris.
+- Le prochain bon moment quand il n'y a rien à faire.
+
+### Corrections
+
+- Le conseil du créneau reste affiché jusqu'à la fin du créneau.
+- Plus de conseil quotidien pour une pièce humide par nature.
+- Des phrases simples, sans mots techniques.
+
+### Moteur de conseil 3.19.0
+
+- La journée de la pièce, le prochain bon moment, trois corrections.
+
+## 3.1.0b13 — Le conseil par créneaux
+
+### Nouveautés
+
+- Un conseil au plus par pièce le matin, l'après-midi et le soir, au meilleur moment.
+- Les urgences à toute heure : CO₂, particules, COV, humidité très au-dessus de la normale de la pièce.
+- La carte d'identité de chaque pièce, refaite chaque nuit.
+- Un conseil du logement pour ce qui est permanent.
+- Un événement pour envoyer les conseils sur le téléphone.
+- Les couleurs suivent le conseil : bleu rien à faire, vert « Bon moment », orange « À faire », rouge « Attention ». Au-dessus du geste, son créneau (« Cet après-midi »).
+
+### Corrections
+
+- Plus de conseil qui part et revient.
+- En mode sombre, le bleu et le vert se distinguent nettement.
+- « Refermez » passe en orange dès la fin du compte à rebours.
+
+### Moteur de conseil 3.18.0
+
+- Créneaux, urgences, carte d'identité et mémoire de la carte.
+
+## 3.1.0b12 — Plus de faux « Refermez »
+
+### Corrections
+
+- Plus de « Refermez : il pleut » pour une fenêtre ouverte après la pluie.
+- Plus de « Coupez le poêle » dans une pièce encore sous sa plage.
+- « Le gel est annoncé » ne clignote plus la nuit.
+- Le soir, moins d'aérations proposées pour une petite différence.
+
+### Moteur de conseil 3.17.1
+
+- Pluie, poêle, gel et aérations du soir corrigés.
+
+## 3.1.0b11 — Des promesses justes
+
+### Corrections
+
+- En saison de chauffe, la carte propose une aération d'une durée précise et annonce l'humidité qui restera une fois la fenêtre refermée. Exemple : « 65 % » au lieu de « 53 % », qui supposait la fenêtre ouverte toute la matinée.
+- L'humidité qui remonte après une aération ou une douche est prévue.
+- Le poêle au ralenti s'éteint dans les prévisions après 45 minutes.
+- Plus de « Laissez ouvert » affiché quelques secondes au passage d'une porte-fenêtre.
+- L'apprentissage de l'humidité reste dans des valeurs physiquement possibles : plus de promesses trop belles pour une aération courte.
+
+### Moteur de conseil 3.17.0
+
+- Aérations chronométrées en saison de chauffe, eau des murs suivie, fin du ralenti du poêle, conseils et phrases plus stables.
+
+## 3.1.0b10 — Le poêle au ralenti compte
+
+### Corrections
+
+- Le poêle au ralenti chauffe toujours : les prévisions et l'apprentissage le comptent.
+- Sous une pluie fine, « Gardez fermé : il pleut » ne clignote plus.
+- Le soir, plus de « Ouvrez » sans durée dans une pièce chauffée.
+- Un conseil d'aération ne change plus d'heure ni de durée pour presque rien.
+
+### Moteur de conseil 3.16.0
+
+- Flamme minimale du poêle à granulés, pluie tenue 30 minutes, aération courte le soir, conseils et phrases plus stables.
+
+## 3.1.0b9 — La pièce comparée à la maison
+
+### Nouveautés
+
+- Quand le poêle chauffe, « À savoir » dit si la pièce est nettement plus froide que le reste de la maison, et pourquoi. Exemple : « 1,8 °C sous la moyenne de la maison (21,2 °C) : le poêle chauffe peu cette pièce ».
+
+### Moteur de conseil 3.15.1
+
+- Nouveau « À savoir » : l'écart avec la moyenne de la maison, poêle allumé.
+
+## 3.1.0b8 — Des conseils qui tiennent
+
+### Corrections
+
+- L'humidité dehors vient de votre station : plus de « Refermez » sur une prévision trop humide.
+- La chaleur du poêle suit sa vraie courbe dans toutes les pièces. Exemple : 24,8 °C annoncés dans une chambre où il a fait 21,8 °C.
+- Un conseil mis en pause est dit « en pause jusqu'à 22 h 35 », plus « aucun geste ne ferait mieux ».
+- « À savoir » ne contredit plus le conseil affiché.
+- 2 minutes de fenêtre ouverte ne comptent plus comme une aération de 20 minutes.
+
+### Moteur de conseil 3.15.0
+
+- L'apprentissage de nuit juge aussi les prévisions à 8 heures.
+- « À essayer », l'heure d'« Aérez » et le sujet de la phrase restent stables.
+
+## 3.1.0b7 — Le poêle compté quand il chauffe
+
+### Corrections
+
+- Un poêle qui attend la confirmation de son allumage ne fausse plus les prévisions de toute la maison. Exemple : « 21,7 °C à 20 h » annoncé au Salon à 19 °C alors que le poêle n'a jamais démarré.
+- La nuit, la VMC rapide d'une douche s'arrête après 20 minutes.
+- Une VMC arrêtée à la main reste arrêtée 2 heures, sauf nouvelle douche.
+- Un extracteur qui ne sèche pas la pièce attend de plus en plus longtemps avant de repartir : 2, 4 puis 8 heures.
+
+### Moteur de conseil 3.14.1
+
+- Le poêle n'est compté que lorsqu'il chauffe vraiment, dans les prévisions comme dans l'apprentissage de nuit.
+- La chaleur du poêle partagée entre les pièces ne dépasse plus 100 %.
+- Le journal note aussi les changements de phrase.
+
+## 3.1.0b6 — Une pastille qui dit vrai
+
+### Améliorations
+
+- La pastille se lit sur les mesures : « Tout va bien » seulement si tout est dans votre plage, « Au mieux » si une mesure en sort et qu'aucun geste n'aiderait. Elle ne clignote plus avec la pluie ou l'absence.
+- La pluie annoncée est dite au conditionnel. Avec un pluviomètre, seule la pluie mesurée fait refermer ; une pluie annoncée s'affiche dans « À savoir ».
+- Demande Hestia Météo 3.6.1 pour la force et la probabilité de la pluie. Avec une version plus ancienne, la carte fonctionne sans ces informations.
+
+### Moteur de conseil 3.14.0
+
+- Pastille calculée sur les mesures, au plus un changement par demi-heure.
+- Pluviomètre d'abord ; pluie annoncée au conditionnel ; probabilité Météo-France prise en compte.
+
+## 3.1.0b5 — De l'air quand il le faut
+
+### Nouveautés
+
+- Quand le CO₂ mesuré dépasse 1 400 ppm, la carte conseille d'aérer 10 min et donne la mesure. Exemple : « Aérez 10 min — CO₂ mesuré à 1 470 ppm : l'air est à renouveler ».
+
+### Améliorations
+
+- Un conseil laissé sans suite ne revient pas avant 2 heures, sauf si la pièce se dégrade nettement.
+- « À essayer » garde la même durée au moins une demi-heure.
+
+### Corrections
+
+- Fini les phrases contradictoires comme « Aérez 15 min : l'air pourrait redevenir sain en 5 min ».
+
+### Moteur de conseil 3.13.0
+
+- CO₂ mesuré au-dessus de 1 400 ppm : aération conseillée, même sans preuve.
+- Conseil non suivi : pas reproposé avant 2 heures.
+- « À essayer » stable une demi-heure ; temps de retour arrondi au quart d'heure.
+- Le journal note la pastille et ne double plus ses lignes au rechargement.
+
+## 3.1.0b4 — Une lune pour la nuit
+
+### Nouveautés
+
+- La nuit, une petite lune s'affiche sur l'image du conseil, dans la tuile et la carte complète. Elle dit que les conseils sont en pause jusqu'au réveil. Exemple : « Nuit : conseils en pause jusqu'à 7 h ».
+- Le « i » l'explique : pas d'aération proposée avant le réveil ; une fenêtre restée ouverte ou un appareil allumé restent signalés.
+
+### Moteur de conseil 3.12.1 — inchangé
+
+## 3.1.0b3 — Des phrases justes
+
+### Améliorations
+
+- Quand le CO₂ ou les COV dépassent leur seuil mais redescendent seuls, la carte le dit au lieu de « La pièce restera dans votre plage ».
+- La pastille ne repasse à « Tout va bien » qu'après une heure de calme : elle ne change plus plusieurs fois par heure.
+
+### Corrections
+
+- L'interrupteur « Je participe » est de nouveau enregistré. Avant, il bougeait à l'écran sans rien garder.
+- Au redémarrage de Home Assistant, « VMC conseillée » reprend son état. Avant, la VMC s'arrêtait une minute.
+
+### Moteur de conseil 3.12.1
+
+## 3.1.0b2 — La VMC à sa place
+
+### Nouveautés
+
+- Réglage « Fonctionnement » de la VMC, dans Équipements : « En continu » pour une VMC classique, « À la demande » pour un extracteur.
+- Nouvelle entité « Turbo conseillé » dans les pièces qui ont une vitesse rapide : elle s'allume pendant une douche et quand Hestia conseille le turbo.
+
+### Améliorations
+
+- « VMC conseillée » en continu reste toujours allumée ; seul le turbo va et vient.
+- « VMC conseillée » à la demande s'arrête au coucher de la pièce. Exemple : 78 % d'humidité à 23 h, l'extracteur ne tourne plus jusqu'au matin.
+- Une heure de VMC qui ne fait pas baisser l'humidité d'au moins 1 point met l'extracteur au repos 2 heures.
+- Une mesure qui hésite une minute n'arrête plus la VMC : il faut 3 minutes de « non ».
+
+### Corrections
+
+- « VMC conseillée » ne reste plus allumée toute la nuit dans une pièce humide qu'elle n'arrive pas à assécher.
+
+### Après la mise à jour
+
+- VMC classique pilotée par « VMC conseillée » : choisissez « En continu » dans Équipements, sinon elle s'arrêtera la nuit.
+
+### Moteur de conseil 3.12.0 — inchangé
+
+## 3.1.0b1 — Des conseils plus posés
+
+### Nouveautés
+
+- Carte du logement : la grande température peut montrer le dehors ou la moyenne des pièces, au choix.
+- Carte complète : un encart « Bon à savoir », replié, rassemble les informations utiles de la pièce.
+
+### Améliorations
+
+- Un conseil affiché reste en place au moins une demi-heure tant qu'il aide encore : il ne change plus toutes les 5 minutes.
+- « À essayer » ne clignote plus.
+- Une aération se termine avant l'heure du coucher de la pièce, avec 15 minutes de marge pour une nouvelle. Pas de « Ouvrez » sans durée dans l'heure qui précède le coucher.
+- Une porte ou une fenêtre qu'on vient d'ouvrir n'affiche pas « Refermez » pendant 3 minutes : le temps de passer. La pluie et le vent fort font toujours refermer tout de suite.
+- La nuit, la pastille ne passe plus de « Tout va bien » à « Au mieux » quand une mesure frôle la limite.
+- Le réglage « Allergie aux pollens » compte de nouveau : les jours de pollens élevés, les aérations sont courtes et au bon moment.
+
+### Corrections
+
+- Une aération n'est plus dite « sans effet » avant que le capteur ait envoyé une nouvelle mesure.
+- L'alarme en mode absence ne fait plus dire « Refermez » : c'est le rôle de l'alarme.
+- Le chauffage prévu est annoncé à la bonne minute.
+
+### Moteur de conseil 3.12.0 — en bêta
+
+- Le détail de chaque version du moteur est dans le changelog du moteur.
 
 ## 3.0.1 — Correctif : le panneau après « Enregistrer »
 

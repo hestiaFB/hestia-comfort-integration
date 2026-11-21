@@ -214,7 +214,9 @@ export interface HomeConfig {type:'custom:hestia-comfort-home-card';title?:strin
   animations?:boolean;glass_effect?:boolean;banner_blocks?:(typeof HOME_BANNER[number])[];list_order?:'urgent'|'floor';
   hold_action?:HoldAction;hold_path?:string;
   /** The full card: its sections, those inside « Plus de détails », that fold opened, and the period shown first. */
-  sections?:(typeof HOME_SECTIONS[number])[];folded?:(typeof HOME_SECTIONS[number])[];more_open?:boolean;period?:'day'|'week'|'month'}
+  sections?:(typeof HOME_SECTIONS[number])[];folded?:(typeof HOME_SECTIONS[number])[];more_open?:boolean;period?:'day'|'week'|'month';
+  /** The big temperature of the title line: outside (default) or the mean of the declared rooms (7 November). */
+  hero_temperature?:'outdoor'|'home'}
 export const HOME_SECTIONS=['themes','rooms_chart','curve','rooms','details'] as const;
 export const HOME_FLAGS=['rotate','show_scale','show_rooms','rooms_open','show_details','details_open','more_open','animations','glass_effect'] as const;
 export function cleanHomeConfig(input:HomeConfig):HomeConfig {
@@ -227,6 +229,7 @@ export function cleanHomeConfig(input:HomeConfig):HomeConfig {
   hold(input);
   const banner=list(input.banner_blocks,HOME_BANNER,'bandeau');
   if(input.period!==undefined&&!['day','week','month'].includes(input.period))throw new Error(t('Période inconnue.'));
+  if(input.hero_temperature!==undefined&&!['outdoor','home'].includes(input.hero_temperature))throw new Error(t('Température affichée inconnue.'));
   const sections=list(input.sections,HOME_SECTIONS,'sections'),folded=list(input.folded,HOME_SECTIONS,'sections');
   return {...input,...(banner?{banner_blocks:banner}:{}),...(sections?{sections}:{}),...(folded?{folded}:{})};
 }
