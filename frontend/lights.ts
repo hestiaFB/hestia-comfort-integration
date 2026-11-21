@@ -15,8 +15,8 @@ export interface LightInfo {wled:boolean;leds:number|null;segments:{entity_id:st
 // The banner's states, with the card's colours (hestia-charte.css): blue all is well, green a benefit, orange a gesture.
 export const lightStates:{key:string;label:string;colour:string;text:string}[]=[
  {key:'calm',label:fr('Tout va bien'),colour:'#aad6e5',text:'#0c3f52'},
- {key:'benefit',label:fr('À saisir'),colour:'#a5d6ae',text:'#1f4a27'},
- {key:'action',label:fr('Geste conseillé'),colour:'#f1b277',text:'#5a3108'},
+ {key:'benefit',label:fr('Bon moment'),colour:'#a5d6ae',text:'#1f4a27'},
+ {key:'action',label:fr('À faire'),colour:'#f1b277',text:'#5a3108'},
  {key:'airing',label:fr('Aération en cours'),colour:'#aad6e5',text:'#0c3f52'},
  {key:'urgent',label:fr('Attention'),colour:'#e8857f',text:'#5c1714'}];
 const defaults:Record<string,LightLook>={calm:{colour:'#aad6e5',effect:'keep',brightness:40},benefit:{colour:'#a5d6ae',effect:'solid',brightness:50},

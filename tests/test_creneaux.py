@@ -302,6 +302,10 @@ class DayTests(unittest.TestCase):
         self.assertEqual(aside_urgent("co2", 1450, "open", 10),
                          "CO₂ encore élevé (1\u202f450 ppm) : aérer 10 min aiderait, quand vous pourrez")
         self.assertEqual(next_moment("apres_midi", at(15, 2), "open", 30), "Prochain bon moment : cet après-midi vers 15 h, aérer 30 min")
+        # Labo, 21 November at 10 h 18: « cet après-midi vers 12 h » in the Chambre A. Noon is said as such.
+        self.assertEqual(next_moment("apres_midi", at(12, 0), "open", 60), "Prochain bon moment : vers midi, aérer 60 min")
+        self.assertEqual(next_moment("apres_midi", at(12, 30), "open", 60), "Prochain bon moment : vers 12 h 30, aérer 60 min")
+        self.assertEqual(next_moment("apres_midi", at(12, 0), "open", 60, "en"), "Next good moment: around noon, air 60 min")
         self.assertEqual(normal_humidity(77.4), "Humidité 77 % : normal pour cette pièce")
         self.assertNotIn("aucun geste", phrase(CalmSubjectTests().decision(18.9, 72.0), 23,
                                                  marks={"minimum": 19.0, "maximum": 24.0, "humidity": 60.0})["line"])

@@ -1,5 +1,21 @@
 ## À venir
 
+## 3.1.1 — Les mêmes mots partout
+
+**La carte, les entités et la lumière disent la même chose.**
+
+### Corrections
+
+- L'entité « État » dit « Bon moment » et « À faire », comme la carte, au lieu de « À saisir » et « Geste conseillé ». Ses valeurs pour les automatisations (`benefit`, `action`) ne changent pas.
+- Les réglages de la lumière du conseil parlent aussi de « Bon moment » et « À faire ».
+- « Prochain bon moment : vers midi » au lieu de « cet après-midi vers 12 h ».
+- La réparation « reprendre les mises à jour » ne dit plus « la version que vous avez déjà » : le Marketplace télécharge la dernière version, puis la suit de nouveau.
+- La doc décrit le nouveau moteur : les créneaux, les urgences et leurs seuils, « Aujourd'hui », l'aération en cours, la VMC en continu ou à la demande, le Turbo, l'événement pour le téléphone et la lumière du conseil.
+
+### Moteur de conseil 3.22.4
+
+- Midi dit comme tel dans « Prochain bon moment ».
+
 ## 3.1.0 — Le nouveau moteur de conseil
 
 **Tout ce qui change depuis la dernière version stable, la 1.7.31.**

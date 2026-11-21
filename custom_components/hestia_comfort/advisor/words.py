@@ -76,7 +76,7 @@ TEXTS = {
         "overheat": "{air} °C pour {target} °C visés, depuis {minutes} min",
         "stale": "CO₂ mesuré à {co2} ppm : l'air est à renouveler",
         "normal_humidity": "Humidité {value} % : normal pour cette pièce",
-        "next_moment": "Prochain bon moment : {when} vers {at}, {gesture}",
+        "next_moment": "Prochain bon moment : {when} vers {at}, {gesture}", "next_moment_noon": "Prochain bon moment : vers {at}, {gesture}", "noon": "midi",
         "slot_matin": "ce matin", "slot_apres_midi": "cet après-midi", "slot_soir": "ce soir", "slot_demain": "demain matin",
         "act_open": "aérer {minutes} min", "act_boost": "lancer la VMC rapide {minutes} min", "act_purify": "lancer le purificateur {minutes} min",
         "day_open": "Aérer {minutes} min", "day_boost": "VMC rapide {minutes} min", "day_purify": "Purificateur {minutes} min",
@@ -191,7 +191,7 @@ TEXTS = {
         "overheat": "{air} °C for {target} °C aimed at, for {minutes} min",
         "stale": "CO₂ measured at {co2} ppm: the air needs renewing",
         "normal_humidity": "Humidity {value} %: normal for this room",
-        "next_moment": "Next good moment: {when} around {at}, {gesture}",
+        "next_moment": "Next good moment: {when} around {at}, {gesture}", "next_moment_noon": "Next good moment: around {at}, {gesture}", "noon": "noon",
         "slot_matin": "this morning", "slot_apres_midi": "this afternoon", "slot_soir": "this evening", "slot_demain": "tomorrow morning",
         "act_open": "air {minutes} min", "act_boost": "run the fast ventilation {minutes} min", "act_purify": "run the purifier {minutes} min",
         "day_open": "Air {minutes} min", "day_boost": "Fast ventilation {minutes} min", "day_purify": "Purifier {minutes} min",
@@ -306,7 +306,7 @@ TEXTS = {
         "overheat": "{air} °C bei {target} °C Ziel, seit {minutes} min",
         "stale": "CO₂ gemessen bei {co2} ppm: die Luft muss erneuert werden",
         "normal_humidity": "Feuchte {value} %: normal für diesen Raum",
-        "next_moment": "Nächster guter Moment: {when} gegen {at}, {gesture}",
+        "next_moment": "Nächster guter Moment: {when} gegen {at}, {gesture}", "next_moment_noon": "Nächster guter Moment: gegen {at}, {gesture}", "noon": "Mittag",
         "slot_matin": "heute Morgen", "slot_apres_midi": "heute Nachmittag", "slot_soir": "heute Abend", "slot_demain": "morgen früh",
         "act_open": "{minutes} Min. lüften", "act_boost": "Lüftung {minutes} Min. auf Stufe 2", "act_purify": "Luftreiniger {minutes} Min. laufen lassen",
         "day_open": "{minutes} Min. lüften", "day_boost": "Lüftung {minutes} Min.", "day_purify": "Luftreiniger {minutes} Min.",
@@ -745,9 +745,13 @@ def aside_urgent(subject: str, value: float, kind: str, minutes: int | None, lan
 
 def next_moment(slot: str, at, kind: str, minutes: int | None, language: str = "fr") -> str:
     """« Prochain bon moment : cet après-midi vers 15 h, aérer 30 min » (ETAT-DES-LIEUX-MOTEUR.md, bandeau « Maintenant, puis »)."""
-    words = TEXTS[language]
-    return words["next_moment"].format(when=words[f"slot_{slot}"], at=_time(time(at.hour, at.minute - at.minute % 5), words),
-                                       gesture=act_text(kind, minutes, language))
+    words, said = TEXTS[language], time(at.hour, at.minute - at.minute % 5)
+    gesture = act_text(kind, minutes, language)
+    if said.hour == 12:
+        # The afternoon begins at noon (advisor/slots.py): « cet après-midi vers 12 h » read wrong (labo, 21 November at
+        # 10 h 18, Chambre A). Noon is said as such, and its half hour without the slot.
+        return words["next_moment_noon"].format(at=words["noon"] if said.minute == 0 else _time(said, words), gesture=gesture)
+    return words["next_moment"].format(when=words[f"slot_{slot}"], at=_time(said, words), gesture=gesture)
 
 
 def before_after(subject: str, before: float | None, after: float | None, language: str = "fr") -> str | None:
