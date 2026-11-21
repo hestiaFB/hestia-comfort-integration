@@ -65,7 +65,7 @@ La carte est fournie par l’intégration : rien à installer à part.
 **Hestia Weather est installé, mais n’est pas proposé** :
 
 - vérifiez que Hestia Weather a au moins un lieu (onglet **Météo** du panneau Hestia-FB) ;
-- Confort a besoin de Hestia Weather 2.1 ou plus récent ;
+- Confort 3.1 a besoin de Hestia Weather 3.2.0 ou plus récent (4.1.0 conseillée) ;
 - après l’installation de Weather, redémarrez Home Assistant.
 
 Une fois relié, l’encadré **Extensions** de l’Accueil indique Hestia Weather « liée », et **Versions et liens** le cite dans ses liaisons. Weather affiche aussi « Relié à Hestia Confort ».
@@ -107,6 +107,12 @@ Vérifiez aussi les réglages de la pièce :
 Une pastille **« Au mieux »** n’est pas une erreur : une mesure sort de votre plage, mais aucun geste ne ferait mieux. « À savoir » dit pourquoi.
 
 « **Rien à faire** » alors qu’il fait chaud ? Dehors n’est pas plus frais, ou ouvrir n’aiderait pas. Hestia-FB ne parle que pour un geste utile.
+
+Le conseil ne change pas pendant que vous le lisez ? C’est voulu : un geste au plus par créneau (matin, après-midi, soir), choisi au début du créneau. Seules une urgence ou la sécurité (pluie, rafales, alarme) parlent entre deux.
+
+Une urgence ne revient pas tout de suite après avoir été ignorée : elle se met de côté deux heures, sauf si la mesure s’aggrave.
+
+Un conseil faux reste possible : les conseils ne sont pas infaillibles. Signalez-le avec **Ce conseil ne va pas** sur la carte, c’est ce qui l’améliore le plus.
 
 La durée d’aération change ? La pièce apprend. Les premiers jours, elle reste prudente. Son état d’apprentissage et la précision de ses prévisions sont dans **Vos pièces**, sur l’Accueil Confort.
 
