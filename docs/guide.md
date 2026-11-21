@@ -10,6 +10,7 @@ Hestia Confort dit, pour chaque pièce, quoi faire et pourquoi. Ce guide expliqu
 - [Fenêtres, chauffage, VMC, purificateur, volets](#fenêtres-chauffage-vmc-purificateur-volets)
 - [Chaque pièce apprend](#chaque-pièce-apprend)
 - [Pour vos automatisations](#pour-vos-automatisations)
+- [La lumière du conseil](#la-lumière-du-conseil)
 
 Un souci ? Voir le [dépannage](depannage.md).
 
@@ -221,12 +222,18 @@ Un conseil n’est pas une certitude. Hestia Confort apprend chaque jour comment
 
 ### La carte d’une pièce
 
-**En haut, le conseil.** Quelques mots, puis la raison chiffrée :
+**En haut, le conseil.** Quelques mots, puis la raison :
 
-> **Aérez 25 à 35 min**
-> Dehors 78 %, mais l’air froid contient peu d’eau : environ 63 % après l’aération.
+> **Aérez 45 min vers 14 h 30**
+> L’humidité devrait passer à 62 % au lieu de 70 %.
 
-À droite, un pictogramme. En dessous, la fenêtre à ouvrir.
+À droite, un pictogramme. En dessous, la fenêtre à ouvrir ; quand la pièce en a plusieurs, la partie à ouvrir (« côté Cuisine »).
+
+**Un geste au plus par créneau.** La journée a trois créneaux, réglés sur vos habitudes : le matin (du réveil à midi), l’après-midi (jusqu’au soir) et le soir (jusqu’au coucher). Au début de chaque créneau, Hestia-FB choisit pour chaque pièce le geste qui aide le plus, et son meilleur moment, à la demi-heure près. Ce geste ne change plus pendant le créneau. Le geste de la nuit est dit le soir : « Cette nuit, pensez à… ».
+
+**Les urgences, à toute heure.** Quand une mesure dépasse nettement sa limite, la carte le dit tout de suite, avec la mesure : « CO₂ 1 450 ppm : l’air redevient sain en 15 min ». Elles comptent le CO₂ (au-dessus de 1 400 ppm), les particules fines (au-dessus de 25 µg/m³), les COV (au-dessus de l’indice 250) et l’humidité très au-dessus de la normale de la pièce. Une urgence dure tant que la mesure n’est pas redescendue (sous 1 100 ppm, 15 µg/m³, l’indice 150). Si personne ne la suit en 45 minutes, elle se met de côté deux heures, sauf si la mesure s’aggrave.
+
+**À quel point il est sûr.** « L’humidité devrait passer à 62 % » : le moteur l’a déjà vu marcher dans cette pièce. « pourrait » : pas encore. « sans doute » : le moteur n’en est pas tout à fait sûr. Un geste dont l’effet n’est pas encore prouvé est proposé en douceur, « À essayer ».
 
 **La couleur** dit s’il y a quelque chose à faire :
 
@@ -234,12 +241,13 @@ Un conseil n’est pas une certitude. Hestia Confort apprend chaque jour comment
 | --- | --- | --- |
 | Bleu | Tout va bien | Rien à faire |
 | Bleu | Au mieux | Une mesure hors de votre plage, mais aucun geste ne ferait mieux ; « À savoir » dit pourquoi |
-| Vert | À saisir | Un bénéfice, souvent plus tard : « Aérez vers 23 h » |
-| Orange | Geste conseillé | Un geste utile maintenant |
-| Rouge | Attention | Urgent : « Fermez, il pleut » |
-| Gris | — | Mesures en chargement, absentes ou incomplètes |
+| Bleu | En cours | Une aération suivie : la carte dit quand refermer |
+| Vert | Bon moment | Le geste du créneau : « Aérez 45 min vers 14 h 30 » |
+| Orange | À faire | Une urgence, ou une fenêtre à refermer maintenant |
+| Rouge | Attention | La sécurité d’abord : « Fermez, il pleut », rafales, alarme armée |
+| Gris | À vérifier, Démarrage | Mesures en chargement, absentes ou incomplètes |
 
-Hestia-FB ne parle que pour un geste qui aide. Sinon : « Rien à faire ».
+Hestia-FB ne parle que pour un geste qui aide. Sinon : « Rien à faire », avec le prochain bon moment quand il y en a un.
 
 - **Aérer seulement si c’est mieux qu’attendre** : la durée d’aération est apprise pièce par pièce.
 - **Pas d’« Aérez » en pleine nuit** : la carte attend le réveil et dit à partir de quelle heure aérer.
@@ -249,9 +257,13 @@ Hestia-FB ne parle que pour un geste qui aide. Sinon : « Rien à faire ».
 
 **Dessous, « À savoir »** : ce qui est utile à savoir, sans geste à faire, le plus important d’abord. Une idée par ligne : risque de moisissure sur les murs froids, air humide dehors, même air qu’une autre pièce, VMC en marche, résultat de la dernière aération (« humidité 76 → 70 % »). Il dit aussi les bonnes fenêtres à ouvrir, selon le vent, les façades et la taille des ouvrants ; une fenêtre où la pluie entrerait est écartée.
 
-Plusieurs conseils ? Ils défilent, le plus important d’abord. Un appui passe au suivant.
+**« Aujourd’hui », sous le conseil** : la journée de la pièce. Ce qui est fait, avec ce que ça a donné, ce qui ne l’est pas (sans reproche), puis la suite heure par heure.
 
-**Pendant l’aération**, le conseil suit le temps : « Encore 5 min d’aération », puis « Vous pouvez refermer ».
+**Pendant l’aération**, la carte dit « Aération en cours », pourquoi, et quand refermer : « refermez vers 15 h 15 ». Puis « Laissez ouvert encore 10 min », et « Refermez ». Le conseil reste affiché jusqu’au bout, même si la fenêtre a été refermée puis rouverte dans les 3 minutes.
+
+**La nuit**, une petite lune : pas d’aération proposée avant votre réveil. Une fenêtre ouverte ou un appareil allumé restent signalés.
+
+**Le soleil d’hiver.** En saison de chauffe, quand un grand soleil est prévu sur une fenêtre, « À savoir » le dit comme un bonus de chaleur, avec ses heures selon l’orientation : « Grand soleil sur la fenêtre sud jusqu’à 16 h 35 : un bonus de chaleur ». Avec un volet connecté fermé : « ouvrez le volet pour en profiter ». Avec un volet sans capteur : « si les volets sont ouverts ». Rien quand la météo annonce un ciel nuageux.
 
 **L’échelle de température** place la pièce dans votre plage :
 
@@ -343,7 +355,7 @@ Le bilan lit l’historique de Home Assistant : les statistiques à long terme g
 
 ## Fenêtres, chauffage, VMC, purificateur, volets
 
-Hestia-FB observe vos équipements. Il ne les commande jamais.
+Hestia-FB observe vos équipements. Il ne les commande jamais, sauf la lumière que vous lui confiez pour montrer le conseil ([La lumière du conseil](#la-lumière-du-conseil)).
 
 ### Fenêtres
 
@@ -352,7 +364,7 @@ Hestia-FB observe vos équipements. Il ne les commande jamais.
 - **Pluie** : Hestia-FB fait fermer les ouvrants exposés. Ceux qui sont abrités peuvent rester ouverts.
 - **Vent fort** : au-delà de 45 km/h de rafales, rien ne reste ouvert.
 - **Gel** : pas d’aération prolongée sous 1 °C.
-- **Soleil** : Hestia-FB signale la fenêtre ouverte par laquelle le soleil chauffe la pièce.
+- **Soleil** : Hestia-FB signale la fenêtre ouverte par laquelle le soleil chauffe la pièce. En hiver, un grand soleil prévu est dit comme un bonus de chaleur.
 - Avec le vent, il dit quelles fenêtres ouvrir pour faire traverser l’air.
 
 ### Chauffage
@@ -365,6 +377,11 @@ Hestia-FB observe vos équipements. Il ne les commande jamais.
 
 - La tuile Ventilation dit si elle tourne, et si elle est en grande vitesse.
 - Quand ouvrir la fenêtre sécherait peu, Hestia-FB propose plutôt : « Lancez la VMC ».
+- Dans **Équipements**, choisissez son **Fonctionnement** :
+  - **En continu** : une VMC classique. Sa petite vitesse ne s’arrête jamais ; « VMC conseillée » reste allumée.
+  - **À la demande** : un extracteur, lancé quand il aide (air trop humide alors que dehors est plus sec, ou trop de CO₂). Jamais pendant la nuit de la pièce. Une heure de marche sans effet le met au repos deux heures, puis plus.
+- **Turbo conseillé** : avec une grande vitesse, il s’allume pendant une douche (dans une pièce qui en a une) ou quand le conseil dit « Lancez la VMC rapide ». La nuit, une douche ne lance le turbo que 20 minutes.
+- Une VMC arrêtée à la main pendant qu’elle était conseillée : vous avez raison, rien n’est redemandé pendant deux heures, sauf une nouvelle douche.
 
 ### Purificateur
 
@@ -379,7 +396,7 @@ Chaque ouvrant peut avoir :
 - **un volet manuel** (bois, battant…) : Hestia-FB ne connaît pas sa position. Il conseille sous condition : « Si le volet est ouvert, fermez-le côté ouest » ;
 - **un volet connecté** : Hestia-FB lit sa position, et son automatisme ou sa dérogation si vous les choisissez.
 
-En été, Hestia-FB conseille de protéger les façades au soleil. En hiver, il signale le soleil qui peut chauffer.
+En été, Hestia-FB conseille de protéger les façades au soleil. En hiver, il dit le grand soleil comme un bonus de chaleur ; avec un volet connecté fermé : « ouvrez le volet pour en profiter ».
 
 Avec une avancée de toit et ses dimensions, l’ombre est estimée. Sans dimensions, un modèle simple est utilisé.
 
@@ -432,7 +449,7 @@ Dans **Détails**, la ligne **Séchage** dit sur combien d’aérations la pièc
 
 Hestia-FB rejoue chaque jour les prévisions de la pièce sur les dernières 24 heures. L’apprentissage est **optimal** après 7 jours de mesures, quand ces prévisions tiennent à ±0,5 °C et ±3 % d’humidité.
 
-Alors le conseil est **optimisé** : il annonce le résultat, « Aérez 15 min · 76 → 68 % en 15 min », aussi pour le CO₂ et les COV. Une pastille « Conseil optimisé » le signale. Si les prévisions ne tiennent plus, la pièce repasse en conseil estimé.
+Chaque nuit, la pièce refait sa carte d’identité : sa normale (une pièce humide par nature n’a plus de conseil chaque jour pour son humidité), son isolation, son chauffage. Le conseil dit à quel point il est sûr : « devrait » pour un effet déjà vu dans la pièce, « pourrait » sinon. Les premiers jours, Hestia-FB conseille peu : il attend d’avoir vu chaque geste marcher chez vous.
 
 Chaque aération conseillée et suivie est mesurée : la carte montre son résultat pendant 24 h, l’accueil Confort le bilan de la semaine.
 
@@ -458,7 +475,7 @@ Les entités disent **exactement ce que dit la carte** : même conseil, même pa
 | Entité | Ce qu’elle dit |
 | --- | --- |
 | **Conseil** | Le titre de la carte : Rien à faire · Aérez 10 min · Refermez · Lancez la VMC… En attributs : `geste` (stable, pour les automatisations), `precision` (la fenêtre visée, l’heure avant la pluie), `pastille` |
-| **État** | La pastille : Tout va bien · Au mieux · À saisir · Geste conseillé · Attention · À vérifier · Conseil optimisé · Trop frais… |
+| **État** | La pastille, en valeur stable : `calm` (Tout va bien, En cours), `best` (Au mieux), `benefit` (Bon moment), `action` (À faire), `urgent` (Attention), `neutral` (À vérifier) |
 | **Couleur** | La couleur de la carte, en `#rrggbb`. En attributs : `rgb_color`, et `hs_color` saturée pour une lumière |
 | **Humidité** | Dans votre plage · Légèrement humide · Air humide · Très humide · (et sec) |
 | **Apprentissage** | En % |
@@ -466,7 +483,8 @@ Les entités disent **exactement ce que dit la carte** : même conseil, même pa
 | **Geste à faire** | Oui quand la carte demande un geste maintenant |
 | **Aération conseillée** | Oui quand la carte dit d’ouvrir |
 | **Fenêtres à refermer** | Oui quand la carte dit de refermer |
-| **VMC conseillée** | Oui quand la carte dit « Lancez la VMC », et tant que la VMC assèche une pièce encore humide |
+| **VMC conseillée** | Oui quand la petite vitesse de la VMC doit tourner : toujours en « En continu », quand elle aide en « À la demande » ([VMC](#vmc)) |
+| **Turbo conseillé** | Oui pendant une douche, ou quand la carte dit « Lancez la VMC rapide » ; seulement dans la pièce qui a la grande vitesse |
 | **Trop humide** | Oui au-dessus de votre plage d’humidité |
 
 Valeurs de `geste` : `none`, `open`, `keep_open`, `close`, `keep_closed`, `later`, `ventilation`, `heat`, `covers`, `check_outside`, `check_sensors`.
@@ -515,4 +533,27 @@ actions:
       entity_id: fan.vmc
 ```
 
-Hestia-FB ne commande rien lui-même : ces automatisations restent les vôtres.
+Un message sur le téléphone à chaque nouveau conseil :
+
+```yaml
+triggers:
+  - trigger: event
+    event_type: hestia_comfort_conseil
+actions:
+  - action: notify.mobile_app_mon_telephone
+    data:
+      title: "{{ trigger.event.data.piece }}"
+      message: "{{ trigger.event.data.titre }} — {{ trigger.event.data.phrase }}"
+```
+
+L’événement `hestia_comfort_conseil` part une fois par nouveau conseil d’un créneau, d’une urgence ou de sécurité, jamais pour « Rien à faire ». Ses données : `piece`, `famille` (`creneau`, `urgence` ou `securite`), `titre`, `phrase`, `a_essayer`, `nuit`.
+
+Hestia-FB ne commande que la lumière du conseil : ces automatisations restent les vôtres.
+
+## La lumière du conseil
+
+Un bandeau WLED ou une ampoule couleur peut montrer le conseil, pour tout le logement ou pièce par pièce. Réglez-la dans **Extensions → Lumières**, ou dans l’onglet Notifications d’une pièce.
+
+- Chaque état a sa couleur et son effet : bleu calme, vert qui respire pour un bon moment, orange pour un geste à faire, rouge qui clignote pour « Attention ».
+- Vous choisissez quand elle peut s’allumer : la nuit ou non, seulement quand quelqu’un est là.
+- C’est la seule chose que Hestia Confort commande.
