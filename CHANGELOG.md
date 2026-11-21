@@ -13,7 +13,7 @@
 - La réparation « reprendre les mises à jour » ne dit plus « la version que vous avez déjà » : le Marketplace télécharge la dernière version, puis la suit de nouveau.
 - Le guide et le README décrivent le nouveau moteur : le conseil par créneaux, les urgences et leurs seuils, « Aujourd'hui », « Aération en cours », le soleil dit comme un bonus de chaleur, la lune de nuit, la VMC « En continu » ou « À la demande », « Turbo conseillé », l'événement pour le téléphone et la lumière du conseil. Ils décrivaient encore l'ancien moteur (« les conseils défilent », « Encore 5 min d'aération »).
 - Pour vos automatisations, le guide donne les valeurs de « État » : `calm`, `best`, `benefit`, `action`, `urgent` et `neutral`.
-- Le dépannage demandait Hestia Weather 2.1 : il faut la 3.2.0 au moins, la 4.1.0 est conseillée.
+- Le dépannage demandait Hestia Weather 2.1 : il faut la 3.2.0 au moins, la 4.2.0 est conseillée. Avec elle, Confort ne dit plus « Grand soleil » quand il fait gris maintenant.
 - Les repères des seuils (CO₂, particules, humidité, COV) disent comment le nouveau moteur s'en sert.
 - Le guide explique « Participez à l'amélioration du moteur » : un rapport anonyme, que vous téléchargez et partagez si vous le voulez.
 
