@@ -1,6 +1,6 @@
 # Repères d’interprétation — 16 octobre 2026
 
-Livré dans la bêta 0.9.0-beta.3. Le capteur, ses seuils modifiables et « Pourquoi ces valeurs ? » partagent le même cadre. La plage de température et l’humidité restent dans Température et humidité ; CO₂, PM2.5, COV et délai de présence dans Air et présence. Réglages / autres conserve l’identité de la pièce et les paramètres transversaux. L’aide sur les cartes reste une évolution ultérieure.
+Repères établis pour la bêta 0.9 et toujours en vigueur dans Hestia Confort 3.1. Le capteur, ses seuils modifiables et « Pourquoi ces valeurs ? » partagent le même cadre. La plage de température et l’humidité restent dans Température et humidité ; CO₂, PM2.5, COV et délai de présence dans Air et présence. Réglages / autres conserve l’identité de la pièce et les paramètres transversaux. L’aide sur les cartes reste une évolution ultérieure.
 
 | Mesure | Proposition Hestia-FB | Justification et portée |
 |---|---|---|
@@ -9,6 +9,12 @@ Livré dans la bêta 0.9.0-beta.3. Le capteur, ses seuils modifiables et « Pour
 | Humidité haute | 60 % | Borne haute de la plage 40–60 % conseillée par l’ADEME ; l’aération dépend aussi de l’air extérieur. |
 | COV IKEA VINDSTYRKA identifiée | indice 150 | Exemple de déclenchement d’une action donné par Sensirion, repris par Hestia-FB. L’indice relatif se réajuste à son historique ; 100 n’atteste pas un air sain, et 150 n’est pas une limite sanitaire. |
 | Autres COV | Pas de seuil automatique sans profil reconnu | Une unité ne suffit pas à identifier un fabricant, un mélange de gaz ou sa calibration. Les seuils personnels existants sont conservés ; aucune conversion générique indice/concentration. |
+
+## Comment le moteur 3 s’en sert
+
+- **Votre plage** : ces repères bornent la plage de chaque pièce. Au-dessus, le créneau suivant cherche le geste qui aide le plus (aérer, VMC, purificateur).
+- **L’urgence** est plus haute, pour ne parler qu’en cas de vrai écart, à toute heure : CO₂ au-dessus de 1 400 ppm (fin sous 1 100), particules fines au-dessus de 25 µg/m³ (fin sous 15), COV au-dessus de l’indice 250 (fin sous 150), humidité 8 points au-dessus de la normale de la pièce et jamais sous 70 % (fin à 3 points de sa normale), si l’air du dehors est plus sec.
+- **La normale de la pièce** : apprise chaque nuit. Une pièce humide par nature n’a pas de conseil chaque jour pour son humidité.
 
 Sources primaires consultées :
 

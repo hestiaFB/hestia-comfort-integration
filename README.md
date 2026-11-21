@@ -27,9 +27,9 @@ Hestia Confort compare dedans et dehors, et répond aux questions de tous les jo
 - **L’air est lourd** : le CO₂ monte, c’est le moment d’aérer.
 - **Il pleut, le vent souffle** : quelle fenêtre refermer ?
 
-Chaque pièce apprend de ses aérations : les conseils s’ajustent à votre maison. Quand l’apprentissage est optimal, le conseil annonce le résultat : « Aérez 15 min · 76 → 68 % ».
+Chaque pièce apprend chaque nuit comment elle réagit : les conseils s’ajustent à votre maison, et disent à quel point ils sont sûrs (« devrait », « pourrait »).
 
-Toute la famille lit la même carte. Elle ne parle que quand un geste aide vraiment.
+Toute la famille lit la même carte. Elle ne parle que quand un geste aide vraiment : un geste au plus par pièce le matin, l’après-midi et le soir, au meilleur moment. À toute heure, seulement pour une urgence (CO₂, particules fines, COV, humidité).
 
 ## Un conseil, pas une certitude
 
@@ -78,22 +78,24 @@ Trois cartes à choisir dans **Ajouter une carte** :
 
 Comme pour Hestia Weather, un appui long sur une tuile (un appui sur mini et alerte) ouvre la carte complète en fenêtre, une page de votre choix, ou rien. Sur la carte logement complète ou en liste, l’appui long peut ouvrir une page, par exemple votre page Maison.
 
-En haut, le bandeau ne porte qu’un geste, ou « Rien à faire ». Dessous, l’encart **À savoir** dit le reste en mots simples : risque de moisissure, air humide dehors, résultat de la dernière aération…
+En haut, le bandeau ne porte qu’un geste, ou « Rien à faire », avec sa raison : « Aérez 45 min vers 14 h 30 ». Une fois la fenêtre ouverte, il dit « Aération en cours » et quand refermer.
+
+Dessous, **Aujourd’hui** raconte la journée de la pièce : ce qui est fait, ce qui ne l’est pas, puis la suite heure par heure. L’encart **À savoir** dit le reste en mots simples : risque de moisissure, air humide dehors, grand soleil d’hiver qui apporte un bonus de chaleur…
 
 Deux pièces sans mur entre elles (un salon ouvert sur sa cuisine) partagent leur air : une seule carte « Salon · Cuisine », jamais deux gestes contraires.
 
 La couleur dit s’il y a quelque chose à faire :
 
-- **bleu** : tout va bien, ou « Au mieux » quand aucun geste ne peut faire mieux ;
-- **vert** : un bénéfice à saisir (« Aérez vers 23 h ») ;
-- **orange** : un geste conseillé maintenant ;
-- **rouge** : urgent (la pluie entre).
+- **bleu** : rien à faire (« Tout va bien », « Au mieux » quand aucun geste ne peut faire mieux, ou une aération « En cours ») ;
+- **vert** : « Bon moment », le geste du créneau (« Aérez 45 min vers 14 h 30 ») ;
+- **orange** : « À faire », une urgence ou une fenêtre à refermer maintenant ;
+- **rouge** : « Attention », la sécurité d’abord (la pluie entre, rafales, alarme armée).
 
 ![Quatre pièces : au mieux, aérer vers 9 h, aérer maintenant, fermer car il pleut](docs/images/hestia-comfort-situations.png)
 
 Sous l’échelle, le graphique **« Prochaines heures »** montre la pièce sans le geste conseillé et avec : vous voyez ce qu’il change.
 
-Hestia-FB ne conseille d’aérer que si c’est mieux qu’attendre, et jamais en pleine nuit : il dit à partir de quelle heure.
+Hestia-FB ne conseille d’aérer que si c’est mieux qu’attendre, et jamais en pleine nuit : une petite lune le montre, et la carte dit à partir de quelle heure.
 
 Un appui sur une mesure ouvre son historique dans Home Assistant. [Lire les conseils](docs/guide.md#lire-les-conseils).
 
@@ -187,11 +189,13 @@ Les entités disent ce que dit la carte :
 | Entité | Ce qu’elle dit |
 | --- | --- |
 | **Conseil** | Le titre de la carte : Rien à faire, Aérez 10 min, Lancez la VMC… |
-| **État** | La pastille : Tout va bien, Au mieux, Geste conseillé… |
+| **État** | La pastille, en valeur stable : `calm`, `best`, `benefit`, `action`, `urgent` ou `neutral` |
 | **Couleur** | La couleur de la carte, prête pour une lumière |
-| **Geste à faire**, **Aération conseillée**, **Fenêtres à refermer**, **VMC conseillée**, **Trop humide** | Oui ou non |
+| **Geste à faire**, **Aération conseillée**, **Fenêtres à refermer**, **VMC conseillée**, **Turbo conseillé**, **Trop humide** | Oui ou non |
 
 Des pièces au même air (« Salon · Cuisine ») ont un seul appareil pour leur conseil. « Mon logement » donne le geste le plus important et sa couleur.
+
+À chaque nouveau conseil d’un créneau, d’une urgence ou de sécurité, Home Assistant reçoit l’événement `hestia_comfort_conseil` : de quoi l’envoyer sur votre téléphone.
 
 Par exemple : des LED aux couleurs de la carte, ou la VMC qui suit le conseil. [Le détail des entités](docs/guide.md#pour-vos-automatisations).
 
