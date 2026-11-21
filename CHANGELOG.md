@@ -1,6 +1,9 @@
 ## À venir
 
-**Un conseil suivi reste affiché jusqu'au bout.**
+## 3.1.0b19 — Un conseil suivi va jusqu'au bout
+
+**Un conseil suivi reste affiché jusqu'au bout, avec la partie de la pièce à ouvrir.**
+**Le soleil d'hiver est dit comme un bonus de chaleur, jamais par temps gris.**
 
 ### Corrections
 

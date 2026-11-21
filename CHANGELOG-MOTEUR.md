@@ -6,7 +6,7 @@ Chaque version de Confort dit quelle version du moteur elle contient. Le détail
 
 ## 3.22.3 — 21 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b19.
 
 ### Corrections
 
@@ -14,7 +14,7 @@ Pas encore dans une version de Confort.
 
 ## 3.22.2 — 20 novembre 2026
 
-Pas encore dans une version de Confort. Demande Hestia Weather 4.2 (le ciel de maintenant) ; avec une Weather plus ancienne, rien ne change.
+Dans Confort 3.1.0b19. Demande Hestia Weather 4.2 (le ciel de maintenant) ; avec une Weather plus ancienne, rien ne change.
 
 ### Corrections
 
@@ -22,7 +22,7 @@ Pas encore dans une version de Confort. Demande Hestia Weather 4.2 (le ciel de m
 
 ## 3.22.1 — 20 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b19.
 
 ### Corrections
 
@@ -30,7 +30,7 @@ Pas encore dans une version de Confort.
 
 ## 3.22.0 — 20 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b19.
 
 ### Ce qui change
 
@@ -41,7 +41,7 @@ Pas encore dans une version de Confort.
 
 ## 3.21.2 — 20 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b19.
 
 ### Corrections
 
@@ -49,7 +49,7 @@ Pas encore dans une version de Confort.
 
 ## 3.21.1 — 20 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b19.
 
 ### Corrections
 
@@ -57,7 +57,7 @@ Pas encore dans une version de Confort.
 
 ## 3.21.0 — 20 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b19.
 
 ### Ce qui change
 
@@ -66,7 +66,7 @@ Pas encore dans une version de Confort.
 - Les gestes du bandeau ne changent pas. Au-dessus du maximum et en été, le soleil reste jugé comme avant.
 
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b19.
 
 ### Ce qui change
 
