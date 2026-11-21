@@ -2,9 +2,6 @@
 
 ## 3.1.1 — Les mêmes mots partout
 
-**La carte, les entités, la lumière et la doc disent la même chose.**
-**Rien à régler : vos pièces, réglages et automatisations restent les mêmes.**
-
 ### Corrections
 
 - L'entité « État » dit « Bon moment » et « À faire », comme la carte, au lieu de « À saisir » et « Geste conseillé ». Ses valeurs pour les automatisations (`benefit`, `action`) ne changent pas.
