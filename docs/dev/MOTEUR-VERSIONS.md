@@ -20,6 +20,17 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.22.5 — 21 novembre 2026
+
+Maison en 3.22.4, 21/11, Salon · Cuisine (PM2.5 salon 9, cuisine 24, COV 254) : fenêtres ouvertes à 10 h 56 min 25 s, « Aérez » jusqu'à 10 h 58 min 57 s, « Aération en cours · refermez vers 11 h 06 », puis « Refermez » à 11 h ; pas de « Ouvrez aussi ». Chambre A : ligne du créneau « vers 8 h 15 » à 10 h 57, plan gardé par 3.1.0b18 (sans `title_now`).
+- `RoomAdvisor._opening(since=…)` : l'ouverture part du `last_changed` le plus ancien des contacts ouverts (borné à `now`), et non du pas à WINDOW_SETTLE ; le pas à WINDOW_AGED voit `young` faux.
+- `spec()["others"]` : pour co2, pm25 et voc, les capteurs des autres pièces de l'air partagé (COV sans unité seulement). `parts[].measures` : source → entité.
+- `RoomAdvisor._measures` : la valeur valide la plus haute (vérifiée par `Checker`) remplace celle de la pièce ; `self.worst[kind]` dit son entité. L'apprentissage reste sur le capteur de la pièce (`room[kind]`). `first_windows(room, subject, worst)` : la pièce qui porte `worst` d'abord.
+- `decide._open` (open_more) : après ses minutes, comme `nothing` (`closing_in`), au lieu de `now.opened` jusqu'à la fin de l'horizon.
+- `decide` : geste tenu (`hold`) contre un open_more supposé meilleur, `passive=open_more` (« À essayer » à côté de « Aération en cours »).
+- `board._stale` au chargement : plan non fait, geste ≠ nothing, sans `title_now` (ou sans `try_now` s'il est à essayer) → oublié, replanifié pour le reste du créneau. `planned["try_now"]` pour un créneau à essayer, utilisé quand `left.after is None`.
+- Tests : tests/test_maison_21_novembre.py ; tests/test_creneaux.py `test_a_plan_kept_by_an_older_version_is_planned_again`.
+
 ### 3.22.4 — 21 novembre 2026
 
 Labo en 3.22.3, 21/11 10 h 18, Chambre A : « Prochain bon moment : cet après-midi vers 12 h, aérer 60 min ». Le créneau `apres_midi` commence à `habits.noon` (12 h), le mot du créneau ne va pas avec l'heure.

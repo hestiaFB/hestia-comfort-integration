@@ -435,8 +435,12 @@ def crossing(twins: Twins, windows) -> float:
 
 def _open(gesture: Gesture, now: Now, twins: Twins, k: int):
     if gesture.kind == "open_more":
-        # The other windows opened as well for a while, those open now staying open.
-        return twins.windows if k * STEP / 60 < gesture.minutes else now.opened
+        # The other windows opened as well for a while, those open now then left as they would be: shut by the household
+        # at the end of its usual airing. Left open for good, the crossing cost hours of heat and was never advised (maison,
+        # Salon · Cuisine, 21 November at 11 h: « Aérez 10 min côté Salon », the kitchen's particles at 24, no « Ouvrez aussi »).
+        if k * STEP / 60 < gesture.minutes:
+            return twins.windows
+        return () if now.closing_in is not None and k * STEP / 60 >= now.closing_in else now.opened
     if gesture.kind not in ("open", "close", "nothing"):
         return now.opened
     waited = k * STEP / 60 - (gesture.after or 0)
@@ -1080,7 +1084,11 @@ def _decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weight
         # « À essayer » (Chambre A, 7 November at 19 h 58: « Aérez 20 min vers 20 h 05 » became « Rien à faire — À essayer,
         # Aérez 25 min », then « Rien à faire » at 20 h 03).
         held_found = proof.get(effect(previous, main_subject(costs, previous)), SUPPOSED)
-        return Decision(previous, nothing - costs[previous]["total"], "kept", costs, paths, level=held_found)
+        # The other side opened as well, clearly better than the airing under way: said to try beside it, « Ouvrez aussi
+        # … » being the second gesture of an airing (maison, Salon · Cuisine, 21 November at 11 h: never proposed).
+        crossing_too = best if best.kind == "open_more" and now.opened else None
+        return Decision(previous, nothing - costs[previous]["total"], "kept", costs, paths, level=held_found,
+                        passive=crossing_too)
     # « À essayer » holds like the banner: the gesture shown stays while it is about as good (MARGIN). It changed at every
     # step, « Ouvrez », « Aérez 25 min », « Aérez 30 min » (Chambre AL, 4 November: thirty times since 21 h).
     # Of the same kind, it stays its half hour while it still helps by half the gain: « Aérez 5, 10, 15, 20 min » came in

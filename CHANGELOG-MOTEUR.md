@@ -4,6 +4,17 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.22.5 — 21 novembre 2026
+
+Dans Confort 3.1.2.
+
+### Corrections
+
+- La fenêtre ouverte compte depuis le moment où elle a bougé. Au Salon · Cuisine, le 21 novembre à la maison, la carte disait encore « Aérez » deux minutes et demie après l'ouverture.
+- Dans un air partagé, la mesure la plus haute des pièces compte, et l'aération ouvre là où elle est prise. Le même jour, « Refermez, particules 9 µg/m³ » a été dit sur le capteur du salon, celui de la cuisine étant à 24.
+- « Ouvrez aussi » (le courant d'air) est calculé avec les fenêtres refermées à la fin de l'aération habituelle, comme ne rien faire. Laissées ouvertes jusqu'au soir dans le calcul, elles coûtaient des heures de chauffage et le courant d'air n'était jamais proposé. Pendant une aération gardée, il est proposé à essayer quand il fait clairement mieux.
+- Un créneau gardé par une version plus ancienne, sans ses mots « une fois le moment venu », est refait pour la suite du créneau (Chambre A : « vers 8 h 15 » encore lu à 10 h 57 après la mise à jour). « À essayer » a aussi ses mots une fois le moment venu.
+
 ## 3.22.4 — 21 novembre 2026
 
 Dans Confort 3.1.1.

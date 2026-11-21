@@ -1,5 +1,18 @@
 ## À venir
 
+## 3.1.2 — Le Salon · Cuisine suivi de près
+
+### Corrections
+
+- Quand vous ouvrez la fenêtre conseillée, la carte passe à « Aération en cours » au bout d'une minute, et non plus seulement deux à trois minutes plus tard.
+- Dans une pièce qui partage son air avec une autre (un salon ouvert sur la cuisine), le capteur le plus chargé compte. La carte ne dit plus « Refermez, c'est réglé » sur les particules du salon quand celles de la cuisine sont encore hautes, et l'aération ouvre d'abord du côté où l'air est le moins bon.
+- Pendant une aération, « Ouvrez aussi » (le courant d'air, de l'autre côté) peut de nouveau être proposé à essayer quand il aide vraiment.
+- Après une mise à jour, le conseil du créneau ne garde plus une heure déjà passée (« l'humidité devrait passer à 58 % vers 8 h 15 » lu à 11 h) : il est refait pour la suite du créneau. Un conseil « À essayer » ne garde plus non plus son heure une fois venue.
+
+### Moteur de conseil 3.22.5
+
+- Le courant d'air est compté comme la famille le fait : les fenêtres se referment à la fin de l'aération habituelle, au lieu de rester ouvertes jusqu'au soir dans le calcul.
+
 ## 3.1.1 — Les mêmes mots partout
 
 ### Corrections
