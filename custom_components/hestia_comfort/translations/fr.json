@@ -52,8 +52,8 @@
         "state": {
           "calm": "Tout va bien",
           "best": "Au mieux",
-          "benefit": "À saisir",
-          "action": "Geste conseillé",
+          "benefit": "Bon moment",
+          "action": "À faire",
           "urgent": "Attention",
           "neutral": "À vérifier",
           "optimized": "Conseil optimisé",
@@ -272,7 +272,7 @@
         "step": {
           "confirm": {
             "title": "Reprendre les mises à jour de Hestia Confort",
-            "description": "Le Marketplace va télécharger à nouveau Hestia Confort {version}, la version que vous avez déjà. Vos pièces, vos réglages, ce qu’elles ont appris et leur historique ne changent pas.\n\nHome Assistant vous demandera peut-être de redémarrer ensuite."
+            "description": "Le Marketplace va télécharger Hestia Confort {version}, puis la suivre de nouveau pour les mises à jour. Vos pièces, vos réglages, ce qu’elles ont appris et leur historique ne changent pas.\n\nHome Assistant vous demandera peut-être de redémarrer ensuite."
           }
         },
         "abort": {

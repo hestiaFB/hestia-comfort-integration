@@ -4,6 +4,14 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.22.4 — 21 novembre 2026
+
+Dans Confort 3.1.1.
+
+### Corrections
+
+- « Prochain bon moment : cet après-midi vers 12 h » devient « Prochain bon moment : vers midi ». L'après-midi du moteur commence à midi, mais midi ne se dit pas « cet après-midi » (Chambre A, au labo le 21 novembre).
+
 ## 3.22.3 — 21 novembre 2026
 
 Dans Confort 3.1.0b19.

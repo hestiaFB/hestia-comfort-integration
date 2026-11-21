@@ -20,6 +20,12 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.22.4 — 21 novembre 2026
+
+Labo en 3.22.3, 21/11 10 h 18, Chambre A : « Prochain bon moment : cet après-midi vers 12 h, aérer 60 min ». Le créneau `apres_midi` commence à `habits.noon` (12 h), le mot du créneau ne va pas avec l'heure.
+- `words.next_moment` : à 12 h, sans le mot du créneau (`next_moment_noon`), et « midi » à 12 h 00 ; fr, en, de.
+- Tests : tests/test_creneaux.py `test_the_words_of_the_day`.
+
 ### 3.22.3 — 21 novembre 2026
 
 Labo en 3.22.2, Salon · Cuisine, 21/11 : 8 h 56 urgence particules « Aérez 5 min côté Salon », 9 h 01 22 « Rien à faire » (règle nothing, « repassent seules sous 15 µg/m³ vers 9 h 20 », PM2.5 43), 9 h 06 22 de nouveau urgence (PM2.5 40) ; fenêtres fermées ; 26 et 34 µg/m³ mesurés à 9 h 20. `urgent_decision` renvoyait None quand aucun scénario ne baissait strictement le coût du sujet (prévision de baisse seule).

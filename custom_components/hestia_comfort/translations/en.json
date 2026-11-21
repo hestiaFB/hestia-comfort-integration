@@ -52,8 +52,8 @@
         "state": {
           "calm": "All is well",
           "best": "At its best",
-          "benefit": "Opportunity",
-          "action": "Action advised",
+          "benefit": "Good moment",
+          "action": "To do",
           "urgent": "Attention",
           "neutral": "To check",
           "optimized": "Optimised advice",
@@ -272,7 +272,7 @@
         "step": {
           "confirm": {
             "title": "Get Hestia Comfort updates again",
-            "description": "The Marketplace will download Hestia Comfort {version} again, the version you already have. Your rooms, your settings, what they learned and their history do not change.\n\nHome Assistant may ask you to restart afterwards."
+            "description": "The Marketplace will download Hestia Comfort {version}, then follow it again for updates. Your rooms, your settings, what they learned and their history do not change.\n\nHome Assistant may ask you to restart afterwards."
           }
         },
         "abort": {

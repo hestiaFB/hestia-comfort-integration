@@ -1,20 +1,25 @@
 ## À venir
 
-## 3.1.1 — Une documentation à jour
+## 3.1.1 — Les mêmes mots partout
 
-**Le guide, le dépannage et les seuils décrivent enfin le nouveau moteur de conseil.**
-**Rien ne change dans Home Assistant : vos pièces, réglages et conseils restent les mêmes.**
+**La carte, les entités, la lumière et la doc disent la même chose.**
+**Rien à régler : vos pièces, réglages et automatisations restent les mêmes.**
 
 ### Corrections
 
-- Le guide et le README parlent du conseil par créneaux, des urgences, de « Aération en cours », du soleil dit comme un bonus de chaleur, de la lune de nuit, de la VMC « En continu » ou « À la demande » et de « Turbo conseillé ». Ils décrivaient encore l'ancien moteur (« les conseils défilent », « Encore 5 min d'aération »).
-- Les couleurs et pastilles portent leurs vrais noms : « Bon moment », « À faire », « En cours ».
-- Pour vos automatisations, le guide donne les valeurs actuelles de « État » : `calm`, `best`, `benefit`, `action`, `urgent` et `neutral`.
+- L'entité « État » dit « Bon moment » et « À faire », comme la carte, au lieu de « À saisir » et « Geste conseillé ». Ses valeurs pour les automatisations (`benefit`, `action`) ne changent pas.
+- Les réglages de la lumière du conseil parlent aussi de « Bon moment » et « À faire ».
+- « Prochain bon moment : vers midi » au lieu de « cet après-midi vers 12 h ».
+- La réparation « reprendre les mises à jour » ne dit plus « la version que vous avez déjà » : le Marketplace télécharge la dernière version, puis la suit de nouveau.
+- Le guide et le README décrivent le nouveau moteur : le conseil par créneaux, les urgences et leurs seuils, « Aujourd'hui », « Aération en cours », le soleil dit comme un bonus de chaleur, la lune de nuit, la VMC « En continu » ou « À la demande », « Turbo conseillé », l'événement pour le téléphone et la lumière du conseil. Ils décrivaient encore l'ancien moteur (« les conseils défilent », « Encore 5 min d'aération »).
+- Pour vos automatisations, le guide donne les valeurs de « État » : `calm`, `best`, `benefit`, `action`, `urgent` et `neutral`.
 - Le dépannage demandait Hestia Weather 2.1 : il faut la 3.2.0 au moins, la 4.1.0 est conseillée.
 - Les repères des seuils (CO₂, particules, humidité, COV) disent comment le nouveau moteur s'en sert.
 - Le guide explique « Participez à l'amélioration du moteur » : un rapport anonyme, que vous téléchargez et partagez si vous le voulez.
 
-### Moteur de conseil 3.22.3 — inchangé
+### Moteur de conseil 3.22.4
+
+- Midi dit comme tel dans « Prochain bon moment ».
 
 ## 3.1.0 — Le nouveau moteur de conseil
 
