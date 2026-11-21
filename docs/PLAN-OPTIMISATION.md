@@ -220,6 +220,10 @@ apprentissage de nuit, démarrage, banc des cartes), pour refaire exactement les
 - **Point 3** : une mise à jour de Weather ne fait recalculer une pièce que si ce qu'elle y lit a changé (prévisions,
   pluie, orage, vigilance, saison, air sans son heure de calcul, pollens), et le calcul part avec les mesures, plus dans la
   mise à jour de Weather (`weather_link.fingerprint`, `coordinator.py` `_weather_updated`). Test : `tests/test_weather_listen.py`.
+  *Correction du 17 nov.* : la pluie (`api.rain()`) et les pollens (`api.pollen()`) portent eux aussi leur heure de calcul
+  `at` ; l'empreinte la gardait, donc la pièce se recalculait quand même à chaque mise à jour de Weather. Elle est retirée
+  partout. Test ajouté avec de vraies valeurs de pluie et de pollens. **À mesurer au labo** (calculs de pièce en 4 min,
+  réaction à Weather), même protocole qu'avant.
 - **Point 4** : une vue est convertie une fois par mise à jour, pour toutes les cartes abonnées, avec le convertisseur
   rapide de Home Assistant (`websocket.py` `_texts`). Test ajouté dans `tests/test_websocket.py`.
 - Tests : 826, une seule erreur, déjà présente sur la version commitée (`test_domain_migration_ha`).

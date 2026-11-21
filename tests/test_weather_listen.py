@@ -39,6 +39,43 @@ class WeatherListen(unittest.TestCase):
             link.air = lambda e: {"index": 2, "at": "12:02"}
             self.assertEqual(weather_link.fingerprint(hass, "place"), first)
 
+    def test_the_time_of_calculation_of_rain_and_pollens_is_not_read(self):
+        """Hestia Weather's rain, air and pollens all carry `at`, which changes at every update: with real values (not
+        None), an update that changes nothing else must leave the room's fingerprint the same."""
+        hass = Mock()
+        hass.states.get.return_value = None
+
+        def link_at(at, minutes=None, level=2):
+            return SimpleNamespace(
+                air=lambda e: {"entry_id": e, "source": "atmo", "index": 2, "at": at},
+                pollen=lambda e: {"entry_id": e, "source": "atmo", "level": level, "high": False, "main": "graminées", "at": at},
+                rain=lambda e: {"entry_id": e, "minutes": minutes, "precision": "minute" if minutes is not None else None,
+                                "dry_until": None, "at": at},
+                season=lambda e: {"season": "autumn"}, station=lambda e: None, hourly=lambda e: [])
+
+        def seen(link):
+            with patch.object(weather_link, "api", return_value=link), patch.object(weather_link, "entity", return_value=None):
+                return weather_link.fingerprint(hass, "place")
+
+        first = seen(link_at("2026-11-17T12:01:00+00:00"))
+        self.assertEqual(seen(link_at("2026-11-17T12:02:00+00:00")), first)
+        # What the room does read still counts.
+        self.assertNotEqual(seen(link_at("2026-11-17T12:02:00+00:00", minutes=20)), first)
+        self.assertNotEqual(seen(link_at("2026-11-17T12:02:00+00:00", level=3)), first)
+
+    def test_the_same_readings_at_a_new_time_do_not_recompute_the_room(self):
+        hass = Mock()
+        hass.states.get.return_value = None
+        at = {"value": "12:01"}
+        link = SimpleNamespace(air=lambda e: {"index": 2, "at": at["value"]}, pollen=lambda e: {"level": 1, "at": at["value"]},
+                               rain=lambda e: {"minutes": None, "at": at["value"]}, season=lambda e: {"season": "autumn"},
+                               station=lambda e: None, hourly=lambda e: [])
+        with patch.object(weather_link, "api", return_value=link), patch.object(weather_link, "entity", return_value=None):
+            room = SimpleNamespace(hass=hass, _weather_seen=weather_link.fingerprint(hass, "place"), _measure_refresh=Mock())
+            at["value"] = "12:02"
+            ComfortCoordinator._weather_updated(room, "place")
+        hass.async_create_task.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
