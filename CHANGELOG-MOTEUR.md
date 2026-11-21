@@ -4,9 +4,17 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.22.3 — 21 novembre 2026
+
+Dans Confort 3.1.0b19.
+
+### Corrections
+
+- Une urgence ne s'efface plus pour revenir cinq minutes plus tard. Au Salon · Cuisine, le 21 novembre au labo, la carte a dit « Aérez 5 min », puis « Rien à faire » (« les particules repassent seules »), puis de nouveau « Aérez 5 min », fenêtres fermées ; les particules étaient encore hautes vingt minutes après. Le geste demandé reste tant qu'il ne fait pas pire que ne rien faire, jusqu'à ce que la mesure redescende vraiment.
+
 ## 3.22.2 — 20 novembre 2026
 
-Pas encore dans une version de Confort. Demande Hestia Weather 4.2 (le ciel de maintenant) ; avec une Weather plus ancienne, rien ne change.
+Dans Confort 3.1.0b19. Demande Hestia Weather 4.2 (le ciel de maintenant) ; avec une Weather plus ancienne, rien ne change.
 
 ### Corrections
 
@@ -14,7 +22,7 @@ Pas encore dans une version de Confort. Demande Hestia Weather 4.2 (le ciel de m
 
 ## 3.22.1 — 20 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b19.
 
 ### Corrections
 
@@ -22,7 +30,7 @@ Pas encore dans une version de Confort.
 
 ## 3.22.0 — 20 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b19.
 
 ### Ce qui change
 
@@ -33,7 +41,7 @@ Pas encore dans une version de Confort.
 
 ## 3.21.2 — 20 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b19.
 
 ### Corrections
 
@@ -41,7 +49,7 @@ Pas encore dans une version de Confort.
 
 ## 3.21.1 — 20 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b19.
 
 ### Corrections
 
@@ -49,7 +57,7 @@ Pas encore dans une version de Confort.
 
 ## 3.21.0 — 20 novembre 2026
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b19.
 
 ### Ce qui change
 
@@ -58,7 +66,7 @@ Pas encore dans une version de Confort.
 - Les gestes du bandeau ne changent pas. Au-dessus du maximum et en été, le soleil reste jugé comme avant.
 
 
-Pas encore dans une version de Confort.
+Dans Confort 3.1.0b19.
 
 ### Ce qui change
 
