@@ -10,7 +10,7 @@
 - Les réglages de la lumière du conseil parlent aussi de « Bon moment » et « À faire ».
 - « Prochain bon moment : vers midi » au lieu de « cet après-midi vers 12 h ».
 - La réparation « reprendre les mises à jour » ne dit plus « la version que vous avez déjà » : le Marketplace télécharge la dernière version, puis la suit de nouveau.
-- La doc décrit le nouveau moteur : les créneaux, les urgences et leurs seuils, « Aujourd'hui », l'aération en cours, la VMC en continu ou à la demande, le Turbo, l'événement pour le téléphone et la lumière du conseil.
+- La doc décrit le nouveau moteur : les créneaux, les urgences et leurs seuils, « Aujourd'hui », l'aération en cours, la VMC en continu ou à la demande, le Turbo, l'événement pour le téléphone, la lumière du conseil et le rapport anonyme pour participer.
 
 ### Moteur de conseil 3.22.4
 
