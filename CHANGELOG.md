@@ -10,16 +10,18 @@
 - La carte se met à jour une minute après l'ouverture d'une fenêtre, au lieu de 1 à 5 minutes.
 - La ligne du soleil s'affiche dans « Aujourd'hui » sous le conseil ; avant, la carte la perdait.
 - Dans « Aujourd'hui », une heure longue (« jusqu'à 14 h ») ne passe plus sous sa pastille.
+- Une urgence ne s'efface plus pour revenir cinq minutes plus tard (« Aérez 5 min », « Rien à faire », « Aérez 5 min » au Salon · Cuisine).
 - Sur téléphone, la carte ne déborde plus à droite (« stable », les barres Ressenti et Humidité, l'Air, les appareils).
 
 ### Nouveau
 
 - En hiver, quand un grand soleil est prévu, la carte le dit comme un bonus de chaleur, avec ses heures selon l'orientation de la fenêtre : « Grand soleil sur la fenêtre sud jusqu'à 16 h 35 : un bonus de chaleur ». Rien quand la météo annonce un ciel nuageux, ni quand Hestia Weather voit qu'il fait gris maintenant (avec Weather 4.2).
 
-### Moteur de conseil 3.22.2
+### Moteur de conseil 3.22.3
 
 - L'aération en cours, la partie à ouvrir et la promesse fixe du créneau (3.20.0).
 - Le soleil dit comme un bonus de chaleur en saison de chauffe (3.21.0 à 3.22.2).
+- Une urgence qui ne s'efface plus pour revenir (3.22.3).
 
 ## 3.1.0b18 — Des conseils qui tiennent
 

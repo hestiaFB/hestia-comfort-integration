@@ -12,7 +12,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "custom_components" / "hestia_comfort"))
-from advisor.board import urgent_decision  # noqa: E402
+from advisor.board import Board, urgent_decision  # noqa: E402
 from advisor.decide import Decision, Gesture, Path as Scenario  # noqa: E402
 from advisor.words import phrase  # noqa: E402
 
@@ -39,6 +39,36 @@ class UrgencyKeepsItsDuration(unittest.TestCase):
         scenarios = {**self.scenarios(), Gesture("open", 5): {"humidity": 4.5, "total": 5.5}}
         asked = urgent_decision(Decision(self.NOTHING, 0.0, "nothing", scenarios), "humidity", 82.0, None, ("open", 5))
         self.assertEqual(asked.gesture, self.TWENTY)
+
+
+class UrgencyDoesNotGoAndComeBack(unittest.TestCase):
+    """Labo, Salon · Cuisine, 21 November: « Aérez 5 min » at 8 h 56, « Rien à faire » at 9 h 01 (« les particules
+    repassent seules sous 15 vers 9 h 20 »), « Aérez 5 min » again at 9 h 06, the windows shut throughout; 26 and
+    34 µg/m³ at 9 h 20. The gesture asked is kept while it does no worse than nothing (moteur 3.22.3)."""
+    NOTHING, FIVE = Gesture("nothing"), Gesture("open", 5)
+
+    def ask(self, five, before):
+        scenarios = {self.NOTHING: {"particles": 2.0, "total": 2.5}, self.FIVE: {"particles": five, "total": five + 0.6}}
+        return urgent_decision(Decision(self.NOTHING, 0.0, "nothing", scenarios), "particles", 47.0, None, before)
+
+    def test_kept_when_the_forecast_sees_it_fall_alone(self):
+        self.assertIsNone(self.ask(2.0, None))
+        self.assertEqual(self.ask(2.0, ("open", 5)).gesture, self.FIVE)
+
+    def test_not_kept_when_airing_makes_it_worse(self):
+        # The outside dirtier than the room: airing would bring particles in.
+        self.assertIsNone(self.ask(2.4, ("open", 5)))
+
+    def test_forgotten_once_the_urgency_is_over(self):
+        from datetime import datetime, timedelta, timezone
+        board, now = Board(), datetime(2026, 11, 21, 7, 50, tzinfo=timezone.utc)
+        for k in range(2):
+            board.urgent_now({"particles": 47.0}, None, None, False, now + timedelta(minutes=5 * k))
+        board.asked["particles"] = ("open", 5)
+        board.urgent_now({"particles": 30.0}, None, None, False, now + timedelta(minutes=10))
+        self.assertIn("particles", board.asked)
+        board.urgent_now({"particles": 12.0}, None, None, False, now + timedelta(minutes=15))
+        self.assertNotIn("particles", board.asked)
 
 
 class SlotKeepsItsSubject(unittest.TestCase):

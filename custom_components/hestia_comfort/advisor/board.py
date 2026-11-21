@@ -140,7 +140,9 @@ class Board:
             enter, leave = limits
             if u.since is not None:
                 if value < leave:
+                    # Over: the gesture it asked is forgotten, a next urgency chooses its own (`urgent_decision`).
                     u.since, u.above = None, 0
+                    self.asked.pop(subject, None)
                 elif opened:
                     # Being followed: its patience starts again once the window is shut.
                     u.since = now
@@ -347,6 +349,14 @@ def urgent_decision(decision: Decision, subject: str, value: float, proof: dict 
     term = "humidity" if subject == "humidity" else subject
     helping = [g for g, c in scenarios.items() if g.kind in URGENT_KINDS and not g.after
                and c.get(term, 0.0) < nothing.get(term, 0.0)]
+    if not helping and before is not None:
+        # The urgency already asked a gesture: kept while it does no worse than doing nothing, the measure still above
+        # its leave mark (`Board.urgent_now`). A forecast that sees the measure falling by itself one step, and not the
+        # next, made the card go « Aérez 5 min », « Rien à faire », « Aérez 5 min » in ten minutes, windows shut
+        # (labo, Salon · Cuisine, 21 November at 8 h 56: particles « sous 15 vers 9 h 20 », still 26 and 34 then).
+        kept = next((g for g in scenarios if g.kind in URGENT_KINDS and not g.after and (g.kind, g.minutes) == tuple(before)
+                     and scenarios[g].get(term, 0.0) <= nothing.get(term, 0.0)), None)
+        helping = [kept] if kept is not None else []
     if not helping:
         return None
     best = min(helping, key=lambda g: scenarios[g]["total"])

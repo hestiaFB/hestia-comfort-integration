@@ -20,6 +20,13 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.22.3 — 21 novembre 2026
+
+Labo en 3.22.2, Salon · Cuisine, 21/11 : 8 h 56 urgence particules « Aérez 5 min côté Salon », 9 h 01 22 « Rien à faire » (règle nothing, « repassent seules sous 15 µg/m³ vers 9 h 20 », PM2.5 43), 9 h 06 22 de nouveau urgence (PM2.5 40) ; fenêtres fermées ; 26 et 34 µg/m³ mesurés à 9 h 20. `urgent_decision` renvoyait None quand aucun scénario ne baissait strictement le coût du sujet (prévision de baisse seule).
+- `urgent_decision` : sans scénario qui aide et avec `before` (le geste demandé par cette urgence), ce geste est gardé si son coût du sujet ≤ celui de `nothing` (jamais quand aérer ferait pire, dehors plus chargé).
+- `Board.urgent_now` : l'urgence finie (mesure sous le seuil de sortie) oublie son geste (`asked.pop`) ; mise de côté, elle le garde pour « … quand vous pourrez ».
+- Tests : tests/test_bilan_19_novembre.py `UrgencyDoesNotGoAndComeBack`.
+
 ### 3.22.2 — 20 novembre 2026
 
 Labo en 3.22.1, 13 h 19 : toujours « Grand soleil ». Prévisions horaires (Météo-France, met.no) « sunny » de 14 h à 16 h sans couverture ; état actuel « cloudy » partout ; station 100 à 150 W/m², à l'ombre l'après-midi (`sun_missed` None).
