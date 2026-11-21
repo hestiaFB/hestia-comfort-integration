@@ -7,7 +7,7 @@ from dataclasses import replace
 from datetime import time
 
 from .decide import SUBJECTS, Decision, Gesture, main_subject, reference
-from .knowing import SUN_ENERGY, Tip
+from .knowing import Tip
 from .pollen import AIRING as POLLEN_AIRING
 from .proof import PROVEN, REINFORCED
 
@@ -61,7 +61,7 @@ TEXTS = {
         "safety_vigilance": "vigilance météo", "safety_away": "la maison est en mode absence", "safety_frost": "le gel est annoncé",
         "sun": "Soleil sur {window} de {start} à {end}", "sun_strong": "Grand soleil prévu sur {window} de {start} à {end}",
         "sun_now": "Soleil sur {window} jusqu'à {end}", "sun_now_strong": "Grand soleil sur {window} jusqu'à {end}",
-        "window": "la fenêtre {direction}", "windows": "les fenêtres {direction}", "window_plain": "les fenêtres", "and": " et ", "sun_gain": "{line} : +{gain} °C dans la pièce", "sun_spared": "{line} : environ {energy} kWh de chauffage en moins ce soir", "sun_spared_if": "{line} : environ {energy} kWh de chauffage en moins ce soir, si les volets sont ouverts", "sun_kept": "{line} : environ +{kept} °C au coucher", "sun_kept_if": "{line} : environ +{kept} °C au coucher, si les volets sont ouverts", "sun_open": "{line} : ouvrez le volet pour en profiter (environ {energy} kWh)", "sun_open_kept": "{line} : ouvrez le volet pour en profiter (environ +{kept} °C au coucher)",
+        "window": "la fenêtre {direction}", "windows": "les fenêtres {direction}", "window_plain": "les fenêtres", "and": " et ", "sun_gain": "{line} : +{gain} °C dans la pièce", "sun_bonus": "{line} : un bonus de chaleur", "sun_bonus_if": "{line} : un bonus de chaleur, si les volets sont ouverts", "sun_open": "{line} : ouvrez le volet pour en profiter",
         "heat_on": "Rallumez le chauffage", "heat_to": "Remettez le chauffage à {target} °C",
         "heated": "Chauffage rallumé", "heated_to": "Chauffage à {target} °C",
         "shutter_close": "Baissez le volet", "shutter_open": "Ouvrez le volet", "shuttered": "Volet baissé", "unshuttered": "Volet ouvert",
@@ -176,7 +176,7 @@ TEXTS = {
         "safety_vigilance": "weather warning", "safety_away": "the home is set to away", "safety_frost": "frost is forecast",
         "sun": "Sun on {window} from {start} to {end}", "sun_strong": "Bright sun expected on {window} from {start} to {end}",
         "sun_now": "Sun on {window} until {end}", "sun_now_strong": "Bright sun on {window} until {end}",
-        "window": "the {direction} window", "windows": "the {direction} windows", "window_plain": "the windows", "and": " and ", "sun_gain": "{line}: +{gain} °C in the room", "sun_spared": "{line}: about {energy} kWh less heating this evening", "sun_spared_if": "{line}: about {energy} kWh less heating this evening, if the shutters are open", "sun_kept": "{line}: about +{kept} °C at bedtime", "sun_kept_if": "{line}: about +{kept} °C at bedtime, if the shutters are open", "sun_open": "{line}: open the shutter to make the most of it (about {energy} kWh)", "sun_open_kept": "{line}: open the shutter to make the most of it (about +{kept} °C at bedtime)",
+        "window": "the {direction} window", "windows": "the {direction} windows", "window_plain": "the windows", "and": " and ", "sun_gain": "{line}: +{gain} °C in the room", "sun_bonus": "{line}: a bonus of warmth", "sun_bonus_if": "{line}: a bonus of warmth, if the shutters are open", "sun_open": "{line}: open the shutter to make the most of it",
         "heat_on": "Turn the heating back on", "heat_to": "Set the heating back to {target} °C",
         "heated": "Heating on", "heated_to": "Heating at {target} °C",
         "shutter_close": "Lower the shutter", "shutter_open": "Open the shutter", "shuttered": "Shutter down", "unshuttered": "Shutter open",
@@ -291,7 +291,7 @@ TEXTS = {
         "safety_vigilance": "Unwetterwarnung", "safety_away": "das Haus ist auf Abwesenheit gestellt", "safety_frost": "Frost ist angesagt",
         "sun": "Sonne auf {window} von {start} bis {end}", "sun_strong": "Viel Sonne erwartet auf {window} von {start} bis {end}",
         "sun_now": "Sonne auf {window} bis {end}", "sun_now_strong": "Viel Sonne auf {window} bis {end}",
-        "window": "dem Fenster nach {direction}", "windows": "den Fenstern nach {direction}", "window_plain": "den Fenstern", "and": " und ", "sun_gain": "{line}: +{gain} °C im Raum", "sun_spared": "{line}: heute Abend etwa {energy} kWh weniger Heizung", "sun_spared_if": "{line}: heute Abend etwa {energy} kWh weniger Heizung, wenn die Läden offen sind", "sun_kept": "{line}: etwa +{kept} °C zur Schlafenszeit", "sun_kept_if": "{line}: etwa +{kept} °C zur Schlafenszeit, wenn die Läden offen sind", "sun_open": "{line}: Laden öffnen, um sie zu nutzen (etwa {energy} kWh)", "sun_open_kept": "{line}: Laden öffnen, um sie zu nutzen (etwa +{kept} °C zur Schlafenszeit)",
+        "window": "dem Fenster nach {direction}", "windows": "den Fenstern nach {direction}", "window_plain": "den Fenstern", "and": " und ", "sun_gain": "{line}: +{gain} °C im Raum", "sun_bonus": "{line}: ein Wärmebonus", "sun_bonus_if": "{line}: ein Wärmebonus, wenn die Läden offen sind", "sun_open": "{line}: Laden öffnen, um sie zu nutzen",
         "heat_on": "Heizung wieder einschalten", "heat_to": "Heizung wieder auf {target} °C stellen",
         "heated": "Heizung an", "heated_to": "Heizung auf {target} °C",
         "shutter_close": "Rollladen herunterlassen", "shutter_open": "Rollladen öffnen", "shuttered": "Rollladen unten", "unshuttered": "Rollladen offen",
@@ -808,15 +808,11 @@ def tip_text(tip: Tip, language: str = "fr", now=None) -> str:
         going = now is not None and v["start"] <= now
         key = ("sun_now" if going else "sun") + ("_strong" if tip.level == REINFORCED else "")
         line = words[key].format(window=window, start=_time(v["start"], words), end=_time(v["end"], words))
-        saved = v.get("saved")
-        if saved is not None:
-            # The heating season: what the sun spares or keeps until bedtime (spec « Ce qui joue sur chaque pièce »).
-            figures = {"line": line, "energy": _number(saved["energy"], language), "kept": _number(saved["kept"], language)}
-            spares = saved["heated"] and saved["energy"] >= SUN_ENERGY
-            if saved.get("closed"):
-                return words["sun_open" if spares else "sun_open_kept"].format(**figures)
-            key = ("sun_spared" if spares else "sun_kept") + ("_if" if v.get("manual") else "")
-            return words[key].format(**figures)
+        bonus = v.get("bonus")
+        if bonus is not None:
+            # The heating season: a bonus of warmth, without a figure (Frank, 20 November).
+            key = "sun_open" if bonus.get("closed") else "sun_bonus_if" if v.get("manual") else "sun_bonus"
+            return words[key].format(line=line)
         # What it does to the room, when known: the reason the line is there.
         return words["sun_gain"].format(line=line, gain=_number(v["gain"], language)) if v.get("gain") is not None else line
     if tip.kind == "mist":

@@ -16,13 +16,13 @@ from .proof import LIVE_MINUTES, LIVE_SHARE, PROVEN, REINFORCED, SUPPOSED, WATER
 # The sun is said only when it warms the room by this much over the coming hours (°C): the days it changes nothing, its
 # line goes (Frank, 3 November: a room with three windows had three sun lines).
 SUN_COUNTS = 0.5
-# In the heating season the sun is a gain: said when it spares half a gesture's energy (advisor/decide.py
-# SIGNIFICANT["energy"]), or, without a thermostat, keeps this much at bedtime (to tune at the lab).
-SUN_ENERGY = 0.25
-SUN_KEPT = 0.3
 # Strong sun: this much horizontal sun forecast on average over the hours the sun is on the window (W/m²); a clear
 # autumn noon gives about 450, an overcast sky under 150.
 STRONG_SUN = 200.0
+# Nor when Hestia Weather's sky lets less than this through (engine/sunlight.py `sky_factor`: a cloud cover above about
+# 70 %, « nuageux », « éclaircies »): Open-Meteo foresaw 320 to 395 W/m² on 20 November afternoon, grey and « nuageux »
+# at Météo-France, and the card said « Grand soleil » (Frank, 13 h 12).
+CLEAR_SKY = 0.75
 # The significant gap of the heat (decide.SIGNIFICANT["heat"]), for a gesture seen to work now.
 HEAT_GAP = 1.5
 
@@ -78,9 +78,12 @@ class RoomView:
     stove_idle: dict | None = None
     # °C the sun adds to the room over the coming hours (advisor/decide.py `sun_gain`); None when not known.
     sun_gain: float | None = None
-    # In the heating season, what the sun is worth until bedtime (advisor/decide.py `sun_saved`); None otherwise.
-    sun_saved: dict | None = None
-    # Shutters without a sensor on the room's windows (« volet manuel »): the sun's worth is then said « if open ».
+    # In the heating season, the sun is a bonus of warmth, said without a figure: {"closed": the connected shutter is
+    # shut}; None out of it, the sun then said when it warms the room by SUN_COUNTS.
+    sun_bonus: dict | None = None
+    # Hour → what Hestia Weather's sky lets through, 0 to 1 (engine/sunlight.py `sky_factor`); an hour missing: not said.
+    sky: dict = field(default_factory=dict)
+    # Shutters without a sensor on the room's windows (« volet manuel »): the bonus is then said « if open ».
     shutters_manual: bool = False
     # The outside air, and whether the room's humidity is in question now: a window open, the humidity above its mark, a
     # gesture or a tip for it (`outside_water`).
@@ -102,19 +105,16 @@ class RoomView:
 
 
 def sun_on_windows(view: RoomView) -> list[Tip]:
-    """When the sun is on the room's windows today, still to come or going on, in one line for the whole room, and only
-    when it warms the room by SUN_COUNTS at least: supposed by their orientation, reinforced by a strong sun forecast.
-    Adaptive Cover Pro's hours, when it drives the window, come before the computed ones."""
-    saved = view.sun_saved
-    warms = view.sun_gain is None or view.sun_gain >= SUN_COUNTS
-    if saved is not None and saved["energy"] < SUN_ENERGY and saved["kept"] < SUN_KEPT:
-        # The heating season: the sun judged on what it spares or keeps as well as on the warming it gives now, never
-        # instead of it (labo, 20 November at 11 h 16: the Chambres A and M rising 1,5 °C an hour in the sun, no line).
-        # Either is enough (spec): a room above its set point spares no heating yet keeps the sun's heat for the evening.
-        saved = None
-        if view.sun_gain is None:
-            return []
-    if saved is None and not warms:
+    """When the sun is on the room's windows today, still to come or going on, in one line for the whole room: supposed
+    by their orientation, reinforced by a strong sun forecast. Adaptive Cover Pro's hours, when it drives the window,
+    come before the computed ones.
+
+    In the heating season the line is a passive bonus of warmth, from such an hour to such an hour, said only when a
+    strong sun is forecast on those hours and never with a figure: the twins could not tell it (Frank, 20 November,
+    Chambre A's twin had learned its south window 30 times weaker than Chambre M's, the same sun warming both alike on
+    the 19th). Out of it, the sun is said when it warms the room by SUN_COUNTS."""
+    bonus = view.sun_bonus
+    if bonus is None and view.sun_gain is not None and view.sun_gain < SUN_COUNTS:
         return []
     midnight = view.now.replace(hour=0, minute=0, second=0, microsecond=0)
     spans = {}
@@ -132,16 +132,24 @@ def sun_on_windows(view: RoomView) -> list[Tip]:
     if not spans:
         return []
     ordered = sorted(spans.items(), key=lambda item: item[0][1])
-    strong = False
+    strong = bright = False
+    this_hour = view.now.replace(minute=0, second=0, microsecond=0)
     for (direction, start, end), entities in ordered:
-        hours = [v for h, v in view.sun_forecast.items() if v is not None and start.replace(minute=0) <= h < end]
-        strong = strong or (bool(hours) and sum(hours) / len(hours) >= STRONG_SUN)
+        # An hour Hestia Weather says cloudy is no strong sun, whatever Open-Meteo foresees.
+        hours = {h: (v if view.sky.get(h, 1.0) >= CLEAR_SKY else 0.0) for h, v in view.sun_forecast.items()
+                 if v is not None and start.replace(minute=0) <= h < end}
+        strong = strong or (bool(hours) and sum(hours.values()) / len(hours) >= STRONG_SUN)
+        # The bonus: a strong sun still to come on these windows, this hour included.
+        bright = bright or any(v >= STRONG_SUN for h, v in hours.items() if h >= this_hour)
+    if bonus is not None and not bright:
+        return []
     # The sides in the order the sun reaches them: « les fenêtres est, sud et ouest ».
     directions = list(dict.fromkeys(direction for (direction, _, _), _ in ordered if direction is not None))
     start, end = min(s for (_, s, _), _ in ordered), max(e for (_, _, e), _ in ordered)
     return [Tip("sun", {"directions": directions, "windows": sum(len(e) for _, e in ordered), "start": start, "end": end,
-                        "gain": view.sun_gain, "saved": saved, "manual": view.shutters_manual},
-                "light", 1, end, REINFORCED if strong else SUPPOSED)]
+                        "gain": None if bonus is not None else view.sun_gain, "bonus": bonus,
+                        "manual": view.shutters_manual},
+                "light", 1, end, REINFORCED if strong or bonus is not None else SUPPOSED)]
 
 
 def gesture_seen(view: RoomView) -> list[Tip]:

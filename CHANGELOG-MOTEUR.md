@@ -4,6 +4,33 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.22.2 — 20 novembre 2026
+
+Pas encore dans une version de Confort. Demande Hestia Weather 4.2 (le ciel de maintenant) ; avec une Weather plus ancienne, rien ne change.
+
+### Corrections
+
+- Le ciel de maintenant compte : si Hestia Weather voit un ciel nuageux, pas de « Grand soleil » pour l'heure en cours et les deux suivantes, même si la prévision heure par heure annonce du soleil. Le 20 novembre à 13 h 19, toutes les prévisions disaient « ensoleillé » de 14 h à 16 h sous un ciel gris.
+
+## 3.22.1 — 20 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Corrections
+
+- Plus de « Grand soleil » par temps gris. Le 20 novembre après-midi, la carte l'annonçait au labo alors que Météo-France disait « nuageux » : la prévision chiffrée du soleil attendait 320 à 395 W/m², la station en a mesuré 100 à 150. Maintenant, une heure que Hestia Weather dit nuageuse, couverte ou à éclaircies ne compte pas comme du grand soleil. La prévision est aussi corrigée par ce que la station a mesuré, quand elle voit le soleil.
+
+## 3.22.0 — 20 novembre 2026
+
+Pas encore dans une version de Confort.
+
+### Ce qui change
+
+- En saison de chauffe, le soleil est dit comme un bonus de chaleur, sans chiffre : « Grand soleil sur la fenêtre sud jusqu'à 16 h 35 : un bonus de chaleur ». Avant le soleil, « de 11 h à 16 h 35 ». La ligne apparaît quand un grand soleil est prévu sur les heures où il touche la fenêtre, selon son orientation, et part quand il n'y en a plus. Avec des volets sans capteur : « … si les volets sont ouverts ». Volet relié fermé : « … : ouvrez le volet pour en profiter ».
+- Les chiffres de 3.21 (kWh de chauffage en moins, °C au coucher) sont retirés : ils venaient de ce que le moteur apprend de chaque pièce, trop incertain pour le soleil. La Chambre A, plein sud, n'avait jamais sa ligne : le moteur la croyait 30 fois moins sensible au soleil que la Chambre M, alors que le 19 novembre les deux ont pris presque autant (+0,8 et +1,0 °C).
+- Hors saison de chauffe, rien ne change : le soleil est dit quand il réchauffe la pièce d'au moins 0,5 °C.
+- Moins de calcul : en saison de chauffe, le soleil ne demande plus de simulation jusqu'au coucher.
+
 ## 3.21.2 — 20 novembre 2026
 
 Pas encore dans une version de Confort.

@@ -20,6 +20,28 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.22.2 — 20 novembre 2026
+
+Labo en 3.22.1, 13 h 19 : toujours « Grand soleil ». Prévisions horaires (Météo-France, met.no) « sunny » de 14 h à 16 h sans couverture ; état actuel « cloudy » partout ; station 100 à 150 W/m², à l'ombre l'après-midi (`sun_missed` None).
+- `AdvisorHome._sky_now()` : `api.sky_now()` de Hestia Weather (ajout compatible de l'API v1, Weather 4.2, branche ciel-actuel), min(`sky_factor` de la couverture, `CONDITIONS` de la condition) ; None sans la méthode.
+- `sun_today` : pour l'heure en cours et les `SKY_NOW_HOURS` = 2 suivantes, sky = min(prévu, maintenant).
+- Choix de Frank (carte de décision, 13 h 22) : « Weather partage le ciel actuel ».
+
+### 3.22.1 — 20 novembre 2026
+
+Labo, 13 h 12 (Frank) : « Grand soleil » sous un ciel gris. Open-Meteo `shortwave_radiation` 395/341/321 W/m² à 12, 13, 14 h ; station 154/130/100 ; Météo-France « nuageux », met.no 51 %. `sun_missed` restait None : la station est à l'ombre l'après-midi.
+- `AdvisorHome.sky` : heure UTC → min(`sky_factor` de la couverture, `CONDITIONS` de la condition) lus dans Hestia Weather. `AdvisorHome.sun_today(now)` : {heure: (soleil corrigé par `sun_missed` comme `coming`, sky)}.
+- `RoomView.sky` ; `knowing.CLEAR_SKY = 0.75` : une heure sous ce ciel vaut 0 W/m² pour `strong` et `bright` (le bonus et « Grand soleil »). Éclaircies (0,6) et nuageux (0,25) en dessous.
+- Tests : tests/test_soleil_gain.py (nuageux, nuageux à 50 % de couverture, couvert à 90 %, quelques nuages).
+
+### 3.22.0 — 20 novembre 2026
+
+Frank, 11 h 39 : « trop de paramètres […] un conseil passif […] un bonus de chaleur, sans précisions, de telle heure à telle heure, suivant l'orientation ». Labo, 11 h 25 : Chambre A `glass` appris 0,013 contre 0,44 en Chambre M, mêmes fenêtres déclarées (S, volets manuels), même soleil ; le 19/11 de 11 h à 14 h sans poêle, A +0,8 °C, M +1,0 °C.
+- `sun_saved` et `_dark` retirés (decide.py), `SUN_ENERGY`, `SUN_KEPT`, `SUN_STEPS` aussi. `RoomView.sun_bonus` = {closed} en saison de chauffe (pas la nuit, pas l'été, air ≤ max), None sinon.
+- `sun_on_windows` : avec `sun_bonus`, la ligne sort si une heure de prévision ≥ `STRONG_SUN` (200 W/m²) reste sur la plage de la fenêtre, heure en cours comprise ; niveau renforcé ; textes `sun_bonus`, `sun_bonus_if`, `sun_open`, sans chiffre. Sans `sun_bonus` : l'ancienne règle (`sun_gain >= SUN_COUNTS`).
+- `sun_gain` n'est plus calculé en saison de chauffe. `snap["soleil"]` = {rechauffe (None en saison de chauffe), bonus}.
+- Tests : tests/test_soleil_gain.py réécrit (bonus, journée grise, fin du grand soleil, volets, anglais et allemand).
+
 ### 3.21.2 — 20 novembre 2026
 
 Labo en 3.21.1, 11 h 16 : Chambres A et M à +1,5 °C/h au soleil, aucune ligne. Deux causes.
