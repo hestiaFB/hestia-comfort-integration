@@ -65,7 +65,7 @@ La carte est fournie par l’intégration : rien à installer à part.
 **Hestia Weather est installé, mais n’est pas proposé** :
 
 - vérifiez que Hestia Weather a au moins un lieu (onglet **Météo** du panneau Hestia-FB) ;
-- Confort 3.1 a besoin de Hestia Weather 3.2.0 ou plus récent (4.1.0 conseillée) ;
+- Confort 3.1 a besoin de Hestia Weather 3.2.0 ou plus récent (4.2.0 conseillée, pour le ciel de maintenant) ;
 - après l’installation de Weather, redémarrez Home Assistant.
 
 Une fois relié, l’encadré **Extensions** de l’Accueil indique Hestia Weather « liée », et **Versions et liens** le cite dans ses liaisons. Weather affiche aussi « Relié à Hestia Confort ».
