@@ -86,3 +86,13 @@ test('new rooms start with explained air references and only identified VOC pres
  assert.equal(newRoom(null,'Autre',{suggestions:{voc:'sensor.other'},candidates:{voc:[{entity_id:'sensor.other',unit:'ppb'}]}}).evolution,undefined);
  assert.equal(stages[4],'La pièce et ses réglages');
 });
+test('every room sensor the save may ask to confirm has its tick box',async()=>{
+ // Issue 78: the heating indicator, chosen with a warning, asked for « J’ai vérifié » and never showed the box.
+ const {readFile}=await import('node:fs/promises');
+ const {roomConfirmKeys}=await import(pathToFileURL(join(temp,'model.mjs')));
+ const python=await readFile(new URL('../../custom_components/hestia_comfort/discovery.py',import.meta.url),'utf8');
+ const found=python.match(/^INDOOR = \(([^)]*)\)/m);
+ assert.ok(found);
+ const keys=[...found[1].matchAll(/"([a-z0-9_]+)"/g)].map(m=>m[1]);
+ assert.deepEqual([...roomConfirmKeys].sort(),[...keys].sort());
+});
