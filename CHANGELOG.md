@@ -1,5 +1,9 @@
 ## À venir
 
+### Corrections
+
+- Un indicateur de chauffe à vérifier (un capteur template, par exemple pour une tête thermostatique qui ne dit pas quand elle chauffe) peut de nouveau être enregistré : la case « J'ai vérifié, je confirme mes choix » s'affiche. Avant, le panneau demandait de la cocher sans jamais la montrer (issue #78).
+
 ## 3.1.2 — Le Salon · Cuisine suivi de près
 
 ### Corrections

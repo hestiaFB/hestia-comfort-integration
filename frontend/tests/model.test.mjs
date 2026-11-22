@@ -7,8 +7,15 @@ import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const temp=await mkdtemp(join(tmpdir(),'hestia-setup-'));
 await build({entryPoints:['model.ts'],bundle:true,platform:'node',format:'esm',outfile:join(temp,'model.mjs')});
-const {newRoom,measurement,coverage,livingArea,exteriorSummary,stages,intros,airSource,airChoices,exteriorChoices,changedAdvanced,vocPreset,airReferenceDefaults}=await import(pathToFileURL(join(temp,'model.mjs')));
+const {confirmable,newRoom,measurement,coverage,livingArea,exteriorSummary,stages,intros,airSource,airChoices,exteriorChoices,changedAdvanced,vocPreset,airReferenceDefaults}=await import(pathToFileURL(join(temp,'model.mjs')));
 after(()=>rm(temp,{recursive:true,force:true}));
+test('every room source the server may ask to confirm shows the « J’ai vérifié » box (issue #78)',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const discovery=await readFile(new URL('../../custom_components/hestia_comfort/discovery.py',import.meta.url),'utf8');
+  const indoor=[...discovery.match(/^INDOOR = \(([^)]*)\)/m)[1].matchAll(/"([a-z_0-9]+)"/g)].map(m=>m[1]);
+  assert.ok(indoor.includes('heating_indicator'));
+  assert.deepEqual(indoor.filter(k=>!confirmable.includes(k)),[]);
+});
 test('new room copies proposals, describes each opening and freezes no data',()=>{
  const d={suggestions:{indoor_temperature:'sensor.room',windows:['binary_sensor.window']}};
  const room=newRoom({area_id:'salon',name:'Salon'},'',d);
