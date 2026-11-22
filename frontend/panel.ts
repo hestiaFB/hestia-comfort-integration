@@ -11,7 +11,7 @@ import {quizScreen,unanswered,firstUnanswered,habitsStyles,houseSection,question
 import {guideFrame,welcome,askOf,guideScreens,nextScreen,guideStyles,type GuideScreen,type GuideState} from './guide';
 import {overhangSketch} from './sketch';
 import {roomLearning3,outside3,firstMissing} from './learning3';
-import {words,labels,indoor,outdoor,multiple,exposures,kinds,measurement,newRoom,coverage,exteriorSummary,livingArea,defaultOpening,warningText,warningId,stages,intros,outdoorGroups,airSource,airChoices,exteriorChoices,airReferenceDefaults,vocPreset,thresholdSources,type Choice,type Candidate,type Discovery,type Health,type HealthLine,type Target,type Snapshot,type Hass,type Room,type RoomConfig,type Spec,type Twins,type Twin,type Progress,type Extension,seasonNames,ordinarySize,type Heater,type OpeningMeta,type RoomBuilt,type CustomEquipment} from './model';
+import {words,labels,indoor,outdoor,roomConfirmKeys,multiple,exposures,kinds,measurement,newRoom,coverage,exteriorSummary,livingArea,defaultOpening,warningText,warningId,stages,intros,outdoorGroups,airSource,airChoices,exteriorChoices,airReferenceDefaults,vocPreset,thresholdSources,type Choice,type Candidate,type Discovery,type Health,type HealthLine,type Target,type Snapshot,type Hass,type Room,type RoomConfig,type Spec,type Twins,type Twin,type Progress,type Extension,seasonNames,ordinarySize,type Heater,type OpeningMeta,type RoomBuilt,type CustomEquipment} from './model';
 // Confort's words beside the hub's (socle 1.13): French in the code, English for any other language.
 // Loaded only for a Home Assistant in another language than French (socle 1.23, PLAN-OPTIMISATION-HUB.md point 10).
 addDictionary('en',()=>import('./i18n-en').then(m=>m.PANEL_EN));
@@ -86,6 +86,8 @@ export class ComfortSetup extends LitElement {
  @state() private search:Record<string,string>={};
  @state() private acknowledged:string[]=[];
  @state() private confirmed=false;
+ // What the last save found still to confirm, as the server says it: shown even for a sensor `pending` does not list.
+ @state() private serverPending:{id:string;name:string}[]=[];
  @state() private health?:Health;
  @state() private healthLoading=true;
  @state() private twins?:Twins;
@@ -368,7 +370,7 @@ export class ComfortSetup extends LitElement {
   if(!d.candidates.shutter_override&&d.candidates.shutter_auto)d.candidates.shutter_override=d.candidates.shutter_auto;
   return d;
  }
- private begin(){this.confirmRemove=false;this.adding=false;this.busy=true;this.error='';this.saved='';this.preview=undefined;this.search={};this.confirmed=false;}
+ private begin(){this.confirmRemove=false;this.adding=false;this.busy=true;this.error='';this.saved='';this.preview=undefined;this.search={};this.confirmed=false;this.serverPending=[];}
  private async start(area:{area_id:string;name:string}|null,name='',guide=false){
   if(!area&&!name.trim()){this.error=t('Donnez un nom à la pièce libre, par exemple « Étage » ou « Suite parentale ».');return;}
   // From the general settings their draft is kept for the way back, and gives way to the new room's.
@@ -440,9 +442,10 @@ export class ComfortSetup extends LitElement {
  }
  private setOpening(id:string,change:Partial<RoomConfig['openings'][string]>){const d=this.draft!;this.draft={...d,openings:{...d.openings,[id]:{...(d.openings[id]??defaultOpening()),...change}}};}
  // Sensors chosen with a warning that the person has not confirmed yet: one confirmation covers them all.
- private pending(){const keys=this.exteriorDraft?[...outdoor]:[...indoor,'illuminance','co2','pm25','voc','purifier','ventilation','ventilation_boost','presence','heating','windows'];const out:{id:string;name:string}[]=[];
+ private pending(){const keys=this.exteriorDraft?[...outdoor]:[...roomConfirmKeys];const out:{id:string;name:string}[]=[];
   for(const key of keys)for(const id of this.selected(key)){const c=this.discovery?.candidates[key]?.find(x=>x.entity_id===id);if(c?.warnings.length&&!this.acknowledged.includes(warningId(key,id)))out.push({id:warningId(key,id),name:c.name});}
   if(this.draft)for(const m of Object.values(this.draft.openings))for(const [field,key] of [['cover_entity','covers'],['auto_entity','shutter_auto'],['override_entity','shutter_override']] as const){const id=m[field],c=this.discovery?.candidates[key]?.find(x=>x.entity_id===id);if(c?.warnings.length&&!this.acknowledged.includes(warningId(key,c.entity_id)))out.push({id:warningId(key,c.entity_id),name:c.name});}
+  for(const p of this.serverPending)if(!this.acknowledged.includes(p.id)&&!out.some(o=>o.id===p.id))out.push(p);
   return out;}
  private confirmBlock(){const list=this.pending();if(!list.length)return nothing;
   return html`<div class="notice confirm"><p>${(list.length===1?t('Un capteur est à vérifier (autre pièce, porte d’appareil ou mesure recopiée) : {names}.',{names:list.map(x=>x.name).join(', ')}):t('{n} capteurs sont à vérifier (autre pièce, porte d’appareil ou mesure recopiée) : {names}.',{n:list.length,names:list.map(x=>x.name).join(', ')}))+' '+(this.exteriorDraft?t('Les explications sont plus haut.'):t('Les explications sont aux étapes précédentes.'))}</p><label class="check"><input type="checkbox" .checked=${this.confirmed} @change=${(e:Event)=>{this.confirmed=(e.target as HTMLInputElement).checked;if(this.confirmed)this.error='';}}>${t('J’ai vérifié, je confirme mes choix.')}</label></div>`;}
@@ -557,8 +560,8 @@ export class ComfortSetup extends LitElement {
   // From the guide opened on a room's tabs, back to them; from anywhere else, back to the overview.
   const guide=this.guideAt!==null&&this.guideFrom!=='room';
   try{const validated=await this.ws<{warnings:{key:string;entity_id:string}[]}>({type:'hestia_comfort/validate_config',config,home:isHome});if(workspace!==this.workspaceGeneration)return;const missing=validated.warnings.map(w=>warningId(w.key,w.entity_id)).filter(id=>!this.acknowledged.includes(id));
-   if(missing.length&&!this.confirmed){this.error=t('Cochez « J’ai vérifié, je confirme mes choix » juste au-dessus pour enregistrer.');return;}
-   this.acknowledged=[...new Set([...this.acknowledged,...missing])];
+   if(missing.length&&!this.confirmed){this.serverPending=validated.warnings.filter(w=>missing.includes(warningId(w.key,w.entity_id))).map(w=>({id:warningId(w.key,w.entity_id),name:String(this.hass?.states?.[w.entity_id]?.attributes?.friendly_name??w.entity_id)}));if(!isHome&&this.guideAt===null&&this.stage!==5)this.go(5);this.error=t('Cochez « J’ai vérifié, je confirme mes choix » juste au-dessus pour enregistrer.');return;}
+   this.acknowledged=[...new Set([...this.acknowledged,...missing])];this.serverPending=[];
    const before=new Set(this.snapshot?.rooms.map(r=>r.entry_id));const wasRoom=!isHome;const edited=entryId;
    this.snapshot=await this.ws<Snapshot>({type:'hestia_comfort/save_config',config,home:isHome,revision,...(entryId?{entry_id:entryId}:{}),acknowledged:this.acknowledged});
    if(workspace!==this.workspaceGeneration)return;

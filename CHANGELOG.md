@@ -1,5 +1,12 @@
 ## À venir
 
+## 3.1.3 — L'indicateur de chauffe s'enregistre
+
+### Corrections
+
+- Un indicateur de chauffe à vérifier (par exemple un capteur créé par un modèle) peut de nouveau être enregistré. La case « J'ai vérifié, je confirme mes choix » ne s'affichait pas, et le bouton Enregistrer restait bloqué.
+- Si un capteur reste à confirmer à l'enregistrement, la case s'affiche maintenant toujours, avec le nom du capteur.
+
 ## 3.1.2 — Le Salon · Cuisine suivi de près
 
 ### Corrections

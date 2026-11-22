@@ -4,6 +4,9 @@ import {t,fr,currentLocale} from './socle/i18n';
 export function words<T extends Record<string,string>>(map:T):T{return new Proxy(map,{get:(o,k)=>{const v=Reflect.get(o,k);return typeof v==='string'?t(v):v;}});}
 export const labels:Record<string,string>=words({season:fr('Saison'),indoor_temperature:fr('Température de la pièce'),indoor_humidity:fr('Humidité de la pièce'),co2:fr('CO₂'),pm25:fr('Particules fines PM2.5'),voc:fr('Composés organiques volatils (COV)'),purifier:fr('Purificateur'),ventilation:fr('Ventilation (VMC)'),ventilation_boost:fr('Vitesse rapide de la VMC (Turbo)'),presence:fr('Présence dans la pièce'),illuminance:fr('Luminosité'),windows:fr('Fenêtres et portes vers l’extérieur'),heating:fr('Chauffage'),heating_indicator:fr('Indicateur de chauffe'),outdoor_temperature:fr('Température dehors'),outdoor_humidity:fr('Humidité dehors'),rain:fr('Pluie actuelle'),wind_gust:fr('Rafales de vent'),wind_bearing:fr('Direction du vent'),solar:fr('Ensoleillement'),pollution:fr('Qualité de l’air extérieur')});
 export const indoor=['indoor_temperature','indoor_humidity'] as const;
+// A room's sensors the save may ask to confirm (`configuration.py`, `discovery.INDOOR`): each one chosen with a warning
+// is listed under « J’ai vérifié ». The heating indicator was missing: its tick box never showed (issue 78).
+export const roomConfirmKeys=[...indoor,'illuminance','co2','pm25','voc','purifier','ventilation','ventilation_boost','presence','heating','heating_indicator','windows'] as const;
 export const outdoor=['outdoor_temperature','outdoor_humidity','rain','wind_gust','wind_bearing','solar','pollution','season'] as const;
 export const multiple=new Set(['windows','presence']);
 export const exposures:[string,string][]=[['N',fr('Nord')],['NE',fr('Nord-est')],['E',fr('Est')],['SE',fr('Sud-est')],['S',fr('Sud')],['SO',fr('Sud-ouest')],['O',fr('Ouest')],['NO',fr('Nord-ouest')]];
