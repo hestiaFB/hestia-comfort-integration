@@ -13,8 +13,10 @@ thermostat it gives, on a device of its own linked to the thermostat's:
   (`temperatures`). It reads the active schedule only;
 - « Dérogation » (`…_override`): on while the person changed the thermostat by hand, until `end`. ha-chauffage then
   sends nothing before `end`, and the slot running at that time is applied: the announced `next_start` may never come;
-- « Prochain changement » (`…_next_change`, proposed in armellarcier/ha-chauffage#82): a timestamp, the next real
-  change, end of an override included, with `preset`, `preset_name` and `temperature`. Read first when it is there.
+- « Prochain changement » (`…_next_change`, since ha-chauffage 0.10, armellarcier/ha-chauffage#124): a timestamp, the
+  next real change, end of an override included and beyond midnight, with `preset`, `preset_name`, `temperature` and
+  `hvac_mode` (`off` when that slot switches the thermostat off). Read first, and alone when « Préréglage prévu » is
+  gone: it is deprecated from 0.10 and removed by 0.12.
 
 Scheduler (nielsfaber/scheduler-component): one switch per schedule (`switch.schedule_…`), on while it runs, with
 the `entities` it drives, one action per time slot (`actions`, `timeslots`), the slot running (`current_slot`) and the
@@ -56,12 +58,15 @@ def _number(value):
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
-def _change(at, preset, name, temperature, now, override=False):
+def _change(at, preset, name, temperature, now, override=False, mode=None):
     at = _moment(at)
     if at is None or at.tzinfo is None or (now is not None and at <= now):
         return None
-    return {"at": at.isoformat(), "preset": preset or None, "name": name or preset or None,
-            "temperature": _number(temperature), "override": override}
+    found = {"at": at.isoformat(), "preset": preset or None, "name": name or preset or None,
+             "temperature": _number(temperature), "override": override}
+    if mode:
+        found["mode"] = str(mode)
+    return found
 
 
 def next_change(planned=None, override=None, change=None, now=None):
@@ -69,7 +74,11 @@ def next_change(planned=None, override=None, change=None, now=None):
     "name", "temperature", "override"} — the preset is None when it is not known —, or None."""
     if change and change[0] not in GONE:
         attrs = change[1] or {}
-        return _change(change[0], attrs.get("preset"), attrs.get("preset_name"), attrs.get("temperature"), now)
+        mode = attrs.get("hvac_mode")
+        if mode == "off":
+            # The slot switches the thermostat off: no set point to heat to, never « Chauffage prévu à 17 h ».
+            return _change(change[0], "off", attrs.get("preset_name"), None, now, mode=mode)
+        return _change(change[0], attrs.get("preset"), attrs.get("preset_name"), attrs.get("temperature"), now, mode=mode)
     if not planned or planned[0] in GONE:
         return None
     attrs = planned[1] or {}
@@ -149,7 +158,7 @@ def heard(change, heated=True, off=False, reason=None):
     (the summer) unless it switches it back on; a pause the thermostat lifts by itself (an open window) keeps it."""
     if not change or not heated:
         return None
-    if off and reason not in PAUSES and change.get("preset") not in TURNS_ON:
+    if off and reason not in PAUSES and change.get("preset") not in TURNS_ON and change.get("mode") not in TURNS_ON:
         return None
     return change
 

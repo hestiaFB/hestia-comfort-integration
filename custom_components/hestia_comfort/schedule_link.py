@@ -27,7 +27,8 @@ def _chauffage(hass, climate):
         return None
     registry, entry_id = er.async_get(hass), entries[0].entry_id
     found = {role: _state(hass, registry, entry_id, climate, role) for role in DOMAINS}
-    if found["planned"] is None:
+    # « Préréglage prévu » is deprecated from ha-chauffage 0.10: « Prochain changement » alone schedules the thermostat.
+    if found["planned"] is None and found["next_change"] is None:
         return None
     return schedule.next_change(found["planned"], found["override"], found["next_change"], dt_util.now())
 
@@ -66,14 +67,15 @@ def next_change(hass, climate, disabled=()):
 
 
 def planners(hass, climate):
-    """The integrations that schedule this thermostat: « chauffage » (its planned preset exists), « scheduler » (a
-    schedule drives it, running or not)."""
+    """The integrations that schedule this thermostat: « chauffage » (its planned preset or its next change exists),
+    « scheduler » (a schedule drives it, running or not)."""
     if not climate:
         return set()
     out = set()
     entries = hass.config_entries.async_entries(schedule.PLATFORM)
-    if entries and er.async_get(hass).async_get_entity_id(
-            "sensor", schedule.PLATFORM, f"{entries[0].entry_id}_{climate}_{schedule.KEYS['planned']}"):
+    registry = er.async_get(hass)
+    if entries and any(registry.async_get_entity_id("sensor", schedule.PLATFORM, f"{entries[0].entry_id}_{climate}_{schedule.KEYS[role]}")
+                       for role in ("planned", "next_change")):
         out.add(schedule.PLATFORM)
     if _schedules(hass, climate):
         out.add(schedule.SCHEDULER)
