@@ -40,6 +40,10 @@ TEXTS = {
         "humidity_after": "{chosen} % d'humidité une heure après l'aération au lieu de {idle} %", "humidity_after_likely": "l'humidité devrait passer à {chosen} % une heure après l'aération au lieu de {idle} %", "humidity_after_maybe": "l'humidité pourrait passer à {chosen} % une heure après l'aération",
         "co2_after": "l'air redevient sain {minutes} min après avoir refermé", "co2_after_likely": "l'air devrait redevenir sain {minutes} min après avoir refermé", "co2_after_maybe": "l'air pourrait redevenir sain {minutes} min après avoir refermé",
         "particles_after": "les particules retombent {minutes} min après avoir refermé", "particles_after_likely": "les particules devraient retomber {minutes} min après avoir refermé", "particles_after_maybe": "les particules pourraient retomber {minutes} min après avoir refermé",
+        "particles_during": "les particules retombent avant la fin", "particles_during_likely": "les particules devraient retomber avant la fin", "particles_during_maybe": "les particules pourraient retomber avant la fin",
+        "voc_during": "le COV retombe avant la fin", "voc_during_likely": "le COV devrait retomber avant la fin", "voc_during_maybe": "le COV pourrait retomber avant la fin",
+        "particles_long": "les particules mettront plus longtemps à retomber", "particles_long_likely": "les particules devraient mettre plus longtemps à retomber", "particles_long_maybe": "les particules pourraient mettre plus longtemps à retomber",
+        "voc_long": "le COV mettra plus longtemps à retomber", "voc_long_likely": "le COV devrait mettre plus longtemps à retomber", "voc_long_maybe": "le COV pourrait mettre plus longtemps à retomber",
         "voc_after": "le COV retombe {minutes} min après avoir refermé", "voc_after_likely": "le COV devrait retomber {minutes} min après avoir refermé", "voc_after_maybe": "le COV pourrait retomber {minutes} min après avoir refermé",
         "energy_likely": "environ {value} kWh de chauffage économisés", "energy_maybe": "peut-être {value} kWh de chauffage économisés",
         "mould_likely": "devrait limiter la moisissure sur les murs froids", "mould_maybe": "pourrait limiter la moisissure sur les murs froids",
@@ -156,6 +160,10 @@ TEXTS = {
         "humidity_after": "{chosen}% humidity an hour after airing instead of {idle}%", "humidity_after_likely": "the humidity should go to {chosen} % an hour after airing instead of {idle} %", "humidity_after_maybe": "the humidity could go to {chosen} % an hour after airing",
         "co2_after": "the air is fresh again {minutes} min after closing", "co2_after_likely": "the air should be healthy again {minutes} min after closing", "co2_after_maybe": "the air could be healthy again {minutes} min after closing",
         "particles_after": "the particles settle {minutes} min after closing", "particles_after_likely": "the particles should settle {minutes} min after closing", "particles_after_maybe": "the particles could settle {minutes} min after closing",
+        "particles_during": "the particles settle before the end", "particles_during_likely": "the particles should settle before the end", "particles_during_maybe": "the particles could settle before the end",
+        "voc_during": "the VOC falls back before the end", "voc_during_likely": "the VOC should drop before the end", "voc_during_maybe": "the VOC could drop before the end",
+        "particles_long": "the particles take longer to settle", "particles_long_likely": "the particles should take longer to settle", "particles_long_maybe": "the particles could take longer to settle",
+        "voc_long": "the VOC takes longer to fall back", "voc_long_likely": "the VOC should take longer to drop", "voc_long_maybe": "the VOC could take longer to drop",
         "voc_after": "the VOC falls back {minutes} min after closing", "voc_after_likely": "the VOC should drop {minutes} min after closing", "voc_after_maybe": "the VOC could drop {minutes} min after closing",
         "energy_likely": "about {value} kWh of heating saved", "energy_maybe": "perhaps {value} kWh of heating saved",
         "mould_likely": "should limit mould on the cold walls", "mould_maybe": "could limit mould on the cold walls",
@@ -271,6 +279,10 @@ TEXTS = {
         "humidity_after": "{chosen} % Feuchte eine Stunde nach dem Lüften statt {idle} %", "humidity_after_likely": "die Feuchte dürfte eine Stunde nach dem Lüften auf {chosen} % statt {idle} % gehen", "humidity_after_maybe": "die Feuchte könnte eine Stunde nach dem Lüften auf {chosen} % gehen",
         "co2_after": "die Luft ist {minutes} Min. nach dem Schließen wieder frisch", "co2_after_likely": "die Luft dürfte {minutes} Min. nach dem Schließen wieder gesund sein", "co2_after_maybe": "die Luft könnte {minutes} Min. nach dem Schließen wieder gesund sein",
         "particles_after": "die Partikel setzen sich {minutes} Min. nach dem Schließen", "particles_after_likely": "die Partikel dürften sich {minutes} Min. nach dem Schließen setzen", "particles_after_maybe": "die Partikel könnten sich {minutes} Min. nach dem Schließen setzen",
+        "particles_during": "die Partikel setzen sich vor dem Ende", "particles_during_likely": "die Partikel dürften sich vor dem Ende setzen", "particles_during_maybe": "die Partikel könnten sich vor dem Ende setzen",
+        "voc_during": "die VOC sinken vor dem Ende", "voc_during_likely": "die VOC dürften vor dem Ende sinken", "voc_during_maybe": "die VOC könnten vor dem Ende sinken",
+        "particles_long": "die Partikel brauchen länger, um sich zu setzen", "particles_long_likely": "die Partikel dürften länger brauchen, um sich zu setzen", "particles_long_maybe": "die Partikel könnten länger brauchen, um sich zu setzen",
+        "voc_long": "die VOC brauchen länger, um zu sinken", "voc_long_likely": "die VOC dürften länger brauchen, um zu sinken", "voc_long_maybe": "die VOC könnten länger brauchen, um zu sinken",
         "voc_after": "die VOC sinken {minutes} Min. nach dem Schließen", "voc_after_likely": "die VOC dürften {minutes} Min. nach dem Schließen sinken", "voc_after_maybe": "die VOC könnten {minutes} Min. nach dem Schließen sinken",
         "energy_likely": "etwa {value} kWh Heizung gespart", "energy_maybe": "vielleicht {value} kWh Heizung gespart",
         "mould_likely": "dürfte Schimmel an kalten Wänden begrenzen", "mould_maybe": "könnte Schimmel an kalten Wänden begrenzen",
@@ -569,10 +581,16 @@ def phrase(decision: Decision, end_hour: int, language: str = "fr", sure: bool =
         elif subject in ("co2", "particles", "voc"):
             series = getattr(chosen, subject)
             minutes = _back_under(series, marks[subject]) if series else None
-            if minutes and subject == "co2" and gesture.minutes and minutes <= gesture.minutes:
+            if minutes and gesture.minutes and minutes <= gesture.minutes:
                 # Back under its mark before the airing ends: « Aérez 15 min : l'air pourrait redevenir sain en 5 min »
-                # read as a contradiction (Salon · Cuisine, 8 November at 15 h 40).
-                line = say("co2_during")
+                # read as a contradiction (Salon · Cuisine, 8 November at 15 h 40), and so did « Aérez 20 min : le COV
+                # retombe en 5 min » (23 November, 18 h 35).
+                line = say(f"{subject}_during")
+            elif minutes and subject in ("particles", "voc") and gesture.minutes:
+                # After a timed airing: no time said. An index sensor's forecast swings (« en 15 min », « vers 8 h 30 »,
+                # « en 15 min », « vers 8 h 45 », « en 10 min » in 25 minutes of one urgency, 23 November): the line
+                # changed at every step under the same « Aérez 20 min côté Cuisine ».
+                line = say(f"{subject}_long")
             elif minutes and gesture.minutes and minutes > gesture.minutes and fixed:
                 after = minutes - gesture.minutes
                 line = say(f"{subject}_after", minutes=after if after <= 15 else int(round(after / 15) * 15))

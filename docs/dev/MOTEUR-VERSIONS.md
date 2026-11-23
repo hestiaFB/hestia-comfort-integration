@@ -20,6 +20,15 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.22.6 — 23 novembre 2026
+
+Maison en 3.22.5, 22-23/11. Salon · Cuisine : créneau `heat_to 20` à 7 h 03 et 8 h 18, gardé jusqu'à 16 h 19, alarme `armed_away` de 9 h 40 à 15 h 07 ; urgence COV de 7 h 33 à 8 h 18, cinq lignes (`voc` / `voc_at` alternés) ; « Aérez 20 min » + « le COV retombe en 5 min » à 18 h 35.
+- `decide` : avec `absent` dans `forbidden`, les gestes `heat_*` et les appareils (`DEVICES`, et leur `_off`) sont retirés comme `open`/`open_more`.
+- `board.held_back` : `absent` retient aussi `heat_*` et les appareils, pour que le plan du créneau tombe (`held_plan`) au lieu de rester affiché.
+- `words.phrase` (co2, particles, voc) : geste minuté et retour sous le seuil avant sa fin → `{subject}_during` pour les trois sujets (avant : co2 seul). particles et voc après un geste minuté → `{subject}_long`, sans minutes ni heure (avant : `_after` ou `_at`). co2 garde `_after` / `_at`.
+- Hors moteur, dans Confort 3.1.4 : `schedule_link._entity_id` cherche Prochain changement d'abord sur l'appareil du thermostat (plateforme `chauffage`, `translation_key == "next_change"` ou classe `timestamp`), puis par unique id (issue #42). Le `hvac_mode` « off » et Prochain changement sans Préréglage prévu viennent de la PR #81.
+- Tests : test_advisor_air (`_during`, `_long`, ligne stable), test_advisor_thermostat `test_nobody_home_no_heating_to_set_back`, test_bilan_18_novembre `test_nobody_home_holds_back_the_heating_and_the_devices_too`, test_schedule `FoundOnTheThermostatsDevice`.
+
 ### 3.22.5 — 21 novembre 2026
 
 Maison en 3.22.4, 21/11, Salon · Cuisine (PM2.5 salon 9, cuisine 24, COV 254) : fenêtres ouvertes à 10 h 56 min 25 s, « Aérez » jusqu'à 10 h 58 min 57 s, « Aération en cours · refermez vers 11 h 06 », puis « Refermez » à 11 h ; pas de « Ouvrez aussi ». Chambre A : ligne du créneau « vers 8 h 15 » à 10 h 57, plan gardé par 3.1.0b18 (sans `title_now`).

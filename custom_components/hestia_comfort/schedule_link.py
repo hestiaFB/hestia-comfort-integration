@@ -1,7 +1,7 @@
 """The heating's schedule for one thermostat, read by engine/schedule.py from the integration that plans it.
 
-ha-chauffage's entities are found by their stable unique id (`{entry_id}_{climate}_{key}`), Scheduler's schedules by
-their integration and the `entities` they drive — never by a name. Both refresh on their own; the room's minute tick
+ha-chauffage's « Prochain changement » is found on the thermostat's device, its other entities by their unique id
+(`{entry_id}_{climate}_{key}`, not guaranteed by ha-chauffage); Scheduler's schedules by their integration and the `entities` they drive — never by a name. Both refresh on their own; the room's minute tick
 reads them, nothing more is followed."""
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
@@ -11,8 +11,25 @@ from .engine import schedule
 DOMAINS = {"planned": "sensor", "override": "binary_sensor", "next_change": "sensor"}
 
 
-def _state(hass, registry, entry_id, climate, role):
-    entity_id = registry.async_get_entity_id(DOMAINS[role], schedule.PLATFORM, f"{entry_id}_{climate}_{schedule.KEYS[role]}")
+def _device(registry, climate):
+    entry = registry.async_get(climate)
+    return entry.device_id if entry is not None else None
+
+
+def _entity_id(registry, entry_id, climate, role, device_id=None):
+    """ha-chauffage's entity for this thermostat and role. « Prochain changement » is looked for first on the thermostat's
+    device (platform « chauffage », a timestamp): ha-chauffage keeps its unique ids internal and may change them
+    (armellarcier, issue #42). Then by the unique id, as ha-chauffage writes it up to 0.10."""
+    if role == "next_change" and device_id:
+        for entity in er.async_entries_for_device(registry, device_id):
+            if entity.platform == schedule.PLATFORM and entity.domain == "sensor" and (
+                    entity.translation_key == "next_change" or (entity.device_class or entity.original_device_class) == "timestamp"):
+                return entity.entity_id
+    return registry.async_get_entity_id(DOMAINS[role], schedule.PLATFORM, f"{entry_id}_{climate}_{schedule.KEYS[role]}")
+
+
+def _state(hass, registry, entry_id, climate, role, device_id=None):
+    entity_id = _entity_id(registry, entry_id, climate, role, device_id)
     state = hass.states.get(entity_id) if entity_id else None
     return (state.state, dict(state.attributes)) if state is not None else None
 
@@ -26,7 +43,8 @@ def _chauffage(hass, climate):
     if not entries:
         return None
     registry, entry_id = er.async_get(hass), entries[0].entry_id
-    found = {role: _state(hass, registry, entry_id, climate, role) for role in DOMAINS}
+    device_id = _device(registry, climate)
+    found = {role: _state(hass, registry, entry_id, climate, role, device_id) for role in DOMAINS}
     # « Préréglage prévu » is deprecated from ha-chauffage 0.10: « Prochain changement » alone schedules the thermostat.
     if found["planned"] is None and found["next_change"] is None:
         return None
@@ -74,8 +92,8 @@ def planners(hass, climate):
     out = set()
     entries = hass.config_entries.async_entries(schedule.PLATFORM)
     registry = er.async_get(hass)
-    if entries and any(registry.async_get_entity_id("sensor", schedule.PLATFORM, f"{entries[0].entry_id}_{climate}_{schedule.KEYS[role]}")
-                       for role in ("planned", "next_change")):
+    device_id = _device(registry, climate) if entries else None
+    if entries and any(_entity_id(registry, entries[0].entry_id, climate, role, device_id) for role in ("planned", "next_change")):
         out.add(schedule.PLATFORM)
     if _schedules(hass, climate):
         out.add(schedule.SCHEDULER)
