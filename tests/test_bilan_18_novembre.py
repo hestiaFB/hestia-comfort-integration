@@ -42,6 +42,17 @@ class HeldBackTests(unittest.TestCase):
         self.assertEqual(reason, "rain_maybe")
         self.assertTrue(held_back(Gesture("open", 10), likely))
 
+    def test_nobody_home_holds_back_the_heating_and_the_devices_too(self):
+        # The alarm away from 9 h 40 to 15 h 07, the heating set to frost protection on purpose: the slot's « Remettez le
+        # chauffage à 20 °C » stayed all day (Frank, 23 November). Nobody home sees to the heating or starts a device.
+        away = frozenset({"absent"})
+        self.assertTrue(held_back(Gesture("heat_to", target=20.0), away))
+        self.assertTrue(held_back(Gesture("heat_on"), away))
+        self.assertTrue(held_back(Gesture("boost"), away))
+        self.assertTrue(held_back(Gesture("purify"), away))
+        self.assertFalse(held_back(Gesture("heat_to", target=20.0), frozenset()))
+        self.assertFalse(held_back(Gesture("heat_to", target=20.0), frozenset({"rain_likely"})))
+
     def test_a_sheltered_window_open_and_the_frost(self):
         sheltered, _ = forbidden(rain_rate=1.0, shelter="opened")
         self.assertFalse(held_back(Gesture("open", 10), sheltered))

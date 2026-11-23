@@ -18,7 +18,7 @@ The humidity is judged on the room's own normal (advisor/identity.py): the Chamb
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timedelta
 
-from .decide import Decision, Gesture, effect
+from .decide import DEVICES, Decision, Gesture, effect
 from .proof import PROVEN, SUPPOSED
 
 # Urgencies measured: (enter, leave). A band, never on and off around one value.
@@ -317,6 +317,10 @@ def held_back(gesture: Gesture, safe: frozenset) -> bool:
     only then, « Gardez fermé : il pleut » is said instead of it. A safety that blocks nothing the room needs is said in
     « À savoir »: « il pleut », « mode absence » and « rien de mieux » took turns 6 to 23 times a day under « Rien à faire »
     in each room (bilan of 18 November)."""
+    if "absent" in safe and (gesture.kind.startswith("heat_") or gesture.kind.removesuffix("_off") in DEVICES):
+        # Nobody home to see to the heating either: the slot's « Remettez le chauffage à 20 °C » stayed from 8 h to 15 h
+        # with the alarm away (Frank, 23 November). Held back as decide() leaves it out.
+        return True
     if gesture.kind not in ("open", "open_more"):
         return False
     if safe & {"open", "absent", "rain_likely"}:

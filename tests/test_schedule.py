@@ -214,9 +214,6 @@ class Tip(unittest.TestCase):
         self.assertEqual(heating_planned(self.view(NOW.replace(hour=11), asleep=True)), [])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class FoundInHomeAssistant(unittest.TestCase):
     """ha-chauffage's entities found by their unique id: « Prochain changement » alone is enough (0.10 onwards)."""
@@ -229,7 +226,8 @@ class FoundInHomeAssistant(unittest.TestCase):
         self.link = schedule_link
         entry = SimpleNamespace(entry_id="e1", state=SimpleNamespace(value="loaded"))
         ids = {("sensor", "e1_climate.thermostat_salon_next_change"): "sensor.salon_prochain_changement"}
-        registry = SimpleNamespace(async_get_entity_id=lambda domain, platform, unique: ids.get((domain, unique)))
+        registry = SimpleNamespace(async_get_entity_id=lambda domain, platform, unique: ids.get((domain, unique)),
+                                   async_get=lambda entity_id: None)
         states = {"sensor.salon_prochain_changement": SimpleNamespace(
             state="2026-11-02T17:00:00+01:00",
             attributes={"preset": "comfort", "preset_name": "Confort", "temperature": 20.0, "hvac_mode": "heat"})}
@@ -248,3 +246,47 @@ class FoundInHomeAssistant(unittest.TestCase):
     def test_known_as_scheduled_by_ha_chauffage(self):
         self.assertEqual(self.link.planners(self.hass, "climate.thermostat_salon"), {"chauffage"})
         self.assertEqual(self.link.planners(self.hass, "climate.thermostat_autre"), set())
+
+class FoundOnTheThermostatsDevice(unittest.TestCase):
+    """« Prochain changement » found on the thermostat's device: ha-chauffage does not guarantee its unique ids
+    (armellarcier, issue #42)."""
+
+    def setUp(self):
+        from types import SimpleNamespace
+        from unittest import mock
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from custom_components.hestia_comfort import schedule_link
+        self.link = schedule_link
+        entry = SimpleNamespace(entry_id="e1", state=SimpleNamespace(value="loaded"))
+        # A unique id ha-chauffage changed: the old one finds nothing.
+        sensor = SimpleNamespace(platform="chauffage", domain="sensor", translation_key=None, device_class=None,
+                                 original_device_class="timestamp", entity_id="sensor.salon_prochain_changement")
+        other = SimpleNamespace(platform="versatile_thermostat", domain="sensor", translation_key=None, device_class=None,
+                                original_device_class="timestamp", entity_id="sensor.salon_derniere_coupure")
+        registry = SimpleNamespace(async_get_entity_id=lambda domain, platform, unique: None,
+                                   async_get=lambda entity_id: SimpleNamespace(device_id="d1") if entity_id == "climate.thermostat_salon" else None)
+        states = {"sensor.salon_prochain_changement": SimpleNamespace(
+            state="2026-11-02T17:00:00+01:00",
+            attributes={"preset": "comfort", "preset_name": "Confort", "temperature": 20.0, "hvac_mode": "heat"})}
+        self.hass = SimpleNamespace(config_entries=SimpleNamespace(async_entries=lambda domain: [entry] if domain == "chauffage" else []),
+                                    states=SimpleNamespace(get=states.get, async_all=lambda domain: []))
+        patches = [mock.patch.object(schedule_link.er, "async_get", return_value=registry),
+                   mock.patch.object(schedule_link.er, "async_entries_for_device",
+                                     side_effect=lambda reg, device_id: [other, sensor] if device_id == "d1" else []),
+                   mock.patch.object(schedule_link.dt_util, "now", return_value=NOW)]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_read_on_the_device_whatever_its_unique_id(self):
+        found = self.link.next_change(self.hass, "climate.thermostat_salon")
+        self.assertEqual((found["at"], found["temperature"]), ("2026-11-02T17:00:00+01:00", 20.0))
+        self.assertEqual(self.link.planners(self.hass, "climate.thermostat_salon"), {"chauffage"})
+
+    def test_another_thermostat_is_not_scheduled(self):
+        self.assertEqual(self.link.planners(self.hass, "climate.thermostat_autre"), set())
+        self.assertIsNone(self.link.next_change(self.hass, "climate.thermostat_autre", disabled=("scheduler",)))
+
+
+if __name__ == "__main__":
+    unittest.main()

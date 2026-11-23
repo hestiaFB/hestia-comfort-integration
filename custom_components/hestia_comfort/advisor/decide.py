@@ -927,6 +927,9 @@ def _decide(twins: Twins, now: Now, coming, comfort: Comfort = Comfort(), weight
                 # Nobody home (the alarm set to away): no window to open, and what is open is the alarm's business, not
                 # comfort's (Frank, 7 November: « il ne faut pas se substituer à l'alarme »).
                 and not (g.kind in ("open", "open_more") and "absent" in forbidden)
+                # Nor anyone to see to the heating or start a device: « Remettez le chauffage à 20 °C » stayed from 8 h to
+                # 15 h with the alarm away and the heating set to frost protection on purpose (Frank, 23 November).
+                and not ((g.kind.startswith("heat_") or g.kind.removesuffix("_off") in DEVICES) and "absent" in forbidden)
                 # The rain likely soon, a rain gauge watching (advisor/safety.py): no new airing, nothing shut for it.
                 and not (g.kind in ("open", "open_more") and "rain_likely" in forbidden)
                 and not (g.kind in ("open", "open_more") and now.night and not habits.open_at_night)

@@ -154,11 +154,13 @@ class Voc(unittest.TestCase):
         decision = self.decide(5)
         self.assertEqual(decision.gesture.kind, "open")
         self.assertEqual(phrase(decision, 22)["subject"], "voc")
-        self.assertRegex(phrase(decision, 22)["line"], r"^le COV retombe en \d+ min$")
+        # Back under its mark before the timed airing ends: said so, no minutes beside « Aérez … min » (23 November).
+        self.assertEqual(phrase(decision, 22)["line"], "le COV retombe avant la fin")
 
-    def test_back_after_a_short_airing_said_as_an_hour(self):
+    def test_back_after_a_short_airing_said_without_a_time(self):
         # « Aérez 5 min » beside « le COV devrait retomber en 30 min » read as a contradiction (labo, 19 November at
-        # 9 h 26): back under its mark after the airing has ended, the hour is said, to the quarter.
+        # 9 h 26), and the hour said instead swung at every step of one urgency (« vers 8 h 30 », « en 15 min »,
+        # « vers 8 h 45 », 23 November): after the airing, no time is said.
         from dataclasses import replace
         from advisor.decide import Gesture, Path as Scenario
         from advisor.words import phrase
@@ -167,11 +169,27 @@ class Voc(unittest.TestCase):
         idle = Scenario(air=[21.0] * 12, voc=[400.0] * 12)
         urgent = replace(decision, gesture=Gesture("open", 5), rule="urgent", measured={"voc": 400.0},
                          paths={Gesture("open", 5): falling, Gesture("nothing"): idle})
-        # Under 150 at the ninth step (45 min): 9 h 30 + 45 min.
-        self.assertEqual(phrase(urgent, 22, hour=9.5)["line"], "COV 400 : le COV retombe vers 10 h 15")
-        # Back before the airing ends: the minutes, as before.
+        # Under 150 at the ninth step (45 min), after the 5 min airing.
+        self.assertEqual(phrase(urgent, 22, hour=9.5)["line"], "COV 400 : le COV mettra plus longtemps à retomber")
+        # Back before the airing ends: said so, not in minutes (« Aérez 60 min : le COV retombe en 45 min »).
         self.assertEqual(phrase(replace(urgent, gesture=Gesture("open", 60), paths={Gesture("open", 60): falling,
-                                        Gesture("nothing"): idle}), 22, hour=9.5)["line"], "COV 400 : le COV retombe en 45 min")
+                                        Gesture("nothing"): idle}), 22, hour=9.5)["line"], "COV 400 : le COV retombe avant la fin")
+
+    def test_the_urgency_line_stays_while_the_forecast_swings(self):
+        # One urgency, « Aérez 20 min côté Cuisine », its forecast swinging from 15 to 50 min (23 November, 7 h 33 to
+        # 7 h 58): the line no longer changes with it beyond the airing's end.
+        from dataclasses import replace
+        from advisor.decide import Gesture, Path as Scenario
+        from advisor.words import phrase
+        decision = self.decide(5)
+        idle = Scenario(air=[21.0] * 14, voc=[450.0] * 14)
+        lines = set()
+        for slope in (30, 40, 50, 60):
+            falling = Scenario(air=[21.0] * 14, voc=[450.0 - slope * k for k in range(14)])
+            urgent = replace(decision, gesture=Gesture("open", 20), rule="urgent", measured={"voc": 450.0},
+                             paths={Gesture("open", 20): falling, Gesture("nothing"): idle})
+            lines.add(phrase(urgent, 22, hour=7.5)["line"])
+        self.assertEqual(lines, {"COV 450 : le COV mettra plus longtemps à retomber"})
 
 
 class Devices(unittest.TestCase):

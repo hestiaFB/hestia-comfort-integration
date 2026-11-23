@@ -1,14 +1,19 @@
 ## À venir
 
-## 3.1.4 — ha-chauffage 0.10
+## 3.1.4 — Rien à faire quand personne n'est là
 
 ### Corrections
 
 - Avec ha-chauffage 0.10, le capteur « Prochain changement » suffit : Confort reconnaît ha-chauffage et lit le prochain créneau même quand « Préréglage prévu » a disparu (il est retiré au plus tard en 0.12).
 - Un créneau de ha-chauffage qui éteint le thermostat n'est plus annoncé comme « Chauffage prévu », et la pièce n'est plus prévue en train de chauffer.
 - Un créneau de ha-chauffage qui rallume un chauffage éteint est annoncé, même quand il porte un préréglage (« confort ») plutôt qu'un mode.
+- Le capteur « Prochain changement » de ha-chauffage est trouvé sur l'appareil du thermostat, même si ha-chauffage change son identifiant (issue #42).
+- Quand l'alarme est en mode absent, Confort ne demande plus de remettre le chauffage ni de lancer un appareil : personne n'est là pour le faire. Avant, « Remettez le chauffage à 20 °C » pouvait rester affiché toute la journée, alors que le chauffage était mis en hors gel exprès.
+- Une urgence COV ou particules ne se contredit plus. « Aérez 20 min » dit « le COV retombe avant la fin », et non plus « le COV retombe en 5 min ». Quand il faut plus longtemps : « le COV mettra plus longtemps à retomber ». La phrase ne change plus à chaque mise à jour pendant la même urgence.
 
-### Moteur de conseil 3.22.5 — inchangé
+### Moteur de conseil 3.22.6
+
+- Pas de geste de chauffage ni d'appareil en mode absent, et une phrase d'urgence qui ne bouge plus.
 
 ## 3.1.3 — L'indicateur de chauffe s'enregistre
 

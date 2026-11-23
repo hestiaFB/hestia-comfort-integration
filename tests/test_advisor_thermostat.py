@@ -98,6 +98,14 @@ class Gestures(unittest.TestCase):
         twins = Twins(heat=self.heat, windows=(WEST.size,), idle_thermostat=Thermostat(target=17.0, inside=0.8))
         self.assertIsNone(heating_off(twins, replace(self.cold, night=True), self.coming, Comfort(minimum=17.0)))
 
+    def test_nobody_home_no_heating_to_set_back(self):
+        # The alarm away, the heating on frost protection on purpose: nobody is there to set it back (Frank, 23 November).
+        twins = Twins(heat=self.heat, windows=(WEST.size,), thermostat=Thermostat(target=7.0, inside=0.8))
+        decision = decide(twins, self.cold, self.coming, Comfort(minimum=20.0), proof={"heating:heat": PROVEN},
+                          forbidden=frozenset({"absent"}))
+        self.assertFalse(decision.gesture.kind.startswith("heat_"))
+        self.assertFalse({g.kind for g in decision.scenarios} & {"heat_on", "heat_to"})
+
     def test_frost_protection_under_the_range_says_set_it_back(self):
         twins = Twins(heat=self.heat, windows=(WEST.size,), thermostat=Thermostat(target=7.0, inside=0.8))
         decision = decide(twins, self.cold, self.coming, Comfort(minimum=20.0), proof={"heating:heat": PROVEN})
