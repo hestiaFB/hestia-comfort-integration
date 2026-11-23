@@ -4,6 +4,15 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.22.6 — 23 novembre 2026
+
+Dans Confort 3.1.4.
+
+### Corrections
+
+- Quand l'alarme est en mode absent, plus de geste de chauffage ni d'appareil : personne n'est là pour le faire. Le 23 novembre à la maison, « Remettez le chauffage à 20 °C » est resté de 8 h à 15 h, alarme en absent et chauffage mis en hors gel exprès. Avant, l'absence ne retirait que les fenêtres à ouvrir.
+- Une urgence COV ou particules ne se contredit plus : « Aérez 20 min » dit « le COV retombe avant la fin », et plus « le COV retombe en 5 min ». Quand il faut plus longtemps, « le COV mettra plus longtemps à retomber », sans heure. Le 23 novembre, la même urgence a changé de phrase cinq fois en 25 minutes (« en 15 min », « vers 8 h 30 », « en 15 min », « vers 8 h 45 », « en 10 min »), parce que la prévision d'un capteur de COV bouge beaucoup.
+
 ## 3.22.5 — 21 novembre 2026
 
 Dans Confort 3.1.2.

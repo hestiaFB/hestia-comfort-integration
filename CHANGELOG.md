@@ -1,5 +1,17 @@
 ## À venir
 
+## 3.1.4 — Rien à faire quand personne n'est là
+
+### Corrections
+
+- Quand l'alarme est en mode absent, Confort ne demande plus de remettre le chauffage ni de lancer un appareil : personne n'est là pour le faire. Avant, « Remettez le chauffage à 20 °C » pouvait rester affiché toute la journée, alors que le chauffage était mis en hors gel exprès.
+- Une urgence COV ou particules ne se contredit plus. « Aérez 20 min » dit « le COV retombe avant la fin », et non plus « le COV retombe en 5 min ». Quand il faut plus longtemps : « le COV mettra plus longtemps à retomber ». La phrase ne change plus à chaque mise à jour pendant la même urgence.
+- Avec ha-chauffage 0.10 : un créneau qui éteint le thermostat n'est plus annoncé comme « Chauffage prévu ». Le capteur Prochain changement suffit, même sans Préréglage prévu, et il est trouvé sur l'appareil du thermostat (issue #42).
+
+### Moteur de conseil 3.22.6
+
+- Pas de geste de chauffage ni d'appareil en mode absent, et une phrase d'urgence qui ne bouge plus.
+
 ## 3.1.3 — L'indicateur de chauffe s'enregistre
 
 ### Corrections

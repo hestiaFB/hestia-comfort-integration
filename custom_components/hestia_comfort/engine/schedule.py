@@ -69,6 +69,9 @@ def next_change(planned=None, override=None, change=None, now=None):
     "name", "temperature", "override"} — the preset is None when it is not known —, or None."""
     if change and change[0] not in GONE:
         attrs = change[1] or {}
+        if attrs.get("hvac_mode") == "off":
+            # The slot to come switches the thermostat off: no « Chauffage prévu » for it (armellarcier, issue #42).
+            return None
         return _change(change[0], attrs.get("preset"), attrs.get("preset_name"), attrs.get("temperature"), now)
     if not planned or planned[0] in GONE:
         return None

@@ -41,6 +41,14 @@ class Read(unittest.TestCase):
         found = schedule.next_change(PLANNED, override, None, NOW)
         self.assertEqual((found["at"], found["preset"], found["temperature"]), ("2026-11-02T19:00:00+01:00", None, None))
 
+    def test_a_next_change_that_switches_off_is_not_announced(self):
+        # Prochain changement's hvac_mode « off »: the slot to come stops the heating, no « Chauffage prévu » for it
+        # (armellarcier, issue #42, ha-chauffage 0.10).
+        off = ("2026-11-02T17:00:00+01:00", {"hvac_mode": "off", "preset": None, "preset_name": "Arrêt", "temperature": None})
+        self.assertIsNone(schedule.next_change(PLANNED, NO_OVERRIDE, off, NOW))
+        on = ("2026-11-02T17:00:00+01:00", {"hvac_mode": "heat", "preset": "comfort", "preset_name": "Confort", "temperature": 20.0})
+        self.assertEqual(schedule.next_change(None, None, on, NOW)["preset"], "comfort")
+
     def test_the_next_change_sensor_comes_first_once_ha_chauffage_has_it(self):
         change = ("2026-11-02T16:30:00+01:00", {"preset": "comfort", "preset_name": "Confort", "temperature": 20.5})
         found = schedule.next_change(PLANNED, NO_OVERRIDE, change, NOW)
@@ -198,3 +206,46 @@ class Tip(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChauffageLink(unittest.TestCase):
+    """schedule_link.py: ha-chauffage's entities, Prochain changement found on the thermostat's device (issue #42)."""
+
+    def setUp(self):
+        from types import SimpleNamespace
+        from unittest import mock
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from custom_components.hestia_comfort import schedule_link
+        self.link, self.mock, self.ns = schedule_link, mock, SimpleNamespace
+        entry = SimpleNamespace(entry_id="E1", state=SimpleNamespace(value="loaded"))
+        self.hass = SimpleNamespace(config_entries=SimpleNamespace(async_entries=lambda domain: [entry] if domain == "chauffage" else []))
+        self.states = {}
+        self.hass.states = SimpleNamespace(get=lambda eid: self.states.get(eid), async_all=lambda domain=None: [])
+
+    def registry(self, on_device, by_unique_id):
+        ns = self.ns
+        return ns(async_get=lambda eid: ns(device_id="D1") if eid == "climate.salon" else None,
+                  async_get_entity_id=lambda domain, platform, unique_id: by_unique_id.get(unique_id), on_device=on_device)
+
+    def patched(self, registry):
+        return (self.mock.patch.object(self.link.er, "async_get", return_value=registry),
+                self.mock.patch.object(self.link.er, "async_entries_for_device", side_effect=lambda reg, device_id: reg.on_device if device_id == "D1" else []))
+
+    def test_next_change_alone_is_read_and_found_on_the_device(self):
+        ns = self.ns
+        # A new unique id, no Préréglage prévu: Prochain changement is found on the thermostat's device all the same.
+        sensor = ns(platform="chauffage", domain="sensor", translation_key="next_change", device_class=None,
+                    original_device_class="timestamp", entity_id="sensor.salon_prochain_changement")
+        self.states["sensor.salon_prochain_changement"] = ns(state="2026-11-02T17:00:00+01:00", attributes={
+            "hvac_mode": "heat", "preset": "comfort", "preset_name": "Confort", "temperature": 20.0})
+        a, b = self.patched(self.registry([sensor], {}))
+        with a, b, self.mock.patch.object(self.link.dt_util, "now", return_value=NOW):
+            self.assertEqual(self.link.planners(self.hass, "climate.salon"), {"chauffage"})
+            change = self.link.next_change(self.hass, "climate.salon")
+        self.assertEqual((change["preset"], change["temperature"]), ("comfort", 20.0))
+
+    def test_without_any_of_its_entities_ha_chauffage_does_not_plan_the_thermostat(self):
+        a, b = self.patched(self.registry([], {}))
+        with a, b:
+            self.assertEqual(self.link.planners(self.hass, "climate.salon"), set())
+            self.assertIsNone(self.link.next_change(self.hass, "climate.salon", disabled=("scheduler",)))
