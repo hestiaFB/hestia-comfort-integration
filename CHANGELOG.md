@@ -1,11 +1,23 @@
 ## À venir
 
+## 3.1.4 — ha-chauffage 0.10
+
+### Corrections
+
+- Avec ha-chauffage 0.10, le capteur « Prochain changement » suffit : Confort reconnaît ha-chauffage et lit le prochain créneau même quand « Préréglage prévu » a disparu (il est retiré au plus tard en 0.12).
+- Un créneau de ha-chauffage qui éteint le thermostat n'est plus annoncé comme « Chauffage prévu », et la pièce n'est plus prévue en train de chauffer.
+- Un créneau de ha-chauffage qui rallume un chauffage éteint est annoncé, même quand il porte un préréglage (« confort ») plutôt qu'un mode.
+
+### Moteur de conseil 3.22.5 — inchangé
+
 ## 3.1.3 — L'indicateur de chauffe s'enregistre
 
 ### Corrections
 
 - Un indicateur de chauffe à vérifier (par exemple un capteur créé par un modèle) peut de nouveau être enregistré. La case « J'ai vérifié, je confirme mes choix » ne s'affichait pas, et le bouton Enregistrer restait bloqué.
 - Si un capteur reste à confirmer à l'enregistrement, la case s'affiche maintenant toujours, avec le nom du capteur.
+
+### Moteur de conseil 3.22.5 — inchangé
 
 ## 3.1.2 — Le Salon · Cuisine suivi de près
 

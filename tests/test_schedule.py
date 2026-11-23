@@ -46,6 +46,21 @@ class Read(unittest.TestCase):
         found = schedule.next_change(PLANNED, NO_OVERRIDE, change, NOW)
         self.assertEqual((found["at"], found["temperature"]), ("2026-11-02T16:30:00+01:00", 20.5))
 
+    def test_the_next_change_sensor_alone_once_the_planned_preset_is_gone(self):
+        # ha-chauffage 0.10 deprecates « Préréglage prévu » (removed by 0.12): « Prochain changement » is enough.
+        change = ("2026-11-03T06:00:00+01:00", {"preset": "comfort", "preset_name": "Confort", "temperature": 20.0,
+                                                "hvac_mode": "heat"})
+        found = schedule.next_change(None, None, change, NOW)
+        self.assertEqual((found["at"], found["preset"], found["temperature"], found["mode"]),
+                         ("2026-11-03T06:00:00+01:00", "comfort", 20.0, "heat"))
+
+    def test_a_slot_that_switches_the_thermostat_off_heats_to_nothing(self):
+        # Its `hvac_mode` says so (ha-chauffage 0.10): never « Chauffage prévu à 17 h » for it.
+        change = ("2026-11-02T17:00:00+01:00", {"preset": "comfort", "preset_name": "Confort", "temperature": 20.0,
+                                                "hvac_mode": "off"})
+        found = schedule.next_change(PLANNED, NO_OVERRIDE, change, NOW)
+        self.assertEqual((found["preset"], found["temperature"], found["mode"]), ("off", None, "off"))
+
     def test_nothing_ahead_paused_or_past_is_no_change(self):
         self.assertIsNone(schedule.next_change(("unavailable", {}), None, None, NOW))
         self.assertIsNone(schedule.next_change(("eco", {**PLANNED[1], "next_start": None}), NO_OVERRIDE, None, NOW))
@@ -158,6 +173,9 @@ class Said(unittest.TestCase):
         self.assertEqual(window["preset"], "comfort")
         on = self.run_warm({"next": {**change, "preset": "heat"}}, "off")
         self.assertEqual(on["preset"], "heat")
+        # ha-chauffage says the mode apart from the preset: a comfort slot that switches the heating back on.
+        back = self.run_warm({"next": {**change, "mode": "heat"}}, "off")
+        self.assertEqual(back["preset"], "comfort")
 
 
 class Followed(unittest.TestCase):
@@ -198,3 +216,35 @@ class Tip(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FoundInHomeAssistant(unittest.TestCase):
+    """ha-chauffage's entities found by their unique id: « Prochain changement » alone is enough (0.10 onwards)."""
+
+    def setUp(self):
+        from types import SimpleNamespace
+        from unittest import mock
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from custom_components.hestia_comfort import schedule_link
+        self.link = schedule_link
+        entry = SimpleNamespace(entry_id="e1", state=SimpleNamespace(value="loaded"))
+        ids = {("sensor", "e1_climate.thermostat_salon_next_change"): "sensor.salon_prochain_changement"}
+        registry = SimpleNamespace(async_get_entity_id=lambda domain, platform, unique: ids.get((domain, unique)))
+        states = {"sensor.salon_prochain_changement": SimpleNamespace(
+            state="2026-11-02T17:00:00+01:00",
+            attributes={"preset": "comfort", "preset_name": "Confort", "temperature": 20.0, "hvac_mode": "heat"})}
+        self.hass = SimpleNamespace(config_entries=SimpleNamespace(async_entries=lambda domain: [entry] if domain == "chauffage" else []),
+                                    states=SimpleNamespace(get=states.get, async_all=lambda domain: []))
+        patches = [mock.patch.object(schedule_link.er, "async_get", return_value=registry),
+                   mock.patch.object(schedule_link.dt_util, "now", return_value=NOW)]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_read_without_the_planned_preset(self):
+        found = self.link.next_change(self.hass, "climate.thermostat_salon")
+        self.assertEqual((found["at"], found["temperature"]), ("2026-11-02T17:00:00+01:00", 20.0))
+
+    def test_known_as_scheduled_by_ha_chauffage(self):
+        self.assertEqual(self.link.planners(self.hass, "climate.thermostat_salon"), {"chauffage"})
+        self.assertEqual(self.link.planners(self.hass, "climate.thermostat_autre"), set())
