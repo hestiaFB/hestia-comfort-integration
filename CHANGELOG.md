@@ -1,18 +1,31 @@
 ## À venir
 
-### Améliorations
-
-- Quand une pièce n'apprend rien, Confort dit pourquoi et quoi régler, au lieu de rester à 0 % sans rien dire. Le cas le plus courant : un lieu Hestia Weather sans station. Ses prévisions servent aux conseils, mais l'apprentissage a besoin d'un vrai capteur de température du dehors. Les autres causes dites : une mesure non choisie, un capteur exclu de l'historique de Home Assistant (recorder), un historique gardé moins de 3 jours, l'historique absent.
-- La cause s'affiche à quatre endroits : la page d'accueil de l'onglet Confort (« points à régler », avec un bouton vers Extérieur ou la pièce), la page Apprentissage de la pièce, la carte (« À savoir ») et une réparation dans Paramètres › Réparations. La réparation part toute seule une fois réglé, au passage suivant de l'apprentissage (6 heures au plus).
-- Sans humidité dans la pièce ou dehors, Confort dit que seule la température est apprise.
+## 3.2.0 — L'apprentissage démarre sans station
 
 ### Nouveautés
 
-- Une maison sans capteur du dehors apprend quand même, avec les prévisions d'Open-Meteo des jours passés. C'est le cas d'un lieu Hestia Weather sans station. C'est moins fin qu'un vrai capteur, et la pièce le dit (« Appris avec les prévisions »). Un capteur choisi dans Extérieur passe toujours en premier.
+- Une maison sans capteur du dehors apprend quand même. C'est le cas d'un lieu Hestia Weather sans station. Les jours passés sont pris des prévisions d'Open-Meteo : température et humidité, heure par heure. Avant, ses pièces restaient à 0 % pendant des semaines. C'est moins fin qu'un vrai capteur, et la pièce le dit (« Appris avec les prévisions »). Un capteur choisi dans Extérieur passe toujours en premier.
+
+### Améliorations
+
+- Quand une pièce n'apprend pas, Confort dit pourquoi et ce qu'il faut régler. Les causes repérées :
+  - une mesure qui n'est pas choisie ;
+  - un capteur exclu de l'historique de Home Assistant (recorder) ;
+  - un historique gardé moins de 3 jours ;
+  - un historique absent ou illisible.
+- La cause s'affiche à quatre endroits :
+  - la page d'accueil de l'onglet Confort, dans « points à régler », avec un bouton vers Extérieur ou vers la pièce ;
+  - la page Apprentissage de la pièce ;
+  - la carte, dans « À savoir » ;
+  - une réparation dans Paramètres › Réparations.
+
+  La réparation disparaît toute seule une fois réglé, au passage suivant de l'apprentissage (6 heures au plus).
+- Le capteur Apprentissage de chaque pièce porte la cause dans son attribut `bloque`.
+- Sans humidité dans la pièce ou dehors, Confort dit que seule la température est apprise.
 
 ### Moteur de conseil 3.23.0
 
-- L'apprentissage lit les prévisions passées quand le dehors n'est pas mesuré.
+- L'apprentissage lit les prévisions des jours passés quand le dehors n'est pas mesuré.
 
 ## 3.1.4 — Rien à faire quand personne n'est là
 
