@@ -1,5 +1,11 @@
 ## À venir
 
+### Améliorations
+
+- Quand une pièce n'apprend rien, Confort dit pourquoi et quoi régler, au lieu de rester à 0 % sans rien dire. Le cas le plus courant : un lieu Hestia Weather sans station. Ses prévisions servent aux conseils, mais l'apprentissage a besoin d'un vrai capteur de température du dehors. Les autres causes dites : une mesure non choisie, un capteur exclu de l'historique de Home Assistant (recorder), un historique gardé moins de 3 jours, l'historique absent.
+- La cause s'affiche à quatre endroits : la page d'accueil de l'onglet Confort (« points à régler », avec un bouton vers Extérieur ou la pièce), la page Apprentissage de la pièce, la carte (« À savoir ») et une réparation dans Paramètres › Réparations. La réparation part toute seule une fois réglé, au passage suivant de l'apprentissage (6 heures au plus).
+- Sans humidité dans la pièce ou dehors, Confort dit que seule la température est apprise.
+
 ## 3.1.4 — Rien à faire quand personne n'est là
 
 ### Corrections

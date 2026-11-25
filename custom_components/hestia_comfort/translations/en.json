@@ -279,6 +279,10 @@
           "download_failed": "The Marketplace could not download Hestia Comfort. Open Settings › Marketplace › Hestia Comfort and press Download."
         }
       }
+    },
+    "learning_blocked": {
+      "title": "Hestia Comfort: the learning does not start",
+      "description": "One or more rooms learn nothing: their learning stays at 0 %. The advice still works, but it stays estimated. Here is what is missing, and in which rooms:\n\n{items}\n\nOnce set, the learning starts by itself and this message goes away. The home page of the Comfort tab, in the Hestia-FB panel, says it too."
     }
   }
 }

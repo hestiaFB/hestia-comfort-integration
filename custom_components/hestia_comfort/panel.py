@@ -9,7 +9,7 @@ from aiohttp import web
 from homeassistant.components import websocket_api
 from homeassistant.components.http import HomeAssistantView, StaticPathConfig
 from homeassistant.core import callback
-from . import advisor_home, domain_migration, health, weather_link
+from . import advisor_home, domain_migration, health, learning_check, weather_link
 from .engine import feedback
 from .light_driver import light_info
 from .engine.i18n import language, speaking, t
@@ -149,6 +149,8 @@ def ws_twins(hass, connection, msg):
         rooms.append({"entry_id": entry.entry_id, "title": entry.title,
                       "twin": {k: v for k, v in learned.items() if k != "model"}, "week": week,
                       "progress": coordinator.learning_progress() if hasattr(coordinator, "learning_progress") else None,
+                      # What stops its learning, and what to set (learning_check.py).
+                      "blocked": learning_check.described(coordinator.learning_blocked()) if hasattr(coordinator, "learning_blocked") else [],
                       # Where the station's sensor is shaded, as learned (engine/sunlight.py).
                       "sun_shade": getattr(coordinator, "sun_shade", None),
                       # The air it has learned: CO₂ and VOC with enough open half hours to promise a result.

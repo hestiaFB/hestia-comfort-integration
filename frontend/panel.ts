@@ -287,6 +287,9 @@ export class ComfortSetup extends LitElement {
   return html`${pageHead({title:t('Apprentissage'),subtitle:rooms.length?t('{n} % du logement appris',{n:avg}):t('Chargement…')})}
   ${asked.length?listSection(t('Pour affiner l’apprentissage'),asked.map(q=>listRow({label:q.text,sub:q.hint,value:segmented(q.text,[['yes',t('Oui')],['no',t('Non')],['unknown',t('Je ne sais pas')]],undefined,v=>void answer(q.entry_id,q.key,v))}))):nothing}
   ${listSection(t('Pièces'),rooms.map(r=>{const st=learnState(r.twin,r.progress),p=r.twin.precision,a=r.advisor;
+   // A room that learns nothing says why, and what to set, before any percentage (learning_check.py).
+   const stop=(r.blocked??[]).find(b=>b.scope==='all');
+   if(stop)return listRow({label:r.title,sub:stop.text,value:t('arrêté'),go:()=>void this.openRoom(r.entry_id,'apprentissage')});
    // The 3.0 advisor, when it reads the room: the share of its effects proven, and the first thing still to see.
    if(a){const left=firstMissing(a);return listRow({label:r.title,sub:left?t('Encore : {what}',{what:left}):t('tout vu'),
     value:html`<span class="nk-bar" aria-hidden="true"><i style=${'width:'+a.pourcent+'%'}></i></span>${t('{n} %',{n:a.pourcent})}`,go:()=>void this.openRoom(r.entry_id,'apprentissage')});}
@@ -834,10 +837,13 @@ export class ComfortSetup extends LitElement {
  /** « Apprentissage » of one room: how far its learning is, what it still has to see, how closely it is forecast. */
  private roomLearning(){const r=this.twins?.rooms.find(x=>x.entry_id===this.entryId);
   if(!r)return html`<p class="muted" role="status">${t('Chargement…')}</p>`;
-  if(r.advisor)return roomLearning3(r.advisor);
+  // What stops its learning, first: nothing else on the page moves until it is set (learning_check.py).
+  const blocked=r.blocked??[],whole=blocked.some(b=>b.scope==='all');
+  const why=blocked.length?listSection(whole?t('Pourquoi l’apprentissage ne démarre pas'):t('Pour tout apprendre'),blocked.map(b=>listRow({label:b.text}))):nothing;
+  if(r.advisor)return html`${why}${roomLearning3(r.advisor)}`;
   const st=learnState(r.twin,r.progress),p=r.twin.precision,g=r.progress,w=r.week;
   const part=(key:'days'|'precision'|'sun'|'windows'|'heating'|'air',label:string)=>g&&g.parts[key]!==undefined?listRow({label,value:g.parts[key]!>=1?t('vu'):`${Math.round(g.parts[key]!*100)} %`}):nothing;
-  return html`${listSection(t('Où en est la pièce'),[listRow({label:t('Appris'),value:g?`${g.percent} %`:st.label}),part('days',t('Mesures')),part('precision',t('Prévisions')),part('sun',t('Soleil')),part('windows',t('Fenêtres')),part('heating',t('Chauffage')),part('air',t('Air'))])}
+  return html`${why}${listSection(t('Où en est la pièce'),[listRow({label:t('Appris'),value:g?`${g.percent} %`:st.label}),part('days',t('Mesures')),part('precision',t('Prévisions')),part('sun',t('Soleil')),part('windows',t('Fenêtres')),part('heating',t('Chauffage')),part('air',t('Air'))])}
   ${listSection(t('Ce qui manque encore'),st.missing.length?st.missing.map(m=>listRow({label:m})):[listRow({label:t('Rien : tout ce que la pièce possède a été vu.')})])}
   ${listSection(t('Ses prévisions'),[listRow({label:t('Justesse'),value:p?t('±{temp} °C · ±{hum} %',{temp:num(p.temperature,p.temperature<1?2:1),hum:num(p.humidity,0)}):t('pas encore vérifiées')}),
    ...(w?[listRow({label:t('Cette semaine'),value:t('{a} conseils suivis, {b} laissés',{a:w.followed,b:w.ignored})})]:[])])}`;}

@@ -2,6 +2,8 @@
 // The hub's own words are in socle/i18n-en.ts; tests/i18n.test.mjs keeps both sides in step.
 export const PANEL_EN:Record<string,string>={
  "Moteur de conseil":"Advice engine",
+ // Why the learning does not start (learning_check.py): the causes come translated from Home Assistant.
+ "arrêté":"stopped","Pourquoi l’apprentissage ne démarre pas":"Why the learning does not start","Pour tout apprendre":"To learn everything",
  // The 3.0 advisor's learning (learning3.ts)
  "Avéré":"Proven","Renforcé":"Reinforced","Supposé":"Assumed",
  "Vu et mesuré assez souvent pour annoncer un résultat.":"Seen and measured often enough to announce a result.",

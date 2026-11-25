@@ -21,7 +21,7 @@ from .engine.sources import Reading
 from .engine.verdict import verdict
 from .configuration import DATA_CONFIG
 from .exterior import exterior_reading
-from . import advisor_home, cover_link, weather_link
+from . import advisor_home, cover_link, learning_check, weather_link
 from .room.advice import verdict as advisor_verdict
 from .room.constants import FULL_SPAN, MEASURES, MEASURE_COOLDOWN, SHARED_SOURCES, SHORT_SPAN, STATE_KINDS, SUN_SMOOTHING, TWIN_FORMAT  # noqa: F401 - also read by the tests
 from .room.learning import LearningMixin
@@ -540,7 +540,9 @@ class ComfortCoordinator(LearningMixin, VolumeMixin, PresenceMixin, SunMixin, Ai
         twin_view = {"status": learned.get("status", "learning"), "days": learned.get("days", 0), "samples": learned.get("samples", 0),
                      "next_hour": twin.next_hour(learned, current),
                      "precision": {k: precision[k] for k in ("hours", "temperature", "humidity")} if precision else None,
-                     "progress": self.learning_progress()}
+                     "progress": self.learning_progress(),
+                     # What stops the learning, and what to set (learning_check.py): said on the card.
+                     "blocked": learning_check.described(self.learning_blocked())}
         view = {"version": VIEW_VERSION, "entry_id": self.entry_id,
                 "area_id": self.config.get("area_id"), "title": self.config.get("name"),
                 "comfort_minimum": self.settings.minimum, "comfort_maximum": self.settings.maximum,

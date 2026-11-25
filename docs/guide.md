@@ -466,6 +466,14 @@ Pour apprendre, une pièce a besoin :
 
 Une ouverture de moins de 10 minutes ne compte pas. Avant d’avoir appris, Hestia-FB suppose une pièce ordinaire, avec prudence.
 
+**L’apprentissage reste à 0 % ?** Il manque alors une de ces mesures, ou son historique. Confort le dit, avec ce qu’il faut régler : sur la page d’accueil de l’onglet Confort (« points à régler »), sur la page Apprentissage de la pièce, sur la carte (« Apprentissage arrêté ») et dans **Paramètres › Réparations**. Le capteur « Apprentissage » de la pièce le porte aussi, dans son attribut `bloque`. Les causes les plus courantes :
+
+- **Un lieu Hestia Weather sans station.** Ses prévisions suffisent aux conseils, pas à l’apprentissage : il lui faut un vrai capteur du dehors (une station, un thermomètre au nord). Choisissez une température et une humidité extérieures dans **Extérieur**.
+- **Un capteur exclu de l’historique** (`exclude` ou `include` du `recorder:` dans `configuration.yaml`) : retirez-le des exclusions.
+- **Un historique gardé moins de 3 jours** (`purge_keep_days`) : remettez 10, la valeur par défaut.
+
+Sans humidité dans la pièce ou dehors, seule la température est apprise. Une fois réglé, le message part du panneau tout de suite, l’apprentissage démarre tout seul à son passage suivant (6 heures au plus), et la réparation disparaît alors.
+
 ### Participer à l’amélioration du moteur
 
 Sur l’accueil Confort, **Participez à l’amélioration du moteur** prépare un rapport à télécharger : ce que le moteur a prévu et mesuré, ce que chaque pièce a appris, et les conseils signalés avec **Ce conseil ne va pas**.

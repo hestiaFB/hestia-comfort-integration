@@ -5,7 +5,7 @@ import asyncio
 
 from homeassistant.util import dt as dt_util
 
-from .. import recorder_history
+from .. import learning_check, recorder_history
 from ..const import DOMAIN, SEASON_REFRESH_SECONDS
 from ..engine import airflow, habits, learning, sunlight, twin, voc as vocs
 from ..engine.sources import indicator_state
@@ -211,6 +211,7 @@ class LearningMixin:
                     return fresh, learned_shade, airings
 
                 fresh, learned_shade, airings = await self.hass.async_add_executor_job(prepare)
+                self._twin_unread = False
                 if solar:
                     self.sun_shade = learned_shade
                 rows = twin.merge(rows, fresh, now)
@@ -226,11 +227,25 @@ class LearningMixin:
                     "samples": rows, "format": TWIN_FORMAT, "read_until": read_until.isoformat() if read_until else None,
                     "deep_at": deep_at.isoformat() if deep_at else None, "sun_shade": self.sun_shade, "voc_airings": self.voc_airings})
             except Exception:  # the twin then keeps what it learned before
+                self._twin_unread = True
                 if not self._twin_failed:
                     self._twin_failed = True
                     self.logger.warning("The twin of %s could not read the history", self.config.get("name"), exc_info=True)
         self.twin = await self.hass.async_add_executor_job(twin.summary, rows, now)
         self.habits = await self.hass.async_add_executor_job(habits.detect, rows, dt_util.get_default_time_zone())
+        # Said at once in Home Assistant's repairs when the room learns nothing, removed once it learns again.
+        try:
+            learning_check.async_update_issue(self.hass)
+        except Exception:  # noqa: BLE001 - a repair not shown never stops the learning
+            self.logger.debug("The learning repair could not be updated", exc_info=True)
+
+    def learning_blocked(self):
+        """What stops this room's learning, and what to set (learning_check.py): empty while it learns."""
+        keys = ("indoor_temperature", "indoor_humidity", "outdoor_temperature", "outdoor_humidity")
+        home = getattr(self.home_configuration, "home", None) or {}
+        linked = bool(home.get("weather")) and bool(self.home_configuration and self.home_configuration.uses_home(self.config))
+        return learning_check.blocks(self.hass, {k: self._source_entity(k) for k in keys}, weather_linked=linked,
+                                     unread=getattr(self, "_twin_unread", False))
 
     def learning_progress(self, alone=False):
         """How much of the room is learned: only what it has (a window, a heating, CO₂ or VOC sensors) is asked.

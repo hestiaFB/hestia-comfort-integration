@@ -243,6 +243,9 @@ function withLearning(v:View,out:Advice):Advice {
 /** Where the twin stands, when the advice is only estimated: said in « À savoir », never in the banner. */
 function learning(v:View):Fact|null {
   const t=v.twin,gestureNow=['action','urgent','benefit'].includes(v.assessment.level);
+  // A room that learns nothing says why and what to set, whatever is asked now (learning_check.py).
+  const stop=t?.blocked?.find(b=>b.scope==='all');
+  if(stop)return {ic:'clock',title:'Apprentissage arrêté',text:stop.text};
   // Only a gesture that announces a result (open, keep open) can have it estimated: « Refermez » promises none.
   if(!t||!gestureNow||v.assessment.features?.learned||!['ouvrir','ok'].includes(v.assessment.action)||unreadable(v))return null;
   // What the gesture is about, and what that measure still lacks: its result is then estimated.

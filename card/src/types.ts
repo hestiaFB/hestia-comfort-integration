@@ -152,7 +152,9 @@ export interface View {
   /** A humidity habit the person confirmed, going on now: the words for « À savoir ». */ habit?:string|null;
   /** What the room's twin has learned so far (engine/twin.py). */ twin?:{status:'learning'|'ready';days:number;samples:number;next_hour:{temperature:number;humidity:number}|null;precision:{hours:number;temperature:number;humidity:number}|null;
     /** How much of the room is learned: 100 % once everything it has is seen. */ progress?:{percent:number;complete:boolean;parts:Partial<Record<'days'|'precision'|'sun'|'windows'|'heating'|'air',number>>;seen:{days:number;airings:number;open?:number};
-      /** What the advice can already promise, measure by measure. */ ready?:{humidity:boolean;temperature:boolean;air:string[]}}}; /** Home Assistant (or the room) has just started: silent sensors are still loading. */ starting?:boolean;
+      /** What the advice can already promise, measure by measure. */ ready?:{humidity:boolean;temperature:boolean;air:string[]}};
+    /** What stops its learning, and what to set (learning_check.py): « all » stops everything. In French, translated where shown. */
+    blocked?:{cause:string;scope:'all'|'part';key?:string;text:string}[]}; /** Home Assistant (or the room) has just started: silent sensors are still loading. */ starting?:boolean;
   /** What the body feels in the room; the advice still judges the air. */ feel?:Feel|null;
 }
 /** What the body feels in the room (engine/feel.py): the air, half of what the surfaces add, a draught, damp warm air. */
