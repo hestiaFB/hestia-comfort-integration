@@ -24,7 +24,7 @@ from homeassistant.helpers.event import (async_call_later, async_track_state_cha
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from . import schedule_link, weather_link
+from . import forecast_past, schedule_link, weather_link
 from .advisor import VERSION as ADVISOR_VERSION
 from .advisor.board import OPEN_LEAST
 from .advisor.decide import Thermostat
@@ -804,11 +804,24 @@ class AdvisorHome:
             now = dt_util.utcnow()
             sources = self._sources()
             outdoor, outdoor_rh = ((sources.get(k) or {}).get("entity_id") for k in ("outdoor_temperature", "outdoor_humidity"))
+            # Without an outdoor sensor (a Hestia Weather place without a station), Open-Meteo's past hours stand in for
+            # it (forecast_past.py, engine 3.23.0): the twins learn, less finely, instead of not at all.
+            forecast = {}
+            if not outdoor or not outdoor_rh:
+                hours = await forecast_past.async_hours(self.hass, now)
+                if hours:
+                    start = now - timedelta(days=LEARN_DAYS)
+                    if not outdoor:
+                        outdoor = forecast_past.TEMPERATURE
+                        forecast[outdoor] = forecast_past.night_rows(hours, "outdoor_temperature", start, now)
+                    if not outdoor_rh:
+                        outdoor_rh = forecast_past.HUMIDITY
+                        forecast[outdoor_rh] = forecast_past.night_rows(hours, "outdoor_humidity", start, now)
             if not outdoor:
                 return
             self.houses = house_heaters(self.hass)
             specs = {}
-            wanted = {outdoor, outdoor_rh, *self.houses} - {None}
+            wanted = {outdoor, outdoor_rh, *self.houses} - {None} - set(forecast)
             for advisor in self.rooms.values():
                 # The household's habits say when its manual shutters are shut (HABITUDES-FOYER.md): the alarm's
                 # history gives its absences.
@@ -827,7 +840,9 @@ class AdvisorHome:
             with_attributes = {e for spec in specs.values() for e in (spec.thermostat, spec.cover) if e} | set(self.houses)
             history = await get_instance(self.hass).async_add_executor_job(
                 night_history, self.hass, now - timedelta(days=LEARN_DAYS), now, sorted(wanted), with_attributes)
-            first = min((dt_util.parse_datetime(v[0]["last_changed"]) for v in history.values()), default=now)
+            history.update({e: rows for e, rows in forecast.items() if rows})
+            # The days recorded at the house: the forecast's series, always sixty days long, do not count.
+            first = min((dt_util.parse_datetime(v[0]["last_changed"]) for e, v in history.items() if e not in forecast), default=now)
             sun = await self._past_sun(max(1, min(92, (now - first).days + 1)))
             zone = dt_util.get_time_zone(self.hass.config.time_zone)
             location = (self.hass.config.latitude, self.hass.config.longitude)

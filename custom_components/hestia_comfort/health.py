@@ -294,7 +294,9 @@ def _learning(rooms, todo, tips, exterior_target):
         whole = block["scope"] == "all"
         target = None if block["cause"] in ("recorder", "short_history", "unread") else exterior_target if home else \
             {"kind": "room", "entry_id": found[0].entry_id, "label": found[0].title}
-        title = t("Apprentissage arrêté : {rooms}", rooms=names) if whole else t("Seule la température est apprise : {rooms}", rooms=names)
+        title = t("Apprentissage arrêté : {rooms}", rooms=names) if whole else \
+            t("Appris avec les prévisions : {rooms}", rooms=names) if block["cause"] == "forecast" else \
+            t("Seule la température est apprise : {rooms}", rooms=names)
         (todo if whole else tips).append(_line("bad" if whole else "tip", title, block.get("text") or learning_check.text(block), target))
 
 

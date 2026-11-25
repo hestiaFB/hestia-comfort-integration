@@ -4,6 +4,14 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.23.0 — 25 novembre 2026
+
+Dans la prochaine version de Confort.
+
+### Nouveautés
+
+- Une maison sans capteur du dehors apprend quand même. C'est le cas d'un lieu Hestia Weather sans station. Les jours passés sont pris des prévisions d'Open-Meteo, heure par heure : température et humidité. Avant, ses pièces restaient à 0 % pendant des semaines (retour du forum, 25 novembre). C'est moins fin qu'un vrai capteur à la maison, et la pièce le dit. Un capteur choisi dans Extérieur passe toujours en premier.
+
 ## 3.22.6 — 23 novembre 2026
 
 Dans Confort 3.1.4.

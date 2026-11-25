@@ -6,6 +6,14 @@
 - La cause s'affiche à quatre endroits : la page d'accueil de l'onglet Confort (« points à régler », avec un bouton vers Extérieur ou la pièce), la page Apprentissage de la pièce, la carte (« À savoir ») et une réparation dans Paramètres › Réparations. La réparation part toute seule une fois réglé, au passage suivant de l'apprentissage (6 heures au plus).
 - Sans humidité dans la pièce ou dehors, Confort dit que seule la température est apprise.
 
+### Nouveautés
+
+- Une maison sans capteur du dehors apprend quand même, avec les prévisions d'Open-Meteo des jours passés. C'est le cas d'un lieu Hestia Weather sans station. C'est moins fin qu'un vrai capteur, et la pièce le dit (« Appris avec les prévisions »). Un capteur choisi dans Extérieur passe toujours en premier.
+
+### Moteur de conseil 3.23.0
+
+- L'apprentissage lit les prévisions passées quand le dehors n'est pas mesuré.
+
 ## 3.1.4 — Rien à faire quand personne n'est là
 
 ### Corrections

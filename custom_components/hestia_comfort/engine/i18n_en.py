@@ -202,4 +202,9 @@ EN: dict[str, str] = {
     "toutes les pièces": "every room",
     "Apprentissage arrêté : {rooms}": "Learning stopped: {rooms}",
     "Seule la température est apprise : {rooms}": "Only the temperature is learned: {rooms}",
+    "Appris avec les prévisions : {rooms}": "Learned with the forecasts: {rooms}",
+    "Le dehors est pris des prévisions, faute de capteur extérieur : la pièce apprend, mais moins finement. Pour mieux, choisissez une température et une humidité extérieures dans Extérieur.":
+        "The outside is taken from the forecasts, for lack of an outdoor sensor: the room learns, but less finely. To do better, choose an outdoor temperature and humidity in Outside.",
+    "L’humidité du dehors est prise des prévisions, faute de capteur : pour mieux, choisissez-la dans Extérieur.":
+        "The outdoor humidity is taken from the forecasts, for lack of a sensor: to do better, choose it in Outside.",
 }
