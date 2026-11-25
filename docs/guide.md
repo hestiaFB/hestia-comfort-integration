@@ -461,14 +461,14 @@ Pour apprendre, une pièce a besoin :
 
 - d’un contact de fenêtre ;
 - de sa température et de son humidité ;
-- de la température et de l’humidité du dehors ;
+- de la température et de l’humidité du dehors (à défaut, les prévisions des jours passés) ;
 - de l’historique de Home Assistant (l’enregistreur, actif par défaut).
 
 Une ouverture de moins de 10 minutes ne compte pas. Avant d’avoir appris, Hestia-FB suppose une pièce ordinaire, avec prudence.
 
 **L’apprentissage reste à 0 % ?** Il manque alors une de ces mesures, ou son historique. Confort le dit, avec ce qu’il faut régler : sur la page d’accueil de l’onglet Confort (« points à régler »), sur la page Apprentissage de la pièce, sur la carte (« Apprentissage arrêté ») et dans **Paramètres › Réparations**. Le capteur « Apprentissage » de la pièce le porte aussi, dans son attribut `bloque`. Les causes les plus courantes :
 
-- **Un lieu Hestia Weather sans station.** Ses prévisions suffisent aux conseils, pas à l’apprentissage : il lui faut un vrai capteur du dehors (une station, un thermomètre au nord). Choisissez une température et une humidité extérieures dans **Extérieur**.
+- **Un lieu Hestia Weather sans station.** Depuis le moteur 3.23.0, la pièce apprend quand même, avec les prévisions d’Open-Meteo des jours passés (« Appris avec les prévisions »). C’est moins fin qu’un vrai capteur du dehors (une station, un thermomètre au nord) : pour mieux, choisissez une température et une humidité extérieures dans **Extérieur**. Seule la position arrondie au dixième de degré part vers Open-Meteo, comme pour les prévisions.
 - **Un capteur exclu de l’historique** (`exclude` ou `include` du `recorder:` dans `configuration.yaml`) : retirez-le des exclusions.
 - **Un historique gardé moins de 3 jours** (`purge_keep_days`) : remettez 10, la valeur par défaut.
 

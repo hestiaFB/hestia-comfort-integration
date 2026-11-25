@@ -5,7 +5,7 @@ import asyncio
 
 from homeassistant.util import dt as dt_util
 
-from .. import learning_check, recorder_history
+from .. import forecast_past, learning_check, recorder_history
 from ..const import DOMAIN, SEASON_REFRESH_SECONDS
 from ..engine import airflow, habits, learning, sunlight, twin, voc as vocs
 from ..engine.sources import indicator_state
@@ -71,6 +71,22 @@ class LearningMixin:
             self._history_pass.update({(e, attribute): rows.get(e, []) for e in missing})
         return {e: self._history_pass[(e, attribute)] for e in wanted}
 
+    async def _learning_sources(self, now, span):
+        """The four measures the learning reads, {key: entity}: an outdoor one missing (a Hestia Weather place without a
+        station) is taken from Open-Meteo's past hours (forecast_past.py), its series put in this pass's history."""
+        keys = ("indoor_temperature", "indoor_humidity", "outdoor_temperature", "outdoor_humidity")
+        sources = {k: self._source_entity(k) for k in keys}
+        missing = [k for k in forecast_past.SERIES if not sources[k]]
+        self._from_forecast = ()
+        if missing and sources["indoor_temperature"] and "recorder" in self.hass.config.components:
+            hours = await forecast_past.async_hours(self.hass, now)
+            if hours:
+                for key in missing:
+                    sources[key] = forecast_past.SERIES[key]
+                    self._history_pass[(sources[key], None)] = forecast_past.recorder_rows(hours, key, now - span, now)
+                self._from_forecast = tuple(missing)
+        return sources
+
     async def _learn(self, now, span=FULL_SPAN):
         """Refit the room's airing model, one room at a time: each pass holds a share of ten days of history."""
         lock = self.hass.data.setdefault(f"{DOMAIN}_learning_lock", asyncio.Lock())
@@ -100,7 +116,7 @@ class LearningMixin:
         flows = stored.get("flows") if isinstance(stored.get("flows"), list) else []
         shed = stored.get("peaks") if isinstance(stored.get("peaks"), list) else []
         keys = ("indoor_temperature", "indoor_humidity", "outdoor_temperature", "outdoor_humidity")
-        sources = {k: self._source_entity(k) for k in keys}
+        sources = await self._learning_sources(now, span)
         co2 = self.sources.get("co2")
         # The partner rooms' windows air this room too: their openings teach it as well.
         windows = self.windows
@@ -167,7 +183,7 @@ class LearningMixin:
         # Samples kept before the sun was counted on the windows and the air was learned are rebuilt from the history.
         rows = stored.get("samples") if isinstance(stored.get("samples"), list) and stored.get("format") == TWIN_FORMAT else []
         keys = ("indoor_temperature", "indoor_humidity", "outdoor_temperature", "outdoor_humidity")
-        sources = {k: self._source_entity(k) for k in keys}
+        sources = await self._learning_sources(now, span)
         if all(sources.values()) and "recorder" in self.hass.config.components:
             try:
                 solar, heating = self._source_entity("solar"), self.sources.get("heating")
@@ -245,7 +261,8 @@ class LearningMixin:
         home = getattr(self.home_configuration, "home", None) or {}
         linked = bool(home.get("weather")) and bool(self.home_configuration and self.home_configuration.uses_home(self.config))
         return learning_check.blocks(self.hass, {k: self._source_entity(k) for k in keys}, weather_linked=linked,
-                                     unread=getattr(self, "_twin_unread", False))
+                                     unread=getattr(self, "_twin_unread", False),
+                                     forecast=not forecast_past.unavailable(self.hass))
 
     def learning_progress(self, alone=False):
         """How much of the room is learned: only what it has (a window, a heating, CO₂ or VOC sensors) is asked.

@@ -3,7 +3,8 @@
 Both learnings read Home Assistant's history: the twin of each room (room/learning.py) needs the room's temperature and
 humidity and the outdoor ones, the nightly learning (advisor_home.py) the room's temperature and the outdoor one, over
 three days at least (advisor/nightly.py MIN_DAYS). Without one of them nothing was learned, without a word: the room
-stayed at 0 %. Each cause found here is said in the « Confort » home, the room's « Apprentissage » page, its card, and
+stayed at 0 %. Since engine 3.23.0 a missing outdoor measure is taken from Open-Meteo's past hours (forecast_past.py):
+the room learns, less finely, and is told so as a tip. Each cause found here is said in the « Confort » home, the room's « Apprentissage » page, its card, and
 in one of Home Assistant's repairs."""
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ MIN_KEPT_DAYS = 3
 # Measures without which nothing is learned; without the others, only the temperature is.
 NEEDED = ("indoor_temperature", "outdoor_temperature")
 HUMIDITY = ("indoor_humidity", "outdoor_humidity")
+OUTDOOR = ("outdoor_temperature", "outdoor_humidity")
 NAMES = {"indoor_temperature": N_("la température de la pièce"), "outdoor_temperature": N_("la température du dehors"),
          "indoor_humidity": N_("l’humidité de la pièce"), "outdoor_humidity": N_("l’humidité du dehors")}
 
@@ -41,13 +43,15 @@ def _kept_days(hass):
         return None
 
 
-def blocks(hass: HomeAssistant, sources: dict, weather_linked: bool = False, unread: bool = False) -> list[dict]:
+def blocks(hass: HomeAssistant, sources: dict, weather_linked: bool = False, unread: bool = False,
+           forecast: bool = False) -> list[dict]:
     """What stops a room's learning: {"cause", "scope", "key"?, "entity_id"?, "days"?}, the causes stopping everything
     (scope « all ») first, then those that only keep the humidity from being learned (scope « part »).
 
     `sources`: the room's measures as the learning reads them ({key: entity_id or None}); `weather_linked`: the home's
     outside comes from Hestia Weather (a place without a station then gives no outdoor measure); `unread`: the last
-    reading of the history failed."""
+    reading of the history failed; `forecast`: Open-Meteo's past hours stand in for a missing outdoor measure
+    (forecast_past.py, engine 3.23.0), the room then learns, less precisely."""
     found = []
     if "recorder" not in hass.config.components:
         return [{"cause": "recorder", "scope": "all"}]
@@ -56,7 +60,9 @@ def blocks(hass: HomeAssistant, sources: dict, weather_linked: bool = False, unr
     for key in (*NEEDED, *HUMIDITY):
         scope = "all" if key in NEEDED else "part"
         entity_id = sources.get(key)
-        if not entity_id:
+        if not entity_id and forecast and key in OUTDOOR:
+            found.append({"cause": "forecast", "scope": "part", "key": key})
+        elif not entity_id:
             cause = "no_station" if key == "outdoor_temperature" and weather_linked else "missing"
             found.append({"cause": cause, "scope": scope, "key": key})
         elif not _recorded(hass, entity_id):
@@ -66,6 +72,8 @@ def blocks(hass: HomeAssistant, sources: dict, weather_linked: bool = False, unr
     # The outdoor humidity is missing because the station is: one cause, said once.
     if any(b["cause"] == "no_station" for b in found):
         found = [b for b in found if not (b["cause"] == "missing" and b["key"] == "outdoor_humidity")]
+    if any(b["cause"] == "forecast" and b["key"] == "outdoor_temperature" for b in found):
+        found = [b for b in found if not (b["cause"] == "forecast" and b["key"] == "outdoor_humidity")]
     if unread and not any(b["scope"] == "all" for b in found):
         found.append({"cause": "unread", "scope": "all"})
     found.sort(key=lambda b: b["scope"] != "all")
@@ -79,6 +87,10 @@ def text(block: dict) -> str:
         return t("L’historique de Home Assistant (recorder) n’est pas chargé : rien ne peut être appris. Remettez « recorder: » ou « default_config: » dans configuration.yaml.")
     if cause == "short_history":
         return t("L’historique de Home Assistant ne garde que {days} j (purge_keep_days) : il en faut au moins 3. Montez-le à 10, la valeur par défaut.", days=block["days"])
+    if cause == "forecast" and key == "outdoor_temperature":
+        return t("Le dehors est pris des prévisions, faute de capteur extérieur : la pièce apprend, mais moins finement. Pour mieux, choisissez une température et une humidité extérieures dans Extérieur.")
+    if cause == "forecast":
+        return t("L’humidité du dehors est prise des prévisions, faute de capteur : pour mieux, choisissez-la dans Extérieur.")
     if cause == "no_station":
         return t("Le lieu Hestia Weather n’a pas de station : ses prévisions servent aux conseils, mais l’apprentissage a besoin d’un vrai capteur du dehors. Choisissez une température et une humidité extérieures dans Extérieur.")
     if cause == "missing" and key == "outdoor_temperature":

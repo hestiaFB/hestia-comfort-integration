@@ -108,6 +108,15 @@ class Home(unittest.TestCase):
         self.assertFalse(any(x["text"].startswith("Apprentissage") for x in r["todo"]))
 
 
+    def test_learning_with_the_forecast_is_one_tip_for_the_home(self):
+        block = {"cause": "forecast", "scope": "part", "key": "outdoor_temperature"}
+        block = {**block, "text": learning_check.text(block)}
+        r = report(Facts(rooms=self.rooms(("Salon", [block]), ("Chambre", [block])), configured=True, weather="Gardanne"))
+        tips = [x for x in r["tips"] if x["text"].startswith("Appris")]
+        self.assertEqual([x["text"] for x in tips], ["Appris avec les prévisions : toutes les pièces"])
+        self.assertEqual(tips[0]["target"]["kind"], "exterior")
+
+
 class Repair(unittest.TestCase):
     def entries(self, *blocked):
         return [SimpleNamespace(data={}, title=title, runtime_data=SimpleNamespace(learning_blocked=lambda b=b: b))
