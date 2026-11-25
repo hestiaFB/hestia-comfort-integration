@@ -179,4 +179,32 @@ EN: dict[str, str] = {
     "Vitrage invalide pour {name}": "Invalid glazing for {name}",
     "Chauffages invalides.": "Invalid heatings.",
     "La plage suit un chauffage de la pièce, ou aucun.": "The range follows one of the room’s heatings, or none.",
+    # Why the learning does not start (learning_check.py, health.py).
+    "la température de la pièce": "the room’s temperature",
+    "la température du dehors": "the outdoor temperature",
+    "l’humidité de la pièce": "the room’s humidity",
+    "l’humidité du dehors": "the outdoor humidity",
+    "L’historique de Home Assistant (recorder) n’est pas chargé : rien ne peut être appris. Remettez « recorder: » ou « default_config: » dans configuration.yaml.":
+        "Home Assistant’s history (recorder) is not loaded: nothing can be learned. Put « recorder: » or « default_config: » back in configuration.yaml.",
+    "L’historique de Home Assistant ne garde que {days} j (purge_keep_days) : il en faut au moins 3. Montez-le à 10, la valeur par défaut.":
+        "Home Assistant’s history keeps only {days} d (purge_keep_days): at least 3 are needed. Raise it to 10, the default.",
+    "Le lieu Hestia Weather n’a pas de station : ses prévisions servent aux conseils, mais l’apprentissage a besoin d’un vrai capteur du dehors. Choisissez une température et une humidité extérieures dans Extérieur.":
+        "The Hestia Weather place has no station: its forecasts serve the advice, but the learning needs a real outdoor sensor. Choose an outdoor temperature and humidity in Outside.",
+    "Pas de température du dehors : choisissez-la dans Extérieur.": "No outdoor temperature: choose it in Outside.",
+    "Pas de température dans la pièce : choisissez-la dans la pièce, Modifier.": "No temperature in the room: choose it in the room, Edit.",
+    "Pas d’humidité du dehors : seule la température est apprise. Choisissez-la dans Extérieur.":
+        "No outdoor humidity: only the temperature is learned. Choose it in Outside.",
+    "Pas d’humidité dans la pièce : seule la température est apprise.": "No humidity in the room: only the temperature is learned.",
+    "« {name} » ({subject}) n’est pas gardé par l’historique de Home Assistant : retirez-le des exclusions du recorder dans configuration.yaml.":
+        "« {name} » ({subject}) is not kept by Home Assistant’s history: remove it from the recorder’s exclusions in configuration.yaml.",
+    "L’historique n’a pas pu être lu : voyez le journal de Home Assistant (cherchez « comfort »).":
+        "The history could not be read: see Home Assistant’s log (search for « comfort »).",
+    "toutes les pièces": "every room",
+    "Apprentissage arrêté : {rooms}": "Learning stopped: {rooms}",
+    "Seule la température est apprise : {rooms}": "Only the temperature is learned: {rooms}",
+    "Appris avec les prévisions : {rooms}": "Learned with the forecasts: {rooms}",
+    "Le dehors est pris des prévisions, faute de capteur extérieur : la pièce apprend, mais moins finement. Pour mieux, choisissez une température et une humidité extérieures dans Extérieur.":
+        "The outside is taken from the forecasts, for lack of an outdoor sensor: the room learns, but less finely. To do better, choose an outdoor temperature and humidity in Outside.",
+    "L’humidité du dehors est prise des prévisions, faute de capteur : pour mieux, choisissez-la dans Extérieur.":
+        "The outdoor humidity is taken from the forecasts, for lack of a sensor: to do better, choose it in Outside.",
 }

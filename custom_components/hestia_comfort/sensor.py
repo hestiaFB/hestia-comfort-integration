@@ -82,6 +82,11 @@ class ComfortSensor(VerdictEntity, SensorEntity):
             source = {"indicator": "indicateur", "hvac_action": "hvac_action", "hvac_mode": "mode"}.get(seen.get("detail"))
             indicator = self.coordinator.sources.get("heating_indicator")
             return {"source": source, **({"indicateur": indicator} if indicator else {})} if seen else None
+        if self.name_key == "learning":
+            # Why it stays at 0 %, and what to set (learning_check.py): in automations too, « bloque » empty while it learns.
+            blocked = (self.coordinator.data.get("twin") or {}).get("blocked") or []
+            return {"bloque": [b["text"] for b in blocked if b["scope"] == "all"],
+                    "a_completer": [b["text"] for b in blocked if b["scope"] == "part"]} if blocked else None
         if self.name_key == "reason":
             result = self.coordinator.data["assessment"]
             return {k: result[k] for k in ("needs", "constraints", "partial", "missing")}

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 from homeassistant.util import dt as dt_util
 
-from . import cover_link, schedule_link, weather_link
+from . import cover_link, learning_check, schedule_link, weather_link
 from .socle import SOCLE_VERSION
 from .advisor import BETA as ADVISOR_BETA, VERSION as ADVISOR_VERSION
 from .engine import people, schedule, thermostat as thermostats
@@ -60,6 +60,8 @@ class Room:
     """The integrations driving them: « adaptive_cover_pro », « cover_automatic », « cover_extender »."""
     windows_intended: bool = False
     """No contact on its windows, on purpose: not suggested again."""
+    blocked: list = field(default_factory=list)
+    """What stops its learning (learning_check.py), each cause with its text."""
 
 
 @dataclass
@@ -136,6 +138,7 @@ def report(f):
                               + t("Un contact sur la fenêtre dirait si elle est ouverte : le conseil d’ouvrir ne viserait plus une fenêtre déjà ouverte.")
                               + " " + t("Pas de contact voulu ici : Modifier → Ouvertures."), target))
     exterior_target = {"kind": "exterior", "label": t("Extérieur")}
+    _learning(f.rooms, todo, tips, exterior_target)
     if not f.configured:
         todo.append(_line("bad", t("Extérieur à configurer"), t("Sans l’extérieur, impossible de dire s’il vaut mieux ouvrir ou fermer."), exterior_target))
     for s in f.exterior:
@@ -271,6 +274,32 @@ OTHERS = (
 DOMAINS = frozenset(e["key"] for e in EXTENSIONS + OTHERS) | set(cover_link.PLATFORMS)
 
 
+# The causes that come from the outside or from Home Assistant's history: the same in every room, said once.
+HOME_CAUSES = ("recorder", "short_history", "no_station")
+
+
+def _learning(rooms, todo, tips, exterior_target):
+    """What stops the rooms' learning (learning_check.py): a cause shared by the home once, naming its rooms; a room's
+    own cause under its name. A missing room humidity is already a tip when Home Assistant has one."""
+    grouped = {}
+    for room in rooms:
+        for block in room.blocked:
+            if block["cause"] == "missing" and block.get("key") == "indoor_humidity":
+                continue
+            home = block["cause"] in HOME_CAUSES or str(block.get("key", "")).startswith("outdoor_")
+            signature = (block["cause"], block.get("key"), block.get("entity_id"), None if home else room.entry_id)
+            grouped.setdefault(signature, (block, home, []))[2].append(room)
+    for block, home, found in grouped.values():
+        names = t("toutes les pièces") if len(found) == len(rooms) and len(rooms) > 1 else ", ".join(r.title for r in found)
+        whole = block["scope"] == "all"
+        target = None if block["cause"] in ("recorder", "short_history", "unread") else exterior_target if home else \
+            {"kind": "room", "entry_id": found[0].entry_id, "label": found[0].title}
+        title = t("Apprentissage arrêté : {rooms}", rooms=names) if whole else \
+            t("Appris avec les prévisions : {rooms}", rooms=names) if block["cause"] == "forecast" else \
+            t("Seule la température est apprise : {rooms}", rooms=names)
+        (todo if whole else tips).append(_line("bad" if whole else "tip", title, block.get("text") or learning_check.text(block), target))
+
+
 def _weather_air(spec):
     return Sensor("pollution", f"Hestia Weather · {spec.get('provider') or t('qualité de l’air')}", "ok" if spec.get("index") else "silent")
 
@@ -324,6 +353,8 @@ async def facts(hass, version):
         room.driven_covers = len(driven)
         room.drivers = frozenset(r.get("driver", "adaptive_cover_pro") for r in driven.values())
         room.windows_intended = config.get("windows_unmeasured") is True
+        if entry.state.value == "loaded" and hasattr(coordinator, "learning_blocked"):
+            room.blocked = learning_check.described(coordinator.learning_blocked())
         room.sensors = [_sensor(hass, key, sources[key], now) for key in ("indoor_temperature", "indoor_humidity", "co2", "heating", "illuminance", "pm25", "voc", "purifier", "ventilation", "ventilation_boost") if sources.get(key)]
         room.sensors += [_sensor(hass, "windows", w, now) for w in windows]
         room.sensors += [_sensor(hass, "presence", e, now) for e in config.get("presence", [])]

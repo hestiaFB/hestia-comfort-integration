@@ -279,6 +279,10 @@
           "download_failed": "Le Marketplace n’a pas pu télécharger Hestia Confort. Ouvrez Paramètres › Marketplace › Hestia Confort et appuyez sur Télécharger."
         }
       }
+    },
+    "learning_blocked": {
+      "title": "Hestia Confort : l’apprentissage ne démarre pas",
+      "description": "Une ou plusieurs pièces n’apprennent rien : leur apprentissage reste à 0 %. Les conseils marchent quand même, mais ils restent estimés. Voici ce qui manque, et dans quelles pièces :\n\n{items}\n\nUne fois réglé, l’apprentissage démarre tout seul et ce message disparaît. La page d’accueil de l’onglet Confort, dans le panneau Hestia-FB, le dit aussi."
     }
   }
 }

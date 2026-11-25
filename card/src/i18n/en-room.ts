@@ -79,6 +79,16 @@ export const EN_ROOM:Record<string,string>={"Puissance de chauffe, dernière dem
  
  'en cours : {days} jour sur 7':'in progress: {days} day out of 7','en cours : {days} jours sur 7':'in progress: {days} days out of 7','vérification en attente : il manque une journée de mesures complète':'check pending: a full day of measures is missing',
  'en cours : prévisions pas encore assez justes, conseil estimé':'in progress: forecasts not yet accurate enough, advice estimated',
+ // Why the learning does not start (learning_check.py), as Home Assistant says it in French.
+ 'Apprentissage arrêté':'Learning stopped',
+ 'L’historique de Home Assistant (recorder) n’est pas chargé : rien ne peut être appris. Remettez « recorder: » ou « default_config: » dans configuration.yaml.':'Home Assistant’s history (recorder) is not loaded: nothing can be learned. Put « recorder: » or « default_config: » back in configuration.yaml.',
+ 'L’historique de Home Assistant ne garde que {days} j (purge_keep_days) : il en faut au moins 3. Montez-le à 10, la valeur par défaut.':'Home Assistant’s history keeps only {days} d (purge_keep_days): at least 3 are needed. Raise it to 10, the default.',
+ 'Le lieu Hestia Weather n’a pas de station : ses prévisions servent aux conseils, mais l’apprentissage a besoin d’un vrai capteur du dehors. Choisissez une température et une humidité extérieures dans Extérieur.':'The Hestia Weather place has no station: its forecasts serve the advice, but the learning needs a real outdoor sensor. Choose an outdoor temperature and humidity in Outside.',
+ 'Pas de température du dehors : choisissez-la dans Extérieur.':'No outdoor temperature: choose it in Outside.',
+ 'Pas de température dans la pièce : choisissez-la dans la pièce, Modifier.':'No temperature in the room: choose it in the room, Edit.',
+ '« {name} » ({subject}) n’est pas gardé par l’historique de Home Assistant : retirez-le des exclusions du recorder dans configuration.yaml.':'« {name} » ({subject}) is not kept by Home Assistant’s history: remove it from the recorder’s exclusions in configuration.yaml.',
+ 'la température de la pièce':'the room’s temperature','la température du dehors':'the outdoor temperature',
+ 'L’historique n’a pas pu être lu : voyez le journal de Home Assistant (cherchez « comfort »).':'The history could not be read: see Home Assistant’s log (search for « comfort »).',
  'le vent entre par l’une et sort par l’autre':'the wind comes in through one and out through the other','l’air traverse de part en part':'the air goes right through','l’air passe en angle':'the air flows round the corner',
  'la meilleure ouverture maintenant':'the best opening now','{why} · {n} fois plus rapide':'{why} · {n} times faster','{why} (d’après {n} aérations)':'{why} (from {n} airings)',
  'la pluie y entrerait':'the rain would come in','face aux rafales':'facing the gusts','le soleil y entre':'the sun comes in','à garder fermée':'to keep closed',

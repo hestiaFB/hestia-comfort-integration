@@ -20,6 +20,16 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.23.0 — 25 novembre 2026
+
+Forum HACF, 25/11 : apprentissage à 0 % depuis des semaines, lieu Hestia Weather sans station (`outdoor_temperature` absent des sources de la maison). `_learn_twin` demandait les quatre sources, `AdvisorHome.learn` s'arrêtait sans `outdoor`.
+- `forecast_past.py` (nouveau, hors `advisor/`) : `past_days=61` d'Open-Meteo (`temperature_2m`, `relative_humidity_2m`), position arrondie au dixième, un téléchargement par heure pour toute la maison (`hass.data`). Points tous les quarts d'heure, interpolés entre deux heures ; une heure sans valeur coupe la série.
+- Deux séries sans entité : `hestia_comfort.prevision_temperature_dehors` et `hestia_comfort.prevision_humidite_dehors`. Elles servent de source manquante du dehors, et seulement d'elle : un capteur choisi passe avant.
+- `LearningMixin._learning_sources` : les séries sont mises dans `_history_pass` du passage, pour `_learn_pass` (aérations) et `_learn_twin`.
+- `AdvisorHome.learn` : les séries sont ajoutées à `history` après `night_history`. `first` (jours du soleil passé, ombre de la station) ne compte que les entités de la maison.
+- `learning_check` : avec les prévisions, `no_station` et `missing` du dehors deviennent `forecast` (`scope` « part ») : un conseil, plus un blocage ni une réparation. Si Open-Meteo ne répond pas et que rien n'a été téléchargé avant, on revient à `no_station`.
+- Banc (tests/test_forecast_past.py) : la pièce de test_advisor_nightly apprise avec les heures du dehors + 0,5 °C au lieu du capteur. h_env passe de 60 à 47,4 W/K (55,9 avec le capteur, vrai 25), avec le jumeau gardé et `apres` < 0,01. Un biais de 1 °C donne 39,8 : l'écart du modèle se reporte sur l'isolation apprise. C'est la limite à suivre.
+
 ### 3.22.6 — 23 novembre 2026
 
 Maison en 3.22.5, 22-23/11. Salon · Cuisine : créneau `heat_to 20` à 7 h 03 et 8 h 18, gardé jusqu'à 16 h 19, alarme `armed_away` de 9 h 40 à 15 h 07 ; urgence COV de 7 h 33 à 8 h 18, cinq lignes (`voc` / `voc_at` alternés) ; « Aérez 20 min » + « le COV retombe en 5 min » à 18 h 35.
