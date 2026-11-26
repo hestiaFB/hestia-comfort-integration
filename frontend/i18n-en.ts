@@ -441,7 +441,7 @@ export const PANEL_EN:Record<string,string>={
  "Une mesure par capteur, sans prévisions ni alertes.":"One measure per sensor, without forecasts or alerts.",
  "Installer Hestia Weather":"Install Hestia Weather",
  "Air du dehors":"Outdoor air",
- "Zone":"Zone",
+ "Entité":"Entity",
  "Ne pas aérer dès l’indice":"Don’t air from the index",
  "Votre prudence, pas une consigne sanitaire.":"Your caution, not a health rule.",
  "Une seule source pour toutes les pièces.":"One source for every room.",

@@ -1,5 +1,12 @@
 ## À venir
 
+## 3.2.1 — Choisir une lumière ou une zone avec la recherche
+
+### Améliorations
+
+- La lumière à piloter (page Lumières) et la zone Atmo France (page Extérieur) se choisissent comme les capteurs : avec le sélecteur de Home Assistant et sa recherche, sans les lumières masquées ni celles de réglage. La lumière déjà choisie reste toujours proposée, et la croix la retire.
+- Si le sélecteur de Home Assistant ne se charge pas, une liste simple s'affiche à la place, au lieu d'une case vide. Sur la page Lumières, elle garde les bandeaux WLED regroupés.
+
 ## 3.2.0 — L'apprentissage démarre sans station
 
 ### Nouveautés
