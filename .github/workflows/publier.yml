@@ -1,0 +1,77 @@
+name: Publier
+
+# Publishes the version of manifest.json once main is green: tag v<version> and a
+# GitHub release, a pre-release for a beta (a letter in the number). Only for a merged
+# pull request carrying the label `publier` (or a manual run): a plain merge publishes
+# nothing. Nothing happens either when the tag already exists.
+# The release is made with HESTIA_RELEASE_TOKEN (a token of hestiaFB), so tag and
+# release carry the owner's name (RELEASES.md).
+
+on:
+  workflow_run:
+    workflows: [Validate]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: publier
+  cancel-in-progress: false
+
+jobs:
+  publier:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: La PR fusionnée porte-t-elle l'étiquette « publier » ?
+        id: ok
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          labels=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/pulls" --jq '[.[] | select(.merged_at != null) | .labels[].name] | join(",")')
+          case ",$labels," in
+            *,publier,*) echo "go=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Pas d'étiquette « publier » sur la PR de $SHA : rien à publier." ; echo "go=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+      - id: v
+        if: steps.ok.outputs.go == 'true'
+        run: python scripts/release_notes.py "$RUNNER_TEMP/notes.md"
+      - name: Publier la version si elle ne l'est pas encore
+        if: steps.ok.outputs.go == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.HESTIA_RELEASE_TOKEN }}
+          TAG: ${{ steps.v.outputs.tag }}
+          TITLE: ${{ steps.v.outputs.title }}
+          PRERELEASE: ${{ steps.v.outputs.prerelease }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Le secret HESTIA_RELEASE_TOKEN manque (Settings › Secrets and variables › Actions)."
+            exit 1
+          fi
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+             || gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            echo "$TAG existe déjà : rien à publier."
+            exit 0
+          fi
+          flags=(--latest)
+          if [ "$PRERELEASE" = "true" ]; then flags=(--prerelease --latest=false); fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$SHA" \
+            --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md" "${flags[@]}"
+          echo "Publié : $TITLE"

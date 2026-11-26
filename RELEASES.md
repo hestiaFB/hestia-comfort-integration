@@ -66,3 +66,13 @@ Les mêmes règles pour toutes les briques (Hestia Weather 3.x.x, Hestia Confort
 3. Pour un gros changement : bêta d'abord, essai chez Frank, puis stable. Sinon, stable directement avec l'accord de Frank.
 4. Commit, tag et release au nom de hestiaFB, sans mention d'outil ni de co-auteur.
 5. Pour un majeur ou une interface entre briques modifiée : les deux briques publiées ensemble, compatibilité mise à jour dans les README.
+
+## Publier depuis GitHub, sans PC
+
+Le tag et la release se font tout seuls, par GitHub (`.github/workflows/publier.yml`) :
+
+1. La PR porte l'étiquette **`publier`** quand Frank a dit « fusionne et publie ». Sans elle, une fusion ne publie rien.
+2. Une fois la PR fusionnée et les tests de `main` au vert, GitHub lit la version de `manifest.json`, prend sa section dans `CHANGELOG.md` (« ## 3.2.1 — Titre »), et crée le tag `v3.2.1` et la release « Hestia Confort 3.2.1 — Titre ». Une lettre dans le numéro donne une pre-release, sinon une release « Latest ».
+3. Si le tag existe déjà, rien ne se passe. Pour publier à la main : Actions › Publier › Run workflow.
+
+La release est faite avec le secret `HESTIA_RELEASE_TOKEN`, un jeton du compte hestiaFB (Settings › Secrets and variables › Actions), pour qu'elle porte son nom. Sans ce secret, la publication échoue et le dit.
