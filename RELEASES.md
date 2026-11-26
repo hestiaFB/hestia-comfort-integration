@@ -71,6 +71,6 @@ Les mêmes règles pour toutes les briques (Hestia Weather 3.x.x, Hestia Confort
 
 Quand Frank dit « fusionne et publie » sur une PR prête, c'est un accord complet : fusion, puis tag et release, sans redemander de phrase avec le numéro.
 
-Le tag et la release se font par l'action GitHub **Publier** (`.github/workflows/publier.yml`), lancée après la fusion, depuis le cloud ou depuis l'onglet Actions (« Run workflow »). Elle lit la version dans `manifest.json`, vérifie qu'elle est la même dans les deux `package.json` et que le tag n'existe pas, prend le titre et le texte dans le CHANGELOG (ou les notes données au lancement), puis crée `vX.Y.Z` sur `main` : en pre-release pour une bêta (`b1`, `rc1`…), en Latest sinon.
+Le tag et la release se font par l'action GitHub **Publier** (`.github/workflows/publier.yml`, la même que dans les autres briques), lancée sur `main` après la fusion, depuis le cloud ou l'onglet Actions (« Run workflow »), avec la version, un titre court et les notes. Elle vérifie que `main` porte cette version dans `manifest.json`, que le tag n'existe pas et que la CI de `main` est verte, puis crée `vX.Y.Z` : en pre-release si la version porte une lettre (`b1`, `rc1`…), en Latest sinon.
 
 La release est au nom de hestiaFB si le secret `PUBLIER_TOKEN` (un jeton du compte hestiaFB, droit « Contents » en écriture sur ce dépôt) existe ; sinon elle est signée par « github-actions ».
