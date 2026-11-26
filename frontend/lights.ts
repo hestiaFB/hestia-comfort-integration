@@ -106,14 +106,18 @@ function kindHint(kind:Kind,leds:number|null,own:boolean){
   :kind==='strip'?(leds?t('Bandeau de {n} LED : les effets qui bougent le long du bandeau s’ajoutent (chenillard…). Vitesse réglable.',{n:leds}):t('Bandeau WLED : ses effets sont proposés pour chaque état. Vitesse réglable.'))
   :own?t('Ampoule couleur avec ses propres effets : ils sont proposés tels quels.'):t('Ampoule couleur : une couleur et une luminosité. Elle ne sait ni clignoter ni faire d’effet : Hestia-FB ne propose que ce qu’elle sait faire.');}
 /** The light's settings, as in the approved mockup; every change is handed back to be saved at once. */
-export function lightEditor(o:{hass?:Hass;wled:boolean;rule:LightRule|null;taken?:string;follows?:{value:string;label:string}[];busy:boolean;info?:LightInfo;users?:Record<string,string>;change:(rule:LightRule|null)=>void}){
+export function lightEditor(o:{hass?:Hass;picker?:(ids:string[],value:string,change:(id:string)=>void)=>unknown;wled:boolean;rule:LightRule|null;taken?:string;follows?:{value:string;label:string}[];busy:boolean;info?:LightInfo;users?:Record<string,string>;change:(rule:LightRule|null)=>void}){
  const lights=colourLights(o.hass,o.wled),rule=o.rule,current=rule?lights.find(l=>l.id===rule.entity_id):undefined;
  const list=rule?effectsOf(o.hass,rule.entity_id):[],a=rule?o.hass?.states?.[rule.entity_id]?.attributes??{}:{},canFlash=(Number(a.supported_features??0)&8)!==0;
  const kind=rule?kindOf(o.hass,rule.entity_id,o.info):'bulb',leds=o.info?.leds??null,wled=kind!=='bulb';
  const set=(change:Partial<LightRule>)=>rule&&o.change({...rule,...change});
  const setLook=(key:string,change:Partial<LightLook>)=>rule&&o.change({...rule,states:{...rule.states,[key]:{...look(rule,key),...change}}});
  const pickLight=(id:string)=>o.change(id?(rule?{...rule,entity_id:id}:newRule(id,o.follows?.[0]?.value??'home',o.hass)):null);
- const pick=html`<label class="zone">${t('Lumière à piloter')}<select ?disabled=${o.busy} @change=${(e:Event)=>pickLight((e.target as HTMLSelectElement).value)}>
+ // Home Assistant's picker with its search when the page has it (no other device's settings, no hidden light; the one
+ // already chosen always stays), else the plain list with the WLED strips grouped.
+ const usable=(id:string)=>{const e=o.hass?.entities?.[id] as {entity_category?:string|null;hidden?:boolean}|undefined;return !e||(!e.entity_category&&!e.hidden);};
+ const pick=o.picker?html`<div class="zone">${t('Lumière à piloter')}${o.picker([...new Set([...(rule?[rule.entity_id]:[]),...lights.map(l=>l.id).filter(usable)])],rule?.entity_id??'',pickLight)}</div>`
+  :html`<label class="zone">${t('Lumière à piloter')}<select ?disabled=${o.busy} @change=${(e:Event)=>pickLight((e.target as HTMLSelectElement).value)}>
   <option value="" ?selected=${!rule}>${t('Aucune')}</option>${lights.filter(l=>!l.wled).map(l=>html`<option value=${l.id} ?selected=${l.id===rule?.entity_id}>${l.name}</option>`)}
   ${[...new Set(lights.filter(l=>l.wled).map(l=>l.strip))].map(strip=>html`<optgroup label=${'WLED · '+strip}>${lights.filter(l=>l.wled&&l.strip===strip).map(l=>html`<option value=${l.id} ?selected=${l.id===rule?.entity_id}>${l.name}</option>`)}</optgroup>`)}
   ${rule&&!current?html`<option value=${rule.entity_id} selected>${t('Introuvable · choisissez-en une autre')}</option>`:nothing}</select></label>`;

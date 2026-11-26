@@ -126,7 +126,8 @@ export class ComfortSetup extends LitElement {
  @state() private freeName='';
  @state() private preview?:string;
  @state() private previewEdited=false;
- @state() private pickerTag:string|null=null;
+ // Home Assistant's picker: undefined while it loads, null when it could not be loaded (the plain list then).
+ @state() private pickerTag:string|null|undefined=undefined;
  // The installation guide (guide.ts): the key of its screen, null when not open; the house's or a room's; where it was opened.
  @state() private guideAt:string|null=null;
  private guideKind:'house'|'room'='room';
@@ -463,7 +464,11 @@ export class ComfortSetup extends LitElement {
    this.acknowledged=this.acknowledged.filter(a=>a!==warningId(key,old));this.proposed=this.proposed.filter(p=>p!==old);
   }else if(key==='presence'&&this.draft){this.draft={...this.draft,presence:[...new Set((this.draft.presence??[]).map(e=>e===old?id:e))]};this.acknowledged=this.acknowledged.filter(a=>a!==warningId(key,old));}else this.choose(key,c);
  }
+ // « Lumière à piloter »: the same picker, among the colour lights the page offers.
+ private lightPicker=(ids:string[],value:string,change:(id:string)=>void)=>this.selector('lights',ids,value,t('Lumière à piloter'),v=>change(typeof v==='string'?v:''));
  private selector(key:string,ids:string[],value:string,label:string,changed:(id:unknown)=>void){
+  if(this.pickerTag===null){const name=(id:string)=>this.discovery?.candidates[key]?.find(c=>c.entity_id===id)?.name??String(this.hass?.states?.[id]?.attributes?.friendly_name??id);
+   return html`<select aria-label=${label||t('Entité')} ?disabled=${this.busy} @change=${(e:Event)=>changed((e.target as HTMLSelectElement).value)}><option value="" ?selected=${!value}>${t('Aucune')}</option>${ids.map(id=>html`<option value=${id} ?selected=${id===value}>${name(id)}</option>`)}</select>`;}
   if(this.pickerTag==='ha-selector')return html`<ha-selector .hass=${this.hass} .selector=${{entity:{include_entities:ids}}} .value=${live(value)} .required=${false} .label=${label} @value-changed=${(e:CustomEvent)=>changed(e.detail?.value)}></ha-selector>`;
   return html`<ha-entity-picker .hass=${this.hass} .includeEntities=${ids} .value=${live(value)} .required=${false} .label=${label} @value-changed=${(e:CustomEvent)=>changed(e.detail?.value)}></ha-entity-picker>`;
  }
@@ -771,7 +776,7 @@ export class ComfortSetup extends LitElement {
      <p class="muted">${t('Les limites fines (aération la plus longue, gestes « plus tard », le soir, les vacances) restent dans Réglages.')}</p>`;}
    case 'lights':{const l=this.houseDraft!.lights,set=(next:Lights)=>{this.houseDraft={...this.houseDraft!,lights:next};};
     return html`${head()}${listSection('',[listRow({label:t('Qui pilote la lumière'),value:segmented(t('Qui pilote la lumière'),[['home',t('Tout le logement')],['rooms',t('Pièce par pièce')]],l.mode,m=>set({...l,mode:m}),this.busy)})])}
-     ${l.mode==='home'?lightEditor({hass:this.hass,wled:this.wledOn(),rule:l.home,busy:this.busy,info:this.infoOf(l.home),users:this.lightUsers(),
+     ${l.mode==='home'?lightEditor({hass:this.hass,picker:this.pickerTag===null?undefined:this.lightPicker,wled:this.wledOn(),rule:l.home,busy:this.busy,info:this.infoOf(l.home),users:this.lightUsers(),
       follows:[{value:'home',label:t('Tout le logement')},...(this.snapshot?.rooms??[]).map(r=>({value:r.entry_id,label:r.title}))],change:rule=>set({...l,home:rule})})
      :html`<p class="muted">${t('Chaque pièce choisit la sienne, dans son guide ou dans son onglet Notifications.')}</p>`}`;}
    // A room
@@ -873,7 +878,7 @@ export class ComfortSetup extends LitElement {
     rows.push(listRow({label:t(labels[key]),sub:c?measurement(c):undefined,value:this.selector(key,ids,id,'',v=>{if(v===''||v==null){if(id)this.clear(key,id);}else this.pick(key,v);})}));}
    const air=this.discovery?.candidates.pollution??[],current=airSource(spec),choices=airChoices(s,air,current).filter(c=>c.available);
    rows.push(listRow({label:t('Air du dehors'),sub:t('Une précaution régionale du jour, pas une mesure à vos fenêtres.'),value:segmented(t('Air du dehors'),choices.map(c=>[c.value,c.label] as [string,string]),current,v=>{if(v===current)return;if(v==='none'){this.clear('pollution');return;}const first=air.find(c=>c.adapter===(v==='atmo'?'atmo_daily':'hestia_index'));if(first)this.choose('pollution',first);},this.busy)}));
-   if(spec&&current!=='other'){const zones=air.filter(c=>c.adapter===spec.adapter);if(zones.length>1)rows.push(listRow({label:current==='atmo'?t('Zone Atmo France'):t('Lieu Hestia Weather'),value:html`<select aria-label=${t('Zone')} @change=${(e:Event)=>this.pick('pollution',(e.target as HTMLSelectElement).value)}>${zones.map(z=>html`<option value=${z.entity_id} ?selected=${z.entity_id===spec.entity_id}>${z.name}</option>`)}</select>`}));}}
+   if(spec&&current!=='other'){const zones=air.filter(c=>c.adapter===spec.adapter);if(zones.length>1)rows.push(listRow({label:current==='atmo'?t('Zone Atmo France'):t('Lieu Hestia Weather'),value:this.selector('pollution',[...new Set([...(spec.entity_id?[spec.entity_id]:[]),...zones.map(z=>z.entity_id)])],spec.entity_id??'','',v=>{if(typeof v==='string'&&v)this.pick('pollution',v);})}));}}
   if(spec&&['atmo_daily','hestia_index','hestia_air'].includes(spec.adapter??''))rows.push(listRow({label:t('Ne pas aérer dès l’indice'),sub:t('Votre prudence, pas une consigne sanitaire.'),
    value:html`<select aria-label=${t('Ne pas aérer dès l’indice')} @change=${(e:Event)=>{this.exteriorDraft={...this.exteriorDraft!,pollution:{...spec,block_from:Number((e.target as HTMLSelectElement).value)}};}}>${[t('Moyen'),t('Dégradé'),t('Mauvais'),t('Très mauvais'),t('Extrêmement mauvais')].map((label,i)=>html`<option value=${i+2} ?selected=${(spec.block_from??4)===i+2}>${label}</option>`)}</select>`}));
   return listSection(t('Le dehors'),rows,{help:html`<p>${t('Une seule source pour toutes les pièces.')}</p>`});}
@@ -947,7 +952,7 @@ export class ComfortSetup extends LitElement {
  /** The light of the whole home, with its rule, its colours and its effects. */
  private lightScreen(){const l=this.lights(),rooms=this.snapshot?.rooms??[];
   return html`${pageHead({back:{label:t('Réglages'),onClick:()=>this.path('reglages')},title:t('Lumière')})}
-  ${lightEditor({hass:this.hass,wled:this.wledOn(),rule:l.home,busy:this.busy,info:this.infoOf(l.home),users:this.lightUsers(),follows:[{value:'home',label:t('Tout le logement')},...rooms.map(r=>({value:r.entry_id,label:r.title}))],change:rule=>void this.saveLights({...l,home:rule})})}
+  ${lightEditor({hass:this.hass,picker:this.pickerTag===null?undefined:this.lightPicker,wled:this.wledOn(),rule:l.home,busy:this.busy,info:this.infoOf(l.home),users:this.lightUsers(),follows:[{value:'home',label:t('Tout le logement')},...rooms.map(r=>({value:r.entry_id,label:r.title}))],change:rule=>void this.saveLights({...l,home:rule})})}
   ${this.errorBlock()}`;}
  /** To the general settings, the draft open here kept for later, as when opening another room. */
  private goSettings(){this.remember();this.workspaceKey='';this.draft=undefined;this.exteriorDraft=undefined;this.path('reglages');}
@@ -957,7 +962,7 @@ export class ComfortSetup extends LitElement {
  private notifications(){const l=this.lights(),id=this.entryId;
   const light=l.mode==='home'?frame(t('Lumière'),html`${noteBox(t('Bon à savoir'),t('La lumière est réglée pour tout le logement, dans Réglages généraux.'))}<button class="nk-edit" ?disabled=${this.busy} @click=${()=>this.goSettings()}>${t('Ouvrir le réglage')}</button>`,{className:'nk-field-section nk-plain'})
    :!id?frame(t('Lumière'),html`<p class="hint">${t('Créez d’abord la pièce : sa lumière se règle ensuite ici.')}</p>`,{className:'nk-field-section nk-plain'})
-   :lightEditor({hass:this.hass,wled:this.wledOn(),rule:l.rooms[id]??null,busy:this.busy,info:this.infoOf(l.rooms[id]??null),users:this.lightUsers(),taken:this.snapshot?.rooms.find(r=>r.entry_id!==id&&l.rooms[r.entry_id]&&l.rooms[r.entry_id].entity_id===l.rooms[id]?.entity_id)?.title,change:rule=>{const rooms={...l.rooms};if(rule)rooms[id]={...rule,follow:id};else delete rooms[id];void this.saveLights({...l,rooms});}});
+   :lightEditor({hass:this.hass,picker:this.pickerTag===null?undefined:this.lightPicker,wled:this.wledOn(),rule:l.rooms[id]??null,busy:this.busy,info:this.infoOf(l.rooms[id]??null),users:this.lightUsers(),taken:this.snapshot?.rooms.find(r=>r.entry_id!==id&&l.rooms[r.entry_id]&&l.rooms[r.entry_id].entity_id===l.rooms[id]?.entity_id)?.title,change:rule=>{const rooms={...l.rooms};if(rule)rooms[id]={...rule,follow:id};else delete rooms[id];void this.saveLights({...l,rooms});}});
   return light;}
  /** A third-party integration used or not, for every room; saved at once, without touching the other settings. */
  private async useExtension(key:string,enabled:boolean){this.busy=true;
