@@ -35,6 +35,10 @@ WORSE = {"co2": 300.0, "particles": 10.0, "voc": 100.0, "humidity": 5.0}
 # Minutes an urgency put aside stays so, however its measure goes: a VOC put aside at 12 h, back at 12 h 11 for a peak of
 # cooking that had passed by 12 h 30 (bilan of 17 November).
 ASIDE_LEAST = 60
+# Minutes after an urgency ends (its measure back under its bound, or the airing followed done) before another one may
+# be shown, unless its measure is worse than its threshold by WORSE: the kitchen's particles at 13 h 32, then its VOC
+# at 13 h 42, five minutes after (Salon · Cuisine, 27 November: five requests that day for an aim of one or two).
+REST = 60
 # The order urgencies are said in when several are on.
 ORDER = ("co2", "particles", "voc", "humidity")
 # A window open less than this (seconds) does not count for comfort: someone going through. The safety acts at once.
@@ -119,6 +123,8 @@ class Board:
 
     def __init__(self):
         self.urgent: dict[str, Urgent] = {}
+        # When the last urgency shown ended: none other before REST minutes, unless clearly worse.
+        self.ended: datetime | None = None
         self.plan: Plan | None = None
         self.calm: str | None = None
         # « Humidité 78 % : normal pour cette pièce » said last step: kept within EDGE of its bound (`room/advice.py`).
@@ -153,6 +159,7 @@ class Board:
                     # Over: the gesture it asked is forgotten, a next urgency chooses its own (`urgent_decision`).
                     u.since, u.above = None, 0
                     self.asked.pop(subject, None)
+                    self.ended = now
                 elif opened:
                     # Being followed: its patience starts again once the window is shut.
                     u.since = now
@@ -165,7 +172,9 @@ class Board:
             resting = u.aside_since is not None and now - u.aside_since < timedelta(minutes=ASIDE_LEAST)
             aside = u.aside_until is not None and now < u.aside_until and (
                 resting or value < (u.aside_value or 0) + WORSE[subject])
-            if u.above >= ENTER_STEPS and not aside:
+            rest = (self.ended is not None and now - self.ended < timedelta(minutes=REST)
+                    and value < enter + WORSE[subject])
+            if u.above >= ENTER_STEPS and not aside and not rest:
                 u.since, u.aside_until, u.aside_value, u.aside_since = now, None, None, None
         shown = [(s, measures[s]) for s in ORDER if (u := self.urgent.get(s)) and u.since is not None]
         return shown[0] if shown else None
@@ -293,7 +302,7 @@ class Board:
         return {"urgent": {s: {k: _plain(v) for k, v in asdict(u).items()} for s, u in self.urgent.items()},
                 "plan": plan, "calm": self.calm, "calm_normal": self.calm_normal, "asked": {s: list(v) for s, v in self.asked.items()},
                 "day": self.day, "today": self.today, "likely": self.likely, "likely_for": self.likely_for,
-                "airing": self.airing, "paused": self.paused}
+                "airing": self.airing, "paused": self.paused, "ended": _plain(self.ended)}
 
     def load(self, state: dict | None):
         state = state or {}
@@ -310,6 +319,7 @@ class Board:
         self.airing = state.get("airing")
         self.paused = state.get("paused")
         self.likely_for = state.get("likely_for")
+        self.ended = _when(state.get("ended"))
 
 
 def held_back(gesture: Gesture, safe: frozenset) -> bool:

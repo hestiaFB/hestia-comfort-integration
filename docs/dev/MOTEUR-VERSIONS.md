@@ -20,6 +20,14 @@ Chaque version a aussi sa ligne en mots simples dans [CHANGELOG-MOTEUR.md](../..
 
 ## Historique
 
+### 3.23.1 — 27 novembre 2026
+
+Maison en 3.23.0, 25-27/11. Salon · Cuisine le 27/11 : 5 demandes (chauffage 7 h 02, COV 10 h 27, poêle 12 h 02, particules 13 h 32 → 13 h 37, COV 13 h 42 → 13 h 57). Phrase sous « Rien à faire » : 15, 20, 16 et 11 changements de sujet du 24 au 27/11 (point.sh, critère 5).
+- `board.Board.ended` : l'heure où la dernière urgence montrée s'est finie (mesure sous `leave`). `urgent_now` : pendant `REST` = 60 min ensuite, une urgence n'entre que si sa mesure dépasse `enter + WORSE[subject]`. Gardé dans `state()` / `load()`. Une urgence mise de côté (patience passée) garde ses propres règles (`ASIDE`, `ASIDE_LEAST`).
+- `RoomAdvisor._calm_line` : sous « Rien à faire » (famille `calme`, sans `calm_reason` ni `en_pause`), la ligne garde son sujet (`phrase_subject`, la ligne sans ses chiffres) `LINE_HOLD` = 30 min ; même sujet avec d'autres chiffres : dit tout de suite. Un autre titre repart à zéro. `line_held` était déclaré sans servir.
+- Hors moteur, dans Confort 3.2.2 : la lumière ignore une pièce sans look (neutre), son état d'avant est gardé après un redémarrage, « Capteur muet ».
+- Tests : test_point_27_novembre.
+
 ### 3.23.0 — 25 novembre 2026
 
 Forum HACF, 25/11 : apprentissage à 0 % depuis des semaines, lieu Hestia Weather sans station (`outdoor_temperature` absent des sources de la maison). `_learn_twin` demandait les quatre sources, `AdvisorHome.learn` s'arrêtait sans `outdoor`.
