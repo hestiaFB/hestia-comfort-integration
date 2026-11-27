@@ -168,6 +168,24 @@ NO_OUTDOOR = {"title": "Conseil en attente", "regle": "waiting", "manque": "deho
               "phrase": "Pas de température du dehors : choisissez-la dans Réglages généraux."}
 NO_AIR = {"title": "Conseil en attente", "regle": "waiting", "manque": "temperature", "geste": "nothing",
           "phrase": "Pas de température lue dans cette pièce : vérifiez son capteur dans les réglages de la pièce."}
+MONTHS = ("janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre")
+
+
+def silent_sensor(state, now):
+    """A temperature sensor gone silent (unavailable or unknown), said with since when: « Conseil en attente » alone stayed
+    two days on a bathroom whose sensor's battery was flat (27 November). None when it is not silent."""
+    if state is None or state.state not in ("unavailable", "unknown"):
+        return None
+    changed = getattr(state, "last_changed", None)
+    when = ""
+    if changed is not None:
+        since = dt_util.as_local(changed)
+        hour = f"{since.hour} h" + (f" {since.minute:02d}" if since.minute else "")
+        day = "aujourd'hui" if since.date() == now.date() else f"le {since.day} {MONTHS[since.month - 1]}"
+        when = f" depuis {day} à {hour}"
+    return {**NO_AIR, "title": "Capteur muet", "muet": getattr(state, "entity_id", None),
+            "muet_depuis": changed.isoformat() if changed is not None else None,
+            "phrase": f"Le capteur de température ne répond plus{when} : vérifiez sa pile ou son appairage."}
 
 
 def result(hass, entry_id):
@@ -385,7 +403,8 @@ class AdvisorHome:
         if self.outdoor[0] is None:
             return NO_OUTDOOR
         if _number(self.hass, advisor.room["temperature"]) is None:
-            return NO_AIR
+            state = self.hass.states.get(advisor.room["temperature"]) if advisor.room["temperature"] else None
+            return silent_sensor(state, dt_util.as_local(dt_util.utcnow())) or NO_AIR
         return WAITING
 
     def _forecast_now(self, now):

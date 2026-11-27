@@ -1,5 +1,7 @@
 """« Lumières »: what a coloured light should do for a verdict, decided without Home Assistant (light_driver.py sends it)."""
 
+from .verdict import strongest
+
 # The look of each state when the person kept Hestia-FB's colours (frontend/lights.ts holds the same).
 DEFAULT_LOOKS = {"calm": {"colour": "#aad6e5", "effect": "keep", "brightness": 40},
                  "benefit": {"colour": "#a5d6ae", "effect": "solid", "brightness": 50},
@@ -19,6 +21,13 @@ def state_key(verdict):
     if verdict.get("gesture") == "keep_open":
         return "airing"
     return MOODS.get(verdict.get("mood"))
+
+
+def for_light(verdicts):
+    """The verdict a light follows among several (the whole home, or rooms sharing one air): the strongest of those that
+    have a look. A room « À vérifier » or « Conseil en attente » (a sensor gone silent) has none: counted, it outranked the
+    calm rooms and froze the light on its last gesture (27 November, a bathroom sensor silent for two days)."""
+    return strongest([v for v in verdicts if v and state_key(v) is not None])
 
 
 def is_night(hour):

@@ -62,7 +62,7 @@ export function countdown(a:Record<string,unknown>,now=Date.now()):string|null{
 export function level3(x:Advisor3):{level:Level;pill:string}{
   const a=x.attributes,rule=str(a.regle),gesture=str(a.geste)||'nothing',family=str(a.famille);
   if(rule==='doubtful')return {level:'neutral',pill:'À vérifier'};
-  if(rule==='waiting')return {level:'neutral',pill:'Démarrage'};
+  if(rule==='waiting')return {level:'neutral',pill:a.manque?'À vérifier':'Démarrage'};
   if(family){
     if(family==='securite')return {level:'urgent',pill:'Attention'};
     if(family==='urgence')return {level:'action',pill:'À faire'};
