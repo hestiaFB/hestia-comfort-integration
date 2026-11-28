@@ -1,5 +1,17 @@
 ## À venir
 
+## 3.2.3b1 — Moins de demandes au Salon · Cuisine
+
+### Améliorations
+
+- Une urgence ne revient plus juste après une autre. Une fois une urgence finie, aucune autre n'est montrée pendant une heure, sauf si la mesure dépasse franchement son seuil. Le 27 novembre, les particules puis le COV de la cuisine faisaient deux demandes en dix minutes.
+- La phrase sous « Rien à faire » garde son sujet au moins 30 minutes. Ses chiffres suivent toujours les mesures.
+
+### Moteur de conseil 3.23.1
+
+- Un repos d'une heure entre deux urgences, sauf mesure franchement plus haute.
+- La phrase sous « Rien à faire » tient son sujet 30 minutes.
+
 ## 3.2.2 — La lumière suit la maison, même avec un capteur muet
 
 ### Corrections

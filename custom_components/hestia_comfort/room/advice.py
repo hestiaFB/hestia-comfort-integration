@@ -104,6 +104,9 @@ GESTURE_KEYS = {"nothing": "none", "open": "open", "open_more": "open", "close":
 # « Rien à faire » while a measure stays out of its range or mark (advisor/words.py): « Au mieux », as the card says.
 # The pill under « Rien à faire » changes at most once in this many minutes (9 November: 159 changes in a day).
 PILL_MINUTES = 30
+# The line under « Rien à faire » changes its subject at most once in this many minutes; its figures follow the measures
+# (Salon · Cuisine, 24 to 27 November: 11 to 20 changes a day, the VOC, the range and « rien de mieux » taking turns).
+LINE_HOLD = 30
 BEYOND = re.compile(r"aucun geste ne ferait vraiment mieux|rien de mieux à faire pour l'instant|^(Ouverte ou fermée|Ouverte|Fermée) :", re.IGNORECASE)
 
 
@@ -533,7 +536,7 @@ class RoomAdvisor:
         self.banner = None
         # What the journal said last of this room: (title, to try, pill) — a reload does not write it again.
         self.journaled = None
-        # (title, rule, line, since) of the line said: its subject held LINE_HOLD under the same title.
+        # (title, shape, line, since) of the line said under « Rien à faire »: its subject held LINE_HOLD (`_calm_line`).
         self.line_held = None
         # The pill under « Rien à faire »: (a measure out of its range or mark, since when it says so) (PILL_MINUTES).
         self.measured_pill = None
@@ -1490,6 +1493,10 @@ class RoomAdvisor:
         if family == "calme" and not calm_reason and good and good[0].kind in ("open_warms", "open_cools"):
             # The tip itself, not what « À savoir » put before it (the rain, the night).
             words["line"] = tip_text(good[0], now=local)
+        if family == "calme" and not calm_reason and "en_pause" not in snap and words.get("line"):
+            words = {**words, "line": self._calm_line(words.get("title"), words["line"], now)}
+        else:
+            self.line_held = None
         # Which windows « Aérez » means, when not all of them: « Aérez 5 min côté Cuisine ».
         if shown_gesture.kind == "open" and self.side and words.get("title"):
             words = {**words, "title": TEXTS["fr"]["where"].format(title=words["title"],
@@ -1592,6 +1599,19 @@ class RoomAdvisor:
                 out.append({"heure": x["at"], "genre": "probable", "titre": day_title(x["kind"], x["minutes"]),
                             "detail": words["day_probable"]})
         return sorted(out, key=lambda i: i["heure"])
+
+    def _calm_line(self, title, line, now):
+        """The line under « Rien à faire », its subject held LINE_HOLD minutes: the same sentence with new figures is said at
+        once; another one waits until the one said has stood LINE_HOLD minutes."""
+        shape, held = phrase_subject(line), self.line_held
+        if held is not None and held[0] == title:
+            if held[1] == shape:
+                self.line_held = (title, shape, line, held[3])
+                return line
+            if now - held[3] < timedelta(minutes=LINE_HOLD):
+                return held[2]
+        self.line_held = (title, shape, line, now)
+        return line
 
     def _pill(self, current, air, marks, now) -> bool:
         """« Au mieux » (True) or « Tout va bien » (False) under « Rien à faire », on the measures as they are now: a

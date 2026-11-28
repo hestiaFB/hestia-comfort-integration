@@ -4,6 +4,15 @@ Le moteur de conseil de Hestia Confort a son propre numéro de version, à part 
 
 Chaque version de Confort dit quelle version du moteur elle contient. Le détail technique de chaque version est dans [docs/dev/MOTEUR-VERSIONS.md](docs/dev/MOTEUR-VERSIONS.md).
 
+## 3.23.1 — 27 novembre 2026
+
+Dans Confort 3.2.3b1.
+
+### Améliorations
+
+- Une urgence ne revient plus juste après une autre. Une fois une urgence finie (la mesure redescendue, ou l'aération faite), aucune autre n'est montrée pendant une heure, sauf si la mesure dépasse franchement son seuil (par exemple le COV au-dessus de 350 au lieu de 250). Le 27 novembre au Salon · Cuisine, les particules à 13 h 32 puis le COV à 13 h 42 faisaient deux demandes en dix minutes.
+- La phrase sous « Rien à faire » garde son sujet au moins 30 minutes. Ses chiffres suivent toujours les mesures. Au Salon · Cuisine, elle changeait 11 à 20 fois par jour, entre le COV, la plage et « rien de mieux ».
+
 ## 3.23.0 — 25 novembre 2026
 
 Dans Confort 3.2.0.
