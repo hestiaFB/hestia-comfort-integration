@@ -4,21 +4,23 @@ The person chose the light, when it may act (already on, or woken for a gesture 
 someone is home) and its look for each state. What the light was before Hestia-FB changed it is kept, and put back when the
 advice calms down or a safeguard stops it. A light switched off by hand is left alone until the advice changes.
 A WLED segment is a light of its own; when the strip has several, its main light is turned on with it, and put back."""
+from copy import deepcopy
 from datetime import timedelta
 import logging
 
 from homeassistant.core import callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .engine import light_plan
-from .engine.verdict import strongest
 from .entities import partner_coordinators, units
 from .websocket import loaded_entries
 
 _LOGGER = logging.getLogger(__name__)
 DRIVER = "hestia_comfort_lights"
+STORE = "hestia_comfort.lights"
 
 
 class LightDriver:
@@ -30,6 +32,28 @@ class LightDriver:
         self.kept, self.decided, self.silenced, self.mains = {}, {}, {}, {}
         # By WLED segment whose speed Hestia-FB changed: its speed entity and the speed it had.
         self.speeds = {}
+        # How the lights were before Hestia-FB, kept across restarts: forgotten, a light left orange by a gesture before a
+        # restart could never be put back (27 November, the LED stayed orange with the whole house calm).
+        self.store, self.saved = Store(hass, 1, STORE), None
+
+    async def async_load(self):
+        data = await self.store.async_load() or {}
+        self.kept = {k: v for k, v in (data.get("kept") or {}).items() if isinstance(v, dict)}
+        self.speeds = {k: tuple(v) for k, v in (data.get("speeds") or {}).items() if isinstance(v, list) and len(v) == 2}
+        self.mains = {k: {"kept": v.get("kept") or {"on": False}, "users": set(v.get("users") or ())}
+                      for k, v in (data.get("mains") or {}).items() if isinstance(v, dict)}
+        self.saved = deepcopy(self._memory())
+
+    def _memory(self):
+        return {"kept": self.kept, "speeds": {k: list(v) for k, v in self.speeds.items()},
+                "mains": {k: {"kept": v["kept"], "users": sorted(v["users"])} for k, v in self.mains.items()}}
+
+    def _save(self):
+        """Written only when what is remembered changed: nothing to write while the advice stays the same."""
+        memory = self._memory()
+        if memory != self.saved:
+            self.saved = deepcopy(memory)
+            self.store.async_delay_save(lambda: memory, 1)
 
     @callback
     def start(self):
@@ -61,13 +85,13 @@ class LightDriver:
 
     def verdict(self, follow):
         if follow == "home":
-            return strongest([v for _, v in units(self.hass, loaded_entries(self.hass))])
+            return light_plan.for_light([v for _, v in units(self.hass, loaded_entries(self.hass))])
         entry = self.hass.config_entries.async_get_entry(follow)
         coordinator = getattr(entry, "runtime_data", None)
         if coordinator is None or not getattr(coordinator, "data", None):
             return None
         views = [coordinator.data, *(c.data for c in partner_coordinators(self.hass, coordinator))]
-        return strongest([v["verdict"] for v in views if v and v.get("verdict")])
+        return light_plan.for_light([v["verdict"] for v in views if v and v.get("verdict")])
 
     def someone_home(self):
         zone = self.hass.states.get("zone.home")
@@ -120,6 +144,7 @@ class LightDriver:
                 self._wake_main(entity_id)
                 self._set_speed(entity_id, light_plan.speed(rule, key))
                 self._call("turn_on", entity_id, light_plan.fit(action[1], state.attributes))
+        self._save()
 
     def _main_of(self, entity_id):
         """The main light of a WLED strip cut into segments: a segment alone does not light the strip."""
@@ -246,5 +271,6 @@ async def async_start_lights(hass, configuration):
     if DRIVER not in hass.data:
         driver = LightDriver(hass, configuration)
         hass.data[DRIVER] = driver
+        await driver.async_load()
         driver.start()
     return hass.data[DRIVER]

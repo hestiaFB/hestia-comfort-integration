@@ -1,5 +1,18 @@
 ## À venir
 
+## 3.2.2 — La lumière suit la maison, même avec un capteur muet
+
+### Corrections
+
+- La lumière de Confort ne reste plus figée sur un ancien geste. Quand le capteur d'une pièce ne répondait plus, cette pièce passait en « Conseil en attente » et la lumière la suivait, au lieu du reste de la maison. Elle gardait alors la couleur du dernier geste, par exemple orange, alors que toutes les autres pièces disaient « Rien à faire ». Une pièce en attente ou à vérifier ne compte plus pour la lumière.
+- Après un redémarrage de Home Assistant, Confort se souvient de l'état de la lumière avant son changement. Il peut donc la remettre comme avant quand la maison redevient calme. Avant, il l'oubliait et la laissait dans la couleur du dernier geste.
+
+### Améliorations
+
+- Une pièce dont le capteur de température ne répond plus le dit : « Capteur muet », avec « ne répond plus depuis le 25 novembre à 1 h 43 : vérifiez sa pile ou son appairage ». La pastille dit « À vérifier » au lieu de « Démarrage ». Avant, la pièce restait sur « Conseil en attente » des jours durant.
+
+### Moteur de conseil 3.23.0 — inchangé
+
 ## 3.2.1 — Choisir une lumière ou une zone avec la recherche
 
 ### Améliorations

@@ -114,7 +114,8 @@ def banner_level(result: dict) -> tuple[str, str]:
     if rule == "doubtful":
         return "neutral", "À vérifier"
     if rule == "waiting":
-        return "neutral", "Démarrage"
+        # Past the start, a room that lacks a measure is to check, not starting (27 November: « Démarrage » for two days).
+        return "neutral", "À vérifier" if result.get("manque") else "Démarrage"
     if family:
         # One family, one colour, one pill (moteur 3.18.0, card/src/views/advisor3.ts `level3`): orange stays rare.
         if family == "securite":
